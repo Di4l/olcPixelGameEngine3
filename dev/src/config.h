@@ -1,0 +1,8 @@
+#pragma once
+
+#define PGE_PIXEL_LAYOUT_RGBA 1
+#define PGE_PIXEL_LAYOUT_ABGR 2
+
+#if !defined(PGE_PIXEL_LAYOUT)
+	#define PGE_PIXEL_LAYOUT PGE_PIXEL_LAYOUT_ABGR
+#endif
