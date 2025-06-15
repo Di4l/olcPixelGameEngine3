@@ -5,7 +5,7 @@
 #include "../src/config.h"
 #include "../src/pixel.h"
 
-int main()
+extern "C" void test_pixels()
 {
 	olc::Pixel p1;
 	olc::Pixel p2(olc::Colour::TANGERINE);
@@ -41,5 +41,6 @@ int main()
 	s.insert(p5);
 	s.insert(p6);
 	assert(s.size() == 3);
-	return 0;
+
+	std::cout << olc::Colour::TANGERINE << "\n";
 }

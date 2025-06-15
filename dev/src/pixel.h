@@ -1,7 +1,6 @@
 #pragma once
 
 //! STDHEADER START
-#include <unordered_map>
 #include <cstdint>
 #include <algorithm>
 #include <string>
@@ -13,7 +12,8 @@
 //! CUSTOMHEADER END
 
 
-//! DECLARATION START
+//! DECLARATION START 
+#if !defined(PGE_PIXEL_DECLARED)
 namespace olc
 {
 	class Pixel
@@ -61,7 +61,7 @@ namespace olc
 
 		// Construction via individual channels
 		inline constexpr Pixel(const uint8_t red, const uint8_t green, const uint8_t blue, const uint8_t alpha = 0xFF)
-			: r(red), g(green), b(blue), a(alpha)
+			: a(alpha), b(blue), g(green), r(red) 
 		{ }
 
 		// Construction via numeric assignment (e.g. #00DDBBFF)
@@ -265,6 +265,13 @@ namespace olc
 		return (p2 * t) + p1 * (T(1) - t);
 	}
 
+	// Allow olc::Pixel to play nicely with std::cout	
+	inline std::ostream& operator << (std::ostream& os, const olc::Pixel& rhs)
+	{
+		os << rhs.str();
+		return os;
+	}
+
 	// A small set of convenient colour constants
 #if PGE_SPELLING == PGE_SPELL_CORRECTLY
 	namespace Colour
@@ -273,9 +280,15 @@ namespace olc
 #endif
 	{
 		inline constexpr olc::Pixel
+#if PGE_SPELLING == PGE_SPELL_CORRECTLY
 			GREY(192, 192, 192), 
 			DARK_GREY(128, 128, 128), 
 			VERY_DARK_GREY(64, 64, 64),
+#else
+			GRAY(192, 192, 192),
+			DARK_GRAY(128, 128, 128),
+			VERY_DARK_GRAY(64, 64, 64),
+#endif
 			RED(255, 0, 0), 
 			DARK_RED(128, 0, 0), 
 			VERY_DARK_RED(64, 0, 0),
@@ -300,4 +313,7 @@ namespace olc
 			TANGERINE(255, 165, 0);
 	}
 }
+
+#define PGE_PIXEL_DECLARED 1
+#endif
 //! DECLARATION END

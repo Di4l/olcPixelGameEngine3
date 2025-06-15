@@ -1,5 +1,11 @@
 #pragma once
 
+// Version number (accessible as value for incremental comparisons)
+#define PGE_VER 300
+
+
+
+// Pixel Format in memory 													  
 #define PGE_PIXEL_LAYOUT_RGBA 1
 #define PGE_PIXEL_LAYOUT_ABGR 2
 
@@ -7,6 +13,9 @@
 	#define PGE_PIXEL_LAYOUT PGE_PIXEL_LAYOUT_ABGR
 #endif
 
+
+
+// Use UK spellings where appropriate
 #define PGE_SPELL_CORRECTLY 1
 #define PGE_SPELL_INCORRECTLY 2
 

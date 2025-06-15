@@ -21,9 +21,18 @@
     <ClInclude Include="..\src\config.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\vector2d.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\tests\test_pixels.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\tests\test_main.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\tests\test_vector2d.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
