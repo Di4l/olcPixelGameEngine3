@@ -1,9 +1,19 @@
 #pragma once
+
+//! STDHEADER START
 #include <unordered_map>
 #include <cstdint>
 #include <algorithm>
+#include <string>
+//! STDHEADER END
+ 
+
+//! CUSTOMHEADER START
+#include "config.h"
+//! CUSTOMHEADER END
 
 
+//! DECLARATION START
 namespace olc
 {
 	class Pixel
@@ -11,7 +21,7 @@ namespace olc
 	public:
 		union
 		{
-#pragma warning(disable:4201)
+#pragma warning(disable:4201) // Top MSVC whinging about anonymous structs
 			struct // Ooooohh be afraid, I'm anonymous! The C++ gremlins will come and get me!
 			{
 #if PGE_PIXEL_LAYOUT == PGE_PIXEL_LAYOUT_RGBA
@@ -44,41 +54,48 @@ namespace olc
 	public:
 		Pixel() = default;
 
-
 		// Construction via copy
 		inline constexpr Pixel(const olc::Pixel& col)
-		{
-			n = col.n;
-		}
+			: n(col.n)
+		{ }
 
 		// Construction via individual channels
 		inline constexpr Pixel(const uint8_t red, const uint8_t green, const uint8_t blue, const uint8_t alpha = 0xFF)
-		{
-			n = red | (green << 8) | (blue << 16) | (alpha << 24);
-		}
+			: r(red), g(green), b(blue), a(alpha)
+		{ }
 
 		// Construction via numeric assignment (e.g. #00DDBBFF)
 		inline constexpr Pixel(const uint32_t col)
-		{
-			n = col;
-		}
+			: n(col)
+		{ }
 
+		// Chromatically inverts pixel
 		inline constexpr Pixel inv() const
 		{
+			// Note we must force to a wider signed integer type to prohibit
+			// the values wrapping/truncating
 			uint8_t nR = uint8_t(std::clamp(255 - int(r), 0, 255));
 			uint8_t nG = uint8_t(std::clamp(255 - int(g), 0, 255));
 			uint8_t nB = uint8_t(std::clamp(255 - int(b), 0, 255));
 			return Pixel(nR, nG, nB, a);
 		}
 
+		// Test if two pixels ARE equal
 		inline constexpr bool operator==(const Pixel& p) const
 		{
 			return n == p.n;
 		}
 
+		// Test if two pixels ARE NOT equal
 		inline constexpr bool operator!=(const Pixel& p) const
 		{
 			return n != p.n;
+		}
+
+		// Compare memory values for use in hashed containers
+		inline constexpr bool operator < (const Pixel& p) const
+		{
+			return n < p.n;
 		}
 
 		// Scales pixel colours, except alpha
@@ -126,6 +143,8 @@ namespace olc
 		// Adds two pixels, except alpha
 		inline constexpr Pixel operator + (const Pixel& p) const
 		{
+			// Note we must force to a wider signed integer type to prohibit
+			// the values wrapping/truncating
 			uint8_t nR = uint8_t(std::clamp(int(r) + int(p.r), 0, 255));
 			uint8_t nG = uint8_t(std::clamp(int(g) + int(p.g), 0, 255));
 			uint8_t nB = uint8_t(std::clamp(int(b) + int(p.b), 0, 255));
@@ -135,6 +154,8 @@ namespace olc
 		// Subtracts two pixels, except alpha
 		inline constexpr Pixel operator - (const Pixel& p) const
 		{
+			// Note we must force to a wider signed integer type to prohibit
+			// the values wrapping/truncating
 			uint8_t nR = uint8_t(std::clamp(int(r) - int(p.r), 0, 255));
 			uint8_t nG = uint8_t(std::clamp(int(g) - int(p.g), 0, 255));
 			uint8_t nB = uint8_t(std::clamp(int(b) - int(p.b), 0, 255));
@@ -143,6 +164,8 @@ namespace olc
 
 		inline constexpr Pixel& operator += (const Pixel& p)
 		{
+			// Note we must force to a wider signed integer type to prohibit
+			// the values wrapping/truncating
 			this->r = uint8_t(std::clamp(int(r) + int(p.r), 0, 255));
 			this->g = uint8_t(std::clamp(int(g) + int(p.g), 0, 255));
 			this->b = uint8_t(std::clamp(int(b) + int(p.b), 0, 255));
@@ -151,10 +174,18 @@ namespace olc
 
 		inline constexpr Pixel& operator -= (const Pixel& p)
 		{
+			// Note we must force to a wider signed integer type to prohibit
+			// the values wrapping/truncating
 			this->r = uint8_t(std::clamp(int(r) - int(p.r), 0, 255));
 			this->g = uint8_t(std::clamp(int(g) - int(p.g), 0, 255));
 			this->b = uint8_t(std::clamp(int(b) - int(p.b), 0, 255));
 			return *this;
+		}
+
+		// Return RGBA string
+		inline constexpr std::string str() const
+		{
+			return std::string("(") + std::to_string(this->r) + "," + std::to_string(this->g) + "," + std::to_string(this->b) + "," + std::to_string(this->a) + ")";
 		}
 	};
 
@@ -221,19 +252,25 @@ namespace olc
 	}
 
 	// Construct pixel from W3 official names
-	inline constexpr Pixel PixelW3(std::string_view name, const float alpha = 1.0f)
+	inline constexpr Pixel PixelW3([[maybe_unused]] std::string_view name, [[maybe_unused]] const float alpha = 1.0f)
 	{
 		// TODO:
 		return Pixel();
 	}
 
-	inline constexpr Pixel PixelLerp(const olc::Pixel& p1, const olc::Pixel& p2, const float t)
+	template<typename T>
+	inline constexpr Pixel PixelLerp(const olc::Pixel& p1, const olc::Pixel& p2, const T t)
 	{
-		return (p2 * t) + p1 * (1.0f - t);
+		static_assert(std::is_floating_point<T>::value, "T must be a floating point type");
+		return (p2 * t) + p1 * (T(1) - t);
 	}
 
 	// A small set of convenient colour constants
+#if PGE_SPELLING == PGE_SPELL_CORRECTLY
 	namespace Colour
+#else
+	namespace Color
+#endif
 	{
 		inline constexpr olc::Pixel
 			GREY(192, 192, 192), 
@@ -259,6 +296,8 @@ namespace olc
 			VERY_DARK_MAGENTA(64, 0, 64),
 			WHITE(255, 255, 255), 
 			BLACK(0, 0, 0), 
-			BLANK(0, 0, 0, 0);
+			BLANK(0, 0, 0, 0),
+			TANGERINE(255, 165, 0);
 	}
 }
+//! DECLARATION END
