@@ -4,6 +4,7 @@
 #include <cmath>
 #include <cstdint>
 #include <string>
+#include <array>
 //! STDHEADER END
 
 //! CUSTOMHEADER START
@@ -23,10 +24,20 @@ namespace olc
 	{
 		static_assert(std::is_arithmetic<T>::value, "olc::v_2d<type> must be numeric");
 
-		// x-axis component
-		T x = 0;
-		// y-axis component
-		T y = 0;
+		union
+		{
+#pragma warning(disable:4201) // Top MSVC whinging about anonymous structs
+			struct
+			{
+				// x-axis component
+				T x;
+				// y-axis component
+				T y;
+			};
+#pragma warning(default:4201)
+
+			std::array<T, 2> xy = { {0,0} };
+		};
 
 		// Default constructor
 		inline constexpr v_2d() = default;
@@ -44,7 +55,7 @@ namespace olc
 
 		inline constexpr std::array<T, 2> a() const
 		{
-			return std::array<T, 2>{x, y};
+			return xy;
 		}
 
 		// Returns rectangular area of vector
@@ -66,7 +77,7 @@ namespace olc
 		}
 
 		// Returns normalised version of vector
-		inline v_2d norm() const
+		inline constexpr v_2d norm() const
 		{
 			auto r = 1 / mag();
 			return v_2d(x * r, y * r);
