@@ -17,7 +17,7 @@ permissions:
   contents: read
 
 jobs:
-  build:
+  windows:
     runs-on: windows-latest
 
     steps:
@@ -31,3 +31,18 @@ jobs:
 
     - name: Execute Test
       run: .\dev\tests\build\Release\pge3_test.exe
+
+  ubuntu:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Build
+      working-directory: ./dev/tests
+      run: |
+        cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+        cmake --build build --config=Release
+
+    - name: Execute Test
+      run: .\dev\tests\build\pge3_test
