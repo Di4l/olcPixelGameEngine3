@@ -1,6 +1,7 @@
 #pragma once
 
 //! STDHEADER START
+#include <cmath>
 #include <cstdint>
 #include <algorithm>
 #include <string>
