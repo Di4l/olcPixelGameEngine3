@@ -1,0 +1,34 @@
+name: Build
+
+on:
+  push:
+  pull_request:
+    branches:
+      - develop
+      - main
+  workflow_dispatch:
+    input:
+      reason:
+        description: 'Reason for manual trigger'
+        required: false
+        default: 'Manual run'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Build
+      working-directory: ${{env.GITHUB_WORKSPACE}}/dev/tests
+      run: |
+        cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+        cmake --build build --config=Release
+
+    # - name: Execute Test
+    #   working-directory: ${{env.GITHUB_WORKSPACE}}
+    #   run: .\dev\msvc\x64\Release\olcPGE3.exe
