@@ -68,7 +68,7 @@ jobs:
     - name: Build
       working-directory: ./dev/tests
       run: |
-        cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+        cmake -S . -B build -G Xcode -DCMAKE_BUILD_TYPE=Release
         cmake --build build --config=Release
 
     - name: Execute Test
