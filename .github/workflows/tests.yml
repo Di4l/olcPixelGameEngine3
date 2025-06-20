@@ -72,4 +72,4 @@ jobs:
         cmake --build build --config=Release
 
     - name: Execute Test
-      run: ./dev/tests/build/pge3_test
+      run: ./dev/tests/build/Release/pge3_test
