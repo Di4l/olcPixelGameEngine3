@@ -1,6 +1,7 @@
 #pragma once
 
 //! STDHEADER START
+#include <cmath>
 #include <cstdint>
 #include <algorithm>
 #include <string>
@@ -200,17 +201,17 @@ namespace olc
 	// works around that restriction.
 	namespace internal
 	{
-		 template<typename T>
-		 constexpr T abs(T v)
-		 {
-			 return std::abs(v);
-		 }
+		template<typename T>
+		constexpr T abs(T v)
+		{
+			return std::abs(v);
+		}
 
-		 template<typename T>
-		 constexpr T fmodf(T v, T u)
-		 {
-			 return std::fmodf(v, u);
-		 }
+		template<typename T>
+		constexpr T fmodf(T v, T u)
+		{
+			return ::fmodf(v, u);
+		}
 	}
 
 	// Construct pixel from HSV values
