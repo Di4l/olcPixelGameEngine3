@@ -2,19 +2,17 @@
 
 <p>
     This is the <a href="https://developer.apple.com/xcode/">XCode</a> project for MacOS.<br/>
-</p>
-<p>
     To launch this project in XCode:
-    <ul>
-        <li>Launch XCode </li>
-        <li>Select Code a Project </li>
-        <li>Enter this repo git link </li>
-        <li>Clone... </li>
-    </ul>
-    Once the project is cloned, XCode will automatically detect the olcPGE3.xcodeproj folder and load the solution for you.<br/>
-    <br/>
-    Finally althought the olcPGE3.xcodeproj is displayed as a folder in GitHub, XCode will detected and display it as an XCode project
 </p>
+
+    
+<ul>
+    <li>Launch XCode and select **Clone and existing project** <br/> <img src="https://github.com/user-attachments/assets/6f3bab51-06e9-422d-acb8-27f5bfbce974"/></li>
+    <li>Enter the repo git link and click **Clone** <br/> <img src="https://github.com/user-attachments/assets/48273ab4-5941-43b0-ad2c-33adb70be23c" /> </li>
+    <li>Once the project is cloned, XCode will automatically detect the olcPGE3.xcodeproj folder and load the solution for you</li>
+    <li>Finally althought the olcPGE3.xcodeproj is displayed as a folder in GitHub, XCode will detected and display it as an XCode project <br/> <img src="https://github.com/user-attachments/assets/83453229-f3df-4f7f-a919-b842179abe64" /> </li>
+
+</ul>
 
 <p>
     <b>Some simple rules:</b>
