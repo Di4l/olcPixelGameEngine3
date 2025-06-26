@@ -1,0 +1,75 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+    branches:
+      - develop
+      - main
+  workflow_dispatch:
+    input:
+      reason:
+        description: 'Reason for manual trigger'
+        required: false
+        default: 'Manual run'
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Dependencies
+      run: |
+        echo "Placeholder for the future installation of depenedencies"
+
+    - name: Build
+      working-directory: .\dev\tests
+      run: |
+        cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+        cmake --build build --config=Release
+
+    - name: Execute Test
+      run: .\dev\tests\build\Release\pge3_test.exe
+
+  ubuntu:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Dependencies
+      run: |
+        echo "Placeholder for the future installation of depenedencies"
+
+    - name: Build
+      working-directory: ./dev/tests
+      run: |
+        cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+        cmake --build build --config=Release
+
+    - name: Execute Test
+      run: ./dev/tests/build/pge3_test
+
+  mac:
+    runs-on: macos-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install Dependencies
+      run: |
+        brew install cmake
+
+    - name: Build
+      working-directory: ./dev/tests
+      run: |
+        cmake -S . -B build -G Xcode -DCMAKE_BUILD_TYPE=Release
+        cmake --build build --config=Release
+
+    - name: Execute Test
+      run: ./dev/tests/build/Release/pge3_test

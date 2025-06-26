@@ -33,3 +33,5 @@
 /.vs
 /dev/msvc/.vs/olcPGE3
 /dev/msvc/olcPGE3/x64/Debug
+/dev/tests/build
+/dev/msvc/olcPGE3_BuildSH/x64/Debug
