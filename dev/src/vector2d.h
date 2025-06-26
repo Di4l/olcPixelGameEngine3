@@ -1,17 +1,17 @@
 #pragma once
 
-//! STDHEADER START
+//! START STDHEADER GLOBAL
 #include <cmath>
 #include <cstdint>
 #include <string>
 #include <array>
-//! STDHEADER END
+//! END STDHEADER
 
-//! CUSTOMHEADER START
+//! START CUSTOMHEADER
 #include "config.h"
-//! CUSTOMHEADER END
+//! END CUSTOMHEADER
 
-//! DECLARATION START 
+//! START DECLARATION
 #if !defined(PGE_VECTOR2D_DECLARED)
 namespace olc
 {
@@ -335,4 +335,4 @@ namespace olc
 }
 #define PGE_VECTOR2D_DECLARED 1
 #endif
-//! DECLARATION END
+//! END DECLARATION
