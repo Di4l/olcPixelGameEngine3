@@ -23,6 +23,10 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Install Dependencies
+      run: |
+        echo "Placeholder for the future installation of depenedencies"
+
     - name: Build
       working-directory: .\dev\tests
       run: |
@@ -38,6 +42,10 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Install Dependencies
+      run: |
+        echo "Placeholder for the future installation of depenedencies"
+
     - name: Build
       working-directory: ./dev/tests
       run: |
@@ -46,3 +54,22 @@ jobs:
 
     - name: Execute Test
       run: ./dev/tests/build/pge3_test
+
+  mac:
+    runs-on: macos-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install Dependencies
+      run: |
+        brew install cmake
+
+    - name: Build
+      working-directory: ./dev/tests
+      run: |
+        cmake -S . -B build -G Xcode -DCMAKE_BUILD_TYPE=Release
+        cmake --build build --config=Release
+
+    - name: Execute Test
+      run: ./dev/tests/build/Release/pge3_test
