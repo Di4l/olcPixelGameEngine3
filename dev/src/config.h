@@ -1,5 +1,6 @@
 #pragma once
 
+//! START CONFIGURATION
 // Version number (accessible as value for incremental comparisons)
 #define PGE_VER 300
 
@@ -22,3 +23,4 @@
 #if !defined(PGE_SPELLING)
 	#define PGE_SPELLING PGE_SPELL_CORRECTLY
 #endif
+//! END CONFIGURATION

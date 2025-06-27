@@ -1,19 +1,21 @@
 #pragma once
 
-//! STDHEADER START
+//! START STDHEADER GLOBAL
 #include <cmath>
 #include <cstdint>
 #include <algorithm>
 #include <string>
-//! STDHEADER END
+#include <unordered_map>
+#include <iostream>
+//! END STDHEADER
  
 
-//! CUSTOMHEADER START
+//! START CUSTOMHEADER GLOBAL
 #include "config.h"
-//! CUSTOMHEADER END
+//! END CUSTOMHEADER
 
 
-//! DECLARATION START 
+//! START DECLARATION
 #if !defined(PGE_PIXEL_DECLARED)
 namespace olc
 {
@@ -59,6 +61,14 @@ namespace olc
 		inline constexpr Pixel(const olc::Pixel& col)
 			: n(col.n)
 		{ }
+
+		// Construction via copy
+		inline constexpr Pixel(const olc::Pixel& col, const uint8_t alpha)
+			: n(col.n)
+		{		
+			a = alpha;
+		}
+
 
 		// Construction via individual channels
 		inline constexpr Pixel(const uint8_t red, const uint8_t green, const uint8_t blue, const uint8_t alpha = 0xFF)
@@ -184,7 +194,7 @@ namespace olc
 		}
 
 		// Return RGBA string
-		inline constexpr std::string str() const
+		inline std::string str() const
 		{
 			return std::string("(") + std::to_string(this->r) + "," + std::to_string(this->g) + "," + std::to_string(this->b) + "," + std::to_string(this->a) + ")";
 		}
@@ -252,13 +262,6 @@ namespace olc
 		return olc::PixelF(rawRed + m, rawGreen + m, rawBlue + m, alpha);
 	}
 
-	// Construct pixel from W3 official names
-	inline constexpr Pixel PixelW3([[maybe_unused]] std::string_view name, [[maybe_unused]] const float alpha = 1.0f)
-	{
-		// TODO:
-		return Pixel();
-	}
-
 	template<typename T>
 	inline constexpr Pixel PixelLerp(const olc::Pixel& p1, const olc::Pixel& p2, const T t)
 	{
@@ -273,23 +276,13 @@ namespace olc
 		return os;
 	}
 
-	// A small set of convenient colour constants
-#if PGE_SPELLING == PGE_SPELL_CORRECTLY
+	// A small set of convenient "olc::classic" colour constants
 	namespace Colour
-#else
-	namespace Color
-#endif
 	{
 		inline constexpr olc::Pixel
-#if PGE_SPELLING == PGE_SPELL_CORRECTLY
 			GREY(192, 192, 192), 
 			DARK_GREY(128, 128, 128), 
 			VERY_DARK_GREY(64, 64, 64),
-#else
-			GRAY(192, 192, 192),
-			DARK_GRAY(128, 128, 128),
-			VERY_DARK_GRAY(64, 64, 64),
-#endif
 			RED(255, 0, 0), 
 			DARK_RED(128, 0, 0), 
 			VERY_DARK_RED(64, 0, 0),
@@ -317,4 +310,4 @@ namespace olc
 
 #define PGE_PIXEL_DECLARED 1
 #endif
-//! DECLARATION END
+//! END DECLARATION
