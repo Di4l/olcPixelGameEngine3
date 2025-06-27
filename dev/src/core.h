@@ -57,7 +57,7 @@ namespace olc
 
 	public:
 		bool Construct(const olc::vi2d& vScreenSize, const olc::vi2d& vPixelSize, bool bFullScreen = false);
-		bool Construct(const PGEConfig& config = PGEConfig{});
+		bool Construct(const PGEConfig& cfg = PGEConfig{});
 
 	public:
 		bool Start();
@@ -76,7 +76,9 @@ namespace olc
 		// Frame Timing & Overall Clocking
 		std::chrono::steady_clock::time_point timeFrame1;
 		std::chrono::steady_clock::time_point timeFrame2;
-		std::chrono::duration<float> durationFrame;
+		std::chrono::duration<float> durationFrame{ 0 };
+
+		PGEConfig config;
 	};
 }
 #define PGE_CORE_DECLARED 1

@@ -13,11 +13,17 @@ namespace olc
 
 	bool PixelGameEngine::Construct(const olc::vi2d& vScreenSize, const olc::vi2d& vPixelSize, bool bFullScreen)
 	{
+		config.vScreenSize = vScreenSize;
+		config.vPixelSize = vPixelSize;
+		config.bFullScreen = bFullScreen;
+
 		return false;
 	}
 
-	bool PixelGameEngine::Construct(const PGEConfig& config)
-	{
+	bool PixelGameEngine::Construct(const PGEConfig& cfg)
+	{		
+		config = cfg;
+
 		return false;
 	}
 

@@ -45,7 +45,7 @@
     <ClInclude Include="..\src\host_win_winapi.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\matrix2d.h">
+    <ClInclude Include="..\src\matrix3d.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\src\transform2d.h">
@@ -73,6 +73,9 @@
     </ClCompile>
     <ClCompile Include="..\src\window.cpp">
       <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\tests\test_matrices.cpp">
+      <Filter>Source Files\tests</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

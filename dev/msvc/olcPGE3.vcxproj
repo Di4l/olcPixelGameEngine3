@@ -182,7 +182,7 @@
     <ClInclude Include="..\src\host_web_emscripten.h" />
     <ClInclude Include="..\src\host_win_winapi.h" />
     <ClInclude Include="..\src\image.h" />
-    <ClInclude Include="..\src\matrix2d.h" />
+    <ClInclude Include="..\src\matrix3d.h" />
     <ClInclude Include="..\src\pixel.h" />
     <ClInclude Include="..\src\sh_template.h" />
     <ClInclude Include="..\src\transform2d.h" />
@@ -198,6 +198,7 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
     </ClCompile>
+    <ClCompile Include="..\tests\test_matrices.cpp" />
     <ClCompile Include="..\tests\test_pixels.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</ExcludedFromBuild>

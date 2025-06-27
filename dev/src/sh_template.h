@@ -14,7 +14,11 @@
 //! GRAB pixel.h DECLARATION
 
 //! GRAB vector2d.h DECLARATION
-//! 
+
+//! GRAB matrix3d.h DECLARATION
+
+//! GRAB transform2d.h DECLARATION
+
 //! GRAB window.h DECLARATION
 
 //! GRAB core.h	DECLARATION
