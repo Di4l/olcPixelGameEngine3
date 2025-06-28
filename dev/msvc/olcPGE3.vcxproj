@@ -177,6 +177,8 @@
   <ItemGroup>
     <ClInclude Include="..\src\config.h" />
     <ClInclude Include="..\src\core.h" />
+    <ClInclude Include="..\src\draw2d.h" />
+    <ClInclude Include="..\src\gputask.h" />
     <ClInclude Include="..\src\host_lin_wayland.h" />
     <ClInclude Include="..\src\host_lin_x11.h" />
     <ClInclude Include="..\src\host_web_emscripten.h" />
@@ -184,6 +186,7 @@
     <ClInclude Include="..\src\image.h" />
     <ClInclude Include="..\src\matrix3d.h" />
     <ClInclude Include="..\src\pixel.h" />
+    <ClInclude Include="..\src\polyform.h" />
     <ClInclude Include="..\src\sh_template.h" />
     <ClInclude Include="..\src\transform2d.h" />
     <ClInclude Include="..\src\vector2d.h" />

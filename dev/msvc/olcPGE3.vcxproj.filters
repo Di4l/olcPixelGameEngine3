@@ -57,6 +57,15 @@
     <ClInclude Include="..\src\sh_template.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\draw2d.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\polyform.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\gputask.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\tests\test_main.cpp">
