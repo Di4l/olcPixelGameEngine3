@@ -9,6 +9,9 @@
 
 //! START CUSTOMHEADER
 #include "config.h"
+#include "pixel.h"
+#include "vector2d.h"
+#include "gputask.h"
 //! END CUSTOMHEADER
 
 //! START DECLARATION
@@ -17,7 +20,17 @@ namespace olc
 {	
 	namespace polyformer
 	{
+		using namespace pgeguts;
 
+		//namespace internal 
+		//{
+		//	auto vectorzip(const auto& src1, const auto& src2)
+		//	{
+
+		//	}
+		//}
+		
+		
 	}
 }
 #define PGE_POLYFORM_DECLARED 1

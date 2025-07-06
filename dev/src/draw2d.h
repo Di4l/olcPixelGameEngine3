@@ -16,7 +16,7 @@
 //! END CUSTOMHEADER
 
 //! START DECLARATION
-#if !defined(PGE_IMAGE_DECLARED)
+#if !defined(PGE_DRAW2D_DECLARED)
 namespace olc
 {
 	class Draw2D

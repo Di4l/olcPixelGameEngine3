@@ -1,9 +1,12 @@
 #include "core.h"
 
+#include "gpu_opengl33.h"
+#include "host_win_winapi.h"
+
 //! START IMPLEMENTATION
 namespace olc
 {
-	PixelGameEngine::PixelGameEngine()
+	PixelGameEngine::PixelGameEngine() : Window()
 	{
 	}
 
@@ -17,7 +20,7 @@ namespace olc
 		config.vPixelSize = vPixelSize;
 		config.bFullScreen = bFullScreen;
 
-		return false;
+		return true;
 	}
 
 	bool PixelGameEngine::Construct(const PGEConfig& cfg)
@@ -29,7 +32,25 @@ namespace olc
 
 	bool PixelGameEngine::Start()
 	{
-		return false;
+		// Initialise Host Interface
+		host = std::make_unique<olc::host::Host_Windows_WinAPI>();
+		
+
+		// Link this olc::Window to a host resource
+		if (host)
+			host->AddWindowFrame(this, { 30,30 }, { 250, 240 }, false);
+		
+		coreActive = true;
+		coreThread = std::thread(&PixelGameEngine::EngineThread, this);
+
+		// This will block depending upon the system
+		host->StartSystemEventLoop();
+
+		// Gracefully terminate the main engine thread
+		coreActive = false;
+		coreThread.join();
+
+		return true;
 	}
 
 	bool PixelGameEngine::OnUserCreate()
@@ -47,8 +68,30 @@ namespace olc
 		return false;
 	}
 
+	bool PixelGameEngine::olc_PrimaryWindowInit()
+	{
+		// Called by window to initialise core systems. Sub windows should ignore this
+		return false;
+	}
+
 	void PixelGameEngine::EngineThread()
 	{
+		using namespace std::chrono_literals;
+		timeFrame2 = std::chrono::steady_clock::now();
+		timeFrame1 = std::chrono::steady_clock::now();
+		
+
+		// Initialise GPU Interface	- This thread is the context
+		olc::gpu::RendererConfig cfgRenderer;
+		gpu = std::make_unique<olc::gpu::Renderer_OGL33>();
+		gpu->CreateDevice({ nullptr }, cfgRenderer);
+
+
+		// Initialise Input Devices
+
+
+		durationFrameCount = 0s;
+
 		while (true)
 		{
 			// Frame Delta Timing - "ElapsedTime" since last core update
@@ -65,11 +108,22 @@ namespace olc
 			// and resource management. That is not olc::PGE.
 
 			timeFrame1 = std::chrono::steady_clock::now();
-			durationFrame = timeFrame2 - timeFrame1;
-			timeFrame1 = timeFrame2;
+			durationFrame = timeFrame1 - timeFrame2;
+			timeFrame2 = timeFrame1;
 
 			// Our time per frame coefficient
 			float fDT = durationFrame.count();
+
+			frameCount++;
+			durationFrameCount += durationFrame;
+			
+			if (durationFrameCount >= 1s)
+			{
+				durationFrameCount -= 1s;
+				std::string sTitle = "OneLoneCoder.com - Pixel Game Engine 3 - Test - FPS: " + std::to_string(frameCount);
+				SetTitle(sTitle);
+				frameCount = 0;
+			}
 
 			// Primary Window
 			olc_WindowUpdate(fDT);
@@ -79,12 +133,15 @@ namespace olc
 				winChild->olc_WindowUpdate(fDT);
 
 			// Remove child windows that have requested closure
-			deqChildWindows.erase(std::remove_if(deqChildWindows.begin(), deqChildWindows.end(),
-				[](const std::unique_ptr<Window>& w)
-				{
-					return w->olc_ShouldRemove();
-				}
-			));
+			if (!deqChildWindows.empty())
+			{
+				deqChildWindows.erase(std::remove_if(deqChildWindows.begin(), deqChildWindows.end(),
+					[](const std::shared_ptr<Window>& w)
+					{
+						return w->olc_ShouldRemove();
+					}
+				));
+			}
 		}
 	}
 }

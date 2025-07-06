@@ -10,6 +10,7 @@
 //! START CUSTOMHEADER
 #include "config.h"
 #include "pixel.h"
+#include "transform2d.h"
 //! END CUSTOMHEADER
 
 //! START DECLARATION
@@ -46,6 +47,9 @@ namespace olc
 			// Use depth components
 			bool bDepth = false;
 
+			// Use hardware wire drawing
+			bool bWireframe = false;
+
 			// Overall biasing colour (great for blends)
 			olc::Pixel tint = olc::Colour::WHITE;
 
@@ -75,6 +79,42 @@ namespace olc
 				CounterClockWise
 			} cullmode = CullMode::None;
 		};
+
+
+
+		//// Construct a wireframe polygon
+		//GPUTask DrawPolygon2D(
+		//	const GPUTask::Structure format,
+		//	const olc::tf2d& transform,
+		//	const std::vector<olc::vf2d>& vPoints,
+		//	const std::vector<olc::Pixel>& vColours,
+		//	const olc::Pixel tint = olc::Colour::WHITE)
+		//{
+		//	GPUTask task;
+		//	task.structure = format;
+		//	task.bDepth = false;
+		//	task.tint = tint;
+		//	task.cullmode = GPUTask::CullMode::None;
+		//	task.bWireframe = true;
+
+		//	const auto& m = transform.forward_matrix().m;
+		//	task.mvpMatrix = { {
+		//		m[0], m[1], m[2], 0.0f,
+		//		m[3], m[4], m[5], 0.0f,
+		//		m[6], m[7], m[8], 0.0f,
+		//		0.0f, 0.0f, 0.0f, 1.0f
+		//	} };
+
+		//	// Pseudo-zip construct vertex buffer
+		//	size_t nFullVerts = std::min({ vPoints.size(), vColours.size() });
+		//	task.vertexBuffer.resize(nFullVerts);
+		//	for (size_t i = 0; i < nFullVerts; i++)
+		//	{
+		//		task.vertexBuffer[i] = { vPoints[i].x, vPoints[i].y, 0.0f, 1.0f, 0.0f, 0.0f, vColours[i] };
+		//	}
+
+		//	return task;
+		//}
 	}
 }
 #define PGE_GPUTASK_DECLARED 1

@@ -1,50 +1,40 @@
 #pragma once
 
-//! STDHEADER START
+//! START STDHEADER
 #include <cmath>
 #include <cstdint>
 #include <string>
 #include <array>
 #include <vector>
 #include <memory>
-//! STDHEADER END
+//! END STDHEADER
 
-//! CUSTOMHEADER START
+//! START CUSTOMHEADER
 #include "config.h"
 #include "vector2d.h"
 #include "pixel.h"
-//! CUSTOMHEADER END
+//! END CUSTOMHEADER
 
-//! DECLARATION START 
+//! START DECLARATION
 #if !defined(PGE_IMAGE_DECLARED)
 namespace olc
 {
+	struct ImageConfig
+	{
+		bool Filtered = false;
+		bool Clamp = false;
+	};
+
 	class ImageCPU
 	{
 	public:
 		ImageCPU() = default;
-
-		ImageCPU(const olc::vi2d& size) : dimensions(size)
-		{
-			pixels.resize(dimensions.area(), olc::Pixel(255,165,0));
-		}
-
-		virtual ~ImageCPU()
-		{
-			pixels.clear();
-		}
-
+		ImageCPU(const olc::vi2d& size);
+		virtual ~ImageCPU();
 
 	public:
-		const olc::vi2d& Size() const
-		{
-			return dimensions;
-		}
-
-		olc::Pixel* Data()
-		{
-			return pixels.data();
-		}
+		const olc::vi2d& Size() const;
+		olc::Pixel* Data();
 
 	public:
 		olc::vi2d dimensions;
@@ -62,31 +52,12 @@ namespace olc
 	{
 	public:
 		// Constructs a general purpose image
-		Image(const olc::vi2d& size, const bool onCPU = true, const bool onGPU = true)
-		{
-			// Always create CPU resident image
-			imCPU = std::make_unique<olc::ImageCPU>(size);
-			
-			if (onGPU)
-			{
-				
-			}
-
-			if (!onCPU)
-				imCPU.reset();
-		}
-
+		Image(const olc::vi2d& size, const bool onCPU = true, const bool onGPU = true);
 
 	public:
-		inline constexpr bool InCPU() const
-		{
-			return imCPU != nullptr;
-		}
+		bool InCPU() const;
+		bool InGPU() const;
 
-		inline constexpr bool InGPU() const
-		{
-			return imGPU != nullptr;
-		}
 
 	protected:
 		std::unique_ptr<olc::ImageCPU> imCPU = nullptr;
@@ -95,4 +66,4 @@ namespace olc
 }
 #define PGE_IMAGE_DECLARED 1
 #endif
-//! DECLARATION END
+//! END DECLARATION

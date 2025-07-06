@@ -9,6 +9,7 @@
 #include <memory>
 #include <deque>
 #include <chrono>
+#include <thread>
 //! END STDHEADER GLOBAL
 
 //! START CUSTOMHEADER GLOBAL
@@ -16,6 +17,8 @@
 #include "pixel.h"
 #include "vector2d.h"
 #include "window.h"
+#include "gpu_iface.h"
+#include "host_iface.h"
 //! END CUSTOMHEADER GLOBAL
 
 //! START DECLARATION
@@ -67,18 +70,29 @@ namespace olc
 		bool OnUserUpdate(float fElapsedTime) override;
 		bool OnUserDestroy() override;
 
+	protected:
+		bool olc_PrimaryWindowInit() override;
+
 	private:
 		void EngineThread();
 
 	private:
-		std::deque<std::unique_ptr<Window>> deqChildWindows;
+		std::deque<std::shared_ptr<Window>> deqChildWindows;
 
 		// Frame Timing & Overall Clocking
 		std::chrono::steady_clock::time_point timeFrame1;
 		std::chrono::steady_clock::time_point timeFrame2;
 		std::chrono::duration<float> durationFrame{ 0 };
+		std::chrono::duration<float> durationFrameCount{ 0 };
+		size_t frameCount = 0;
 
 		PGEConfig config;
+
+		std::thread coreThread;
+		std::atomic<bool> coreActive;
+
+		std::unique_ptr<olc::gpu::Renderer> gpu;
+		std::unique_ptr<olc::host::Host> host;
 	};
 }
 #define PGE_CORE_DECLARED 1
