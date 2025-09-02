@@ -1,98 +1,71 @@
 #pragma once
 
-//! STDHEADER START
+//! START STDHEADER
 #include <cmath>
 #include <cstdint>
 #include <string>
 #include <array>
 #include <vector>
 #include <memory>
-//! STDHEADER END
+//! END STDHEADER
 
-//! CUSTOMHEADER START
+//! START CUSTOMHEADER
 #include "config.h"
 #include "vector2d.h"
 #include "pixel.h"
-//! CUSTOMHEADER END
+//! END CUSTOMHEADER
 
-//! DECLARATION START 
+//! START DECLARATION
 #if !defined(PGE_IMAGE_DECLARED)
 namespace olc
 {
-	class ImageCPU
+	struct ImageConfig
 	{
-	public:
-		ImageCPU() = default;
-
-		ImageCPU(const olc::vi2d& size) : dimensions(size)
-		{
-			pixels.resize(dimensions.area(), olc::Pixel(255,165,0));
-		}
-
-		virtual ~ImageCPU()
-		{
-			pixels.clear();
-		}
-
-
-	public:
-		const olc::vi2d& Size() const
-		{
-			return dimensions;
-		}
-
-		olc::Pixel* Data()
-		{
-			return pixels.data();
-		}
-
-	public:
-		olc::vi2d dimensions;
-		std::vector<olc::Pixel> pixels;
-	};
-
-	struct ImageGPU
-	{
-		olc::vf2d size;
-		olc::vf2d invsize;
-		int32_t resourceID = -1;
+		bool Filtered = false;
+		bool Clamp = false;
+		bool InRAM = true;
+		bool InVRAM = true;
 	};
 
 	class Image
 	{
 	public:
 		// Constructs a general purpose image
-		Image(const olc::vi2d& size, const bool onCPU = true, const bool onGPU = true)
-		{
-			// Always create CPU resident image
-			imCPU = std::make_unique<olc::ImageCPU>(size);
-			
-			if (onGPU)
-			{
-				
-			}
-
-			if (!onCPU)
-				imCPU.reset();
-		}
-
+		Image() = default;
+		virtual ~Image() = default;
 
 	public:
-		inline constexpr bool InCPU() const
-		{
-			return imCPU != nullptr;
-		}
+		bool Create(const olc::vi2d& size, const ImageConfig& cfg = olc::ImageConfig());
 
-		inline constexpr bool InGPU() const
-		{
-			return imGPU != nullptr;
-		}
+	public:
+		// Returns size (x, y) in pixels
+		const olc::vi2d& Size() const;
+		// Returns read/write pointer to start of 1D stream of pixel data
+		olc::Pixel* Data();
+		// Returns how this image was configured upon creation
+		const ImageConfig& GetConfig() const;
+		// Return GPU Resource ID
+		int32_t GetGPUID() const;
+		// Set GPU Resource ID (0 to eliminate)
+		void SetGPUID(const int32_t id);
+		
+		// True if data mirror has in-front RAM image		
+		bool HasWetCPU() const;
+		// True if data mirror has in-front VRAM image
+		bool HasWetGPU() const;
+
+		void PrimeCPU();
+		void PrimeGPU();
 
 	protected:
-		std::unique_ptr<olc::ImageCPU> imCPU = nullptr;
-		std::unique_ptr<olc::ImageGPU> imGPU = nullptr;
+		ImageConfig config;
+		olc::vi2d dimensions;
+		std::vector<olc::Pixel> pixels;
+		int32_t gpuResourceID = 0;
+		bool gpuWet = false;
+		bool cpuWet = true;
 	};
 }
 #define PGE_IMAGE_DECLARED 1
 #endif
-//! DECLARATION END
+//! END DECLARATION

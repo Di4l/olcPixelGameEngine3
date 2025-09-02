@@ -23,4 +23,53 @@
 #if !defined(PGE_SPELLING)
 	#define PGE_SPELLING PGE_SPELL_CORRECTLY
 #endif
+
+
+// Choose "Operating System"
+#define OLC_HOST_WINDOWS 1
+#define OLC_HOST_LINUX_X11 2
+#define OLC_HOST_LINUX_WAYLAND 3
+#define OLC_HOST_MACOS 4
+#define OLC_HOST_EMSCRIPTEN 5
+#define OLC_HOST_ANDROID 6
+#define OLC_HOST_IOS 7
+
+#if !defined(OLC_HOST)
+	#if defined(_WIN32)
+		#define OLC_HOST OLC_HOST_WINDOWS
+	#endif
+
+	#if defined(__linux__) || defined(__FreeBSD__)
+		// Note: Assumes X11 atm
+		#define OLC_HOST OLC_HOST_LINUX_X11
+	#endif
+
+	#if defined(__APPLE__)	
+		#define OLC_HOST OLC_HOST_MACOS
+	#endif
+	
+	#if defined(__EMSCRIPTEN__)
+		#define OLC_HOST OLC_HOST_EMSCRIPTEN
+	#endif
+
+	#if defined(__ANDROID__)
+		#define OLC_HOST OLC_HOST_ANDROID
+	#endif
+
+	#if defined(__iOS__)
+		#define OLC_HOST OLC_HOST_IOS
+	#endif
+#endif
+
+
+// Choose "GPU Interface"
+#define OLC_GPU_NONE 1
+#define OLC_GPU_OPENGL33 2
+
+#if !defined(OLC_GPU)
+	#define OLC_GPU OLC_GPU_OPENGL33
+#endif
+
+#define LICENCE_DEFAULT "OneLoneCoder.com - Pixel Game Engine 3 - "
+
 //! END CONFIGURATION

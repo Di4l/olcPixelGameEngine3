@@ -21,6 +21,9 @@
   <ItemGroup>
     <ClCompile Include="test_sh.cpp" />
   </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="olcPixelGameEngine3.h" />
+  </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>17.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>

@@ -20,4 +20,3 @@ file(
 
 # Executable aka binary output
 add_executable(${CMAKE_PROJECT_NAME} ${SOURCE_CXX_FILES})
-

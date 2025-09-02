@@ -16,8 +16,11 @@
 #include <array>
 #include <vector>
 #include <memory>
+
+#include <optional>
 #include <deque>
 #include <chrono>
+#include <thread>
 
 // Version number (accessible as value for incremental comparisons)
 #define PGE_VER 300
@@ -41,6 +44,55 @@
 #if !defined(PGE_SPELLING)
 	#define PGE_SPELLING PGE_SPELL_CORRECTLY
 #endif
+
+
+// Choose "Operating System"
+#define OLC_HOST_WINDOWS 1
+#define OLC_HOST_LINUX_X11 2
+#define OLC_HOST_LINUX_WAYLAND 3
+#define OLC_HOST_MACOS 4
+#define OLC_HOST_EMSCRIPTEN 5
+#define OLC_HOST_ANDROID 6
+#define OLC_HOST_IOS 7
+
+#if !defined(OLC_HOST)
+	#if defined(_WIN32)
+		#define OLC_HOST OLC_HOST_WINDOWS
+	#endif
+
+	#if defined(__linux__) || defined(__FreeBSD__)
+		// Note: Assumes X11 atm
+		#define OLC_HOST OLC_HOST_LINUX_X11
+	#endif
+
+	#if defined(__APPLE__)	
+		#define OLC_HOST OLC_HOST_MACOS
+	#endif
+	
+	#if defined(__EMSCRIPTEN__)
+		#define OLC_HOST OLC_HOST_EMSCRIPTEN
+	#endif
+
+	#if defined(__ANDROID__)
+		#define OLC_HOST OLC_HOST_ANDROID
+	#endif
+
+	#if defined(__iOS__)
+		#define OLC_HOST OLC_HOST_IOS
+	#endif
+#endif
+
+
+// Choose "GPU Interface"
+#define OLC_GPU_NONE 1
+#define OLC_GPU_OPENGL33 2
+
+#if !defined(OLC_GPU)
+	#define OLC_GPU OLC_GPU_OPENGL33
+#endif
+
+#define LICENCE_DEFAULT "OneLoneCoder.com - Pixel Game Engine 3 - "
+
 
 #if !defined(PGE_PIXEL_DECLARED)
 namespace olc
@@ -660,30 +712,795 @@ namespace olc
 }
 #define PGE_VECTOR2D_DECLARED 1
 #endif
-//! 
-#if !defined(PGE_WINDOW_DECLARED)
+
+#if !defined(PGE_MATRIX3D_DECLARED)
 namespace olc
 {
+
+	/*
+		A complete 3x3 Matrix structure, with a variety
+		of useful utility functions and operator overloads
+		specifically targeting 2D graphical transformations
+
+		as per https://en.wikipedia.org/wiki/Affine_transformation
+
+		Access: column, row
+	*/
+	template<class T>
+	struct m_3d
+	{
+		static_assert(std::is_arithmetic<T>::value, "olc::m_2d<type> must be numeric");
+
+		// The 3x3 elements!
+		std::array<T, 9> m{ {0 } };
+
+		// Constructor created identity matrix
+		inline constexpr m_3d()
+		{
+			identity();
+		}
+
+		// Copy constructor
+		inline constexpr m_3d(const m_3d& mat) = default;
+
+		// Assignment operator
+		inline constexpr m_3d& operator=(const m_3d& mat) = default;
+
+		// Retrieve a specific element's 1D index
+		inline constexpr size_t idx(const size_t c, const size_t r) const
+		{
+			return r * 3 + c;
+		}
+
+		// Retrieve non-const access to specific element
+		inline constexpr T& operator()(const size_t col, const size_t row)
+		{
+			return m[idx(col, row)];
+		}
+
+		// Retrieve const access to specific element
+		inline constexpr const T& operator()(const size_t col, const size_t row) const
+		{
+			return m[idx(col, row)];
+		}
+
+		// Set all elements to 0
+		inline constexpr void clear()
+		{
+			std::fill(m.begin(), m.end(), T(0));			
+		}
+
+		// Create identity matrix
+		inline constexpr void identity()
+		{
+			clear();
+			auto& me = (*this);
+			me(0, 0) = 1;
+			me(1, 1) = 1;
+			me(2, 2) = 1;			
+		}
+
+		// Create translation matrix via components
+		template<typename Q>
+		inline constexpr void translate(const Q x, const Q y)
+		{
+			identity();
+			auto& me = (*this);
+			me(2, 0) = T(x);
+			me(2, 1) = T(y);
+		}
+
+		// Create translation matrix via vector
+		template<typename Q>
+		inline constexpr void translate(const olc::v_2d<Q>& v)
+		{
+			translate(v.x, v.y);
+		}
+
+		// Create scaling matrix via components
+		template<typename Q>
+		inline constexpr void scale(const Q x, const Q y)
+		{
+			identity();
+			auto& me = (*this);
+			me(0, 0) = T(x);
+			me(1, 1) = T(y);
+		}
+
+		// Create scaling matrix via vector
+		template<typename Q>
+		inline constexpr void scale(const olc::v_2d<Q>& v)
+		{
+			scale(v.x, v.y);
+		}
+
+		// Create rotation matrix with radians
+		template<typename Q>
+		inline constexpr void rotate(const Q rads)
+		{
+			identity();
+			auto& me = (*this);
+			me(0, 0) = std::cos(rads);
+			me(0, 1) = std::sin(rads);
+			me(1, 0) = -me(0, 1);
+			me(1, 1) = me(0, 0);
+		}
+
+		// Create shearing matrix via components
+		template<typename Q>
+		inline constexpr void shear(const Q x, const Q y)
+		{
+			identity();
+			auto& me = (*this);
+			me(0, 1) = T(y);
+			me(1, 0) = T(x);
+		}
+
+		// Create shearing matrix via vector
+		template<typename Q>
+		inline constexpr void shear(const olc::v_2d<Q>& v)
+		{
+			shear(v.x, v.y);
+		}
+
+
+		// Return inverted matrix
+		inline constexpr auto invert() const
+		{
+			// https://stackoverflow.com/a/18504573
+			olc::m_3d<T> out;
+			auto& me = (*this);
+
+			T det = me(0, 0) * (me(1, 1) * me(2, 2) - me(2, 1) * me(1, 2)) -
+				me(0, 1) * (me(1, 0) * me(2, 2) - me(1, 2) * me(2, 0)) +
+				me(0, 2) * (me(1, 0) * me(2, 1) - me(1, 1) * me(2, 0));
+
+			T invdet = T(1) / det;
+
+			out(0, 0) = (me(1, 1) * me(2, 2) - me(2, 1) * me(1, 2)) * invdet;
+			out(0, 1) = (me(0, 2) * me(2, 1) - me(0, 1) * me(2, 2)) * invdet;
+			out(0, 2) = (me(0, 1) * me(1, 2) - me(0, 2) * me(1, 1)) * invdet;
+			out(1, 0) = (me(1, 2) * me(2, 0) - me(1, 0) * me(2, 2)) * invdet;
+			out(1, 1) = (me(0, 0) * me(2, 2) - me(0, 2) * me(2, 0)) * invdet;
+			out(1, 2) = (me(1, 0) * me(0, 2) - me(0, 0) * me(1, 2)) * invdet;
+			out(2, 0) = (me(1, 0) * me(2, 1) - me(2, 0) * me(1, 1)) * invdet;
+			out(2, 1) = (me(2, 0) * me(0, 1) - me(0, 0) * me(2, 1)) * invdet;
+			out(2, 2) = (me(0, 0) * me(1, 1) - me(1, 0) * me(0, 1)) * invdet;
+			return out;
+		}
+
+		// Transform a vector by this matrix
+		template<typename Q>
+		inline constexpr auto operator * (const olc::v_2d<Q>& v) const
+		{
+			auto& me = *this;
+			olc::v_2d<Q> vOut;
+			vOut.x = Q(me(0, 0) * v.x + me(1, 0) * v.y + me(2, 0) * Q(1));
+			vOut.y = Q(me(0, 1) * v.x + me(1, 1) * v.y + me(2, 1) * Q(1));
+			Q    z = Q(me(0, 2) * v.x + me(1, 2) * v.y + me(2, 2) * Q(1));
+			return (vOut / z);
+		}
+
+		// Multiply this matrix with another
+		template<typename Q>
+		inline constexpr auto operator * (const olc::m_3d<Q>& rhs) const
+		{
+			auto& me = *this;
+			olc::m_3d<T> out;
+			for (size_t c = 0; c < 3; c++)
+				for (size_t r = 0; r < 3; r++)
+					out(r, c) = me(r, 0) * rhs(0, c) + me(r, 1) * rhs(1, c) + me(r, 2) * rhs(2, c);
+			return out;
+		}
+
+		// Return this matrix as a std::string, of the form "[c1r1, c2r1, c3r1]\n[c1r2, c2r2, c3r2]\n[c1r3, c2r3, c3r3]"
+		inline std::string str() const
+		{
+			const auto& me = *this;
+			return std::string("[") + std::to_string(me(0, 0)) + "," + std::to_string(me(1, 0)) + "," + std::to_string(me(2, 0)) + "]\n"
+				+ "[" + std::to_string(me(0, 1)) + "," + std::to_string(me(1, 1)) + "," + std::to_string(me(2, 1)) + "]\n"
+				+ "[" + std::to_string(me(0, 2)) + "," + std::to_string(me(1, 2)) + "," + std::to_string(me(2, 2)) + "]\n";
+		}
+	};
+
+	// Allow olc::m_3d to play nicely with std::cout
+	template<class T>
+	inline std::ostream& operator << (std::ostream& os, const m_3d<T>& rhs)
+	{
+		os << rhs.str();
+		return os;
+	}
+
+	// Convenient types ready-to-go
+	typedef m_3d<float> mf3d;
+	typedef m_3d<double> md3d;
+}
+#define PGE_MATRIX3D_DECLARED 1
+#endif
+
+#if !defined(PGE_TRANSFORM2D_DECLARED)
+namespace olc
+{
+	namespace internal
+	{
+		// Return sign of number as -1 or +1
+		template <typename T>
+		inline constexpr int sgn(T val)
+		{
+			return (T(0) < val) - (val < T(0));
+		}
+	}
+
+
+
+	/*
+		A complete 2D transformation structure
+	*/
+	template<class T>
+	class t_2d
+	{
+		static_assert(std::is_floating_point<T>::value, "olc::t_2d<type> must be floating point type");
+
+	public:
+		// Constructor
+		inline constexpr t_2d() = default;
+
+		// Copy constructor
+		inline constexpr t_2d(const t_2d& t) = default;
+
+		// Assignment operator
+		inline constexpr t_2d& operator=(const t_2d& t) = default;
+
+		// Transform a vector by this transform
+		template<typename Q>
+		inline constexpr auto forward(const olc::v_2d<Q>& v)
+		{
+			return m_mForward * v;
+		}
+
+		// Transform a vector of v_2d by this transform
+		template<typename Q>
+		inline constexpr auto forward(const std::vector<olc::v_2d<Q>>& v)
+		{
+			std::vector<olc::v_2d<Q>> o(v.size());
+			std::transform(v.begin(), v.end(), o.begin(), [this](const olc::v_2d<Q>& i) {return m_mForward * i; });
+			return o;
+		}
+
+		// Transform a vector by the inverse of this transform
+		template<typename Q>
+		inline constexpr auto inverse(const olc::v_2d<Q>& v)
+		{
+			return m_mInverse * v;
+		}
+
+		// Transform a vector by this transform
+		template<typename Q>
+		inline constexpr auto inverse(const std::vector<olc::v_2d<Q>>& v)
+		{
+			std::vector<olc::v_2d<Q>> o(v.size());
+			std::transform(v.begin(), v.end(), o.begin(), [this](const olc::v_2d<Q>& i) {return m_mInverse * i; });
+			return o;
+		}
+
+
+		// Set scaling component of this transformation
+		template<typename Q>
+		inline constexpr void scale(const olc::v_2d<Q>& v)
+		{
+			m_vScale = v;
+			m_mScale.scale(m_vScale);
+			update();
+		}
+
+		// Get scaling component of this transformation
+		inline constexpr const auto& scale() const
+		{
+			return m_vScale;
+		}
+
+		// Set translation component of this transformation
+		template<typename Q>
+		inline constexpr void translate(const olc::v_2d<Q>& v)
+		{
+			m_vTranslate = v;
+			m_mTranslate.translate(m_vTranslate);
+			update();
+		}
+
+		// Get translation component of this transformation
+		inline constexpr const auto& translate() const
+		{
+			return m_vTranslate;
+		}
+
+		// Set translation component of this transformation
+		template<typename Q>
+		inline constexpr void rotate(const Q& v, const olc::v_2d<T>& p = { 0,0 })
+		{
+			m_dTheta = T(v);
+			m_vRotatePoint = p;
+			m_3d<T> matTrans1;
+			matTrans1.translate(-m_vRotatePoint);
+			m_3d<T> matTrans2;
+			matTrans2.translate(m_vRotatePoint);
+			m_3d<T> matRotate;
+			matRotate.rotate(m_dTheta);
+			m_mRotate = matTrans1 * matRotate * matTrans2;
+			update();
+		}
+
+		// Get translation component of this transformation
+		inline constexpr const auto& rotate() const
+		{
+			return m_dTheta;
+		}
+
+		// Set shear component of this transformation
+		template<typename Q>
+		inline constexpr void shear(const olc::v_2d<Q>& v)
+		{
+			m_vShear = v;
+			m_mShear.shear(m_vShear);
+			update();
+		}
+
+		// Get shear component of this transformation
+		inline constexpr const auto& shear() const
+		{
+			return m_vShear;
+		}
+
+		// Get forward transformation matrix
+		inline constexpr const auto& forward_matrix() const
+		{
+			return m_mForward;
+		}
+
+		// Get inverse transformation matrix
+		inline constexpr const auto& inverse_matrix() const
+		{
+			return m_mInverse;
+		}
+
+		// Construct transform from an existing transformation matrix
+		template<typename Q>
+		inline constexpr void from_matrix(const olc::m_3d<Q>& mat)
+		{
+			// https://math.stackexchange.com/a/13165
+			m_vTranslate =
+			{
+				T(mat(2, 0)),
+				T(mat(2, 1))
+			};
+
+			m_vScale =
+			{
+				T(olc::internal::sgn(mat(0, 0)) * std::hypot(mat(0, 0), mat(1, 0))),
+				T(olc::internal::sgn(mat(1, 1)) * std::hypot(mat(0, 1), mat(1, 1)))
+			};
+
+			m_dTheta = T(std::atan2(mat(0, 1), mat(1, 1)));
+
+			m_mTranslate.translate(m_vTranslate);
+			m_mScale.scale(m_vScale);
+			m_mRotate.rotate(m_dTheta);
+			update();
+		}
+
+	protected:
+		// Constructs resultant matrices when transformation changes
+		inline constexpr void update()
+		{
+			m_mForward = m_mRotate * m_mShear * m_mScale * m_mTranslate;
+			m_mInverse = m_mForward.invert();
+		}
+
+	protected:
+		T            m_dTheta = 0;
+		olc::v_2d<T> m_vScale = { 1,1 };
+		olc::v_2d<T> m_vTranslate = { 0,0 };
+		olc::v_2d<T> m_vRotatePoint = { 0,0 };
+		olc::v_2d<T> m_vShear = { 0,0 };
+		olc::m_3d<T> m_mForward;
+		olc::m_3d<T> m_mInverse;
+		olc::m_3d<T> m_mScale;
+		olc::m_3d<T> m_mTranslate;
+		olc::m_3d<T> m_mRotate;
+		olc::m_3d<T> m_mShear;
+	};
+
+	typedef t_2d<float> tf2d;
+	typedef t_2d<double> td2d;
+}
+#define PGE_TRANSFORM2D_DECLARED 1
+#endif
+ 
+#if !defined(PGE_IMAGE_DECLARED)
+namespace olc
+{
+	struct ImageConfig
+	{
+		bool Filtered = false;
+		bool Clamp = false;
+		bool InRAM = true;
+		bool InVRAM = true;
+	};
+
+	class Image
+	{
+	public:
+		// Constructs a general purpose image
+		Image() = default;
+		virtual ~Image() = default;
+
+	public:
+		bool Create(const olc::vi2d& size, const ImageConfig& cfg = olc::ImageConfig());
+
+	public:
+		// Returns size (x, y) in pixels
+		const olc::vi2d& Size() const;
+		// Returns read/write pointer to start of 1D stream of pixel data
+		olc::Pixel* Data();
+		// Returns how this image was configured upon creation
+		const ImageConfig& GetConfig() const;
+		// Return GPU Resource ID
+		int32_t GetGPUID() const;
+		// Set GPU Resource ID (0 to eliminate)
+		void SetGPUID(const int32_t id);
+		
+		// True if data mirror has in-front RAM image		
+		bool HasWetCPU() const;
+		// True if data mirror has in-front VRAM image
+		bool HasWetGPU() const;
+
+		void PrimeCPU();
+		void PrimeGPU();
+
+	protected:
+		ImageConfig config;
+		olc::vi2d dimensions;
+		std::vector<olc::Pixel> pixels;
+		int32_t gpuResourceID = 0;
+		bool gpuWet = false;
+		bool cpuWet = true;
+	};
+}
+#define PGE_IMAGE_DECLARED 1
+#endif
+
+#if !defined(PGE_WINDOW_DECLARED)
+
+#if OLC_HOST == OLC_HOST_WINDOWS
+	#define FRIENDLY_HOST Host_Windows_WinAPI
+#endif
+
+namespace olc
+{
+	namespace host
+	{
+		class FRIENDLY_HOST;
+		class Host;
+	}
+
+	namespace gpu
+	{
+		class Renderer;
+	}
+
 	class Window
 	{
+		friend class olc::host::FRIENDLY_HOST;
+
 	public:
 		Window();
 		virtual ~Window();
 
+		void ConnecToHost(olc::host::Host* host);
+
 	public:
+		// Return true if window is to continue
 		virtual bool OnUserCreate();
+		// Return true if window is to continue
 		virtual bool OnUserUpdate(float fElapsedTime);
+		// Return true if window is to close
 		virtual bool OnUserDestroy();
+
+	private:
+		// Set Mouse Device State
+		bool olc_OnMouseButton(const uint8_t nButton, const bool bPressed);
+		bool olc_OnMouseMove(const olc::vi2d& vMousePos);
+		bool olc_OnMouseWheel(const int32_t nScroll);
+		bool olc_OnMouseFocus(const bool bHasFocus);
+		
+		// Set Window State
+		bool olc_OnWindowPosition(const olc::vi2d& vWindowPos);
+		bool olc_OnWindowSize(const olc::vi2d& vWindowSize);
+
+		// Set Keyboard State
+
+
 
 	public:
 		bool olc_ShouldRemove() const;
-		bool olc_WindowUpdate(const float fElapsedTime);
+		bool olc_WindowUpdate(const float fElapsedTime, olc::gpu::Renderer* const gpu);
+
+	public:
+		size_t GetUID() const;
+
+		const olc::vi2d& GetSize() const;
+		bool SetSize(const olc::vi2d& vSize);
+
+		const olc::vi2d& GetPosition() const;
+		bool SetPosition(const olc::vi2d& vPosition);
+
+		const std::string& GetTitle() const;
+		bool SetTitle(const std::string& sTitle);
+
+
+	protected:
+		virtual bool olc_PrimaryWindowInit();
 
 	protected:
 		bool bShouldRemove = false;
+
+	protected:
+		size_t nUniqueID = -1;
+		olc::vi2d vWindowPos;
+		olc::vi2d vWindowSize;
+		std::string sFrameTitle;
+	
+	private:
+		olc::vi2d volatile_vMousePos;
+		
+		olc::host::Host* pHost = nullptr;
+		//olc::gpu::Renderer* pRenderer = nullptr;
 	};
 }
 #define PGE_WINDOW_DECLARED 1
+#endif
+ 
+#if !defined(PGE_GPUTASK_DECLARED)
+namespace olc
+{
+	namespace pgeguts
+	{
+		// This is the default "packet" of work that is sent to 
+		// a GPU for drawing. Various drawing operations throughout
+		// PGE create GPUTasks which are stored and dispatched when
+		// appropriate. It's contents are purposefully abstract
+		// to ensure rendering tools do not need to be reliant
+		// upon PGE structures
+		struct GPUTask
+		{
+			struct Vertex 
+			{
+				float p[6];     // x, y, z, w, u, v
+				olc::Pixel c;	// 32-bit colour
+			};
+
+			// Simple vertex buffer
+			std::vector<Vertex> vertexBuffer;
+
+			// Model-View-Projection Matrix for shader
+			std::array<float, 16> mvpMatrix = { {
+				1, 0, 0, 0,
+				0, 1, 0, 0,
+				0, 0, 1, 0,
+				0, 0, 0, 1
+			} };
+
+			// Use depth components
+			bool bDepth = false;
+
+			// Use hardware wire drawing
+			bool bWireframe = false;
+
+			// Overall biasing colour (great for blends)
+			olc::Pixel tint = olc::Colour::WHITE;
+
+			// Define super structure to be drawn
+			enum class Structure : uint8_t
+			{
+				// Vertex buffer is a series of points	
+				Point = 0, 
+				// Vertex buffer is a series of line segments
+				Line,
+				// Vertex buffer is a fan of triangles
+				Fan,
+				// Vertex buffer is a strip of adjacent triangles
+				Strip,
+				// Vertex buffer is a series of discrete triangles
+				List				
+			} structure = Structure::Fan;
+
+			// Define if GPU should face cull based on winding order
+			enum class CullMode : uint8_t
+			{
+				// No
+				None = 0,
+				// Cull if vertices are listed in clockwise order
+				ClockWise,
+				// Cull if vertices are listed in anticlockwise order
+				CounterClockWise
+			} cullmode = CullMode::None;
+		};
+
+
+
+		//// Construct a wireframe polygon
+		//GPUTask DrawPolygon2D(
+		//	const GPUTask::Structure format,
+		//	const olc::tf2d& transform,
+		//	const std::vector<olc::vf2d>& vPoints,
+		//	const std::vector<olc::Pixel>& vColours,
+		//	const olc::Pixel tint = olc::Colour::WHITE)
+		//{
+		//	GPUTask task;
+		//	task.structure = format;
+		//	task.bDepth = false;
+		//	task.tint = tint;
+		//	task.cullmode = GPUTask::CullMode::None;
+		//	task.bWireframe = true;
+
+		//	const auto& m = transform.forward_matrix().m;
+		//	task.mvpMatrix = { {
+		//		m[0], m[1], m[2], 0.0f,
+		//		m[3], m[4], m[5], 0.0f,
+		//		m[6], m[7], m[8], 0.0f,
+		//		0.0f, 0.0f, 0.0f, 1.0f
+		//	} };
+
+		//	// Pseudo-zip construct vertex buffer
+		//	size_t nFullVerts = std::min({ vPoints.size(), vColours.size() });
+		//	task.vertexBuffer.resize(nFullVerts);
+		//	for (size_t i = 0; i < nFullVerts; i++)
+		//	{
+		//		task.vertexBuffer[i] = { vPoints[i].x, vPoints[i].y, 0.0f, 1.0f, 0.0f, 0.0f, vColours[i] };
+		//	}
+
+		//	return task;
+		//}
+	}
+}
+#define PGE_GPUTASK_DECLARED 1
+#endif
+ 
+#if !defined(PGE_RENDERER_IFACE_DECLARED)
+namespace olc
+{
+	namespace gpu
+	{
+		struct RendererConfig
+		{
+			bool FullScreen = false;
+			bool VerticalSync = false;
+		};
+
+		enum class RendererError
+		{
+			None,
+			InvalidDCPixelFormat,
+			FailedToSetDCPixelFormat,
+			FailedToCreateRenderContext,
+			FailedToSwitchRenderContext,
+		};
+
+		class Renderer
+		{
+		public:
+			Renderer() = default;
+			virtual ~Renderer() {};
+
+		public:
+			// Check/Get last error
+			inline RendererError GetLastError() const { return lastError; }
+			inline const RendererConfig& GetConfig() const { return config; }
+
+		public: // Device Stuff
+			// Constructs a GPU Device interface
+			virtual bool CreateDevice(std::vector<void*> params, const RendererConfig& cfg) = 0;
+			// Destroys a GPU device interface
+			virtual bool DestroyDevice() = 0;
+
+		public: // Texture Resource Stuff
+			// Allocates a new texture resource in VRAM, returns handle
+			virtual uint32_t CreateTexture(const olc::vi2d& vSize, const olc::ImageConfig& cfg = olc::ImageConfig()) = 0;
+			// Writes to / updates an existing texture resource in VRAM, using existing Image in SRAM
+			virtual bool WriteTexture(const uint32_t texid, olc::Image& image) = 0;
+			// Writes to / updates an existing Image in SRAM, from existing texture resource in VRAM
+			virtual bool ReadTexture(const uint32_t texid, olc::Image& image) = 0;
+			// Destroys and releases texture resource for given handle
+			virtual bool DeleteTexture(const uint32_t texid) = 0;
+			// Makes active the given texture resource (for subsequent sampling operations)
+			virtual bool AssignTextureSource(const uint32_t slot, const uint32_t texid) = 0;
+			// Makes active the given texture resource (for subsequent rendering operations)
+			virtual bool AssignTextureTarget(const uint32_t slot, const uint32_t texid) = 0;
+
+		public: // Shader Construction Stuff
+
+		public: // GPU Task Processing Stuff
+			virtual bool DoGPUTask(const olc::pgeguts::GPUTask& task) = 0;
+
+		public: // Swap Chain Stuff
+			// Clears the viewport to a specific colour and depth
+			virtual bool ClearViewport(const olc::Pixel col, bool bDepth, bool bStencil) = 0;
+			// Sets the viewport area of the drawing space
+			virtual bool SetViewport(const olc::vf2d& pos, const olc::vf2d& size) = 0;
+			// Configures defaults prior to drawing
+			virtual bool DisplayPrepare() = 0;
+			// Displays the final output
+			virtual bool DisplayDraw(bool bVerticalSyncNow = false) = 0;
+
+
+		protected:
+			RendererConfig config;
+			RendererError lastError = RendererError::None;
+		};
+	}
+}
+#define PGE_RENDERER_IFACE_DECLARED 1
+#endif
+ 
+#if !defined(PGE_HOST_IFACE_DECLARED)
+namespace olc
+{
+	namespace pgeguts
+	{
+		inline static size_t uuid = 0;
+
+		inline constexpr size_t CreateUID()
+		{
+			return uuid++;
+		}	
+	}
+
+	namespace host
+	{
+
+		
+
+		struct HostConfig
+		{
+			
+		};
+
+		enum class HostError
+		{
+			None,
+			
+		};
+
+		class Host
+		{
+		public:
+			Host() = default;
+			virtual ~Host() {};
+
+		public:
+			// Check/Get last error
+			HostError GetLastError() const { return lastError; }
+
+		public: 
+			virtual bool StartSystemEventLoop() = 0;
+			virtual bool AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen) = 0;
+			
+			virtual bool UpdateWindowFrameTitle(olc::Window* pWindow) = 0;
+
+			virtual std::vector<void*> GetHostWindowDescriptor(olc::Window* pWindow) = 0;
+			
+			
+			virtual bool ConnectHostResourceToRenderer() = 0;
+
+			// Wait for entire host desktop refresh (for smooooth vsync)
+			virtual bool SyncWithDesktopComposite() = 0;
+
+		protected:
+			HostError lastError = HostError::None;
+		};
+	}
+}
+#define PGE_HOST_IFACE_DECLARED 1
 #endif
 
 #if !defined(PGE_CORE_DECLARED)
@@ -724,30 +1541,370 @@ namespace olc
 
 	public:
 		bool Construct(const olc::vi2d& vScreenSize, const olc::vi2d& vPixelSize, bool bFullScreen = false);
-		bool Construct(const PGEConfig& config = PGEConfig{});
+		bool Construct(const PGEConfig& cfg = PGEConfig{});
 
 	public:
 		bool Start();
 
-	public:
+	public:	// The "Overridables"
+		// Called once when the engine is ready and the window is created
 		bool OnUserCreate() override;
+		// Called every frame while the engine is running
 		bool OnUserUpdate(float fElapsedTime) override;
+		// Called when something requests the engine shut down
 		bool OnUserDestroy() override;
+
+
+	public:	// olc::Image Handling
+		// Create an image resource
+		bool CreateImage(olc::Image& image, const olc::vi2d& size, const ImageConfig& cfg = olc::ImageConfig());
+		// Create an image resource based on an image file asset on disk
+		bool CreateImageFromFile(olc::Image& image, const std::string& sFileName, const ImageConfig& cfg = olc::ImageConfig());
+		// Create an image resource based on an image file asset in memory
+		bool CreateImageFromMemory(olc::Image& image, const uint8_t* data, const size_t bytes, const ImageConfig& cfg = olc::ImageConfig());
+		// Store an image as a file asset on disk
+		bool WriteImageToFile(const olc::Image& image, const std::string& sFileName);
+		// Store an image as a file asset in memory
+		bool WriteImageToMemory(const olc::Image& image, std::vector<uint8_t> bytes, const std::string& sFileName);
+		// Destroy an image
+		void DestroyImage(olc::Image& image);
+
+	protected:
+		bool olc_PrimaryWindowInit() override;
 
 	private:
 		void EngineThread();
 
 	private:
-		std::deque<std::unique_ptr<Window>> deqChildWindows;
+		std::deque<std::shared_ptr<Window>> deqChildWindows;
 
 		// Frame Timing & Overall Clocking
 		std::chrono::steady_clock::time_point timeFrame1;
 		std::chrono::steady_clock::time_point timeFrame2;
-		std::chrono::duration<float> durationFrame;
+		std::chrono::duration<float> durationFrame{ 0 };
+		std::chrono::duration<float> durationFrameCount{ 0 };
+		size_t frameCount = 0;
+
+		PGEConfig config;
+
+		std::thread coreThread;
+		std::atomic<bool> coreActive;
+
+		std::unique_ptr<olc::gpu::Renderer> gpu;
+		std::unique_ptr<olc::host::Host> host;
 	};
 }
 #define PGE_CORE_DECLARED 1
 #endif
+
+
+
+
+
+
+
+#if OLC_HOST == OLC_HOST_WINDOWS
+#if defined(UNICODE) || defined(_UNICODE)
+	#define olcT(s) L##s
+#else
+	#define olcT(s) s
+#endif
+
+#define _WINSOCKAPI_
+
+#if !defined(VC_EXTRALEAN)
+#define VC_EXTRALEAN
+#endif
+
+#if !defined(NOMINMAX)
+#define NOMINMAX
+#endif
+
+// In Code::Blocks
+#if !defined(_WIN32_WINNT)
+	#ifdef HAVE_MSMF
+		#define _WIN32_WINNT 0x0600 // Windows Vista
+	#else
+		#define _WIN32_WINNT 0x0500 // Windows 2000
+	#endif
+#endif
+
+// Embrace MSVC superiority
+#pragma comment(lib, "user32.lib")
+#pragma comment(lib, "gdi32.lib")
+#pragma comment(lib, "Dwmapi.lib")
+
+#include <dwmapi.h>
+#include <windows.h>
+#undef _WINSOCKAPI_
+
+namespace olc
+{
+	namespace host
+	{
+
+
+
+		class Host_Windows_WinAPI : public olc::host::Host
+		{
+			
+
+		public:
+			Host_Windows_WinAPI() = default;
+			virtual ~Host_Windows_WinAPI() {};
+
+
+		public:
+			bool StartSystemEventLoop();
+			bool AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen);			
+			bool UpdateWindowFrameTitle(olc::Window* pWindow);
+			
+			std::vector<void*> GetHostWindowDescriptor(olc::Window* pWindow);
+			bool ConnectHostResourceToRenderer();
+
+
+			// Wait for entire host desktop refresh (for smooooth vsync)
+			bool SyncWithDesktopComposite();
+
+			LRESULT OnWindowEvent(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
+
+			std::string test;
+
+		private:
+			std::unordered_map<size_t, HWND> mapUID2HWND;
+			std::unordered_map<HWND, olc::Window*> mapHWND2PTR;
+			std::wstring ConvertS2W(std::string s);
+
+		};
+	}
+}
+#endif
+
+#if OLC_GPU == OLC_GPU_OPENGL33
+
+#if OLC_HOST == OLC_HOST_WINDOWS
+	#include <Windows.h>
+	#pragma comment(lib, "gdi32.lib")
+	#pragma comment(lib, "opengl32.lib")
+	#include <gl/GL.h>
+	#define CALLSTYLE __stdcall
+	// ooof... was getting a bunch of spurious C4191 from MSVC 17.14.9, so round trip via void-town
+	#define OGL_LOAD(t) reinterpret_cast<t##_t*>(reinterpret_cast<void*>(wglGetProcAddress(#t)))
+#endif
+
+#if OLC_HOST == OLC_HOST_LINUX_X11 || OLC_HOST == OLC_HOST_LINUX_WAYLAND
+	#include <GL/gl.h>
+	#if OLC_HOST == OLC_HOST_LINUX_X11
+		namespace X11
+		{
+			#include <GL/glx.h>
+		}
+	#endif
+#endif
+
+#if OLC_HOST == OLC_HOST_MACOS
+	#define GL_SILENCE_DEPRECATION
+	#include <OpenGL/OpenGL.h>
+	#include <OpenGL/gl.h>
+	#include <OpenGL/glu.h>
+#endif
+
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN
+	#include <EGL/egl.h>
+	#include <GLES2/gl2.h>
+	#define GL_GLEXT_PROTOTYPES
+	#include <GLES2/gl2ext.h>
+	#include <emscripten/emscripten.h>
+	#define GL_CLAMP GL_CLAMP_TO_EDGE
+#endif
+
+#if !defined(CALLSTYLE)
+	#define CALLSTYLE
+#endif
+
+
+
+namespace olc
+{
+	namespace apis::opengl
+	{
+#if OLC_HOST == OLC_HOST_WINDOWS
+		// "Target Host Window Handle"
+		typedef HDC glDeviceContext_t;
+		// "State of OpenGL Machinary"
+		typedef HGLRC glRenderContext_t;
+#endif
+
+		typedef char GLchar;
+		typedef ptrdiff_t GLsizeiptr;
+
+		typedef GLuint CALLSTYLE glCreateShader_t(GLenum type);
+		typedef GLuint CALLSTYLE glCreateProgram_t(void);
+		typedef void CALLSTYLE glDeleteShader_t(GLuint shader);
+		typedef void CALLSTYLE glCompileShader_t(GLuint shader);
+		typedef void CALLSTYLE glLinkProgram_t(GLuint program);
+		typedef void CALLSTYLE glDeleteProgram_t(GLuint program);
+		typedef void CALLSTYLE glAttachShader_t(GLuint program, GLuint shader);
+		typedef void CALLSTYLE glBindBuffer_t(GLenum target, GLuint buffer);
+		typedef void CALLSTYLE glBufferData_t(GLenum target, GLsizeiptr size, const void* data, GLenum usage);
+		typedef void CALLSTYLE glGenBuffers_t(GLsizei n, GLuint* buffers);
+		typedef void CALLSTYLE glVertexAttribPointer_t(GLuint index, GLint size, GLenum type, GLboolean normalized, GLsizei stride, const void* pointer);
+		typedef void CALLSTYLE glEnableVertexAttribArray_t(GLuint index);
+		typedef void CALLSTYLE glUseProgram_t(GLuint program);
+		typedef void CALLSTYLE glBindVertexArray_t(GLuint array);
+		typedef void CALLSTYLE glGenVertexArrays_t(GLsizei n, GLuint* arrays);
+		typedef void CALLSTYLE glGetShaderInfoLog_t(GLuint shader, GLsizei bufSize, GLsizei* length, GLchar* infoLog);
+		typedef GLint CALLSTYLE glGetUniformLocation_t(GLuint program, const GLchar* name);
+		typedef void CALLSTYLE glUniform1f_t(GLint location, GLfloat v0);
+		typedef void CALLSTYLE glUniform1i_t(GLint location, GLint v0);
+		typedef void CALLSTYLE glUniform2fv_t(GLint location, GLsizei count, const GLfloat* value);
+		typedef void CALLSTYLE glUniform4fv_t(GLint location, GLsizei count, const GLfloat* value);
+		typedef void CALLSTYLE glUniformMatrix4fv_t(GLint location, GLsizei count, GLboolean trasnpose, const GLfloat* value);
+		typedef void CALLSTYLE glActiveTexture_t(GLenum texture);
+		typedef void CALLSTYLE glGenFrameBuffers_t(GLsizei n, GLuint* ids);
+		typedef void CALLSTYLE glBindFrameBuffer_t(GLenum target, GLuint fb);
+		typedef GLenum CALLSTYLE glCheckFrameBufferStatus_t(GLenum target);
+		typedef void CALLSTYLE glDeleteFrameBuffers_t(GLsizei n, const GLuint* fbs);
+		typedef void CALLSTYLE glFrameBufferTexture2D_t(GLenum target, GLenum attachment, GLenum textarget, GLuint texture, GLint level);
+		typedef void CALLSTYLE glDrawBuffers_t(GLsizei n, const GLenum* bufs);
+		typedef void CALLSTYLE glBlendFuncSeparate_t(GLenum srcRGB, GLenum dstRGB, GLenum srcAlpha, GLenum dstAlpha);
+
+		
+
+#if OLC_HOST == OLC_HOST_WINDOWS
+		typedef void CALLSTYLE glSwapInterval_t(GLsizei n);
+#endif
+
+		// A little GL class (singleton)
+		class gl
+		{
+		public:
+			static gl& Get();
+
+		private:
+			gl() = default;
+			static bool bLoaded;
+
+		private:
+			bool LoadAll();
+
+		public:
+			glCreateShader_t* glCreateShader = nullptr;
+			glCreateProgram_t* glCreateProgram = nullptr;
+			glDeleteShader_t* glDeleteShader = nullptr;
+			glCompileShader_t* glCompileShader = nullptr;
+			glLinkProgram_t* glLinkProgram = nullptr;
+			glDeleteProgram_t* glDeleteProgram = nullptr;
+			glAttachShader_t* glAttachShader = nullptr;
+			glBindBuffer_t* glBindBuffer = nullptr;
+			glBufferData_t* glBufferData = nullptr;
+			glGenBuffers_t* glGenBuffers = nullptr;
+			glVertexAttribPointer_t* glVertexAttribPointer = nullptr;
+			glEnableVertexAttribArray_t* glEnableVertexAttribArray = nullptr;
+			glUseProgram_t* glUseProgram = nullptr;
+			glBindVertexArray_t* glBindVertexArray = nullptr;
+			glGenVertexArrays_t* glGenVertexArrays = nullptr;
+			glGetShaderInfoLog_t* glGetShaderInfoLog = nullptr;
+			glGetUniformLocation_t* glGetUniformLocation = nullptr;
+			glUniform1f_t* glUniform1f = nullptr;
+			glUniform1i_t* glUniform1i = nullptr;
+			glUniform2fv_t* glUniform2fv = nullptr;
+			glUniform4fv_t* glUniform4fv = nullptr;
+			glUniformMatrix4fv_t* glUniformMatrix4fv = nullptr;
+			glActiveTexture_t* glActiveTexture = nullptr;
+			glGenFrameBuffers_t* glGenFrameBuffers = nullptr;
+			glBindFrameBuffer_t* glBindFrameBuffer = nullptr;
+			glCheckFrameBufferStatus_t* glCheckFrameBufferStatus = nullptr;
+			glDeleteFrameBuffers_t* glDeleteFrameBuffers = nullptr;
+			glFrameBufferTexture2D_t* glFrameBufferTexture2D = nullptr;
+			glDrawBuffers_t* glDrawBuffers = nullptr;
+			glBlendFuncSeparate_t* glBlendFuncSeparate = nullptr;
+
+			// OpenGL1.2 Proxies (just keeps things tidy imo)
+			void glGenTextures(GLsizei n, GLuint* textures);
+			void glBindTexture(GLenum target, GLuint texture);
+			void glTexParameteri(GLenum target, GLenum pname, GLint param);
+			void glTexEnvf(GLenum target, GLenum pname, GLfloat param);
+			void glDeleteTextures(GLsizei n, const GLuint* textures); 
+			void glTexImage2D(GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const GLvoid* pixels);
+			void glClear(GLbitfield mask);
+			void glViewport(GLint x, GLint y, GLsizei width, GLsizei height);
+			void glClearColor(GLfloat red, GLfloat green, GLfloat blue, GLfloat alpha);
+
+		};
+	}
+	
+
+
+//#if defined(OLC_PLATFORM_X11)
+//	typedef int(locSwapInterval_t)(X11::Display* dpy, X11::GLXDrawable drawable, int interval);
+//#endif
+//
+//#if defined(OLC_PLATFORM_EMSCRIPTEN)
+//	typedef void CALLSTYLE locShaderSource_t(GLuint shader, GLsizei count, const GLchar* const* string, const GLint* length);
+//	typedef EGLBoolean(locSwapInterval_t)(EGLDisplay display, EGLint interval);
+//#else
+//	typedef void CALLSTYLE locShaderSource_t(GLuint shader, GLsizei count, const GLchar** string, const GLint* length);
+//#endif
+
+} // olc namespace
+
+#if !defined(PGE_RENDERER_OPENGL33_DECLARED)
+namespace olc
+{
+	namespace gpu
+	{
+		class Renderer_OGL33 : public olc::gpu::Renderer
+		{
+		public: // Device Stuff
+			// Constructs a GPU Device interface
+			bool CreateDevice(std::vector<void*> params, const RendererConfig& cfg) override;
+			// Destroys a GPU device interface
+			bool DestroyDevice() override;
+
+		public: // Texture Resource Stuff
+			// Allocates a new texture resource in VRAM, returns handle
+			uint32_t CreateTexture(const olc::vi2d& vSize, const olc::ImageConfig& cfg = olc::ImageConfig()) override;
+			// Writes to / updates an existing texture resource in VRAM, using existing Image in SRAM
+			bool WriteTexture(const uint32_t texid, olc::Image& image) override;
+			// Writes to / updates an existing Image in SRAM, from existing texture resource in VRAM
+			bool ReadTexture(const uint32_t texid, olc::Image& image) override;
+			// Destroys and releases texture resource for given handle
+			bool DeleteTexture(const uint32_t texid) override;
+			// Makes active the given texture resource (for subsequent sampling operations)
+			bool AssignTextureSource(const uint32_t slot, const uint32_t texid) override;
+			// Makes active the given texture resource (for subsequent rendering operations)
+			bool AssignTextureTarget(const uint32_t slot, const uint32_t texid) override;
+
+
+		public: // GPU Task Stuff
+			virtual bool DoGPUTask(const olc::pgeguts::GPUTask& task) override;
+
+		public: // Swap Chain Stuff
+			// Clears the viewport to a specific colour and depth
+			virtual bool ClearViewport(const olc::Pixel col, bool bDepth, bool bStencil) override;
+			// Sets the viewport area of the drawing space
+			virtual bool SetViewport(const olc::vf2d& pos, const olc::vf2d& size) override;
+			// Configures defaults prior to drawing
+			virtual bool DisplayPrepare() override;
+			// Displays the final output
+			virtual bool DisplayDraw(bool bVerticalSyncNow) override;
+
+		
+		protected: // These may need some thinking about re multiple window
+			olc::apis::opengl::glDeviceContext_t glDeviceContext = 0;
+			olc::apis::opengl::glRenderContext_t glRenderContext = 0;
+
+		};
+	}
+}
+#define PGE_RENDERER_OPENGL33_DECLARED 1
+#endif
+#endif
+
+
+
+
 
 
 #if defined(OLC_PGE_APPLICATION) && !defined(PGE_WINDOW_IMPLEMENTED)
@@ -755,10 +1912,18 @@ namespace olc
 {
 	Window::Window()
 	{
+		nUniqueID = pgeguts::CreateUID();
 	}
 
 	Window::~Window()
 	{
+	}
+
+	void Window::ConnecToHost(olc::host::Host* host)
+	{
+		pHost = host;
+		sFrameTitle = "OneLoneCoder.com - Pixel Game Engine 3";
+		pHost->UpdateWindowFrameTitle(this);
 	}
 
 	bool Window::OnUserCreate()
@@ -776,14 +1941,48 @@ namespace olc
 		return false;
 	}
 
+	bool Window::olc_OnMouseButton(const uint8_t nButton, const bool bPressed)
+	{
+		return false;
+	}
+
+	bool Window::olc_OnMouseMove(const olc::vi2d& vMousePos)
+	{
+		volatile_vMousePos = vMousePos;
+		return true;
+	}
+
+	bool Window::olc_OnMouseWheel(const int32_t nScroll)
+	{
+		return false;
+	}
+
+	bool Window::olc_OnMouseFocus(const bool bHasFocus)
+	{
+		return false;
+	}
+
+	bool Window::olc_OnWindowPosition(const olc::vi2d& vWindowPos)
+	{
+		return false;
+	}
+
+	bool Window::olc_OnWindowSize(const olc::vi2d& vWindowSize)
+	{
+		return false;
+	}
+
 	bool Window::olc_ShouldRemove() const
 	{
 		return bShouldRemove;
 	}
 
-	bool Window::olc_WindowUpdate(const float fElapsedTime)
+	bool Window::olc_WindowUpdate(const float fElapsedTime, olc::gpu::Renderer* const gpu)
 	{
 		// Environmental changes
+
+		gpu->SetViewport({ 0,0 }, GetSize());
+		gpu->ClearViewport(olc::Colour::TANGERINE, false, false);
 
 		// User Update
 		if (!OnUserUpdate(fElapsedTime))
@@ -796,16 +1995,608 @@ namespace olc
 			}
 		}
 
+		
+		gpu->DisplayDraw();
+
+		return true;
+	}
+
+	size_t Window::GetUID() const
+	{
+		return nUniqueID;
+	}
+
+	const olc::vi2d& Window::GetSize() const
+	{
+		return vWindowSize;
+	}
+
+	const olc::vi2d& Window::GetPosition() const
+	{
+		return vWindowPos;
+	}
+
+	bool Window::SetSize(const olc::vi2d& vSize)
+	{
+		// Request host to change geometry of window object
+
+		vWindowSize = vSize;
+		return true;
+	}
+
+	bool Window::SetPosition(const olc::vi2d& vPosition)
+	{
+		// Request host to change geometry of window object
+
+		vWindowPos = vPosition;
+		return true;
+	}
+
+	const std::string& Window::GetTitle() const
+	{
+		return sFrameTitle;
+	}
+
+	bool Window::SetTitle(const std::string& sTitle)
+	{
+		sFrameTitle = sTitle;
+		pHost->UpdateWindowFrameTitle(this);
+		return false;
+	}
+
+	bool Window::olc_PrimaryWindowInit()
+	{
 		return false;
 	}
 };
 #define PGE_WINDOW_IMPLEMENTED 1
 #endif
 
+#if defined(OLC_PGE_APPLICATION) && !defined(PGE_HOST_IMPLEMENTED)
+#if OLC_HOST == OLC_HOST_WINDOWS
+namespace olc::host
+{
+	// Forward Declaration
+	static LRESULT CALLBACK WINAPI_EventHandler(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
+
+	// Windows app needs an event loop somewhere. This is blocking of course. This loop handles
+	// all windows created for this host.
+	bool Host_Windows_WinAPI::StartSystemEventLoop()
+	{
+		MSG msg;
+		while (GetMessage(&msg, NULL, 0, 0) > 0)
+		{
+			TranslateMessage(&msg);
+			DispatchMessage(&msg);
+		}
+
+		return true;
+	}
+
+	// Static linkage to lpfnWndProc - the hWnd is tagged with meta-info to get
+	// access to the actual host instance, which can more conveninetly process
+	// the event across multiple window instances
+	static LRESULT CALLBACK WINAPI_EventHandler(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+	{
+		// CreateWindowEx will fire a WM_CREATE event at the window, which we're
+		// not interested in, and this will occur before we've populated our 
+		// linkage maps. We can detect for this condition here which means
+		// subsequent look-ups dont fail. NOTE: Do not assume WM_CREATE is the
+		// first message that is sent, its just one that we know is reliably sent.
+		if (uMsg == WM_CREATE)
+		{
+			// Associate the window's little blob of user memory with host iface
+			auto cfg = ((CREATESTRUCT*)lParam)->lpCreateParams;
+			SetWindowLongPtr(hWnd, GWLP_USERDATA, (LONG_PTR)cfg);
+		}
+		else
+		{
+			// If this returns a value, then the host iface should be responsible
+			// for handling the message.
+			auto host = (Host_Windows_WinAPI*)GetWindowLongPtr(hWnd, GWLP_USERDATA);
+			if (host)
+				return host->OnWindowEvent(hWnd, uMsg, wParam, lParam);
+		}
+		
+		return DefWindowProc(hWnd, uMsg, wParam, lParam);
+	}
+
+	std::wstring Host_Windows_WinAPI::ConvertS2W(std::string s)
+	{
+#ifdef __MINGW32__
+		wchar_t* buffer = new wchar_t[s.length() + 1];
+		mbstowcs(buffer, s.c_str(), s.length());
+		buffer[s.length()] = L'\0';
+#else
+		int count = MultiByteToWideChar(CP_UTF8, 0, s.c_str(), -1, NULL, 0);
+		wchar_t* buffer = new wchar_t[count];
+		MultiByteToWideChar(CP_UTF8, 0, s.c_str(), -1, buffer, count);
+#endif
+		std::wstring w(buffer);
+		delete[] buffer;
+		return w;
+	}
+
+	bool Host_Windows_WinAPI::AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen)
+	{
+		// The user created olc::Window object is the SSoT for what a window
+		// should look like, so get that sort of thing from there
+		olc::vi2d vWinPos = pWindow->GetPosition();
+		olc::vi2d vWinSize = pWindow->GetSize();
+
+		// Define WindowClass
+		WNDCLASS wc = { 0 };
+		wc.hIcon = LoadIcon(NULL, IDI_APPLICATION);
+		wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+		wc.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
+		wc.hInstance = GetModuleHandle(nullptr);
+		wc.lpfnWndProc = WINAPI_EventHandler;
+		wc.cbClsExtra = 0;
+		wc.cbWndExtra = 0;// sizeof(this); // For static meta-info
+		wc.lpszMenuName = nullptr;
+		wc.hbrBackground = nullptr;
+		wc.lpszClassName = olcT("OLC_PIXEL_GAME_ENGINE3");
+		RegisterClass(&wc);
+
+		// Define window furniture
+		DWORD dwExStyle = WS_EX_APPWINDOW | WS_EX_WINDOWEDGE;
+		DWORD dwStyle = WS_CAPTION | WS_SYSMENU | WS_VISIBLE | WS_THICKFRAME;
+
+		olc::vi2d vTopLeft = vWindowPos;
+
+		//// Handle Fullscreen
+		//if (bFullScreen)
+		//{
+		//	dwExStyle = 0;
+		//	dwStyle = WS_VISIBLE | WS_POPUP;
+		//	HMONITOR hmon = MonitorFromWindow(olc_hWnd, MONITOR_DEFAULTTONEAREST);
+		//	MONITORINFO mi = { sizeof(mi) };
+		//	if (!GetMonitorInfo(hmon, &mi)) return olc::rcode::FAIL;
+		//	vWindowSize = { mi.rcMonitor.right, mi.rcMonitor.bottom };
+		//	vTopLeft.x = 0;
+		//	vTopLeft.y = 0;
+		//}
+
+		// Keep client size as requested
+		RECT rWndRect = { 0, 0, vWindowSize.x, vWindowSize.y };
+		AdjustWindowRectEx(&rWndRect, dwStyle, FALSE, dwExStyle);
+		int width = rWndRect.right - rWndRect.left;
+		int height = rWndRect.bottom - rWndRect.top;
+
+		// Create the actual OS window, return a handle
+		HWND hWnd = CreateWindowEx(dwExStyle, olcT("OLC_PIXEL_GAME_ENGINE3"), olcT(""), dwStyle,
+			vTopLeft.x, vTopLeft.y, width, height, NULL, NULL, GetModuleHandle(nullptr), this);
+
+		// Now... awkwardly, the above has already fired off some window messages
+		// and they arent necessarily in a consistent order. Whereas one might 
+		// assume WM_CREATE would be the first, there are some others on more
+		// modern systems. This is awkward because we havent yet associated the
+		// source window with a long_ptr to this class, and therefore we can't
+		// call the appropriate event handler.
+
+
+		// Store the link bewteen host resource and window
+		mapUID2HWND.insert_or_assign(pWindow->GetUID(), hWnd);
+		mapHWND2PTR.insert_or_assign(hWnd, pWindow);
+
+		pWindow->ConnecToHost(this);
+
+
+		//DragAcceptFiles(olc_hWnd, true);
+
+		return true;
+	}
+
+	bool Host_Windows_WinAPI::UpdateWindowFrameTitle(olc::Window* pWindow)
+	{
+#ifdef UNICODE
+		SetWindowText(mapUID2HWND.at(pWindow->GetUID()), ConvertS2W(pWindow->GetTitle()).c_str());
+#else
+		SetWindowText(mapUID2HWND.at(pWindow->GetUID()), sTitle.c_str());
+#endif
+		return true;
+	}
+
+	std::vector<void*> Host_Windows_WinAPI::GetHostWindowDescriptor(olc::Window* pWindow)
+	{
+		return { mapUID2HWND[pWindow->GetUID()] };
+	}
+
+	bool Host_Windows_WinAPI::ConnectHostResourceToRenderer()
+	{
+		return false;
+	}
+
+	bool Host_Windows_WinAPI::SyncWithDesktopComposite()
+	{
+		return DwmFlush() == S_OK;
+	}
+
+	LRESULT Host_Windows_WinAPI::OnWindowEvent(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+	{
+		if (!mapHWND2PTR.contains(hWnd))
+			return false;
+
+		// Get target olc::Window
+		const auto& window = mapHWND2PTR.at(hWnd);
+
+		// Many WinAPI events are literally ancient these days, so need some interpretation
+		// to get to the useful data.
+
+		switch (uMsg)
+		{
+		case WM_MOUSEMOVE: // Mouse has moved within a window
+			{
+				// Extract mouse X & Y
+				uint16_t x = uint16_t(lParam & 0xFFFF); 
+				uint16_t y = uint16_t((lParam >> 16) & 0xFFFF);
+				int16_t ix = *(int16_t*)&x;   
+				int16_t iy = *(int16_t*)&y;
+				// Tell window new mouse location
+				window->olc_OnMouseMove(olc::vi2d{ ix, iy });
+				return 0;
+			}
+			break;
+		
+
+			//		case WM_MOVE:       vWinPos = olc::vi2d(lParam & 0xFFFF, (lParam >> 16) & 0xFFFF);  ptrPGE->olc_UpdateWindowPos(lParam & 0xFFFF, (lParam >> 16) & 0xFFFF);	return 0;
+			//		case WM_SIZE:       vWinSize = olc::vi2d(lParam & 0xFFFF, (lParam >> 16) & 0xFFFF);  ptrPGE->olc_UpdateWindowSize(lParam & 0xFFFF, (lParam >> 16) & 0xFFFF);	return 0;
+			//		case WM_MOUSEWHEEL:	ptrPGE->olc_UpdateMouseWheel(GET_WHEEL_DELTA_WPARAM(wParam));           return 0;
+			//		case WM_MOUSELEAVE: ptrPGE->olc_UpdateMouseFocus(false);                                    return 0;
+			//		case WM_SETFOCUS:	ptrPGE->olc_UpdateKeyFocus(true);                                       return 0;
+			//		case WM_KILLFOCUS:	ptrPGE->olc_UpdateKeyFocus(false);                                      return 0;
+			//		case WM_KEYDOWN:	ptrPGE->olc_UpdateKeyState(int32_t(wParam), true);                      return 0;
+			//		case WM_KEYUP:		ptrPGE->olc_UpdateKeyState(int32_t(wParam), false);                     return 0;
+			//		case WM_SYSKEYDOWN: ptrPGE->olc_UpdateKeyState(int32_t(wParam), true);						return 0;
+			//		case WM_SYSKEYUP:	ptrPGE->olc_UpdateKeyState(int32_t(wParam), false);						return 0;
+			//		case WM_LBUTTONDOWN:ptrPGE->olc_UpdateMouseState(0, true);                                  return 0;
+			//		case WM_LBUTTONUP:	ptrPGE->olc_UpdateMouseState(0, false);                                 return 0;
+			//		case WM_RBUTTONDOWN:ptrPGE->olc_UpdateMouseState(1, true);                                  return 0;
+			//		case WM_RBUTTONUP:	ptrPGE->olc_UpdateMouseState(1, false);                                 return 0;
+			//		case WM_MBUTTONDOWN:ptrPGE->olc_UpdateMouseState(2, true);                                  return 0;
+			//		case WM_MBUTTONUP:	ptrPGE->olc_UpdateMouseState(2, false);                                 return 0;
+			//		case WM_DROPFILES:
+			//		{
+			//			// This is all eww...
+			//			HDROP drop = (HDROP)wParam;
+			//			
+			//			uint32_t nFiles = DragQueryFile(drop, 0xFFFFFFFF, nullptr, 0);
+			//			std::vector<std::string> vFiles;
+			//			for (uint32_t i = 0; i < nFiles; i++)
+			//			{
+			//				TCHAR dfbuffer[256]{};
+			//				uint32_t len = DragQueryFile(drop, i, nullptr, 0);
+			//				DragQueryFile(drop, i, dfbuffer, 256);
+			//#ifdef UNICODE
+			//#ifdef __MINGW32__
+			//				char* buffer = new char[len + 1];
+			//				wcstombs(buffer, dfbuffer, len);
+			//				buffer[len] = '\0';
+			//#else
+			//				int count = WideCharToMultiByte(CP_UTF8, 0, dfbuffer, -1, NULL, 0, NULL, NULL);
+			//				char* buffer = new char[count];
+			//				WideCharToMultiByte(CP_UTF8, 0, dfbuffer, -1, buffer, count, NULL, NULL);
+			//#endif				
+			//				vFiles.push_back(std::string(buffer));
+			//				delete[] buffer;
+			//#else
+			//				vFiles.push_back(std::string(dfbuffer));
+			//#endif
+			//			}
+			//			
+			//			// Even more eww...
+			//			POINT p; DragQueryPoint(drop, &p);
+			//			ptrPGE->olc_DropFiles(p.x, p.y, vFiles);
+			//			DragFinish(drop);
+			//			return 0;
+			//		}
+			//		break;
+			//			
+			//			
+			//		case WM_CLOSE:		ptrPGE->olc_Terminate();                                                return 0;
+		case WM_DESTROY:	
+			PostQuitMessage(0); 
+			DestroyWindow(hWnd);
+
+		}
+		return DefWindowProc(hWnd, uMsg, wParam, lParam);
+	}
+
+};
+#endif
+#define PGE_HOST_IMPLEMENTED 1
+#endif
+
+#if defined(OLC_PGE_APPLICATION) && !defined(PGE_GPU_IMPLEMENTED)
+#if OLC_GPU == OLC_GPU_OPENGL33
+namespace olc::apis::opengl
+{
+	bool gl::bLoaded = false;
+
+	gl& gl::Get()
+	{
+		static olc::apis::opengl::gl me;
+		if (!me.bLoaded) me.LoadAll();
+		return me;
+	}
+
+	bool gl::LoadAll()
+	{
+		// Load all the OpenGL API entry points
+		bLoaded = true;
+		bLoaded &= (glCreateShader = OGL_LOAD(glCreateShader)) != nullptr;
+		bLoaded &= (glCreateProgram	= OGL_LOAD(glCreateProgram)) != nullptr;
+		bLoaded &= (glDeleteShader = OGL_LOAD(glDeleteShader)) != nullptr;
+		bLoaded &= (glCompileShader = OGL_LOAD(glCompileShader)) != nullptr;
+		bLoaded &= (glLinkProgram = OGL_LOAD(glLinkProgram)) != nullptr;
+		bLoaded &= (glDeleteProgram = OGL_LOAD(glDeleteProgram)) != nullptr;
+		bLoaded &= (glAttachShader = OGL_LOAD(glAttachShader)) != nullptr;
+		bLoaded &= (glBindBuffer = OGL_LOAD(glBindBuffer)) != nullptr;
+		bLoaded &= (glBufferData = OGL_LOAD(glBufferData)) != nullptr;
+		bLoaded &= (glGenBuffers = OGL_LOAD(glGenBuffers)) != nullptr;
+		bLoaded &= (glVertexAttribPointer = OGL_LOAD(glVertexAttribPointer)) != nullptr;
+		bLoaded &= (glEnableVertexAttribArray = OGL_LOAD(glEnableVertexAttribArray)) != nullptr;
+		bLoaded &= (glUseProgram = OGL_LOAD(glUseProgram)) != nullptr;
+		bLoaded &= (glBindVertexArray = OGL_LOAD(glBindVertexArray)) != nullptr;
+		bLoaded &= (glGenVertexArrays = OGL_LOAD(glGenVertexArrays)) != nullptr;
+		bLoaded &= (glGetShaderInfoLog = OGL_LOAD(glGetShaderInfoLog)) != nullptr;
+		bLoaded &= (glGetUniformLocation = OGL_LOAD(glGetUniformLocation)) != nullptr;
+		bLoaded &= (glUniform1f = OGL_LOAD(glUniform1f)) != nullptr;
+		bLoaded &= (glUniform1i = OGL_LOAD(glUniform1i)) != nullptr;
+		bLoaded &= (glUniform2fv = OGL_LOAD(glUniform2fv)) != nullptr;
+		bLoaded &= (glUniform4fv = OGL_LOAD(glUniform4fv)) != nullptr;
+		bLoaded &= (glUniformMatrix4fv = OGL_LOAD(glUniformMatrix4fv)) != nullptr;
+		bLoaded &= (glActiveTexture = OGL_LOAD(glActiveTexture)) != nullptr;
+		bLoaded &= (glGenFrameBuffers = OGL_LOAD(glGenFrameBuffers)) != nullptr;
+		bLoaded &= (glBindFrameBuffer = OGL_LOAD(glBindFrameBuffer)) != nullptr;
+		bLoaded &= (glCheckFrameBufferStatus = OGL_LOAD(glCheckFrameBufferStatus)) != nullptr;
+		bLoaded &= (glDeleteFrameBuffers = OGL_LOAD(glDeleteFrameBuffers)) != nullptr;
+		bLoaded &= (glFrameBufferTexture2D = OGL_LOAD(glFrameBufferTexture2D)) != nullptr;
+		bLoaded &= (glDrawBuffers = OGL_LOAD(glDrawBuffers)) != nullptr;
+		bLoaded &= (glBlendFuncSeparate = OGL_LOAD(glBlendFuncSeparate)) != nullptr;
+
+		if (!bLoaded)
+			return false; // API load has failed
+
+
+
+		return bLoaded;
+	}
+
+	void gl::glGenTextures(GLsizei n, GLuint* textures)
+	{
+		::glGenTextures(n, textures);
+	}
+
+	void gl::glBindTexture(GLenum target, GLuint texture)
+	{
+		::glBindTexture(target, texture);
+	}
+
+	void gl::glTexParameteri(GLenum target, GLenum pname, GLint param)
+	{
+		::glTexParameteri(target, pname, param);
+	}
+
+	void gl::glTexEnvf(GLenum target, GLenum pname, GLfloat param)
+	{
+		::glTexEnvf(target, pname, param);
+	}
+
+	void gl::glDeleteTextures(GLsizei n, const GLuint* textures)
+	{
+		::glDeleteTextures(n, textures);
+	}
+
+	void gl::glTexImage2D(GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const GLvoid* pixels)
+	{
+		::glTexImage2D(target, level, internalformat, width, height, border, format, type, pixels);
+	}
+
+	void gl::glClear(GLbitfield mask)
+	{
+		::glClear(mask);
+	}
+
+	void gl::glViewport(GLint x, GLint y, GLsizei width, GLsizei height)
+	{
+		::glViewport(x, y, width, height);
+	}
+
+	void gl::glClearColor(GLfloat red, GLfloat green, GLfloat blue, GLfloat alpha)
+	{
+		::glClearColor(red, green, blue, alpha);
+	}
+}
+namespace olc::gpu
+{
+	bool Renderer_OGL33::CreateDevice(std::vector<void*> params, const RendererConfig& cfg)
+	{
+		config = cfg;
+
+
+		// Create OpenGL Device Context
+#if OLC_HOST == OLC_HOST_WINDOWS
+		// "wgl*" all live in WinGDI
+		glDeviceContext = GetDC((HWND)(params[0]));
+
+		PIXELFORMATDESCRIPTOR pfd =
+		{
+			sizeof(PIXELFORMATDESCRIPTOR), 1,
+			PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER,
+			PFD_TYPE_RGBA, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+			PFD_MAIN_PLANE, 0, 0, 0, 0
+		};
+
+		int pf = 0;
+		if (!(pf = ChoosePixelFormat(glDeviceContext, &pfd)))
+		{
+			lastError = RendererError::InvalidDCPixelFormat;
+			return false;
+		}
+
+		if (!SetPixelFormat(glDeviceContext, pf, &pfd))
+		{
+			lastError = RendererError::FailedToSetDCPixelFormat;
+			return false;
+		}
+
+		if (!(glRenderContext = wglCreateContext(glDeviceContext))) 
+		{
+			lastError = RendererError::FailedToCreateRenderContext;
+			return false;
+		}
+
+		if (!wglMakeCurrent(glDeviceContext, glRenderContext))
+		{
+			lastError = RendererError::FailedToSwitchRenderContext;
+			return false;
+		}
+
+		//// Set Vertical Sync
+		//glSwapInterval = OGL_LOAD(glSwapInterval);
+		//if (locSwapInterval && !bVSYNC) locSwapInterval(0);
+		//bSync = bVSYNC;
+
+#endif
+
+		// Can't load OpenGL API until context is loaded
+		auto& gl = olc::apis::opengl::gl::Get();
+
+
+		lastError = RendererError::None;
+		return true;
+	}
+
+	bool Renderer_OGL33::DestroyDevice()
+	{
+		auto& gl = olc::apis::opengl::gl::Get();
+
+#if OLC_HOST == OLC_HOST_WINDOWS
+		wglDeleteContext(glRenderContext);
+#endif
+		return false;
+	}
+
+	uint32_t Renderer_OGL33::CreateTexture(const olc::vi2d& vSize, const olc::ImageConfig& cfg)
+	{
+		auto& gl = olc::apis::opengl::gl::Get();
+
+		// Curiously OpenGL doesnt actually care about the size of the texture
+		// as part of its creation.	This matters later when we Write to texture
+		// resources on GPU
+		
+		uint32_t id = 0;
+		gl.glGenTextures(1, &id);
+		gl.glBindTexture(GL_TEXTURE_2D, id);
+
+		if (cfg.Filtered)
+		{
+			gl.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+			gl.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		}
+		else
+		{
+			gl.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+			gl.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		}
+
+		if (cfg.Clamp)
+		{
+			gl.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+			gl.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+		}
+		else
+		{
+			gl.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+			gl.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+		}
+
+#if OLC_HOST != OLC_HOST_EMSCRIPTEN
+		gl.glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+#endif
+		return id;
+	}
+
+	bool Renderer_OGL33::WriteTexture(const uint32_t texid, olc::Image& image)
+	{
+		auto& gl = olc::apis::opengl::gl::Get();
+		gl.glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image.Size().x, image.Size().y, 0, GL_RGBA, GL_UNSIGNED_BYTE, image.Data());
+		return false;
+	}
+
+	bool Renderer_OGL33::ReadTexture(const uint32_t texid, olc::Image& image)
+	{
+		auto& gl = olc::apis::opengl::gl::Get();
+		return false;
+	}
+
+	bool Renderer_OGL33::DeleteTexture(const uint32_t texid)
+	{
+		auto& gl = olc::apis::opengl::gl::Get();
+		gl.glDeleteTextures(1, &texid);
+		return true;
+	}
+
+	bool Renderer_OGL33::AssignTextureSource(const uint32_t slot, const uint32_t texid)
+	{
+		auto& gl = olc::apis::opengl::gl::Get();
+		return false;
+	}
+
+	bool Renderer_OGL33::AssignTextureTarget(const uint32_t slot, const uint32_t texid)
+	{
+		auto& gl = olc::apis::opengl::gl::Get();
+		return false;
+	}
+
+	bool Renderer_OGL33::DoGPUTask(const olc::pgeguts::GPUTask& task)
+	{
+		auto& gl = olc::apis::opengl::gl::Get();
+		return false;
+	}
+
+	bool Renderer_OGL33::ClearViewport(const olc::Pixel col, bool bDepth, bool bStencil)
+	{
+		auto& gl = olc::apis::opengl::gl::Get();
+		gl.glClearColor(float(col.r) / 255.0f, float(col.g) / 255.0f, float(col.b) / 255.0f, float(col.a) / 255.0f);
+		gl.glClear(GL_COLOR_BUFFER_BIT | (bDepth ? GL_DEPTH_BUFFER_BIT : 0) | (bStencil ? GL_STENCIL_BUFFER_BIT : 0));		
+		return true;
+	}
+
+	bool Renderer_OGL33::SetViewport(const olc::vf2d& pos, const olc::vf2d& size)
+	{
+		auto& gl = olc::apis::opengl::gl::Get();
+		gl.glViewport(int(pos.x), int(pos.y), int(size.x), int(size.y));
+		return false;
+	}
+
+	bool Renderer_OGL33::DisplayPrepare()
+	{
+		auto& gl = olc::apis::opengl::gl::Get();
+		return false;
+	}
+
+	bool Renderer_OGL33::DisplayDraw(bool bVerticalSyncNow)
+	{
+		auto& gl = olc::apis::opengl::gl::Get();
+
+
+#if OLC_HOST == OLC_HOST_WINDOWS
+		SwapBuffers(glDeviceContext);		
+#endif	
+
+		return false;
+	}
+}
+#endif
+#define PGE_GPU_IMPLEMENTED 1
+#endif
+
 #if defined(OLC_PGE_APPLICATION) && !defined(PGE_CORE_IMPLEMENTED)
 namespace olc
 {
-	PixelGameEngine::PixelGameEngine()
+	PixelGameEngine::PixelGameEngine() : Window()
 	{
 	}
 
@@ -815,17 +2606,41 @@ namespace olc
 
 	bool PixelGameEngine::Construct(const olc::vi2d& vScreenSize, const olc::vi2d& vPixelSize, bool bFullScreen)
 	{
-		return false;
+		config.vScreenSize = vScreenSize;
+		config.vPixelSize = vPixelSize;
+		config.bFullScreen = bFullScreen;
+
+		return true;
 	}
 
-	bool PixelGameEngine::Construct(const PGEConfig& config)
-	{
+	bool PixelGameEngine::Construct(const PGEConfig& cfg)
+	{		
+		config = cfg;
+
 		return false;
 	}
 
 	bool PixelGameEngine::Start()
 	{
-		return false;
+		// Initialise Host Interface
+		host = std::make_unique<olc::host::Host_Windows_WinAPI>();
+		
+
+		// Link this olc::Window to a host resource
+		if (host)
+			host->AddWindowFrame(this, { 30,30 }, { 250, 240 }, false);
+		
+		coreActive = true;
+		coreThread = std::thread(&PixelGameEngine::EngineThread, this);
+
+		// This will block depending upon the system
+		host->StartSystemEventLoop();
+
+		// Gracefully terminate the main engine thread
+		coreActive = false;
+		coreThread.join();
+
+		return true;
 	}
 
 	bool PixelGameEngine::OnUserCreate()
@@ -843,9 +2658,100 @@ namespace olc
 		return false;
 	}
 
+	bool PixelGameEngine::CreateImage(olc::Image& image, const olc::vi2d& size, const ImageConfig& cfg)
+	{
+		// Create CPU Image
+		if (!image.Create(size, cfg))
+			return false;
+
+		// Create GPU Image
+		auto id = gpu->CreateTexture(image.Size(), cfg);
+		if (id == 0)
+		{
+			image.Create({ 0,0 });
+			return false;
+		}
+
+		// Associate CPU object with GPU Resource
+		image.SetGPUID(id);
+		return true;
+	}
+
+	bool PixelGameEngine::CreateImageFromFile(olc::Image& image, const std::string& sFileName, const ImageConfig& cfg)
+	{		
+		return false;
+	}
+
+	bool PixelGameEngine::CreateImageFromMemory(olc::Image& image, const uint8_t* data, const size_t bytes, const ImageConfig& cfg)
+	{
+		return false;
+	}
+
+	bool PixelGameEngine::WriteImageToFile(const olc::Image& image, const std::string& sFileName)
+	{
+		return false;
+	}
+
+	bool PixelGameEngine::WriteImageToMemory(const olc::Image& image, std::vector<uint8_t> bytes, const std::string& sFileName)
+	{
+		return false;
+	}
+
+	void PixelGameEngine::DestroyImage(olc::Image& image)
+	{
+		// If image has gpu resource, remove it
+		if (image.GetGPUID() != 0)
+		{
+			gpu->DeleteTexture(image.GetGPUID());
+			image.SetGPUID(0);
+		}
+
+		// Free any cpu memory associated with image
+		image.Create({ 0,0 });
+	}
+
+	bool PixelGameEngine::olc_PrimaryWindowInit()
+	{
+		// Called by window to initialise core systems. Sub windows should ignore this
+		return false;
+	}
+
 	void PixelGameEngine::EngineThread()
 	{
-		while (true)
+		using namespace std::chrono_literals;
+		timeFrame2 = std::chrono::steady_clock::now();
+		timeFrame1 = std::chrono::steady_clock::now();
+		
+
+		// Initialise GPU Interface	- This thread is the context
+		olc::gpu::RendererConfig cfgRenderer;
+		gpu = std::make_unique<olc::gpu::Renderer_OGL33>();
+
+		// The GPU device can be based upon the primary window configuration. This
+		// gives us completed gpu and host objects to pass to other windows as and
+		// when required
+		gpu->CreateDevice(host->GetHostWindowDescriptor(this), cfgRenderer);
+		if (gpu->GetLastError() != olc::gpu::RendererError::None)
+		{
+			const auto e = gpu->GetLastError(); // For debug visibility
+			std::cout << "Error: Could not create Renderer\n";
+			return;
+		}
+
+		if (!OnUserCreate())
+		{
+			// Creation process signalled abort
+			return;
+		}
+		
+
+
+		// Initialise Input Devices
+
+
+		durationFrameCount = 0s;
+
+		while (coreActive)
 		{
 			// Frame Delta Timing - "ElapsedTime" since last core update
 			// ~~~~~~~~~~~~~~~~~~
@@ -861,28 +2767,109 @@ namespace olc
 			// and resource management. That is not olc::PGE.
 
 			timeFrame1 = std::chrono::steady_clock::now();
-			durationFrame = timeFrame2 - timeFrame1;
-			timeFrame1 = timeFrame2;
+			durationFrame = timeFrame1 - timeFrame2;
+			timeFrame2 = timeFrame1;
 
 			// Our time per frame coefficient
 			float fDT = durationFrame.count();
 
-			// Primary Window
-			olc_WindowUpdate(fDT);
-
-			// Child Windows
+			frameCount++;
+			durationFrameCount += durationFrame;
+			
+			if (durationFrameCount >= 1s)
+			{
+				durationFrameCount -= 1s;
+				std::string sTitle = "OneLoneCoder.com - Pixel Game Engine 3 - Test - FPS: " + std::to_string(frameCount);
+				SetTitle(sTitle);
+				frameCount = 0;
+			}
+			
+			// Update Child Windows (if any)
 			for (auto& winChild : deqChildWindows)
-				winChild->olc_WindowUpdate(fDT);
+				winChild->olc_WindowUpdate(fDT, gpu.get());
+
+			// Update Primary Window
+			olc_WindowUpdate(fDT, gpu.get());
+			
+			// Wait for vertical sync if required. 
+			// Note: Child windows will never vsync as waiting for each buffer swap with vsync
+			// divides up teh frame rate budget across the windows.
+			if (gpu->GetConfig().VerticalSync)
+			{
+				host->SyncWithDesktopComposite();
+			}
 
 			// Remove child windows that have requested closure
-			deqChildWindows.erase(std::remove_if(deqChildWindows.begin(), deqChildWindows.end(),
-				[](const std::unique_ptr<Window>& w)
-				{
-					return w->olc_ShouldRemove();
-				}
-			));
+			if (!deqChildWindows.empty())
+			{
+				deqChildWindows.erase(std::remove_if(deqChildWindows.begin(), deqChildWindows.end(),
+					[](const std::shared_ptr<Window>& w)
+					{
+						return w->olc_ShouldRemove();
+					}
+				));
+			}
+
+			// Primary Window
+			if (olc_ShouldRemove())
+			{
+				// Application is to be terminated
+				coreActive = false;
+			}
+
+			
 		}
 	}
 }
 #define PGE_CORE_IMPLEMENTED 1
 #endif
+
+#if defined(OLC_PGE_APPLICATION) && !defined(PGE_IMAGE_IMPLEMENTED)
+namespace olc
+{
+	/*Image::Image(const olc::vi2d& size, const ImageConfig& cfg)
+	{
+	}
+
+	Image::~Image()
+	{
+	}*/
+
+	bool Image::Create(const olc::vi2d& size, const ImageConfig& cfg)
+	{
+		dimensions = size;
+		config = cfg;
+		pixels.resize(dimensions.area(), olc::Pixel(255, 165, 0));
+		return true;
+	}
+
+	const olc::vi2d& Image::Size() const
+	{
+		return dimensions;
+	}
+
+	olc::Pixel* Image::Data()
+	{
+		return pixels.data();
+	}
+
+	const ImageConfig& Image::GetConfig() const
+	{
+		return config;
+	}
+
+	int32_t Image::GetGPUID() const
+	{
+		return gpuResourceID;
+	}
+
+	void Image::SetGPUID(const int32_t id)
+	{
+		gpuResourceID = id;
+	}
+
+};
+#define PGE_IMAGE_IMPLEMENTED 1
+#endif
+
+
