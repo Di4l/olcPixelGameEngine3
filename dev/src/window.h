@@ -32,7 +32,12 @@ namespace olc
 		class Host;
 	}
 
-	class Window : public std::enable_shared_from_this<olc::Window>
+	namespace gpu
+	{
+		class Renderer;
+	}
+
+	class Window
 	{
 		friend class olc::host::FRIENDLY_HOST;
 
@@ -43,8 +48,11 @@ namespace olc
 		void ConnecToHost(olc::host::Host* host);
 
 	public:
+		// Return true if window is to continue
 		virtual bool OnUserCreate();
+		// Return true if window is to continue
 		virtual bool OnUserUpdate(float fElapsedTime);
+		// Return true if window is to close
 		virtual bool OnUserDestroy();
 
 	private:
@@ -64,10 +72,10 @@ namespace olc
 
 	public:
 		bool olc_ShouldRemove() const;
-		bool olc_WindowUpdate(const float fElapsedTime);
+		bool olc_WindowUpdate(const float fElapsedTime, olc::gpu::Renderer* const gpu);
 
 	public:
-		const size_t GetUID() const;
+		size_t GetUID() const;
 
 		const olc::vi2d& GetSize() const;
 		bool SetSize(const olc::vi2d& vSize);

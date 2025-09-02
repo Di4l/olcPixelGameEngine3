@@ -9,9 +9,12 @@ public:
 
 	}
 
+	olc::Image imTest;
+
 public:
 	bool OnUserCreate() override
 	{
+		CreateImage(imTest, { 128,128 });
 		return true;
 	}
 

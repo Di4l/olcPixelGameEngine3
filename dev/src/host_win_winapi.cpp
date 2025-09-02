@@ -6,6 +6,8 @@ namespace olc::host
 	// Forward Declaration
 	static LRESULT CALLBACK WINAPI_EventHandler(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
+	// Windows app needs an event loop somewhere. This is blocking of course. This loop handles
+	// all windows created for this host.
 	bool Host_Windows_WinAPI::StartSystemEventLoop()
 	{
 		MSG msg;
@@ -142,9 +144,19 @@ namespace olc::host
 		return true;
 	}
 
+	std::vector<void*> Host_Windows_WinAPI::GetHostWindowDescriptor(olc::Window* pWindow)
+	{
+		return { mapUID2HWND[pWindow->GetUID()] };
+	}
+
 	bool Host_Windows_WinAPI::ConnectHostResourceToRenderer()
 	{
 		return false;
+	}
+
+	bool Host_Windows_WinAPI::SyncWithDesktopComposite()
+	{
+		return DwmFlush() == S_OK;
 	}
 
 	LRESULT Host_Windows_WinAPI::OnWindowEvent(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
@@ -155,14 +167,19 @@ namespace olc::host
 		// Get target olc::Window
 		const auto& window = mapHWND2PTR.at(hWnd);
 
+		// Many WinAPI events are literally ancient these days, so need some interpretation
+		// to get to the useful data.
+
 		switch (uMsg)
 		{
-		case WM_MOUSEMOVE:
+		case WM_MOUSEMOVE: // Mouse has moved within a window
 			{
-				uint16_t x = lParam & 0xFFFF; 
-				uint16_t y = (lParam >> 16) & 0xFFFF;
+				// Extract mouse X & Y
+				uint16_t x = uint16_t(lParam & 0xFFFF); 
+				uint16_t y = uint16_t((lParam >> 16) & 0xFFFF);
 				int16_t ix = *(int16_t*)&x;   
 				int16_t iy = *(int16_t*)&y;
+				// Tell window new mouse location
 				window->olc_OnMouseMove(olc::vi2d{ ix, iy });
 				return 0;
 			}
@@ -231,76 +248,6 @@ namespace olc::host
 		}
 		return DefWindowProc(hWnd, uMsg, wParam, lParam);
 	}
-
-	// Lives in olc::host namespace
-
-//		switch (uMsg)
-//		{
-//		case WM_MOUSEMOVE:
-//		{
-//			// Thanks @ForAbby (Discord)
-//			uint16_t x = lParam & 0xFFFF; uint16_t y = (lParam >> 16) & 0xFFFF;
-//			int16_t ix = *(int16_t*)&x;   int16_t iy = *(int16_t*)&y;
-//			ptrPGE->olc_UpdateMouse(ix, iy);
-//			return 0;
-//		}
-//		case WM_MOVE:       vWinPos = olc::vi2d(lParam & 0xFFFF, (lParam >> 16) & 0xFFFF);  ptrPGE->olc_UpdateWindowPos(lParam & 0xFFFF, (lParam >> 16) & 0xFFFF);	return 0;
-//		case WM_SIZE:       vWinSize = olc::vi2d(lParam & 0xFFFF, (lParam >> 16) & 0xFFFF);  ptrPGE->olc_UpdateWindowSize(lParam & 0xFFFF, (lParam >> 16) & 0xFFFF);	return 0;
-//		case WM_MOUSEWHEEL:	ptrPGE->olc_UpdateMouseWheel(GET_WHEEL_DELTA_WPARAM(wParam));           return 0;
-//		case WM_MOUSELEAVE: ptrPGE->olc_UpdateMouseFocus(false);                                    return 0;
-//		case WM_SETFOCUS:	ptrPGE->olc_UpdateKeyFocus(true);                                       return 0;
-//		case WM_KILLFOCUS:	ptrPGE->olc_UpdateKeyFocus(false);                                      return 0;
-//		case WM_KEYDOWN:	ptrPGE->olc_UpdateKeyState(int32_t(wParam), true);                      return 0;
-//		case WM_KEYUP:		ptrPGE->olc_UpdateKeyState(int32_t(wParam), false);                     return 0;
-//		case WM_SYSKEYDOWN: ptrPGE->olc_UpdateKeyState(int32_t(wParam), true);						return 0;
-//		case WM_SYSKEYUP:	ptrPGE->olc_UpdateKeyState(int32_t(wParam), false);						return 0;
-//		case WM_LBUTTONDOWN:ptrPGE->olc_UpdateMouseState(0, true);                                  return 0;
-//		case WM_LBUTTONUP:	ptrPGE->olc_UpdateMouseState(0, false);                                 return 0;
-//		case WM_RBUTTONDOWN:ptrPGE->olc_UpdateMouseState(1, true);                                  return 0;
-//		case WM_RBUTTONUP:	ptrPGE->olc_UpdateMouseState(1, false);                                 return 0;
-//		case WM_MBUTTONDOWN:ptrPGE->olc_UpdateMouseState(2, true);                                  return 0;
-//		case WM_MBUTTONUP:	ptrPGE->olc_UpdateMouseState(2, false);                                 return 0;
-//		case WM_DROPFILES:
-//		{
-//			// This is all eww...
-//			HDROP drop = (HDROP)wParam;
-//
-//			uint32_t nFiles = DragQueryFile(drop, 0xFFFFFFFF, nullptr, 0);
-//			std::vector<std::string> vFiles;
-//			for (uint32_t i = 0; i < nFiles; i++)
-//			{
-//				TCHAR dfbuffer[256]{};
-//				uint32_t len = DragQueryFile(drop, i, nullptr, 0);
-//				DragQueryFile(drop, i, dfbuffer, 256);
-//#ifdef UNICODE
-//#ifdef __MINGW32__
-//				char* buffer = new char[len + 1];
-//				wcstombs(buffer, dfbuffer, len);
-//				buffer[len] = '\0';
-//#else
-//				int count = WideCharToMultiByte(CP_UTF8, 0, dfbuffer, -1, NULL, 0, NULL, NULL);
-//				char* buffer = new char[count];
-//				WideCharToMultiByte(CP_UTF8, 0, dfbuffer, -1, buffer, count, NULL, NULL);
-//#endif				
-//				vFiles.push_back(std::string(buffer));
-//				delete[] buffer;
-//#else
-//				vFiles.push_back(std::string(dfbuffer));
-//#endif
-//			}
-//
-//			// Even more eww...
-//			POINT p; DragQueryPoint(drop, &p);
-//			ptrPGE->olc_DropFiles(p.x, p.y, vFiles);
-//			DragFinish(drop);
-//			return 0;
-//		}
-//		break;
-//
-//
-//		case WM_CLOSE:		ptrPGE->olc_Terminate();                                                return 0;
-//		case WM_DESTROY:	PostQuitMessage(0); DestroyWindow(hWnd);								return 0;
-//		}
 
 };
 //! END IMPLEMENTATION

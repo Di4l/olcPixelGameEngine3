@@ -7,14 +7,15 @@
 
 
 //! START OPENGL_CONFIG
-#define CALLSTYLE
+
 #if OLC_HOST == OLC_HOST_WINDOWS
 	#include <Windows.h>
 	#pragma comment(lib, "gdi32.lib")
 	#pragma comment(lib, "opengl32.lib")
 	#include <gl/GL.h>
 	#define CALLSTYLE __stdcall
-	#define OGL_LOAD(t) (t##_t*)wglGetProcAddress(#t)
+	// ooof... was getting a bunch of spurious C4191 from MSVC 17.14.9, so round trip via void-town
+	#define OGL_LOAD(t) reinterpret_cast<t##_t*>(reinterpret_cast<void*>(wglGetProcAddress(#t)))
 #endif
 
 #if OLC_HOST == OLC_HOST_LINUX_X11 || OLC_HOST == OLC_HOST_LINUX_WAYLAND
@@ -40,9 +41,14 @@
 	#define GL_GLEXT_PROTOTYPES
 	#include <GLES2/gl2ext.h>
 	#include <emscripten/emscripten.h>
-	#define CALLSTYLE
 	#define GL_CLAMP GL_CLAMP_TO_EDGE
 #endif
+
+#if !defined(CALLSTYLE)
+	#define CALLSTYLE
+#endif
+
+
 //! END OPENGL_CONFIG
 
 //! START DECLARATION
@@ -141,6 +147,18 @@ namespace olc
 			glFrameBufferTexture2D_t* glFrameBufferTexture2D = nullptr;
 			glDrawBuffers_t* glDrawBuffers = nullptr;
 			glBlendFuncSeparate_t* glBlendFuncSeparate = nullptr;
+
+			// OpenGL1.2 Proxies (just keeps things tidy imo)
+			void glGenTextures(GLsizei n, GLuint* textures);
+			void glBindTexture(GLenum target, GLuint texture);
+			void glTexParameteri(GLenum target, GLenum pname, GLint param);
+			void glTexEnvf(GLenum target, GLenum pname, GLfloat param);
+			void glDeleteTextures(GLsizei n, const GLuint* textures); 
+			void glTexImage2D(GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const GLvoid* pixels);
+			void glClear(GLbitfield mask);
+			void glViewport(GLint x, GLint y, GLsizei width, GLsizei height);
+			void glClearColor(GLfloat red, GLfloat green, GLfloat blue, GLfloat alpha);
+
 		};
 	}
 	

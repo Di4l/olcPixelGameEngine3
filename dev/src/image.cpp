@@ -3,49 +3,45 @@
 //! START IMPLEMENTATION
 namespace olc
 {
-	ImageCPU::ImageCPU(const olc::vi2d& size) : dimensions(size)
+	/*Image::Image(const olc::vi2d& size, const ImageConfig& cfg)
 	{
+	}
+
+	Image::~Image()
+	{
+	}*/
+
+	bool Image::Create(const olc::vi2d& size, const ImageConfig& cfg)
+	{
+		dimensions = size;
+		config = cfg;
 		pixels.resize(dimensions.area(), olc::Pixel(255, 165, 0));
+		return true;
 	}
 
-	ImageCPU::~ImageCPU()
-	{
-		pixels.clear();
-	}
-
-	const olc::vi2d& ImageCPU::Size() const
+	const olc::vi2d& Image::Size() const
 	{
 		return dimensions;
 	}
 
-	olc::Pixel* ImageCPU::Data()
+	olc::Pixel* Image::Data()
 	{
 		return pixels.data();
 	}
 
-
-	Image::Image(const olc::vi2d& size, const bool onCPU, const bool onGPU)
+	const ImageConfig& Image::GetConfig() const
 	{
-		// Always create CPU resident image
-		imCPU = std::make_unique<olc::ImageCPU>(size);
-
-		if (onGPU)
-		{
-
-		}
-
-		if (!onCPU)
-			imCPU.reset();
+		return config;
 	}
 
-	bool Image::InCPU() const
+	int32_t Image::GetGPUID() const
 	{
-		return imCPU != nullptr;
+		return gpuResourceID;
 	}
 
-	bool Image::InGPU() const
+	void Image::SetGPUID(const int32_t id)
 	{
-		return imGPU != nullptr;
+		gpuResourceID = id;
 	}
 
 };

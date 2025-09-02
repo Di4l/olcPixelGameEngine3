@@ -1123,45 +1123,47 @@ namespace olc
 	{
 		bool Filtered = false;
 		bool Clamp = false;
-	};
-
-	class ImageCPU
-	{
-	public:
-		ImageCPU() = default;
-		ImageCPU(const olc::vi2d& size);
-		virtual ~ImageCPU();
-
-	public:
-		const olc::vi2d& Size() const;
-		olc::Pixel* Data();
-
-	public:
-		olc::vi2d dimensions;
-		std::vector<olc::Pixel> pixels;
-	};
-
-	struct ImageGPU
-	{
-		olc::vf2d size;
-		olc::vf2d invsize;
-		int32_t resourceID = -1;
+		bool InRAM = true;
+		bool InVRAM = true;
 	};
 
 	class Image
 	{
 	public:
 		// Constructs a general purpose image
-		Image(const olc::vi2d& size, const bool onCPU = true, const bool onGPU = true);
+		Image() = default;
+		virtual ~Image() = default;
 
 	public:
-		bool InCPU() const;
-		bool InGPU() const;
+		bool Create(const olc::vi2d& size, const ImageConfig& cfg = olc::ImageConfig());
 
+	public:
+		// Returns size (x, y) in pixels
+		const olc::vi2d& Size() const;
+		// Returns read/write pointer to start of 1D stream of pixel data
+		olc::Pixel* Data();
+		// Returns how this image was configured upon creation
+		const ImageConfig& GetConfig() const;
+		// Return GPU Resource ID
+		int32_t GetGPUID() const;
+		// Set GPU Resource ID (0 to eliminate)
+		void SetGPUID(const int32_t id);
+		
+		// True if data mirror has in-front RAM image		
+		bool HasWetCPU() const;
+		// True if data mirror has in-front VRAM image
+		bool HasWetGPU() const;
+
+		void PrimeCPU();
+		void PrimeGPU();
 
 	protected:
-		std::unique_ptr<olc::ImageCPU> imCPU = nullptr;
-		std::unique_ptr<olc::ImageGPU> imGPU = nullptr;
+		ImageConfig config;
+		olc::vi2d dimensions;
+		std::vector<olc::Pixel> pixels;
+		int32_t gpuResourceID = 0;
+		bool gpuWet = false;
+		bool cpuWet = true;
 	};
 }
 #define PGE_IMAGE_DECLARED 1
@@ -1181,7 +1183,12 @@ namespace olc
 		class Host;
 	}
 
-	class Window : public std::enable_shared_from_this<olc::Window>
+	namespace gpu
+	{
+		class Renderer;
+	}
+
+	class Window
 	{
 		friend class olc::host::FRIENDLY_HOST;
 
@@ -1192,8 +1199,11 @@ namespace olc
 		void ConnecToHost(olc::host::Host* host);
 
 	public:
+		// Return true if window is to continue
 		virtual bool OnUserCreate();
+		// Return true if window is to continue
 		virtual bool OnUserUpdate(float fElapsedTime);
+		// Return true if window is to close
 		virtual bool OnUserDestroy();
 
 	private:
@@ -1213,10 +1223,10 @@ namespace olc
 
 	public:
 		bool olc_ShouldRemove() const;
-		bool olc_WindowUpdate(const float fElapsedTime);
+		bool olc_WindowUpdate(const float fElapsedTime, olc::gpu::Renderer* const gpu);
 
 	public:
-		const size_t GetUID() const;
+		size_t GetUID() const;
 
 		const olc::vi2d& GetSize() const;
 		bool SetSize(const olc::vi2d& vSize);
@@ -1250,463 +1260,6 @@ namespace olc
 #define PGE_WINDOW_DECLARED 1
 #endif
  
-#if !defined(PGE_RENDERER_IFACE_DECLARED)
-namespace olc
-{
-	namespace gpu
-	{
-		struct RendererConfig
-		{
-			bool FullScreen = false;
-			bool VerticalSync = false;
-		};
-
-		enum class RendererError
-		{
-			None,
-			InvalidDCPixelFormat,
-			FailedToSetDCPixelFormat,
-			FailedToCreateRenderContext,
-			FailedToSwitchRenderContext,
-		};
-
-		class Renderer
-		{
-		public:
-			Renderer() = default;
-			virtual ~Renderer() {};
-
-		public:
-			// Check/Get last error
-			const RendererError GetLastError() const { return lastError; }
-
-		public: // Device Stuff
-			// Constructs a GPU Device interface
-			virtual bool CreateDevice(std::vector<void*> params, const RendererConfig& cfg) = 0;
-			// Destroys a GPU device interface
-			virtual bool DestroyDevice() = 0;
-
-		public: // Texture Resource Stuff
-			// Allocates a new texture resource in VRAM, returns handle
-			virtual uint32_t CreateTexture(const olc::vi2d& vSize, const olc::ImageConfig& cfg = olc::ImageConfig()) = 0;
-			// Writes to / updates an existing texture resource in VRAM, using existing Image in SRAM
-			virtual bool WriteTexture(const uint32_t texid, olc::Image& image) = 0;
-			// Writes to / updates an existing Image in SRAM, from existing texture resource in VRAM
-			virtual bool ReadTexture(const uint32_t texid, olc::Image& image) = 0;
-			// Destroys and releases texture resource for given handle
-			virtual bool DeleteTexture(const uint32_t texid) = 0;
-			// Makes active the given texture resource (for subsequent sampling operations)
-			virtual bool AssignTextureSource(const uint32_t slot, const uint32_t texid) = 0;
-			// Makes active the given texture resource (for subsequent rendering operations)
-			virtual bool AssignTextureTarget(const uint32_t slot, const uint32_t texid) = 0;
-
-		protected:
-			RendererError lastError = RendererError::None;
-		};
-	}
-}
-#define PGE_RENDERER_IFACE_DECLARED 1
-#endif
- 
-#if !defined(PGE_HOST_IFACE_DECLARED)
-namespace olc
-{
-	namespace pgeguts
-	{
-		inline static size_t uuid = 0;
-
-		inline constexpr size_t CreateUID()
-		{
-			return uuid++;
-		}	
-	}
-
-	namespace host
-	{
-
-		
-
-		struct HostConfig
-		{
-			
-		};
-
-		enum class HostError
-		{
-			None,
-			
-		};
-
-		class Host
-		{
-		public:
-			Host() = default;
-			virtual ~Host() {};
-
-		public:
-			// Check/Get last error
-			const HostError GetLastError() const { return lastError; }
-
-		public: 
-			virtual bool StartSystemEventLoop() = 0;
-			virtual bool AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen) = 0;
-			
-			virtual bool UpdateWindowFrameTitle(olc::Window* pWindow) = 0;
-			
-			
-			virtual bool ConnectHostResourceToRenderer() = 0;
-
-		protected:
-			HostError lastError = HostError::None;
-		};
-	}
-}
-#define PGE_HOST_IFACE_DECLARED 1
-#endif
-
-#if !defined(PGE_CORE_DECLARED)
-namespace olc
-{
-	// A grouping of all settable PGE properties
-	struct PGEConfig
-	{
-		// Size of "screen" in PGE pixels
-		olc::vi2d vScreenSize = { 256, 240 };
-		// Size of a PGE pixel
-		olc::vi2d vPixelSize = { 4, 4 };
-		// Top left location of shown main window
-		olc::vi2d vWindowOffset = { 30,30 };
-		// Start in full-screen mode
-		bool bFullScreen = false;
-		// Allow full screen as an option with ALT-ENTER
-		bool bFullScreenable = true;
-		// Allow teh window to be resized by user
-		bool bResizeable = true;
-		// Synchronise rendering with monitor
-		bool bVSync = false;
-		// Behave like a host window, resizing the screen in response to window resize
-		bool bRealWindow = false;
-		// Ensure aspect ratio of "screen" is mainatined regardless of window size
-		bool bRetainAspectRatio = true;
-		// Force "screen" pixels to be integer in size
-		bool bForceIntegerPixelSize = false;
-		// Allow main PGE window to spawn child windows
-		bool bAllowChildWindows = true;
-	};
-
-	class PixelGameEngine : protected Window
-	{
-	public:
-		PixelGameEngine();
-		virtual ~PixelGameEngine();
-
-	public:
-		bool Construct(const olc::vi2d& vScreenSize, const olc::vi2d& vPixelSize, bool bFullScreen = false);
-		bool Construct(const PGEConfig& cfg = PGEConfig{});
-
-	public:
-		bool Start();
-
-	public:
-		bool OnUserCreate() override;
-		bool OnUserUpdate(float fElapsedTime) override;
-		bool OnUserDestroy() override;
-
-	protected:
-		bool olc_PrimaryWindowInit() override;
-
-	private:
-		void EngineThread();
-
-	private:
-		std::deque<std::shared_ptr<Window>> deqChildWindows;
-
-		// Frame Timing & Overall Clocking
-		std::chrono::steady_clock::time_point timeFrame1;
-		std::chrono::steady_clock::time_point timeFrame2;
-		std::chrono::duration<float> durationFrame{ 0 };
-		std::chrono::duration<float> durationFrameCount{ 0 };
-		size_t frameCount = 0;
-
-		PGEConfig config;
-
-		std::thread coreThread;
-		std::atomic<bool> coreActive;
-
-		std::unique_ptr<olc::gpu::Renderer> gpu;
-		std::unique_ptr<olc::host::Host> host;
-	};
-}
-#define PGE_CORE_DECLARED 1
-#endif
-
-
-
-
-
-
-
-#if OLC_HOST == OLC_HOST_WINDOWS
-#if defined(UNICODE) || defined(_UNICODE)
-	#define olcT(s) L##s
-#else
-	#define olcT(s) s
-#endif
-
-#define _WINSOCKAPI_
-
-#if !defined(VC_EXTRALEAN)
-#define VC_EXTRALEAN
-#endif
-
-#if !defined(NOMINMAX)
-#define NOMINMAX
-#endif
-
-// In Code::Blocks
-#if !defined(_WIN32_WINNT)
-	#ifdef HAVE_MSMF
-		#define _WIN32_WINNT 0x0600 // Windows Vista
-	#else
-		#define _WIN32_WINNT 0x0500 // Windows 2000
-	#endif
-#endif
-
-// Embrace MSVC superiority
-#pragma comment(lib, "user32.lib")
-#pragma comment(lib, "gdi32.lib")
-
-#include <windows.h>
-#undef _WINSOCKAPI_
-
-namespace olc
-{
-	namespace host
-	{
-
-
-
-		class Host_Windows_WinAPI : public olc::host::Host
-		{
-			
-
-		public:
-			Host_Windows_WinAPI() = default;
-			virtual ~Host_Windows_WinAPI() {};
-
-
-		public:
-			bool StartSystemEventLoop();
-			bool AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen);
-			
-			bool UpdateWindowFrameTitle(olc::Window* pWindow);
-			
-			bool ConnectHostResourceToRenderer();
-
-			LRESULT OnWindowEvent(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
-
-			std::string test;
-
-		private:
-			std::unordered_map<size_t, HWND> mapUID2HWND;
-			std::unordered_map<HWND, olc::Window*> mapHWND2PTR;
-
-			std::wstring ConvertS2W(std::string s);
-
-		};
-	}
-}
-#endif
-
-#if OLC_GPU == OLC_GPU_OPENGL33
-#define CALLSTYLE
-#if OLC_HOST == OLC_HOST_WINDOWS
-	#include <Windows.h>
-	#pragma comment(lib, "gdi32.lib")
-	#pragma comment(lib, "opengl32.lib")
-	#include <gl/GL.h>
-	#define CALLSTYLE __stdcall
-	#define OGL_LOAD(t) (t##_t*)wglGetProcAddress(#t)
-#endif
-
-#if OLC_HOST == OLC_HOST_LINUX_X11 || OLC_HOST == OLC_HOST_LINUX_WAYLAND
-	#include <GL/gl.h>
-	#if OLC_HOST == OLC_HOST_LINUX_X11
-		namespace X11
-		{
-			#include <GL/glx.h>
-		}
-	#endif
-#endif
-
-#if OLC_HOST == OLC_HOST_MACOS
-	#define GL_SILENCE_DEPRECATION
-	#include <OpenGL/OpenGL.h>
-	#include <OpenGL/gl.h>
-	#include <OpenGL/glu.h>
-#endif
-
-#if OLC_HOST == OLC_HOST_EMSCRIPTEN
-	#include <EGL/egl.h>
-	#include <GLES2/gl2.h>
-	#define GL_GLEXT_PROTOTYPES
-	#include <GLES2/gl2ext.h>
-	#include <emscripten/emscripten.h>
-	#define CALLSTYLE
-	#define GL_CLAMP GL_CLAMP_TO_EDGE
-#endif
-
-namespace olc
-{
-	namespace apis::opengl
-	{
-#if OLC_HOST == OLC_HOST_WINDOWS
-		// "Target Host Window Handle"
-		typedef HDC glDeviceContext_t;
-		// "State of OpenGL Machinary"
-		typedef HGLRC glRenderContext_t;
-#endif
-
-		typedef char GLchar;
-		typedef ptrdiff_t GLsizeiptr;
-
-		typedef GLuint CALLSTYLE glCreateShader_t(GLenum type);
-		typedef GLuint CALLSTYLE glCreateProgram_t(void);
-		typedef void CALLSTYLE glDeleteShader_t(GLuint shader);
-		typedef void CALLSTYLE glCompileShader_t(GLuint shader);
-		typedef void CALLSTYLE glLinkProgram_t(GLuint program);
-		typedef void CALLSTYLE glDeleteProgram_t(GLuint program);
-		typedef void CALLSTYLE glAttachShader_t(GLuint program, GLuint shader);
-		typedef void CALLSTYLE glBindBuffer_t(GLenum target, GLuint buffer);
-		typedef void CALLSTYLE glBufferData_t(GLenum target, GLsizeiptr size, const void* data, GLenum usage);
-		typedef void CALLSTYLE glGenBuffers_t(GLsizei n, GLuint* buffers);
-		typedef void CALLSTYLE glVertexAttribPointer_t(GLuint index, GLint size, GLenum type, GLboolean normalized, GLsizei stride, const void* pointer);
-		typedef void CALLSTYLE glEnableVertexAttribArray_t(GLuint index);
-		typedef void CALLSTYLE glUseProgram_t(GLuint program);
-		typedef void CALLSTYLE glBindVertexArray_t(GLuint array);
-		typedef void CALLSTYLE glGenVertexArrays_t(GLsizei n, GLuint* arrays);
-		typedef void CALLSTYLE glGetShaderInfoLog_t(GLuint shader, GLsizei bufSize, GLsizei* length, GLchar* infoLog);
-		typedef GLint CALLSTYLE glGetUniformLocation_t(GLuint program, const GLchar* name);
-		typedef void CALLSTYLE glUniform1f_t(GLint location, GLfloat v0);
-		typedef void CALLSTYLE glUniform1i_t(GLint location, GLint v0);
-		typedef void CALLSTYLE glUniform2fv_t(GLint location, GLsizei count, const GLfloat* value);
-		typedef void CALLSTYLE glUniform4fv_t(GLint location, GLsizei count, const GLfloat* value);
-		typedef void CALLSTYLE glUniformMatrix4fv_t(GLint location, GLsizei count, GLboolean trasnpose, const GLfloat* value);
-		typedef void CALLSTYLE glActiveTexture_t(GLenum texture);
-		typedef void CALLSTYLE glGenFrameBuffers_t(GLsizei n, GLuint* ids);
-		typedef void CALLSTYLE glBindFrameBuffer_t(GLenum target, GLuint fb);
-		typedef GLenum CALLSTYLE glCheckFrameBufferStatus_t(GLenum target);
-		typedef void CALLSTYLE glDeleteFrameBuffers_t(GLsizei n, const GLuint* fbs);
-		typedef void CALLSTYLE glFrameBufferTexture2D_t(GLenum target, GLenum attachment, GLenum textarget, GLuint texture, GLint level);
-		typedef void CALLSTYLE glDrawBuffers_t(GLsizei n, const GLenum* bufs);
-		typedef void CALLSTYLE glBlendFuncSeparate_t(GLenum srcRGB, GLenum dstRGB, GLenum srcAlpha, GLenum dstAlpha);
-
-		
-
-#if OLC_HOST == OLC_HOST_WINDOWS
-		typedef void CALLSTYLE glSwapInterval_t(GLsizei n);
-#endif
-
-		// A little GL class (singleton)
-		class gl
-		{
-		public:
-			static gl& Get();
-
-		private:
-			gl() = default;
-			static bool bLoaded;
-
-		private:
-			bool LoadAll();
-
-		public:
-			glCreateShader_t* glCreateShader = nullptr;
-			glCreateProgram_t* glCreateProgram = nullptr;
-			glDeleteShader_t* glDeleteShader = nullptr;
-			glCompileShader_t* glCompileShader = nullptr;
-			glLinkProgram_t* glLinkProgram = nullptr;
-			glDeleteProgram_t* glDeleteProgram = nullptr;
-			glAttachShader_t* glAttachShader = nullptr;
-			glBindBuffer_t* glBindBuffer = nullptr;
-			glBufferData_t* glBufferData = nullptr;
-			glGenBuffers_t* glGenBuffers = nullptr;
-			glVertexAttribPointer_t* glVertexAttribPointer = nullptr;
-			glEnableVertexAttribArray_t* glEnableVertexAttribArray = nullptr;
-			glUseProgram_t* glUseProgram = nullptr;
-			glBindVertexArray_t* glBindVertexArray = nullptr;
-			glGenVertexArrays_t* glGenVertexArrays = nullptr;
-			glGetShaderInfoLog_t* glGetShaderInfoLog = nullptr;
-			glGetUniformLocation_t* glGetUniformLocation = nullptr;
-			glUniform1f_t* glUniform1f = nullptr;
-			glUniform1i_t* glUniform1i = nullptr;
-			glUniform2fv_t* glUniform2fv = nullptr;
-			glUniform4fv_t* glUniform4fv = nullptr;
-			glUniformMatrix4fv_t* glUniformMatrix4fv = nullptr;
-			glActiveTexture_t* glActiveTexture = nullptr;
-			glGenFrameBuffers_t* glGenFrameBuffers = nullptr;
-			glBindFrameBuffer_t* glBindFrameBuffer = nullptr;
-			glCheckFrameBufferStatus_t* glCheckFrameBufferStatus = nullptr;
-			glDeleteFrameBuffers_t* glDeleteFrameBuffers = nullptr;
-			glFrameBufferTexture2D_t* glFrameBufferTexture2D = nullptr;
-			glDrawBuffers_t* glDrawBuffers = nullptr;
-			glBlendFuncSeparate_t* glBlendFuncSeparate = nullptr;
-		};
-	}
-	
-
-
-//#if defined(OLC_PLATFORM_X11)
-//	typedef int(locSwapInterval_t)(X11::Display* dpy, X11::GLXDrawable drawable, int interval);
-//#endif
-//
-//#if defined(OLC_PLATFORM_EMSCRIPTEN)
-//	typedef void CALLSTYLE locShaderSource_t(GLuint shader, GLsizei count, const GLchar* const* string, const GLint* length);
-//	typedef EGLBoolean(locSwapInterval_t)(EGLDisplay display, EGLint interval);
-//#else
-//	typedef void CALLSTYLE locShaderSource_t(GLuint shader, GLsizei count, const GLchar** string, const GLint* length);
-//#endif
-
-} // olc namespace
-
-#if !defined(PGE_RENDERER_OPENGL33_DECLARED)
-namespace olc
-{
-	namespace gpu
-	{
-		class Renderer_OGL33 : public olc::gpu::Renderer
-		{
-		public: // Device Stuff
-			// Constructs a GPU Device interface
-			bool CreateDevice(std::vector<void*> params, const RendererConfig& cfg) override;
-			// Destroys a GPU device interface
-			bool DestroyDevice() override;
-
-		public: // Texture Resource Stuff
-			// Allocates a new texture resource in VRAM, returns handle
-			uint32_t CreateTexture(const olc::vi2d& vSize, const olc::ImageConfig& cfg = olc::ImageConfig()) override;
-			// Writes to / updates an existing texture resource in VRAM, using existing Image in SRAM
-			bool WriteTexture(const uint32_t texid, olc::Image& image) override;
-			// Writes to / updates an existing Image in SRAM, from existing texture resource in VRAM
-			bool ReadTexture(const uint32_t texid, olc::Image& image) override;
-			// Destroys and releases texture resource for given handle
-			bool DeleteTexture(const uint32_t texid) override;
-			// Makes active the given texture resource (for subsequent sampling operations)
-			bool AssignTextureSource(const uint32_t slot, const uint32_t texid) override;
-			// Makes active the given texture resource (for subsequent rendering operations)
-			bool AssignTextureTarget(const uint32_t slot, const uint32_t texid) override;
-		
-		protected: // These may need some thinking about re multiple window
-			olc::apis::opengl::glDeviceContext_t glDeviceContext = 0;
-			olc::apis::opengl::glRenderContext_t glRenderContext = 0;
-
-		};
-	}
-}
-#define PGE_RENDERER_OPENGL33_DECLARED 1
-#endif
-#endif
-
 #if !defined(PGE_GPUTASK_DECLARED)
 namespace olc
 {
@@ -1812,6 +1365,544 @@ namespace olc
 }
 #define PGE_GPUTASK_DECLARED 1
 #endif
+ 
+#if !defined(PGE_RENDERER_IFACE_DECLARED)
+namespace olc
+{
+	namespace gpu
+	{
+		struct RendererConfig
+		{
+			bool FullScreen = false;
+			bool VerticalSync = false;
+		};
+
+		enum class RendererError
+		{
+			None,
+			InvalidDCPixelFormat,
+			FailedToSetDCPixelFormat,
+			FailedToCreateRenderContext,
+			FailedToSwitchRenderContext,
+		};
+
+		class Renderer
+		{
+		public:
+			Renderer() = default;
+			virtual ~Renderer() {};
+
+		public:
+			// Check/Get last error
+			inline RendererError GetLastError() const { return lastError; }
+			inline const RendererConfig& GetConfig() const { return config; }
+
+		public: // Device Stuff
+			// Constructs a GPU Device interface
+			virtual bool CreateDevice(std::vector<void*> params, const RendererConfig& cfg) = 0;
+			// Destroys a GPU device interface
+			virtual bool DestroyDevice() = 0;
+
+		public: // Texture Resource Stuff
+			// Allocates a new texture resource in VRAM, returns handle
+			virtual uint32_t CreateTexture(const olc::vi2d& vSize, const olc::ImageConfig& cfg = olc::ImageConfig()) = 0;
+			// Writes to / updates an existing texture resource in VRAM, using existing Image in SRAM
+			virtual bool WriteTexture(const uint32_t texid, olc::Image& image) = 0;
+			// Writes to / updates an existing Image in SRAM, from existing texture resource in VRAM
+			virtual bool ReadTexture(const uint32_t texid, olc::Image& image) = 0;
+			// Destroys and releases texture resource for given handle
+			virtual bool DeleteTexture(const uint32_t texid) = 0;
+			// Makes active the given texture resource (for subsequent sampling operations)
+			virtual bool AssignTextureSource(const uint32_t slot, const uint32_t texid) = 0;
+			// Makes active the given texture resource (for subsequent rendering operations)
+			virtual bool AssignTextureTarget(const uint32_t slot, const uint32_t texid) = 0;
+
+		public: // Shader Construction Stuff
+
+		public: // GPU Task Processing Stuff
+			virtual bool DoGPUTask(const olc::pgeguts::GPUTask& task) = 0;
+
+		public: // Swap Chain Stuff
+			// Clears the viewport to a specific colour and depth
+			virtual bool ClearViewport(const olc::Pixel col, bool bDepth, bool bStencil) = 0;
+			// Sets the viewport area of the drawing space
+			virtual bool SetViewport(const olc::vf2d& pos, const olc::vf2d& size) = 0;
+			// Configures defaults prior to drawing
+			virtual bool DisplayPrepare() = 0;
+			// Displays the final output
+			virtual bool DisplayDraw(bool bVerticalSyncNow = false) = 0;
+
+
+		protected:
+			RendererConfig config;
+			RendererError lastError = RendererError::None;
+		};
+	}
+}
+#define PGE_RENDERER_IFACE_DECLARED 1
+#endif
+ 
+#if !defined(PGE_HOST_IFACE_DECLARED)
+namespace olc
+{
+	namespace pgeguts
+	{
+		inline static size_t uuid = 0;
+
+		inline constexpr size_t CreateUID()
+		{
+			return uuid++;
+		}	
+	}
+
+	namespace host
+	{
+
+		
+
+		struct HostConfig
+		{
+			
+		};
+
+		enum class HostError
+		{
+			None,
+			
+		};
+
+		class Host
+		{
+		public:
+			Host() = default;
+			virtual ~Host() {};
+
+		public:
+			// Check/Get last error
+			HostError GetLastError() const { return lastError; }
+
+		public: 
+			virtual bool StartSystemEventLoop() = 0;
+			virtual bool AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen) = 0;
+			
+			virtual bool UpdateWindowFrameTitle(olc::Window* pWindow) = 0;
+
+			virtual std::vector<void*> GetHostWindowDescriptor(olc::Window* pWindow) = 0;
+			
+			
+			virtual bool ConnectHostResourceToRenderer() = 0;
+
+			// Wait for entire host desktop refresh (for smooooth vsync)
+			virtual bool SyncWithDesktopComposite() = 0;
+
+		protected:
+			HostError lastError = HostError::None;
+		};
+	}
+}
+#define PGE_HOST_IFACE_DECLARED 1
+#endif
+
+#if !defined(PGE_CORE_DECLARED)
+namespace olc
+{
+	// A grouping of all settable PGE properties
+	struct PGEConfig
+	{
+		// Size of "screen" in PGE pixels
+		olc::vi2d vScreenSize = { 256, 240 };
+		// Size of a PGE pixel
+		olc::vi2d vPixelSize = { 4, 4 };
+		// Top left location of shown main window
+		olc::vi2d vWindowOffset = { 30,30 };
+		// Start in full-screen mode
+		bool bFullScreen = false;
+		// Allow full screen as an option with ALT-ENTER
+		bool bFullScreenable = true;
+		// Allow teh window to be resized by user
+		bool bResizeable = true;
+		// Synchronise rendering with monitor
+		bool bVSync = false;
+		// Behave like a host window, resizing the screen in response to window resize
+		bool bRealWindow = false;
+		// Ensure aspect ratio of "screen" is mainatined regardless of window size
+		bool bRetainAspectRatio = true;
+		// Force "screen" pixels to be integer in size
+		bool bForceIntegerPixelSize = false;
+		// Allow main PGE window to spawn child windows
+		bool bAllowChildWindows = true;
+	};
+
+	class PixelGameEngine : protected Window
+	{
+	public:
+		PixelGameEngine();
+		virtual ~PixelGameEngine();
+
+	public:
+		bool Construct(const olc::vi2d& vScreenSize, const olc::vi2d& vPixelSize, bool bFullScreen = false);
+		bool Construct(const PGEConfig& cfg = PGEConfig{});
+
+	public:
+		bool Start();
+
+	public:	// The "Overridables"
+		// Called once when the engine is ready and the window is created
+		bool OnUserCreate() override;
+		// Called every frame while the engine is running
+		bool OnUserUpdate(float fElapsedTime) override;
+		// Called when something requests the engine shut down
+		bool OnUserDestroy() override;
+
+
+	public:	// olc::Image Handling
+		// Create an image resource
+		bool CreateImage(olc::Image& image, const olc::vi2d& size, const ImageConfig& cfg = olc::ImageConfig());
+		// Create an image resource based on an image file asset on disk
+		bool CreateImageFromFile(olc::Image& image, const std::string& sFileName, const ImageConfig& cfg = olc::ImageConfig());
+		// Create an image resource based on an image file asset in memory
+		bool CreateImageFromMemory(olc::Image& image, const uint8_t* data, const size_t bytes, const ImageConfig& cfg = olc::ImageConfig());
+		// Store an image as a file asset on disk
+		bool WriteImageToFile(const olc::Image& image, const std::string& sFileName);
+		// Store an image as a file asset in memory
+		bool WriteImageToMemory(const olc::Image& image, std::vector<uint8_t> bytes, const std::string& sFileName);
+		// Destroy an image
+		void DestroyImage(olc::Image& image);
+
+	protected:
+		bool olc_PrimaryWindowInit() override;
+
+	private:
+		void EngineThread();
+
+	private:
+		std::deque<std::shared_ptr<Window>> deqChildWindows;
+
+		// Frame Timing & Overall Clocking
+		std::chrono::steady_clock::time_point timeFrame1;
+		std::chrono::steady_clock::time_point timeFrame2;
+		std::chrono::duration<float> durationFrame{ 0 };
+		std::chrono::duration<float> durationFrameCount{ 0 };
+		size_t frameCount = 0;
+
+		PGEConfig config;
+
+		std::thread coreThread;
+		std::atomic<bool> coreActive;
+
+		std::unique_ptr<olc::gpu::Renderer> gpu;
+		std::unique_ptr<olc::host::Host> host;
+	};
+}
+#define PGE_CORE_DECLARED 1
+#endif
+
+
+
+
+
+
+
+#if OLC_HOST == OLC_HOST_WINDOWS
+#if defined(UNICODE) || defined(_UNICODE)
+	#define olcT(s) L##s
+#else
+	#define olcT(s) s
+#endif
+
+#define _WINSOCKAPI_
+
+#if !defined(VC_EXTRALEAN)
+#define VC_EXTRALEAN
+#endif
+
+#if !defined(NOMINMAX)
+#define NOMINMAX
+#endif
+
+// In Code::Blocks
+#if !defined(_WIN32_WINNT)
+	#ifdef HAVE_MSMF
+		#define _WIN32_WINNT 0x0600 // Windows Vista
+	#else
+		#define _WIN32_WINNT 0x0500 // Windows 2000
+	#endif
+#endif
+
+// Embrace MSVC superiority
+#pragma comment(lib, "user32.lib")
+#pragma comment(lib, "gdi32.lib")
+#pragma comment(lib, "Dwmapi.lib")
+
+#include <dwmapi.h>
+#include <windows.h>
+#undef _WINSOCKAPI_
+
+namespace olc
+{
+	namespace host
+	{
+
+
+
+		class Host_Windows_WinAPI : public olc::host::Host
+		{
+			
+
+		public:
+			Host_Windows_WinAPI() = default;
+			virtual ~Host_Windows_WinAPI() {};
+
+
+		public:
+			bool StartSystemEventLoop();
+			bool AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen);			
+			bool UpdateWindowFrameTitle(olc::Window* pWindow);
+			
+			std::vector<void*> GetHostWindowDescriptor(olc::Window* pWindow);
+			bool ConnectHostResourceToRenderer();
+
+
+			// Wait for entire host desktop refresh (for smooooth vsync)
+			bool SyncWithDesktopComposite();
+
+			LRESULT OnWindowEvent(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
+
+			std::string test;
+
+		private:
+			std::unordered_map<size_t, HWND> mapUID2HWND;
+			std::unordered_map<HWND, olc::Window*> mapHWND2PTR;
+			std::wstring ConvertS2W(std::string s);
+
+		};
+	}
+}
+#endif
+
+#if OLC_GPU == OLC_GPU_OPENGL33
+
+#if OLC_HOST == OLC_HOST_WINDOWS
+	#include <Windows.h>
+	#pragma comment(lib, "gdi32.lib")
+	#pragma comment(lib, "opengl32.lib")
+	#include <gl/GL.h>
+	#define CALLSTYLE __stdcall
+	// ooof... was getting a bunch of spurious C4191 from MSVC 17.14.9, so round trip via void-town
+	#define OGL_LOAD(t) reinterpret_cast<t##_t*>(reinterpret_cast<void*>(wglGetProcAddress(#t)))
+#endif
+
+#if OLC_HOST == OLC_HOST_LINUX_X11 || OLC_HOST == OLC_HOST_LINUX_WAYLAND
+	#include <GL/gl.h>
+	#if OLC_HOST == OLC_HOST_LINUX_X11
+		namespace X11
+		{
+			#include <GL/glx.h>
+		}
+	#endif
+#endif
+
+#if OLC_HOST == OLC_HOST_MACOS
+	#define GL_SILENCE_DEPRECATION
+	#include <OpenGL/OpenGL.h>
+	#include <OpenGL/gl.h>
+	#include <OpenGL/glu.h>
+#endif
+
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN
+	#include <EGL/egl.h>
+	#include <GLES2/gl2.h>
+	#define GL_GLEXT_PROTOTYPES
+	#include <GLES2/gl2ext.h>
+	#include <emscripten/emscripten.h>
+	#define GL_CLAMP GL_CLAMP_TO_EDGE
+#endif
+
+#if !defined(CALLSTYLE)
+	#define CALLSTYLE
+#endif
+
+
+
+namespace olc
+{
+	namespace apis::opengl
+	{
+#if OLC_HOST == OLC_HOST_WINDOWS
+		// "Target Host Window Handle"
+		typedef HDC glDeviceContext_t;
+		// "State of OpenGL Machinary"
+		typedef HGLRC glRenderContext_t;
+#endif
+
+		typedef char GLchar;
+		typedef ptrdiff_t GLsizeiptr;
+
+		typedef GLuint CALLSTYLE glCreateShader_t(GLenum type);
+		typedef GLuint CALLSTYLE glCreateProgram_t(void);
+		typedef void CALLSTYLE glDeleteShader_t(GLuint shader);
+		typedef void CALLSTYLE glCompileShader_t(GLuint shader);
+		typedef void CALLSTYLE glLinkProgram_t(GLuint program);
+		typedef void CALLSTYLE glDeleteProgram_t(GLuint program);
+		typedef void CALLSTYLE glAttachShader_t(GLuint program, GLuint shader);
+		typedef void CALLSTYLE glBindBuffer_t(GLenum target, GLuint buffer);
+		typedef void CALLSTYLE glBufferData_t(GLenum target, GLsizeiptr size, const void* data, GLenum usage);
+		typedef void CALLSTYLE glGenBuffers_t(GLsizei n, GLuint* buffers);
+		typedef void CALLSTYLE glVertexAttribPointer_t(GLuint index, GLint size, GLenum type, GLboolean normalized, GLsizei stride, const void* pointer);
+		typedef void CALLSTYLE glEnableVertexAttribArray_t(GLuint index);
+		typedef void CALLSTYLE glUseProgram_t(GLuint program);
+		typedef void CALLSTYLE glBindVertexArray_t(GLuint array);
+		typedef void CALLSTYLE glGenVertexArrays_t(GLsizei n, GLuint* arrays);
+		typedef void CALLSTYLE glGetShaderInfoLog_t(GLuint shader, GLsizei bufSize, GLsizei* length, GLchar* infoLog);
+		typedef GLint CALLSTYLE glGetUniformLocation_t(GLuint program, const GLchar* name);
+		typedef void CALLSTYLE glUniform1f_t(GLint location, GLfloat v0);
+		typedef void CALLSTYLE glUniform1i_t(GLint location, GLint v0);
+		typedef void CALLSTYLE glUniform2fv_t(GLint location, GLsizei count, const GLfloat* value);
+		typedef void CALLSTYLE glUniform4fv_t(GLint location, GLsizei count, const GLfloat* value);
+		typedef void CALLSTYLE glUniformMatrix4fv_t(GLint location, GLsizei count, GLboolean trasnpose, const GLfloat* value);
+		typedef void CALLSTYLE glActiveTexture_t(GLenum texture);
+		typedef void CALLSTYLE glGenFrameBuffers_t(GLsizei n, GLuint* ids);
+		typedef void CALLSTYLE glBindFrameBuffer_t(GLenum target, GLuint fb);
+		typedef GLenum CALLSTYLE glCheckFrameBufferStatus_t(GLenum target);
+		typedef void CALLSTYLE glDeleteFrameBuffers_t(GLsizei n, const GLuint* fbs);
+		typedef void CALLSTYLE glFrameBufferTexture2D_t(GLenum target, GLenum attachment, GLenum textarget, GLuint texture, GLint level);
+		typedef void CALLSTYLE glDrawBuffers_t(GLsizei n, const GLenum* bufs);
+		typedef void CALLSTYLE glBlendFuncSeparate_t(GLenum srcRGB, GLenum dstRGB, GLenum srcAlpha, GLenum dstAlpha);
+
+		
+
+#if OLC_HOST == OLC_HOST_WINDOWS
+		typedef void CALLSTYLE glSwapInterval_t(GLsizei n);
+#endif
+
+		// A little GL class (singleton)
+		class gl
+		{
+		public:
+			static gl& Get();
+
+		private:
+			gl() = default;
+			static bool bLoaded;
+
+		private:
+			bool LoadAll();
+
+		public:
+			glCreateShader_t* glCreateShader = nullptr;
+			glCreateProgram_t* glCreateProgram = nullptr;
+			glDeleteShader_t* glDeleteShader = nullptr;
+			glCompileShader_t* glCompileShader = nullptr;
+			glLinkProgram_t* glLinkProgram = nullptr;
+			glDeleteProgram_t* glDeleteProgram = nullptr;
+			glAttachShader_t* glAttachShader = nullptr;
+			glBindBuffer_t* glBindBuffer = nullptr;
+			glBufferData_t* glBufferData = nullptr;
+			glGenBuffers_t* glGenBuffers = nullptr;
+			glVertexAttribPointer_t* glVertexAttribPointer = nullptr;
+			glEnableVertexAttribArray_t* glEnableVertexAttribArray = nullptr;
+			glUseProgram_t* glUseProgram = nullptr;
+			glBindVertexArray_t* glBindVertexArray = nullptr;
+			glGenVertexArrays_t* glGenVertexArrays = nullptr;
+			glGetShaderInfoLog_t* glGetShaderInfoLog = nullptr;
+			glGetUniformLocation_t* glGetUniformLocation = nullptr;
+			glUniform1f_t* glUniform1f = nullptr;
+			glUniform1i_t* glUniform1i = nullptr;
+			glUniform2fv_t* glUniform2fv = nullptr;
+			glUniform4fv_t* glUniform4fv = nullptr;
+			glUniformMatrix4fv_t* glUniformMatrix4fv = nullptr;
+			glActiveTexture_t* glActiveTexture = nullptr;
+			glGenFrameBuffers_t* glGenFrameBuffers = nullptr;
+			glBindFrameBuffer_t* glBindFrameBuffer = nullptr;
+			glCheckFrameBufferStatus_t* glCheckFrameBufferStatus = nullptr;
+			glDeleteFrameBuffers_t* glDeleteFrameBuffers = nullptr;
+			glFrameBufferTexture2D_t* glFrameBufferTexture2D = nullptr;
+			glDrawBuffers_t* glDrawBuffers = nullptr;
+			glBlendFuncSeparate_t* glBlendFuncSeparate = nullptr;
+
+			// OpenGL1.2 Proxies (just keeps things tidy imo)
+			void glGenTextures(GLsizei n, GLuint* textures);
+			void glBindTexture(GLenum target, GLuint texture);
+			void glTexParameteri(GLenum target, GLenum pname, GLint param);
+			void glTexEnvf(GLenum target, GLenum pname, GLfloat param);
+			void glDeleteTextures(GLsizei n, const GLuint* textures); 
+			void glTexImage2D(GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const GLvoid* pixels);
+			void glClear(GLbitfield mask);
+			void glViewport(GLint x, GLint y, GLsizei width, GLsizei height);
+			void glClearColor(GLfloat red, GLfloat green, GLfloat blue, GLfloat alpha);
+
+		};
+	}
+	
+
+
+//#if defined(OLC_PLATFORM_X11)
+//	typedef int(locSwapInterval_t)(X11::Display* dpy, X11::GLXDrawable drawable, int interval);
+//#endif
+//
+//#if defined(OLC_PLATFORM_EMSCRIPTEN)
+//	typedef void CALLSTYLE locShaderSource_t(GLuint shader, GLsizei count, const GLchar* const* string, const GLint* length);
+//	typedef EGLBoolean(locSwapInterval_t)(EGLDisplay display, EGLint interval);
+//#else
+//	typedef void CALLSTYLE locShaderSource_t(GLuint shader, GLsizei count, const GLchar** string, const GLint* length);
+//#endif
+
+} // olc namespace
+
+#if !defined(PGE_RENDERER_OPENGL33_DECLARED)
+namespace olc
+{
+	namespace gpu
+	{
+		class Renderer_OGL33 : public olc::gpu::Renderer
+		{
+		public: // Device Stuff
+			// Constructs a GPU Device interface
+			bool CreateDevice(std::vector<void*> params, const RendererConfig& cfg) override;
+			// Destroys a GPU device interface
+			bool DestroyDevice() override;
+
+		public: // Texture Resource Stuff
+			// Allocates a new texture resource in VRAM, returns handle
+			uint32_t CreateTexture(const olc::vi2d& vSize, const olc::ImageConfig& cfg = olc::ImageConfig()) override;
+			// Writes to / updates an existing texture resource in VRAM, using existing Image in SRAM
+			bool WriteTexture(const uint32_t texid, olc::Image& image) override;
+			// Writes to / updates an existing Image in SRAM, from existing texture resource in VRAM
+			bool ReadTexture(const uint32_t texid, olc::Image& image) override;
+			// Destroys and releases texture resource for given handle
+			bool DeleteTexture(const uint32_t texid) override;
+			// Makes active the given texture resource (for subsequent sampling operations)
+			bool AssignTextureSource(const uint32_t slot, const uint32_t texid) override;
+			// Makes active the given texture resource (for subsequent rendering operations)
+			bool AssignTextureTarget(const uint32_t slot, const uint32_t texid) override;
+
+
+		public: // GPU Task Stuff
+			virtual bool DoGPUTask(const olc::pgeguts::GPUTask& task) override;
+
+		public: // Swap Chain Stuff
+			// Clears the viewport to a specific colour and depth
+			virtual bool ClearViewport(const olc::Pixel col, bool bDepth, bool bStencil) override;
+			// Sets the viewport area of the drawing space
+			virtual bool SetViewport(const olc::vf2d& pos, const olc::vf2d& size) override;
+			// Configures defaults prior to drawing
+			virtual bool DisplayPrepare() override;
+			// Displays the final output
+			virtual bool DisplayDraw(bool bVerticalSyncNow) override;
+
+		
+		protected: // These may need some thinking about re multiple window
+			olc::apis::opengl::glDeviceContext_t glDeviceContext = 0;
+			olc::apis::opengl::glRenderContext_t glRenderContext = 0;
+
+		};
+	}
+}
+#define PGE_RENDERER_OPENGL33_DECLARED 1
+#endif
+#endif
+
+
 
 
 
@@ -1819,7 +1910,7 @@ namespace olc
 #if defined(OLC_PGE_APPLICATION) && !defined(PGE_WINDOW_IMPLEMENTED)
 namespace olc
 {
-	Window::Window() : std::enable_shared_from_this<olc::Window>()
+	Window::Window()
 	{
 		nUniqueID = pgeguts::CreateUID();
 	}
@@ -1886,9 +1977,12 @@ namespace olc
 		return bShouldRemove;
 	}
 
-	bool Window::olc_WindowUpdate(const float fElapsedTime)
+	bool Window::olc_WindowUpdate(const float fElapsedTime, olc::gpu::Renderer* const gpu)
 	{
 		// Environmental changes
+
+		gpu->SetViewport({ 0,0 }, GetSize());
+		gpu->ClearViewport(olc::Colour::TANGERINE, false, false);
 
 		// User Update
 		if (!OnUserUpdate(fElapsedTime))
@@ -1901,10 +1995,13 @@ namespace olc
 			}
 		}
 
-		return false;
+		
+		gpu->DisplayDraw();
+
+		return true;
 	}
 
-	const size_t Window::GetUID() const
+	size_t Window::GetUID() const
 	{
 		return nUniqueID;
 	}
@@ -1962,6 +2059,8 @@ namespace olc::host
 	// Forward Declaration
 	static LRESULT CALLBACK WINAPI_EventHandler(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
+	// Windows app needs an event loop somewhere. This is blocking of course. This loop handles
+	// all windows created for this host.
 	bool Host_Windows_WinAPI::StartSystemEventLoop()
 	{
 		MSG msg;
@@ -2098,9 +2197,19 @@ namespace olc::host
 		return true;
 	}
 
+	std::vector<void*> Host_Windows_WinAPI::GetHostWindowDescriptor(olc::Window* pWindow)
+	{
+		return { mapUID2HWND[pWindow->GetUID()] };
+	}
+
 	bool Host_Windows_WinAPI::ConnectHostResourceToRenderer()
 	{
 		return false;
+	}
+
+	bool Host_Windows_WinAPI::SyncWithDesktopComposite()
+	{
+		return DwmFlush() == S_OK;
 	}
 
 	LRESULT Host_Windows_WinAPI::OnWindowEvent(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
@@ -2111,14 +2220,19 @@ namespace olc::host
 		// Get target olc::Window
 		const auto& window = mapHWND2PTR.at(hWnd);
 
+		// Many WinAPI events are literally ancient these days, so need some interpretation
+		// to get to the useful data.
+
 		switch (uMsg)
 		{
-		case WM_MOUSEMOVE:
+		case WM_MOUSEMOVE: // Mouse has moved within a window
 			{
-				uint16_t x = lParam & 0xFFFF; 
-				uint16_t y = (lParam >> 16) & 0xFFFF;
+				// Extract mouse X & Y
+				uint16_t x = uint16_t(lParam & 0xFFFF); 
+				uint16_t y = uint16_t((lParam >> 16) & 0xFFFF);
 				int16_t ix = *(int16_t*)&x;   
 				int16_t iy = *(int16_t*)&y;
+				// Tell window new mouse location
 				window->olc_OnMouseMove(olc::vi2d{ ix, iy });
 				return 0;
 			}
@@ -2188,76 +2302,6 @@ namespace olc::host
 		return DefWindowProc(hWnd, uMsg, wParam, lParam);
 	}
 
-	// Lives in olc::host namespace
-
-//		switch (uMsg)
-//		{
-//		case WM_MOUSEMOVE:
-//		{
-//			// Thanks @ForAbby (Discord)
-//			uint16_t x = lParam & 0xFFFF; uint16_t y = (lParam >> 16) & 0xFFFF;
-//			int16_t ix = *(int16_t*)&x;   int16_t iy = *(int16_t*)&y;
-//			ptrPGE->olc_UpdateMouse(ix, iy);
-//			return 0;
-//		}
-//		case WM_MOVE:       vWinPos = olc::vi2d(lParam & 0xFFFF, (lParam >> 16) & 0xFFFF);  ptrPGE->olc_UpdateWindowPos(lParam & 0xFFFF, (lParam >> 16) & 0xFFFF);	return 0;
-//		case WM_SIZE:       vWinSize = olc::vi2d(lParam & 0xFFFF, (lParam >> 16) & 0xFFFF);  ptrPGE->olc_UpdateWindowSize(lParam & 0xFFFF, (lParam >> 16) & 0xFFFF);	return 0;
-//		case WM_MOUSEWHEEL:	ptrPGE->olc_UpdateMouseWheel(GET_WHEEL_DELTA_WPARAM(wParam));           return 0;
-//		case WM_MOUSELEAVE: ptrPGE->olc_UpdateMouseFocus(false);                                    return 0;
-//		case WM_SETFOCUS:	ptrPGE->olc_UpdateKeyFocus(true);                                       return 0;
-//		case WM_KILLFOCUS:	ptrPGE->olc_UpdateKeyFocus(false);                                      return 0;
-//		case WM_KEYDOWN:	ptrPGE->olc_UpdateKeyState(int32_t(wParam), true);                      return 0;
-//		case WM_KEYUP:		ptrPGE->olc_UpdateKeyState(int32_t(wParam), false);                     return 0;
-//		case WM_SYSKEYDOWN: ptrPGE->olc_UpdateKeyState(int32_t(wParam), true);						return 0;
-//		case WM_SYSKEYUP:	ptrPGE->olc_UpdateKeyState(int32_t(wParam), false);						return 0;
-//		case WM_LBUTTONDOWN:ptrPGE->olc_UpdateMouseState(0, true);                                  return 0;
-//		case WM_LBUTTONUP:	ptrPGE->olc_UpdateMouseState(0, false);                                 return 0;
-//		case WM_RBUTTONDOWN:ptrPGE->olc_UpdateMouseState(1, true);                                  return 0;
-//		case WM_RBUTTONUP:	ptrPGE->olc_UpdateMouseState(1, false);                                 return 0;
-//		case WM_MBUTTONDOWN:ptrPGE->olc_UpdateMouseState(2, true);                                  return 0;
-//		case WM_MBUTTONUP:	ptrPGE->olc_UpdateMouseState(2, false);                                 return 0;
-//		case WM_DROPFILES:
-//		{
-//			// This is all eww...
-//			HDROP drop = (HDROP)wParam;
-//
-//			uint32_t nFiles = DragQueryFile(drop, 0xFFFFFFFF, nullptr, 0);
-//			std::vector<std::string> vFiles;
-//			for (uint32_t i = 0; i < nFiles; i++)
-//			{
-//				TCHAR dfbuffer[256]{};
-//				uint32_t len = DragQueryFile(drop, i, nullptr, 0);
-//				DragQueryFile(drop, i, dfbuffer, 256);
-//#ifdef UNICODE
-//#ifdef __MINGW32__
-//				char* buffer = new char[len + 1];
-//				wcstombs(buffer, dfbuffer, len);
-//				buffer[len] = '\0';
-//#else
-//				int count = WideCharToMultiByte(CP_UTF8, 0, dfbuffer, -1, NULL, 0, NULL, NULL);
-//				char* buffer = new char[count];
-//				WideCharToMultiByte(CP_UTF8, 0, dfbuffer, -1, buffer, count, NULL, NULL);
-//#endif				
-//				vFiles.push_back(std::string(buffer));
-//				delete[] buffer;
-//#else
-//				vFiles.push_back(std::string(dfbuffer));
-//#endif
-//			}
-//
-//			// Even more eww...
-//			POINT p; DragQueryPoint(drop, &p);
-//			ptrPGE->olc_DropFiles(p.x, p.y, vFiles);
-//			DragFinish(drop);
-//			return 0;
-//		}
-//		break;
-//
-//
-//		case WM_CLOSE:		ptrPGE->olc_Terminate();                                                return 0;
-//		case WM_DESTROY:	PostQuitMessage(0); DestroyWindow(hWnd);								return 0;
-//		}
-
 };
 #endif
 #define PGE_HOST_IMPLEMENTED 1
@@ -2278,6 +2322,7 @@ namespace olc::apis::opengl
 
 	bool gl::LoadAll()
 	{
+		// Load all the OpenGL API entry points
 		bLoaded = true;
 		bLoaded &= (glCreateShader = OGL_LOAD(glCreateShader)) != nullptr;
 		bLoaded &= (glCreateProgram	= OGL_LOAD(glCreateProgram)) != nullptr;
@@ -2309,15 +2354,70 @@ namespace olc::apis::opengl
 		bLoaded &= (glFrameBufferTexture2D = OGL_LOAD(glFrameBufferTexture2D)) != nullptr;
 		bLoaded &= (glDrawBuffers = OGL_LOAD(glDrawBuffers)) != nullptr;
 		bLoaded &= (glBlendFuncSeparate = OGL_LOAD(glBlendFuncSeparate)) != nullptr;
+
+		if (!bLoaded)
+			return false; // API load has failed
+
+
+
 		return bLoaded;
+	}
+
+	void gl::glGenTextures(GLsizei n, GLuint* textures)
+	{
+		::glGenTextures(n, textures);
+	}
+
+	void gl::glBindTexture(GLenum target, GLuint texture)
+	{
+		::glBindTexture(target, texture);
+	}
+
+	void gl::glTexParameteri(GLenum target, GLenum pname, GLint param)
+	{
+		::glTexParameteri(target, pname, param);
+	}
+
+	void gl::glTexEnvf(GLenum target, GLenum pname, GLfloat param)
+	{
+		::glTexEnvf(target, pname, param);
+	}
+
+	void gl::glDeleteTextures(GLsizei n, const GLuint* textures)
+	{
+		::glDeleteTextures(n, textures);
+	}
+
+	void gl::glTexImage2D(GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const GLvoid* pixels)
+	{
+		::glTexImage2D(target, level, internalformat, width, height, border, format, type, pixels);
+	}
+
+	void gl::glClear(GLbitfield mask)
+	{
+		::glClear(mask);
+	}
+
+	void gl::glViewport(GLint x, GLint y, GLsizei width, GLsizei height)
+	{
+		::glViewport(x, y, width, height);
+	}
+
+	void gl::glClearColor(GLfloat red, GLfloat green, GLfloat blue, GLfloat alpha)
+	{
+		::glClearColor(red, green, blue, alpha);
 	}
 }
 namespace olc::gpu
 {
 	bool Renderer_OGL33::CreateDevice(std::vector<void*> params, const RendererConfig& cfg)
 	{
+		config = cfg;
+
+
 		// Create OpenGL Device Context
 #if OLC_HOST == OLC_HOST_WINDOWS
+		// "wgl*" all live in WinGDI
 		glDeviceContext = GetDC((HWND)(params[0]));
 
 		PIXELFORMATDESCRIPTOR pfd =
@@ -2371,18 +2471,57 @@ namespace olc::gpu
 	bool Renderer_OGL33::DestroyDevice()
 	{
 		auto& gl = olc::apis::opengl::gl::Get();
+
+#if OLC_HOST == OLC_HOST_WINDOWS
+		wglDeleteContext(glRenderContext);
+#endif
 		return false;
 	}
 
 	uint32_t Renderer_OGL33::CreateTexture(const olc::vi2d& vSize, const olc::ImageConfig& cfg)
 	{
 		auto& gl = olc::apis::opengl::gl::Get();
-		return 0;
+
+		// Curiously OpenGL doesnt actually care about the size of the texture
+		// as part of its creation.	This matters later when we Write to texture
+		// resources on GPU
+		
+		uint32_t id = 0;
+		gl.glGenTextures(1, &id);
+		gl.glBindTexture(GL_TEXTURE_2D, id);
+
+		if (cfg.Filtered)
+		{
+			gl.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+			gl.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		}
+		else
+		{
+			gl.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+			gl.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		}
+
+		if (cfg.Clamp)
+		{
+			gl.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+			gl.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+		}
+		else
+		{
+			gl.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+			gl.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+		}
+
+#if OLC_HOST != OLC_HOST_EMSCRIPTEN
+		gl.glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+#endif
+		return id;
 	}
 
 	bool Renderer_OGL33::WriteTexture(const uint32_t texid, olc::Image& image)
 	{
 		auto& gl = olc::apis::opengl::gl::Get();
+		gl.glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image.Size().x, image.Size().y, 0, GL_RGBA, GL_UNSIGNED_BYTE, image.Data());
 		return false;
 	}
 
@@ -2395,7 +2534,8 @@ namespace olc::gpu
 	bool Renderer_OGL33::DeleteTexture(const uint32_t texid)
 	{
 		auto& gl = olc::apis::opengl::gl::Get();
-		return false;
+		gl.glDeleteTextures(1, &texid);
+		return true;
 	}
 
 	bool Renderer_OGL33::AssignTextureSource(const uint32_t slot, const uint32_t texid)
@@ -2407,6 +2547,45 @@ namespace olc::gpu
 	bool Renderer_OGL33::AssignTextureTarget(const uint32_t slot, const uint32_t texid)
 	{
 		auto& gl = olc::apis::opengl::gl::Get();
+		return false;
+	}
+
+	bool Renderer_OGL33::DoGPUTask(const olc::pgeguts::GPUTask& task)
+	{
+		auto& gl = olc::apis::opengl::gl::Get();
+		return false;
+	}
+
+	bool Renderer_OGL33::ClearViewport(const olc::Pixel col, bool bDepth, bool bStencil)
+	{
+		auto& gl = olc::apis::opengl::gl::Get();
+		gl.glClearColor(float(col.r) / 255.0f, float(col.g) / 255.0f, float(col.b) / 255.0f, float(col.a) / 255.0f);
+		gl.glClear(GL_COLOR_BUFFER_BIT | (bDepth ? GL_DEPTH_BUFFER_BIT : 0) | (bStencil ? GL_STENCIL_BUFFER_BIT : 0));		
+		return true;
+	}
+
+	bool Renderer_OGL33::SetViewport(const olc::vf2d& pos, const olc::vf2d& size)
+	{
+		auto& gl = olc::apis::opengl::gl::Get();
+		gl.glViewport(int(pos.x), int(pos.y), int(size.x), int(size.y));
+		return false;
+	}
+
+	bool Renderer_OGL33::DisplayPrepare()
+	{
+		auto& gl = olc::apis::opengl::gl::Get();
+		return false;
+	}
+
+	bool Renderer_OGL33::DisplayDraw(bool bVerticalSyncNow)
+	{
+		auto& gl = olc::apis::opengl::gl::Get();
+
+
+#if OLC_HOST == OLC_HOST_WINDOWS
+		SwapBuffers(glDeviceContext);		
+#endif	
+
 		return false;
 	}
 }
@@ -2479,6 +2658,58 @@ namespace olc
 		return false;
 	}
 
+	bool PixelGameEngine::CreateImage(olc::Image& image, const olc::vi2d& size, const ImageConfig& cfg)
+	{
+		// Create CPU Image
+		if (!image.Create(size, cfg))
+			return false;
+
+		// Create GPU Image
+		auto id = gpu->CreateTexture(image.Size(), cfg);
+		if (id == 0)
+		{
+			image.Create({ 0,0 });
+			return false;
+		}
+
+		// Associate CPU object with GPU Resource
+		image.SetGPUID(id);
+		return true;
+	}
+
+	bool PixelGameEngine::CreateImageFromFile(olc::Image& image, const std::string& sFileName, const ImageConfig& cfg)
+	{		
+		return false;
+	}
+
+	bool PixelGameEngine::CreateImageFromMemory(olc::Image& image, const uint8_t* data, const size_t bytes, const ImageConfig& cfg)
+	{
+		return false;
+	}
+
+	bool PixelGameEngine::WriteImageToFile(const olc::Image& image, const std::string& sFileName)
+	{
+		return false;
+	}
+
+	bool PixelGameEngine::WriteImageToMemory(const olc::Image& image, std::vector<uint8_t> bytes, const std::string& sFileName)
+	{
+		return false;
+	}
+
+	void PixelGameEngine::DestroyImage(olc::Image& image)
+	{
+		// If image has gpu resource, remove it
+		if (image.GetGPUID() != 0)
+		{
+			gpu->DeleteTexture(image.GetGPUID());
+			image.SetGPUID(0);
+		}
+
+		// Free any cpu memory associated with image
+		image.Create({ 0,0 });
+	}
+
 	bool PixelGameEngine::olc_PrimaryWindowInit()
 	{
 		// Called by window to initialise core systems. Sub windows should ignore this
@@ -2495,7 +2726,24 @@ namespace olc
 		// Initialise GPU Interface	- This thread is the context
 		olc::gpu::RendererConfig cfgRenderer;
 		gpu = std::make_unique<olc::gpu::Renderer_OGL33>();
-		gpu->CreateDevice({ nullptr }, cfgRenderer);
+
+		// The GPU device can be based upon the primary window configuration. This
+		// gives us completed gpu and host objects to pass to other windows as and
+		// when required
+		gpu->CreateDevice(host->GetHostWindowDescriptor(this), cfgRenderer);
+		if (gpu->GetLastError() != olc::gpu::RendererError::None)
+		{
+			const auto e = gpu->GetLastError(); // For debug visibility
+			std::cout << "Error: Could not create Renderer\n";
+			return;
+		}
+
+		if (!OnUserCreate())
+		{
+			// Creation process signalled abort
+			return;
+		}
+		
 
 
 		// Initialise Input Devices
@@ -2503,7 +2751,7 @@ namespace olc
 
 		durationFrameCount = 0s;
 
-		while (true)
+		while (coreActive)
 		{
 			// Frame Delta Timing - "ElapsedTime" since last core update
 			// ~~~~~~~~~~~~~~~~~~
@@ -2535,13 +2783,21 @@ namespace olc
 				SetTitle(sTitle);
 				frameCount = 0;
 			}
-
-			// Primary Window
-			olc_WindowUpdate(fDT);
-
-			// Child Windows
+			
+			// Update Child Windows (if any)
 			for (auto& winChild : deqChildWindows)
-				winChild->olc_WindowUpdate(fDT);
+				winChild->olc_WindowUpdate(fDT, gpu.get());
+
+			// Update Primary Window
+			olc_WindowUpdate(fDT, gpu.get());
+			
+			// Wait for vertical sync if required. 
+			// Note: Child windows will never vsync as waiting for each buffer swap with vsync
+			// divides up teh frame rate budget across the windows.
+			if (gpu->GetConfig().VerticalSync)
+			{
+				host->SyncWithDesktopComposite();
+			}
 
 			// Remove child windows that have requested closure
 			if (!deqChildWindows.empty())
@@ -2553,6 +2809,15 @@ namespace olc
 					}
 				));
 			}
+
+			// Primary Window
+			if (olc_ShouldRemove())
+			{
+				// Application is to be terminated
+				coreActive = false;
+			}
+
+			
 		}
 	}
 }
@@ -2562,49 +2827,45 @@ namespace olc
 #if defined(OLC_PGE_APPLICATION) && !defined(PGE_IMAGE_IMPLEMENTED)
 namespace olc
 {
-	ImageCPU::ImageCPU(const olc::vi2d& size) : dimensions(size)
+	/*Image::Image(const olc::vi2d& size, const ImageConfig& cfg)
 	{
+	}
+
+	Image::~Image()
+	{
+	}*/
+
+	bool Image::Create(const olc::vi2d& size, const ImageConfig& cfg)
+	{
+		dimensions = size;
+		config = cfg;
 		pixels.resize(dimensions.area(), olc::Pixel(255, 165, 0));
+		return true;
 	}
 
-	ImageCPU::~ImageCPU()
-	{
-		pixels.clear();
-	}
-
-	const olc::vi2d& ImageCPU::Size() const
+	const olc::vi2d& Image::Size() const
 	{
 		return dimensions;
 	}
 
-	olc::Pixel* ImageCPU::Data()
+	olc::Pixel* Image::Data()
 	{
 		return pixels.data();
 	}
 
-
-	Image::Image(const olc::vi2d& size, const bool onCPU, const bool onGPU)
+	const ImageConfig& Image::GetConfig() const
 	{
-		// Always create CPU resident image
-		imCPU = std::make_unique<olc::ImageCPU>(size);
-
-		if (onGPU)
-		{
-
-		}
-
-		if (!onCPU)
-			imCPU.reset();
+		return config;
 	}
 
-	bool Image::InCPU() const
+	int32_t Image::GetGPUID() const
 	{
-		return imCPU != nullptr;
+		return gpuResourceID;
 	}
 
-	bool Image::InGPU() const
+	void Image::SetGPUID(const int32_t id)
 	{
-		return imGPU != nullptr;
+		gpuResourceID = id;
 	}
 
 };

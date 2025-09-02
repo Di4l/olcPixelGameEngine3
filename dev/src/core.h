@@ -65,10 +65,28 @@ namespace olc
 	public:
 		bool Start();
 
-	public:
+	public:	// The "Overridables"
+		// Called once when the engine is ready and the window is created
 		bool OnUserCreate() override;
+		// Called every frame while the engine is running
 		bool OnUserUpdate(float fElapsedTime) override;
+		// Called when something requests the engine shut down
 		bool OnUserDestroy() override;
+
+
+	public:	// olc::Image Handling
+		// Create an image resource
+		bool CreateImage(olc::Image& image, const olc::vi2d& size, const ImageConfig& cfg = olc::ImageConfig());
+		// Create an image resource based on an image file asset on disk
+		bool CreateImageFromFile(olc::Image& image, const std::string& sFileName, const ImageConfig& cfg = olc::ImageConfig());
+		// Create an image resource based on an image file asset in memory
+		bool CreateImageFromMemory(olc::Image& image, const uint8_t* data, const size_t bytes, const ImageConfig& cfg = olc::ImageConfig());
+		// Store an image as a file asset on disk
+		bool WriteImageToFile(const olc::Image& image, const std::string& sFileName);
+		// Store an image as a file asset in memory
+		bool WriteImageToMemory(const olc::Image& image, std::vector<uint8_t> bytes, const std::string& sFileName);
+		// Destroy an image
+		void DestroyImage(olc::Image& image);
 
 	protected:
 		bool olc_PrimaryWindowInit() override;

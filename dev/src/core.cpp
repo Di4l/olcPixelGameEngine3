@@ -68,6 +68,58 @@ namespace olc
 		return false;
 	}
 
+	bool PixelGameEngine::CreateImage(olc::Image& image, const olc::vi2d& size, const ImageConfig& cfg)
+	{
+		// Create CPU Image
+		if (!image.Create(size, cfg))
+			return false;
+
+		// Create GPU Image
+		auto id = gpu->CreateTexture(image.Size(), cfg);
+		if (id == 0)
+		{
+			image.Create({ 0,0 });
+			return false;
+		}
+
+		// Associate CPU object with GPU Resource
+		image.SetGPUID(id);
+		return true;
+	}
+
+	bool PixelGameEngine::CreateImageFromFile(olc::Image& image, const std::string& sFileName, const ImageConfig& cfg)
+	{		
+		return false;
+	}
+
+	bool PixelGameEngine::CreateImageFromMemory(olc::Image& image, const uint8_t* data, const size_t bytes, const ImageConfig& cfg)
+	{
+		return false;
+	}
+
+	bool PixelGameEngine::WriteImageToFile(const olc::Image& image, const std::string& sFileName)
+	{
+		return false;
+	}
+
+	bool PixelGameEngine::WriteImageToMemory(const olc::Image& image, std::vector<uint8_t> bytes, const std::string& sFileName)
+	{
+		return false;
+	}
+
+	void PixelGameEngine::DestroyImage(olc::Image& image)
+	{
+		// If image has gpu resource, remove it
+		if (image.GetGPUID() != 0)
+		{
+			gpu->DeleteTexture(image.GetGPUID());
+			image.SetGPUID(0);
+		}
+
+		// Free any cpu memory associated with image
+		image.Create({ 0,0 });
+	}
+
 	bool PixelGameEngine::olc_PrimaryWindowInit()
 	{
 		// Called by window to initialise core systems. Sub windows should ignore this
@@ -84,7 +136,24 @@ namespace olc
 		// Initialise GPU Interface	- This thread is the context
 		olc::gpu::RendererConfig cfgRenderer;
 		gpu = std::make_unique<olc::gpu::Renderer_OGL33>();
-		gpu->CreateDevice({ nullptr }, cfgRenderer);
+
+		// The GPU device can be based upon the primary window configuration. This
+		// gives us completed gpu and host objects to pass to other windows as and
+		// when required
+		gpu->CreateDevice(host->GetHostWindowDescriptor(this), cfgRenderer);
+		if (gpu->GetLastError() != olc::gpu::RendererError::None)
+		{
+			const auto e = gpu->GetLastError(); // For debug visibility
+			std::cout << "Error: Could not create Renderer\n";
+			return;
+		}
+
+		if (!OnUserCreate())
+		{
+			// Creation process signalled abort
+			return;
+		}
+		
 
 
 		// Initialise Input Devices
@@ -92,7 +161,7 @@ namespace olc
 
 		durationFrameCount = 0s;
 
-		while (true)
+		while (coreActive)
 		{
 			// Frame Delta Timing - "ElapsedTime" since last core update
 			// ~~~~~~~~~~~~~~~~~~
@@ -124,13 +193,21 @@ namespace olc
 				SetTitle(sTitle);
 				frameCount = 0;
 			}
-
-			// Primary Window
-			olc_WindowUpdate(fDT);
-
-			// Child Windows
+			
+			// Update Child Windows (if any)
 			for (auto& winChild : deqChildWindows)
-				winChild->olc_WindowUpdate(fDT);
+				winChild->olc_WindowUpdate(fDT, gpu.get());
+
+			// Update Primary Window
+			olc_WindowUpdate(fDT, gpu.get());
+			
+			// Wait for vertical sync if required. 
+			// Note: Child windows will never vsync as waiting for each buffer swap with vsync
+			// divides up teh frame rate budget across the windows.
+			if (gpu->GetConfig().VerticalSync)
+			{
+				host->SyncWithDesktopComposite();
+			}
 
 			// Remove child windows that have requested closure
 			if (!deqChildWindows.empty())
@@ -142,6 +219,15 @@ namespace olc
 					}
 				));
 			}
+
+			// Primary Window
+			if (olc_ShouldRemove())
+			{
+				// Application is to be terminated
+				coreActive = false;
+			}
+
+			
 		}
 	}
 }

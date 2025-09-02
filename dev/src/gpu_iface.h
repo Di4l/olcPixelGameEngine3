@@ -42,7 +42,8 @@ namespace olc
 
 		public:
 			// Check/Get last error
-			const RendererError GetLastError() const { return lastError; }
+			inline RendererError GetLastError() const { return lastError; }
+			inline const RendererConfig& GetConfig() const { return config; }
 
 		public: // Device Stuff
 			// Constructs a GPU Device interface
@@ -64,7 +65,24 @@ namespace olc
 			// Makes active the given texture resource (for subsequent rendering operations)
 			virtual bool AssignTextureTarget(const uint32_t slot, const uint32_t texid) = 0;
 
+		public: // Shader Construction Stuff
+
+		public: // GPU Task Processing Stuff
+			virtual bool DoGPUTask(const olc::pgeguts::GPUTask& task) = 0;
+
+		public: // Swap Chain Stuff
+			// Clears the viewport to a specific colour and depth
+			virtual bool ClearViewport(const olc::Pixel col, bool bDepth, bool bStencil) = 0;
+			// Sets the viewport area of the drawing space
+			virtual bool SetViewport(const olc::vf2d& pos, const olc::vf2d& size) = 0;
+			// Configures defaults prior to drawing
+			virtual bool DisplayPrepare() = 0;
+			// Displays the final output
+			virtual bool DisplayDraw(bool bVerticalSyncNow = false) = 0;
+
+
 		protected:
+			RendererConfig config;
 			RendererError lastError = RendererError::None;
 		};
 	}

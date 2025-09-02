@@ -30,6 +30,21 @@ namespace olc
 			bool AssignTextureSource(const uint32_t slot, const uint32_t texid) override;
 			// Makes active the given texture resource (for subsequent rendering operations)
 			bool AssignTextureTarget(const uint32_t slot, const uint32_t texid) override;
+
+
+		public: // GPU Task Stuff
+			virtual bool DoGPUTask(const olc::pgeguts::GPUTask& task) override;
+
+		public: // Swap Chain Stuff
+			// Clears the viewport to a specific colour and depth
+			virtual bool ClearViewport(const olc::Pixel col, bool bDepth, bool bStencil) override;
+			// Sets the viewport area of the drawing space
+			virtual bool SetViewport(const olc::vf2d& pos, const olc::vf2d& size) override;
+			// Configures defaults prior to drawing
+			virtual bool DisplayPrepare() override;
+			// Displays the final output
+			virtual bool DisplayDraw(bool bVerticalSyncNow) override;
+
 		
 		protected: // These may need some thinking about re multiple window
 			olc::apis::opengl::glDeviceContext_t glDeviceContext = 0;

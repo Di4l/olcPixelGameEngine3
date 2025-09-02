@@ -5,7 +5,7 @@
 //! START IMPLEMENTATION
 namespace olc
 {
-	Window::Window() : std::enable_shared_from_this<olc::Window>()
+	Window::Window()
 	{
 		nUniqueID = pgeguts::CreateUID();
 	}
@@ -72,9 +72,12 @@ namespace olc
 		return bShouldRemove;
 	}
 
-	bool Window::olc_WindowUpdate(const float fElapsedTime)
+	bool Window::olc_WindowUpdate(const float fElapsedTime, olc::gpu::Renderer* const gpu)
 	{
 		// Environmental changes
+
+		gpu->SetViewport({ 0,0 }, GetSize());
+		gpu->ClearViewport(olc::Colour::TANGERINE, false, false);
 
 		// User Update
 		if (!OnUserUpdate(fElapsedTime))
@@ -87,10 +90,13 @@ namespace olc
 			}
 		}
 
-		return false;
+		
+		gpu->DisplayDraw();
+
+		return true;
 	}
 
-	const size_t Window::GetUID() const
+	size_t Window::GetUID() const
 	{
 		return nUniqueID;
 	}

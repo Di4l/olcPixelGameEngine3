@@ -51,16 +51,21 @@ namespace olc
 
 		public:
 			// Check/Get last error
-			const HostError GetLastError() const { return lastError; }
+			HostError GetLastError() const { return lastError; }
 
 		public: 
 			virtual bool StartSystemEventLoop() = 0;
 			virtual bool AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen) = 0;
 			
 			virtual bool UpdateWindowFrameTitle(olc::Window* pWindow) = 0;
+
+			virtual std::vector<void*> GetHostWindowDescriptor(olc::Window* pWindow) = 0;
 			
 			
 			virtual bool ConnectHostResourceToRenderer() = 0;
+
+			// Wait for entire host desktop refresh (for smooooth vsync)
+			virtual bool SyncWithDesktopComposite() = 0;
 
 		protected:
 			HostError lastError = HostError::None;
