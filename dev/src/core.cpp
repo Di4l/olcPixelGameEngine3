@@ -148,6 +148,9 @@ namespace olc
 			return;
 		}
 
+
+		CreateImage(imgPrimary, GetSize());
+
 		if (!OnUserCreate())
 		{
 			// Creation process signalled abort

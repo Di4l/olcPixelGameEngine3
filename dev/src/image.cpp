@@ -29,6 +29,11 @@ namespace olc
 		return pixels.data();
 	}
 
+	olc::Pixel& Image::Data(const olc::vf2d pos)
+	{
+		return pixels[pos.y * dimensions.x + pos.x];
+	}
+
 	const ImageConfig& Image::GetConfig() const
 	{
 		return config;
@@ -42,6 +47,28 @@ namespace olc
 	void Image::SetGPUID(const int32_t id)
 	{
 		gpuResourceID = id;
+	}
+
+	bool Image::BoundToGPU() const
+	{
+		return onGPU;
+	}
+
+	bool Image::BoundToCPU() const
+	{
+		return onCPU;
+	}
+
+	void Image::BindGPU()
+	{
+		onGPU = true;
+		onCPU = false;
+	}
+
+	void Image::BindCPU()
+	{
+		onCPU = true;
+		onGPU = false;
 	}
 
 };

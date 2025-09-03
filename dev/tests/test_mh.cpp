@@ -20,6 +20,8 @@ public:
 
 	bool OnUserUpdate(float fElapsedTime) override
 	{
+		draw.Line({ 10,10 }, { 20,20 }, olc::Colour::BLUE);
+
 		return true;
 	}
 };

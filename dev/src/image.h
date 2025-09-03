@@ -42,6 +42,8 @@ namespace olc
 		const olc::vi2d& Size() const;
 		// Returns read/write pointer to start of 1D stream of pixel data
 		olc::Pixel* Data();
+		// [UNSAFE] Returns pixel at location
+		olc::Pixel& Data(const olc::vf2d pos);
 		// Returns how this image was configured upon creation
 		const ImageConfig& GetConfig() const;
 		// Return GPU Resource ID
@@ -49,21 +51,20 @@ namespace olc
 		// Set GPU Resource ID (0 to eliminate)
 		void SetGPUID(const int32_t id);
 		
-		// True if data mirror has in-front RAM image		
-		bool HasWetCPU() const;
-		// True if data mirror has in-front VRAM image
-		bool HasWetGPU() const;
+		bool BoundToGPU() const;
+		bool BoundToCPU() const;
 
-		void PrimeCPU();
-		void PrimeGPU();
+	public: // Make friendly private later
+		void BindGPU();
+		void BindCPU();
 
 	protected:
 		ImageConfig config;
 		olc::vi2d dimensions;
 		std::vector<olc::Pixel> pixels;
 		int32_t gpuResourceID = 0;
-		bool gpuWet = false;
-		bool cpuWet = true;
+		bool onGPU = false;
+		bool onCPU = true;
 	};
 }
 #define PGE_IMAGE_DECLARED 1

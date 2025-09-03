@@ -143,7 +143,7 @@ namespace olc::gpu
 		return false;
 	}
 
-	bool Renderer_OGL33::DoGPUTask(const olc::pgeguts::GPUTask& task)
+	bool Renderer_OGL33::DoGPUTask(const olc::GPUTask& task)
 	{
 		auto& gl = olc::apis::opengl::gl::Get();
 		return false;

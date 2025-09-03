@@ -68,7 +68,7 @@ namespace olc
 		public: // Shader Construction Stuff
 
 		public: // GPU Task Processing Stuff
-			virtual bool DoGPUTask(const olc::pgeguts::GPUTask& task) = 0;
+			virtual bool DoGPUTask(const olc::GPUTask& task) = 0;
 
 		public: // Swap Chain Stuff
 			// Clears the viewport to a specific colour and depth

@@ -15,6 +15,7 @@
 #include "pixel.h"
 #include "vector2d.h"
 #include "gpu_iface.h"
+#include "draw2d.h"
 //! END CUSTOMHEADER
 
 //! START DECLARATION
@@ -104,6 +105,10 @@ namespace olc
 		
 		olc::host::Host* pHost = nullptr;
 		//olc::gpu::Renderer* pRenderer = nullptr;
+
+	protected:
+		olc::Draw2D draw;
+		olc::Image imgPrimary;
 	};
 }
 #define PGE_WINDOW_DECLARED 1

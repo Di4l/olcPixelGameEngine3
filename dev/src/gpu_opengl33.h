@@ -33,7 +33,7 @@ namespace olc
 
 
 		public: // GPU Task Stuff
-			virtual bool DoGPUTask(const olc::pgeguts::GPUTask& task) override;
+			virtual bool DoGPUTask(const olc::GPUTask& task) override;
 
 		public: // Swap Chain Stuff
 			// Clears the viewport to a specific colour and depth

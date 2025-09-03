@@ -17,8 +17,7 @@
 #if !defined(PGE_GPUTASK_DECLARED)
 namespace olc
 {
-	namespace pgeguts
-	{
+	
 		// This is the default "packet" of work that is sent to 
 		// a GPU for drawing. Various drawing operations throughout
 		// PGE create GPUTasks which are stored and dispatched when
@@ -115,7 +114,7 @@ namespace olc
 
 		//	return task;
 		//}
-	}
+
 }
 #define PGE_GPUTASK_DECLARED 1
 #endif

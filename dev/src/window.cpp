@@ -76,6 +76,10 @@ namespace olc
 	{
 		// Environmental changes
 
+		draw.ClearTransform();
+		draw.SetGPU(gpu);
+		draw.SetTarget(imgPrimary);
+
 		gpu->SetViewport({ 0,0 }, GetSize());
 		gpu->ClearViewport(olc::Colour::TANGERINE, false, false);
 
