@@ -94,7 +94,10 @@ namespace olc
 			}
 		}
 
-		
+		// Finialise any outstanding tasks
+		draw.ProcessGPUTasks();
+
+		// Update Window's primary surface
 		gpu->DisplayDraw();
 
 		return true;

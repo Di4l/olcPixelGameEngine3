@@ -68,6 +68,7 @@ namespace olc
 
 		typedef GLuint CALLSTYLE glCreateShader_t(GLenum type);
 		typedef GLuint CALLSTYLE glCreateProgram_t(void);
+		typedef void CALLSTYLE glShaderSource_t(GLuint shader, GLsizei count, const GLchar** string, const GLint* length);
 		typedef void CALLSTYLE glDeleteShader_t(GLuint shader);
 		typedef void CALLSTYLE glCompileShader_t(GLuint shader);
 		typedef void CALLSTYLE glLinkProgram_t(GLuint program);
@@ -119,6 +120,7 @@ namespace olc
 		public:
 			glCreateShader_t* glCreateShader = nullptr;
 			glCreateProgram_t* glCreateProgram = nullptr;
+			glShaderSource_t* glShaderSource = nullptr;
 			glDeleteShader_t* glDeleteShader = nullptr;
 			glCompileShader_t* glCompileShader = nullptr;
 			glLinkProgram_t* glLinkProgram = nullptr;
@@ -158,6 +160,7 @@ namespace olc
 			void glClear(GLbitfield mask);
 			void glViewport(GLint x, GLint y, GLsizei width, GLsizei height);
 			void glClearColor(GLfloat red, GLfloat green, GLfloat blue, GLfloat alpha);
+			void glReadPixels(GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, void* data);
 
 		};
 	}

@@ -129,3 +129,5 @@ GPUTask Draw2D::Line(const olc::vf2d& p1, const olc::vf2d& p2, const olc::Pixel 
 		));
 }
 
+
+//! END IMPLEMENTATION

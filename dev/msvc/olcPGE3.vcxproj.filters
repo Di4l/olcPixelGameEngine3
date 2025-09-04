@@ -119,5 +119,8 @@
     <ClCompile Include="..\src\draw2d.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\gpu_iface.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

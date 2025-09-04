@@ -9,6 +9,13 @@ namespace olc
 {
 	namespace gpu
 	{
+		class Shader_GLSL33 : public olc::gpu::Shader
+		{
+		public:
+			std::string Compile() override;
+			int32_t CreateUniform(const std::string& name) override;
+		};
+
 		class Renderer_OGL33 : public olc::gpu::Renderer
 		{
 		public: // Device Stuff
@@ -31,6 +38,9 @@ namespace olc
 			// Makes active the given texture resource (for subsequent rendering operations)
 			bool AssignTextureTarget(const uint32_t slot, const uint32_t texid) override;
 
+		public: // Shader Construction Stuff
+			bool ApplyShader(const Shader& shader) override;
+			bool ApplyDefaultShader() override;
 
 		public: // GPU Task Stuff
 			virtual bool DoGPUTask(const olc::GPUTask& task) override;
@@ -49,6 +59,8 @@ namespace olc
 		protected: // These may need some thinking about re multiple window
 			olc::apis::opengl::glDeviceContext_t glDeviceContext = 0;
 			olc::apis::opengl::glRenderContext_t glRenderContext = 0;
+
+			Shader_GLSL33 shaderDefault;
 
 		};
 	}

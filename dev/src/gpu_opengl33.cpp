@@ -3,6 +3,61 @@
 //! START IMPLEMENTATION
 namespace olc::gpu
 {
+	std::string Shader_GLSL33::Compile()
+	{
+		auto& gl = olc::apis::opengl::gl::Get();
+
+		nCompiledShaderID = gl.glCreateProgram();
+
+		// Fragment Shader
+		if (!srcPixelShader.empty())
+		{
+			nPixelShaderID = gl.glCreateShader(0x8B30);			
+			const char* s = srcPixelShader.c_str();
+			gl.glShaderSource(nPixelShaderID, 1, &s, nullptr);
+			gl.glCompileShader(nPixelShaderID);
+			// TODO: Error Check
+			gl.glAttachShader(nCompiledShaderID, nPixelShaderID);
+		}
+
+		// Vertex Shader
+		if (!srcVertexShader.empty())
+		{
+			nVertexShaderID = gl.glCreateShader(0x8B31);
+			const char* s = srcVertexShader.c_str();
+			gl.glShaderSource(nVertexShaderID, 1, &s, nullptr);
+			gl.glCompileShader(nVertexShaderID);
+			// TODO: Error Check
+			gl.glAttachShader(nCompiledShaderID, nVertexShaderID);
+		}
+
+
+		// Geometry Shader
+		if (!srcGeometryShader.empty())
+		{
+			nGeometryShaderID = gl.glCreateShader(0x8DD9);
+			const char* s = srcGeometryShader.c_str();
+			gl.glShaderSource(nGeometryShaderID, 1, &s, nullptr);
+			gl.glCompileShader(nGeometryShaderID);
+			// TODO: Error Check
+			gl.glAttachShader(nCompiledShaderID, nGeometryShaderID);
+		}
+
+		gl.glLinkProgram(nCompiledShaderID);
+
+		return "OK";
+	}
+
+	int32_t Shader_GLSL33::CreateUniform(const std::string& name)
+	{
+		auto& gl = olc::apis::opengl::gl::Get();
+		const char* s = name.c_str();
+		mapUniforms.insert({ name, gl.glGetUniformLocation(nCompiledShaderID, s) });
+		return GetUniform(name);
+	}
+
+
+
 	bool Renderer_OGL33::CreateDevice(std::vector<void*> params, const RendererConfig& cfg)
 	{
 		config = cfg;
@@ -55,6 +110,34 @@ namespace olc::gpu
 
 		// Can't load OpenGL API until context is loaded
 		auto& gl = olc::apis::opengl::gl::Get();
+
+
+		shaderDefault.SetPixelShaderSource(
+			"#version 330 core\n"
+			"out vec4 pixel;\n"
+			"in vec2 oTex;\n"
+			"in vec4 oCol;\n"
+			"uniform sampler2D sprTex;\n"
+			"void main(){pixel = texture(sprTex, oTex) * oCol;}"
+		);
+
+		shaderDefault.SetVertexShaderSource(
+			"#version 330 core\n"
+			"layout(location = 0) in vec4 aPos;\n"
+			"layout(location = 1) in vec2 aTex;\n"
+			"layout(location = 2) in vec4 aCol;\n"
+			"uniform mat4 mvp;\n"
+			"uniform int is3d;\n"
+			"uniform vec4 tint;\n"
+			"out vec2 oTex;\n"
+			"out vec4 oCol;\n"
+			"void main(){ if(is3d!=0) {gl_Position = mvp * vec4(aPos.x, aPos.y, aPos.z, 1.0); oTex = aTex;} else {float p = 1.0 / aPos.z; gl_Position = p * vec4(aPos.x, aPos.y, 0.0, 1.0); oTex = p * aTex;} oCol = aCol * tint;}"
+		);
+
+		shaderDefault.Compile();
+		shaderDefault.CreateUniform("mvp");
+		shaderDefault.CreateUniform("is3d");
+		shaderDefault.CreateUniform("tint");
 
 
 		lastError = RendererError::None;
@@ -114,14 +197,17 @@ namespace olc::gpu
 	bool Renderer_OGL33::WriteTexture(const uint32_t texid, olc::Image& image)
 	{
 		auto& gl = olc::apis::opengl::gl::Get();
+		gl.glBindTexture(GL_TEXTURE_2D, image.GetGPUID());
 		gl.glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image.Size().x, image.Size().y, 0, GL_RGBA, GL_UNSIGNED_BYTE, image.Data());
-		return false;
+		return true;
 	}
 
 	bool Renderer_OGL33::ReadTexture(const uint32_t texid, olc::Image& image)
 	{
 		auto& gl = olc::apis::opengl::gl::Get();
-		return false;
+		gl.glBindTexture(GL_TEXTURE_2D, image.GetGPUID());
+		gl.glReadPixels(0, 0, image.Size().x, image.Size().y, GL_RGBA, GL_UNSIGNED_BYTE, image.Data());
+		return true;
 	}
 
 	bool Renderer_OGL33::DeleteTexture(const uint32_t texid)
@@ -143,10 +229,30 @@ namespace olc::gpu
 		return false;
 	}
 
+	bool Renderer_OGL33::ApplyShader(const Shader& shader)
+	{
+		auto& gl = olc::apis::opengl::gl::Get();
+		gl.glUseProgram(shader.GetShaderID());
+		return true;
+	}
+
+	bool Renderer_OGL33::ApplyDefaultShader()
+	{
+		auto& gl = olc::apis::opengl::gl::Get();
+		gl.glUseProgram(shaderDefault.GetShaderID());
+		return true;
+	}
+
 	bool Renderer_OGL33::DoGPUTask(const olc::GPUTask& task)
 	{
 		auto& gl = olc::apis::opengl::gl::Get();
-		return false;
+
+
+
+
+
+
+		return true;
 	}
 
 	bool Renderer_OGL33::ClearViewport(const olc::Pixel col, bool bDepth, bool bStencil)
@@ -181,5 +287,7 @@ namespace olc::gpu
 
 		return false;
 	}
+
+
 }
 //! END IMPLEMENTATION

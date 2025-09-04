@@ -19,6 +19,7 @@ namespace olc::apis::opengl
 		bLoaded = true;
 		bLoaded &= (glCreateShader = OGL_LOAD(glCreateShader)) != nullptr;
 		bLoaded &= (glCreateProgram	= OGL_LOAD(glCreateProgram)) != nullptr;
+		bLoaded &= (glShaderSource = OGL_LOAD(glShaderSource)) != nullptr;
 		bLoaded &= (glDeleteShader = OGL_LOAD(glDeleteShader)) != nullptr;
 		bLoaded &= (glCompileShader = OGL_LOAD(glCompileShader)) != nullptr;
 		bLoaded &= (glLinkProgram = OGL_LOAD(glLinkProgram)) != nullptr;
@@ -99,6 +100,11 @@ namespace olc::apis::opengl
 	void gl::glClearColor(GLfloat red, GLfloat green, GLfloat blue, GLfloat alpha)
 	{
 		::glClearColor(red, green, blue, alpha);
+	}
+
+	void gl::glReadPixels(GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, void* data)
+	{
+		::glReadPixels(x, y, width, height, format, type, data);
 	}
 }
 //! END IMPLEMENTATION
