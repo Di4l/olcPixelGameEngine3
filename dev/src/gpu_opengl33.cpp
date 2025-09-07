@@ -289,11 +289,6 @@ namespace olc::gpu
 		{
 			case GPUTask::Task::DrawPolygon:
 			{
-				gl.glUseProgram(shaderDefault.GetShaderID());
-				gl.glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-				gl.glDepthFunc(GL_LESS);
-				gl.glBindTexture(GL_TEXTURE_2D, imgBlank.GetGPUID());
-
 				// Bind generic vertex buffer
 				gl.glBindVertexArray(nDefaultVA);
 				gl.glBindBuffer(0x8892, nDefaultVB);
@@ -382,6 +377,12 @@ namespace olc::gpu
 	bool Renderer_OGL33::DisplayPrepare()
 	{
 		auto& gl = olc::apis::opengl::gl::Get();
+
+		//gl.glUseProgram(shaderDefault.GetShaderID());
+		gl.glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		gl.glDepthFunc(GL_LESS);
+		gl.glBindTexture(GL_TEXTURE_2D, imgBlank.GetGPUID());
+
 		return false;
 	}
 

@@ -81,8 +81,9 @@ namespace olc
 		draw.SetTarget(imgPrimary);
 
 
+		gpu->DisplayPrepare();
 		gpu->SetViewport({ 0,0 }, GetSize());
-		gpu->ClearViewport(olc::Colour::TANGERINE, true, true);
+		gpu->ClearViewport(olc::Colour::BLACK, true, true);
 		gpu->ApplyDefaultShader();
 
 		// User Update
