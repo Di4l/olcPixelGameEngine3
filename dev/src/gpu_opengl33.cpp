@@ -110,11 +110,18 @@ namespace olc::gpu
 
 		// Can't load OpenGL API until context is loaded
 		auto& gl = olc::apis::opengl::gl::Get();
+		if (!gl.HasLoaded())
+		{
+			std::cout << "Error: Could not Load OpenGL!\n";
+			lastError = RendererError::None;
+			return false;
+		}
+		
 
 		// Create "Default" Shader
 		shaderDefault.SetPixelShaderSource(
 			"#version 330 core\n"
-			"out vec4 pixel;\n"
+			"layout(location = 0) out vec4 pixel;\n"
 			"in vec2 oTex;\n"
 			"in vec4 oCol;\n"
 			"uniform sampler2D sprTex;\n"
@@ -124,8 +131,8 @@ namespace olc::gpu
 		shaderDefault.SetVertexShaderSource(
 			"#version 330 core\n"
 			"layout(location = 0) in vec4 aPos;\n"
-			"layout(location = 1) in vec2 aTex;\n"
-			"layout(location = 2) in vec4 aCol;\n"
+			"layout(location = 1) in vec4 aCol;\n"
+			"layout(location = 2) in vec2 aTex;\n"
 			"uniform mat4 mvp;\n"
 			"uniform int is3d;\n"
 			"uniform vec4 tint;\n"
@@ -154,17 +161,29 @@ namespace olc::gpu
 		
 		// Float Index 0 = x, 1 = y, 2 = z, 3 = w
 		gl.glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, sizeof(GPUTask::Vertex),        (void*)(0 * sizeof(float)));
-		gl.glEnableVertexAttribArray(0);
-		// Float Index 4 = u, 5 = v
-		gl.glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(GPUTask::Vertex),        (void*)(4 * sizeof(float))); 
+		gl.glEnableVertexAttribArray(0);		
+		// Float Index 4 = (RGBA 8-bit x4)
+		gl.glVertexAttribPointer(1, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(GPUTask::Vertex), (void*)(4 * sizeof(float)));	
 		gl.glEnableVertexAttribArray(1);
-		// Float Index 6 = (RGBA 8-bit x4)
-		gl.glVertexAttribPointer(2, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(GPUTask::Vertex), (void*)(6 * sizeof(float)));	
+		// Float Index 5 = u0, 6 = v0
+		gl.glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(GPUTask::Vertex),        (void*)(5 * sizeof(float)));
 		gl.glEnableVertexAttribArray(2);
+		// Float Index 7 = u1, 8 = v1
+		gl.glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, sizeof(GPUTask::Vertex), (void*)(7 * sizeof(float)));
+		gl.glEnableVertexAttribArray(3);
+		// Float Index 9 = u2, 10 = v2
+		gl.glVertexAttribPointer(4, 2, GL_FLOAT, GL_FALSE, sizeof(GPUTask::Vertex), (void*)(9 * sizeof(float)));
+		gl.glEnableVertexAttribArray(4);
+		// Float Index 11 = u3, 12 = v4
+		gl.glVertexAttribPointer(5, 2, GL_FLOAT, GL_FALSE, sizeof(GPUTask::Vertex), (void*)(11 * sizeof(float)));
+		gl.glEnableVertexAttribArray(5);
 
 		// Buffers are configured, unbind for now
 		gl.glBindBuffer(0x8892, 0);
 		gl.glBindVertexArray(0);
+
+
+		
 
 
 		// Create a null-texture so sampler doesnt fail. We don't have some of the core's helper
@@ -175,6 +194,20 @@ namespace olc::gpu
 		imgBlank.Data({ 0,0 }) = olc::Colour::WHITE;
 		imgBlank.BindGPU();
 		WriteTexture(imgBlank.GetGPUID(), imgBlank);
+
+		// Create a Frame Buffer Object for off-screen rendering things
+		gl.glGenFramebuffers(1, (GLuint*)&nDefaultFBO);
+		gl.glBindFramebuffer(36160U, nDefaultFBO); // GL_FRAMEBUFFER
+		// Attach 4 colour buffers
+		std::array<GLenum, 4> attachments = { {36064U, 36065U, 36066U, 36067U} };
+		gl.glDrawBuffers(4, attachments.data());
+		// Unlink them from any existing image textures
+		//gl.glFramebufferTexture2D(36160U, attachments[0], GL_TEXTURE_2D, 0, 0);
+		//gl.glFramebufferTexture2D(36160U, attachments[1], GL_TEXTURE_2D, 0, 0);
+		//gl.glFramebufferTexture2D(36160U, attachments[2], GL_TEXTURE_2D, 0, 0);
+		//gl.glFramebufferTexture2D(36160U, attachments[3], GL_TEXTURE_2D, 0, 0);
+		// Unbind the FBO
+		gl.glBindFramebuffer(36160U, 0);
 
 
 
@@ -229,6 +262,7 @@ namespace olc::gpu
 #if OLC_HOST != OLC_HOST_EMSCRIPTEN
 		gl.glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 #endif
+
 		return id;
 	}
 
@@ -258,13 +292,31 @@ namespace olc::gpu
 	bool Renderer_OGL33::AssignTextureSource(const uint32_t slot, const uint32_t texid)
 	{
 		auto& gl = olc::apis::opengl::gl::Get();
-		return false;
+
+		gl.glActiveTexture(0x84C0 + slot); // GL_TEXTURE0
+		gl.glBindTexture(GL_TEXTURE_2D, texid);
+		return true;
 	}
 
 	bool Renderer_OGL33::AssignTextureTarget(const uint32_t slot, const uint32_t texid)
 	{
 		auto& gl = olc::apis::opengl::gl::Get();
-		return false;
+
+		if (texid == 0)
+		{
+			gl.glBindFramebuffer(36160U, 0);
+			return true;
+		}
+
+		// Bind FBO
+		gl.glBindFramebuffer(36160U, nDefaultFBO);
+		// Allocate target buffers
+		std::array<GLenum, 8> attachments =
+		{ { 36064U, 36065U, 36066U, 36067U, 36068U, 36069U, 36070U, 36071U } };
+		gl.glDrawBuffers(1, attachments.data());
+		// Bind buffers to textures
+		gl.glFramebufferTexture2D(36160U, 36064U + slot, GL_TEXTURE_2D, texid, 0);		
+		return true;
 	}
 
 	bool Renderer_OGL33::ApplyShader(const Shader& shader)
@@ -289,6 +341,11 @@ namespace olc::gpu
 		{
 			case GPUTask::Task::DrawPolygon:
 			{
+				if (task.pImage == nullptr)
+					AssignTextureSource(0, imgBlank.GetGPUID());
+				else
+					AssignTextureSource(0, task.pImage->GetGPUID());
+
 				// Bind generic vertex buffer
 				gl.glBindVertexArray(nDefaultVA);
 				gl.glBindBuffer(0x8892, nDefaultVB);
@@ -381,7 +438,7 @@ namespace olc::gpu
 		//gl.glUseProgram(shaderDefault.GetShaderID());
 		gl.glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 		gl.glDepthFunc(GL_LESS);
-		gl.glBindTexture(GL_TEXTURE_2D, imgBlank.GetGPUID());
+		//gl.glBindTexture(GL_TEXTURE_2D, imgBlank.GetGPUID());
 
 		return false;
 	}

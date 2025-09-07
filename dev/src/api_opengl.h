@@ -97,11 +97,11 @@ namespace olc
 		typedef void CALLSTYLE glUniform4fv_t(GLint location, GLsizei count, const GLfloat* value);
 		typedef void CALLSTYLE glUniformMatrix4fv_t(GLint location, GLsizei count, GLboolean trasnpose, const GLfloat* value);
 		typedef void CALLSTYLE glActiveTexture_t(GLenum texture);
-		typedef void CALLSTYLE glGenFrameBuffers_t(GLsizei n, GLuint* ids);
-		typedef void CALLSTYLE glBindFrameBuffer_t(GLenum target, GLuint fb);
-		typedef GLenum CALLSTYLE glCheckFrameBufferStatus_t(GLenum target);
-		typedef void CALLSTYLE glDeleteFrameBuffers_t(GLsizei n, const GLuint* fbs);
-		typedef void CALLSTYLE glFrameBufferTexture2D_t(GLenum target, GLenum attachment, GLenum textarget, GLuint texture, GLint level);
+		typedef void CALLSTYLE glGenFramebuffers_t(GLsizei n, GLuint* ids);
+		typedef void CALLSTYLE glBindFramebuffer_t(GLenum target, GLuint fb);
+		typedef GLenum CALLSTYLE glCheckFramebufferStatus_t(GLenum target);
+		typedef void CALLSTYLE glDeleteFramebuffers_t(GLsizei n, const GLuint* fbs);
+		typedef void CALLSTYLE glFramebufferTexture2D_t(GLenum target, GLenum attachment, GLenum textarget, GLuint texture, GLint level);
 		typedef void CALLSTYLE glDrawBuffers_t(GLsizei n, const GLenum* bufs);
 		typedef void CALLSTYLE glBlendFuncSeparate_t(GLenum srcRGB, GLenum dstRGB, GLenum srcAlpha, GLenum dstAlpha);
 
@@ -116,6 +116,7 @@ namespace olc
 		{
 		public:
 			static gl& Get();
+			inline bool HasLoaded() const { return bLoaded; }
 
 		private:
 			gl() = default;
@@ -149,11 +150,11 @@ namespace olc
 			glUniform4fv_t* _glUniform4fv = nullptr;
 			glUniformMatrix4fv_t* _glUniformMatrix4fv = nullptr;
 			glActiveTexture_t* _glActiveTexture = nullptr;
-			glGenFrameBuffers_t* _glGenFrameBuffers = nullptr;
-			glBindFrameBuffer_t* _glBindFrameBuffer = nullptr;
-			glCheckFrameBufferStatus_t* _glCheckFrameBufferStatus = nullptr;
-			glDeleteFrameBuffers_t* _glDeleteFrameBuffers = nullptr;
-			glFrameBufferTexture2D_t* _glFrameBufferTexture2D = nullptr;
+			glGenFramebuffers_t* _glGenFramebuffers = nullptr;
+			glBindFramebuffer_t* _glBindFramebuffer = nullptr;
+			glCheckFramebufferStatus_t* _glCheckFramebufferStatus = nullptr;
+			glDeleteFramebuffers_t* _glDeleteFramebuffers = nullptr;
+			glFramebufferTexture2D_t* _glFramebufferTexture2D = nullptr;
 			glDrawBuffers_t* _glDrawBuffers = nullptr;
 			glBlendFuncSeparate_t* _glBlendFuncSeparate = nullptr;
 
@@ -186,11 +187,11 @@ namespace olc
 			void glUniform4fv(GLint location, GLsizei count, const GLfloat* value);
 			void glUniformMatrix4fv(GLint location, GLsizei count, GLboolean trasnpose, const GLfloat* value);
 			void glActiveTexture(GLenum texture);
-			void glGenFrameBuffers(GLsizei n, GLuint* ids);
-			void glBindFrameBuffer(GLenum target, GLuint fb);
-			GLenum glCheckFrameBufferStatus(GLenum target);
-			void glDeleteFrameBuffers(GLsizei n, const GLuint* fbs);
-			void glFrameBufferTexture2D(GLenum target, GLenum attachment, GLenum textarget, GLuint texture, GLint level);
+			void glGenFramebuffers(GLsizei n, GLuint* ids);
+			void glBindFramebuffer(GLenum target, GLuint fb);
+			GLenum glCheckFramebufferStatus(GLenum target);
+			void glDeleteFramebuffers(GLsizei n, const GLuint* fbs);
+			void glFramebufferTexture2D(GLenum target, GLenum attachment, GLenum textarget, GLuint texture, GLint level);
 			void glDrawBuffers(GLsizei n, const GLenum* bufs);
 			void glBlendFuncSeparate(GLenum srcRGB, GLenum dstRGB, GLenum srcAlpha, GLenum dstAlpha);
 

@@ -149,7 +149,8 @@ namespace olc
 		}
 
 
-		CreateImage(imgPrimary, { 200, 200 });
+		CreateImage(imgPrimary, config.vScreenSize);
+		gpu->WriteTexture(imgPrimary.GetGPUID(), imgPrimary);
 
 		if (!OnUserCreate())
 		{

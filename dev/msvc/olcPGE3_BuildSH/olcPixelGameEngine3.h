@@ -21,6 +21,8 @@
 #include <deque>
 #include <chrono>
 #include <thread>
+#include <sstream>
+#include <source_location>
 
 // Version number (accessible as value for incremental comparisons)
 #define PGE_VER 300
@@ -32,7 +34,7 @@
 #define PGE_PIXEL_LAYOUT_ABGR 2
 
 #if !defined(PGE_PIXEL_LAYOUT)
-	#define PGE_PIXEL_LAYOUT PGE_PIXEL_LAYOUT_ABGR
+	#define PGE_PIXEL_LAYOUT PGE_PIXEL_LAYOUT_RGBA
 #endif
 
 
@@ -90,6 +92,10 @@
 #if !defined(OLC_GPU)
 	#define OLC_GPU OLC_GPU_OPENGL33
 #endif
+
+
+#define OLC_GPU_MAX_VERTICES 8192
+#define OLC_GPU_ERRORCHECK 1
 
 #define LICENCE_DEFAULT "OneLoneCoder.com - Pixel Game Engine 3 - "
 
@@ -1182,10 +1188,19 @@ namespace olc
 		// upon PGE structures
 		struct GPUTask
 		{
+			enum class Task : uint8_t
+			{
+				DrawPolygon,
+			} task = Task::DrawPolygon;
+
 			struct Vertex 
 			{
-				float p[6];     // x, y, z, w, u, v
+				float p[4];     // x, y, z, w
 				olc::Pixel c;	// 32-bit colour
+				float t0[2];
+				float t1[2];
+				float t2[2];
+				float t3[2];
 			};
 
 			// Simple vertex buffer
@@ -1207,6 +1222,8 @@ namespace olc
 
 			// Overall biasing colour (great for blends)
 			olc::Pixel tint = olc::Colour::WHITE;
+
+			olc::Image* pImage = nullptr;
 
 			// Define super structure to be drawn
 			enum class Structure : uint8_t
@@ -1333,6 +1350,8 @@ namespace olc
 			inline RendererError GetLastError() const { return lastError; }
 			inline const RendererConfig& GetConfig() const { return config; }
 
+			
+
 		public: // Device Stuff
 			// Constructs a GPU Device interface
 			virtual bool CreateDevice(std::vector<void*> params, const RendererConfig& cfg) = 0;
@@ -1455,6 +1474,7 @@ namespace olc
 
 		GPUTask TaskTexturedPolygon(
 			GPUTask::Structure structure,
+			const std::vector<olc::vf2d>& vPoints,
 			const std::vector<olc::Pixel>& vColours,
 			const std::vector<olc::vf2d>& vTexCoords,
 			olc::Image* const image,
@@ -1467,6 +1487,12 @@ namespace olc
 		GPUTask Line(const olc::vf2d& p1, const olc::vf2d& p2, const olc::Pixel col = olc::Colour::WHITE);
 		// Draws a single pixel wide line with a gradient		
 		GPUTask Line(const olc::vf2d& p1, const olc::vf2d& p2, const olc::Pixel c1, const olc::Pixel c2);
+
+		// Draws a filled, single colour rectangle
+		GPUTask FillRect(const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel col = olc::Colour::WHITE);
+
+		// Draws a filled, single colour rectangle
+		GPUTask Image(olc::Image& image, const olc::vf2d& pos, const olc::vf2d& size);
 	};
 }
 #define PGE_DRAW2D_DECLARED
@@ -1887,11 +1913,11 @@ namespace olc
 		typedef void CALLSTYLE glUniform4fv_t(GLint location, GLsizei count, const GLfloat* value);
 		typedef void CALLSTYLE glUniformMatrix4fv_t(GLint location, GLsizei count, GLboolean trasnpose, const GLfloat* value);
 		typedef void CALLSTYLE glActiveTexture_t(GLenum texture);
-		typedef void CALLSTYLE glGenFrameBuffers_t(GLsizei n, GLuint* ids);
-		typedef void CALLSTYLE glBindFrameBuffer_t(GLenum target, GLuint fb);
-		typedef GLenum CALLSTYLE glCheckFrameBufferStatus_t(GLenum target);
-		typedef void CALLSTYLE glDeleteFrameBuffers_t(GLsizei n, const GLuint* fbs);
-		typedef void CALLSTYLE glFrameBufferTexture2D_t(GLenum target, GLenum attachment, GLenum textarget, GLuint texture, GLint level);
+		typedef void CALLSTYLE glGenFramebuffers_t(GLsizei n, GLuint* ids);
+		typedef void CALLSTYLE glBindFramebuffer_t(GLenum target, GLuint fb);
+		typedef GLenum CALLSTYLE glCheckFramebufferStatus_t(GLenum target);
+		typedef void CALLSTYLE glDeleteFramebuffers_t(GLsizei n, const GLuint* fbs);
+		typedef void CALLSTYLE glFramebufferTexture2D_t(GLenum target, GLenum attachment, GLenum textarget, GLuint texture, GLint level);
 		typedef void CALLSTYLE glDrawBuffers_t(GLsizei n, const GLenum* bufs);
 		typedef void CALLSTYLE glBlendFuncSeparate_t(GLenum srcRGB, GLenum dstRGB, GLenum srcAlpha, GLenum dstAlpha);
 
@@ -1906,6 +1932,7 @@ namespace olc
 		{
 		public:
 			static gl& Get();
+			inline bool HasLoaded() const { return bLoaded; }
 
 		private:
 			gl() = default;
@@ -1914,38 +1941,75 @@ namespace olc
 		private:
 			bool LoadAll();
 
+		protected:
+			glCreateShader_t* _glCreateShader = nullptr;
+			glCreateProgram_t* _glCreateProgram = nullptr;
+			glShaderSource_t* _glShaderSource = nullptr;
+			glDeleteShader_t* _glDeleteShader = nullptr;
+			glCompileShader_t* _glCompileShader = nullptr;
+			glLinkProgram_t* _glLinkProgram = nullptr;
+			glDeleteProgram_t* _glDeleteProgram = nullptr;
+			glAttachShader_t* _glAttachShader = nullptr;
+			glBindBuffer_t* _glBindBuffer = nullptr;
+			glBufferData_t* _glBufferData = nullptr;
+			glGenBuffers_t* _glGenBuffers = nullptr;
+			glVertexAttribPointer_t* _glVertexAttribPointer = nullptr;
+			glEnableVertexAttribArray_t* _glEnableVertexAttribArray = nullptr;
+			glUseProgram_t* _glUseProgram = nullptr;
+			glBindVertexArray_t* _glBindVertexArray = nullptr;
+			glGenVertexArrays_t* _glGenVertexArrays = nullptr;
+			glGetShaderInfoLog_t* _glGetShaderInfoLog = nullptr;
+			glGetUniformLocation_t* _glGetUniformLocation = nullptr;
+			glUniform1f_t* _glUniform1f = nullptr;
+			glUniform1i_t* _glUniform1i = nullptr;
+			glUniform2fv_t* _glUniform2fv = nullptr;
+			glUniform4fv_t* _glUniform4fv = nullptr;
+			glUniformMatrix4fv_t* _glUniformMatrix4fv = nullptr;
+			glActiveTexture_t* _glActiveTexture = nullptr;
+			glGenFramebuffers_t* _glGenFramebuffers = nullptr;
+			glBindFramebuffer_t* _glBindFramebuffer = nullptr;
+			glCheckFramebufferStatus_t* _glCheckFramebufferStatus = nullptr;
+			glDeleteFramebuffers_t* _glDeleteFramebuffers = nullptr;
+			glFramebufferTexture2D_t* _glFramebufferTexture2D = nullptr;
+			glDrawBuffers_t* _glDrawBuffers = nullptr;
+			glBlendFuncSeparate_t* _glBlendFuncSeparate = nullptr;
+
 		public:
-			glCreateShader_t* glCreateShader = nullptr;
-			glCreateProgram_t* glCreateProgram = nullptr;
-			glShaderSource_t* glShaderSource = nullptr;
-			glDeleteShader_t* glDeleteShader = nullptr;
-			glCompileShader_t* glCompileShader = nullptr;
-			glLinkProgram_t* glLinkProgram = nullptr;
-			glDeleteProgram_t* glDeleteProgram = nullptr;
-			glAttachShader_t* glAttachShader = nullptr;
-			glBindBuffer_t* glBindBuffer = nullptr;
-			glBufferData_t* glBufferData = nullptr;
-			glGenBuffers_t* glGenBuffers = nullptr;
-			glVertexAttribPointer_t* glVertexAttribPointer = nullptr;
-			glEnableVertexAttribArray_t* glEnableVertexAttribArray = nullptr;
-			glUseProgram_t* glUseProgram = nullptr;
-			glBindVertexArray_t* glBindVertexArray = nullptr;
-			glGenVertexArrays_t* glGenVertexArrays = nullptr;
-			glGetShaderInfoLog_t* glGetShaderInfoLog = nullptr;
-			glGetUniformLocation_t* glGetUniformLocation = nullptr;
-			glUniform1f_t* glUniform1f = nullptr;
-			glUniform1i_t* glUniform1i = nullptr;
-			glUniform2fv_t* glUniform2fv = nullptr;
-			glUniform4fv_t* glUniform4fv = nullptr;
-			glUniformMatrix4fv_t* glUniformMatrix4fv = nullptr;
-			glActiveTexture_t* glActiveTexture = nullptr;
-			glGenFrameBuffers_t* glGenFrameBuffers = nullptr;
-			glBindFrameBuffer_t* glBindFrameBuffer = nullptr;
-			glCheckFrameBufferStatus_t* glCheckFrameBufferStatus = nullptr;
-			glDeleteFrameBuffers_t* glDeleteFrameBuffers = nullptr;
-			glFrameBufferTexture2D_t* glFrameBufferTexture2D = nullptr;
-			glDrawBuffers_t* glDrawBuffers = nullptr;
-			glBlendFuncSeparate_t* glBlendFuncSeparate = nullptr;
+			// Proxies allow switchable, clutter-free error checking
+
+			// OpenGL3.3 Proxies
+
+			GLuint glCreateShader(GLenum type);
+			GLuint glCreateProgram(void);
+			void glShaderSource(GLuint shader, GLsizei count, const GLchar** string, const GLint* length);
+			void glDeleteShader(GLuint shader);
+			void glCompileShader(GLuint shader);
+			void glLinkProgram(GLuint program);
+			void glDeleteProgram(GLuint program);
+			void glAttachShader(GLuint program, GLuint shader);
+			void glBindBuffer(GLenum target, GLuint buffer);
+			void glBufferData(GLenum target, GLsizeiptr size, const void* data, GLenum usage);
+			void glGenBuffers(GLsizei n, GLuint* buffers);
+			void glVertexAttribPointer(GLuint index, GLint size, GLenum type, GLboolean normalized, GLsizei stride, const void* pointer);
+			void glEnableVertexAttribArray(GLuint index);
+			void glUseProgram(GLuint program);
+			void glBindVertexArray(GLuint array);
+			void glGenVertexArrays(GLsizei n, GLuint* arrays);
+			void glGetShaderInfoLog(GLuint shader, GLsizei bufSize, GLsizei* length, GLchar* infoLog);
+			GLint glGetUniformLocation(GLuint program, const GLchar* name);
+			void glUniform1f(GLint location, GLfloat v0);
+			void glUniform1i(GLint location, GLint v0);
+			void glUniform2fv(GLint location, GLsizei count, const GLfloat* value);
+			void glUniform4fv(GLint location, GLsizei count, const GLfloat* value);
+			void glUniformMatrix4fv(GLint location, GLsizei count, GLboolean trasnpose, const GLfloat* value);
+			void glActiveTexture(GLenum texture);
+			void glGenFramebuffers(GLsizei n, GLuint* ids);
+			void glBindFramebuffer(GLenum target, GLuint fb);
+			GLenum glCheckFramebufferStatus(GLenum target);
+			void glDeleteFramebuffers(GLsizei n, const GLuint* fbs);
+			void glFramebufferTexture2D(GLenum target, GLenum attachment, GLenum textarget, GLuint texture, GLint level);
+			void glDrawBuffers(GLsizei n, const GLenum* bufs);
+			void glBlendFuncSeparate(GLenum srcRGB, GLenum dstRGB, GLenum srcAlpha, GLenum dstAlpha);
 
 			// OpenGL1.2 Proxies (just keeps things tidy imo)
 			void glGenTextures(GLsizei n, GLuint* textures);
@@ -1958,6 +2022,17 @@ namespace olc
 			void glViewport(GLint x, GLint y, GLsizei width, GLsizei height);
 			void glClearColor(GLfloat red, GLfloat green, GLfloat blue, GLfloat alpha);
 			void glReadPixels(GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, void* data);
+			void glCullFace(GLenum mode);
+			void glEnable(GLenum cap);
+		    void glDisable(GLenum cap);
+			void glDrawArrays(GLenum mode, GLint first,	GLsizei count);
+			void glBlendFunc(GLenum sfactor, GLenum dfactor);
+			void glDepthFunc(GLenum func);
+
+
+
+		private:
+			bool CheckError(const std::source_location loc = std::source_location::current());
 
 		};
 	}
@@ -1997,6 +2072,7 @@ namespace olc
 			// Destroys a GPU device interface
 			bool DestroyDevice() override;
 
+
 		public: // Texture Resource Stuff
 			// Allocates a new texture resource in VRAM, returns handle
 			uint32_t CreateTexture(const olc::vi2d& vSize, const olc::ImageConfig& cfg = olc::ImageConfig()) override;
@@ -2034,6 +2110,10 @@ namespace olc
 			olc::apis::opengl::glRenderContext_t glRenderContext = 0;
 
 			Shader_GLSL33 shaderDefault;
+			uint32_t nDefaultVB = 0;
+			uint32_t nDefaultVA = 0;
+			uint32_t nDefaultFBO = 0;
+			olc::Image imgBlank;
 
 		};
 	}
@@ -2118,8 +2198,9 @@ namespace olc::host
 	{
 		// The user created olc::Window object is the SSoT for what a window
 		// should look like, so get that sort of thing from there
-		olc::vi2d vWinPos = pWindow->GetPosition();
-		olc::vi2d vWinSize = pWindow->GetSize();
+		olc::vi2d vWinPos = vWindowPos;
+		olc::vi2d vWinSize = vWindowSize;
+		
 
 		// Define WindowClass
 		WNDCLASS wc = { 0 };
@@ -2159,6 +2240,7 @@ namespace olc::host
 		AdjustWindowRectEx(&rWndRect, dwStyle, FALSE, dwExStyle);
 		int width = rWndRect.right - rWndRect.left;
 		int height = rWndRect.bottom - rWndRect.top;
+		pWindow->SetSize({width, height});
 
 		// Create the actual OS window, return a handle
 		HWND hWnd = CreateWindowEx(dwExStyle, olcT("OLC_PIXEL_GAME_ENGINE3"), olcT(""), dwStyle,
@@ -2237,7 +2319,12 @@ namespace olc::host
 		
 
 			//		case WM_MOVE:       vWinPos = olc::vi2d(lParam & 0xFFFF, (lParam >> 16) & 0xFFFF);  ptrPGE->olc_UpdateWindowPos(lParam & 0xFFFF, (lParam >> 16) & 0xFFFF);	return 0;
-			//		case WM_SIZE:       vWinSize = olc::vi2d(lParam & 0xFFFF, (lParam >> 16) & 0xFFFF);  ptrPGE->olc_UpdateWindowSize(lParam & 0xFFFF, (lParam >> 16) & 0xFFFF);	return 0;
+		case WM_SIZE:
+			{				
+				window->olc_OnWindowSize(olc::vi2d(lParam & 0xFFFF, (lParam >> 16) & 0xFFFF));
+				return 0;
+			}
+			break;
 			//		case WM_MOUSEWHEEL:	ptrPGE->olc_UpdateMouseWheel(GET_WHEEL_DELTA_WPARAM(wParam));           return 0;
 			//		case WM_MOUSELEAVE: ptrPGE->olc_UpdateMouseFocus(false);                                    return 0;
 			//		case WM_SETFOCUS:	ptrPGE->olc_UpdateKeyFocus(true);                                       return 0;
@@ -2353,94 +2440,358 @@ namespace olc::apis::opengl
 	{
 		// Load all the OpenGL API entry points
 		bLoaded = true;
-		bLoaded &= (glCreateShader = OGL_LOAD(glCreateShader)) != nullptr;
-		bLoaded &= (glCreateProgram	= OGL_LOAD(glCreateProgram)) != nullptr;
-		bLoaded &= (glShaderSource = OGL_LOAD(glShaderSource)) != nullptr;
-		bLoaded &= (glDeleteShader = OGL_LOAD(glDeleteShader)) != nullptr;
-		bLoaded &= (glCompileShader = OGL_LOAD(glCompileShader)) != nullptr;
-		bLoaded &= (glLinkProgram = OGL_LOAD(glLinkProgram)) != nullptr;
-		bLoaded &= (glDeleteProgram = OGL_LOAD(glDeleteProgram)) != nullptr;
-		bLoaded &= (glAttachShader = OGL_LOAD(glAttachShader)) != nullptr;
-		bLoaded &= (glBindBuffer = OGL_LOAD(glBindBuffer)) != nullptr;
-		bLoaded &= (glBufferData = OGL_LOAD(glBufferData)) != nullptr;
-		bLoaded &= (glGenBuffers = OGL_LOAD(glGenBuffers)) != nullptr;
-		bLoaded &= (glVertexAttribPointer = OGL_LOAD(glVertexAttribPointer)) != nullptr;
-		bLoaded &= (glEnableVertexAttribArray = OGL_LOAD(glEnableVertexAttribArray)) != nullptr;
-		bLoaded &= (glUseProgram = OGL_LOAD(glUseProgram)) != nullptr;
-		bLoaded &= (glBindVertexArray = OGL_LOAD(glBindVertexArray)) != nullptr;
-		bLoaded &= (glGenVertexArrays = OGL_LOAD(glGenVertexArrays)) != nullptr;
-		bLoaded &= (glGetShaderInfoLog = OGL_LOAD(glGetShaderInfoLog)) != nullptr;
-		bLoaded &= (glGetUniformLocation = OGL_LOAD(glGetUniformLocation)) != nullptr;
-		bLoaded &= (glUniform1f = OGL_LOAD(glUniform1f)) != nullptr;
-		bLoaded &= (glUniform1i = OGL_LOAD(glUniform1i)) != nullptr;
-		bLoaded &= (glUniform2fv = OGL_LOAD(glUniform2fv)) != nullptr;
-		bLoaded &= (glUniform4fv = OGL_LOAD(glUniform4fv)) != nullptr;
-		bLoaded &= (glUniformMatrix4fv = OGL_LOAD(glUniformMatrix4fv)) != nullptr;
-		bLoaded &= (glActiveTexture = OGL_LOAD(glActiveTexture)) != nullptr;
-		bLoaded &= (glGenFrameBuffers = OGL_LOAD(glGenFrameBuffers)) != nullptr;
-		bLoaded &= (glBindFrameBuffer = OGL_LOAD(glBindFrameBuffer)) != nullptr;
-		bLoaded &= (glCheckFrameBufferStatus = OGL_LOAD(glCheckFrameBufferStatus)) != nullptr;
-		bLoaded &= (glDeleteFrameBuffers = OGL_LOAD(glDeleteFrameBuffers)) != nullptr;
-		bLoaded &= (glFrameBufferTexture2D = OGL_LOAD(glFrameBufferTexture2D)) != nullptr;
-		bLoaded &= (glDrawBuffers = OGL_LOAD(glDrawBuffers)) != nullptr;
-		bLoaded &= (glBlendFuncSeparate = OGL_LOAD(glBlendFuncSeparate)) != nullptr;
-
-		if (!bLoaded)
-			return false; // API load has failed
-
-
-
+		bLoaded &= (_glCreateShader = OGL_LOAD(glCreateShader)) != nullptr;
+		bLoaded &= (_glCreateProgram	= OGL_LOAD(glCreateProgram)) != nullptr;
+		bLoaded &= (_glShaderSource = OGL_LOAD(glShaderSource)) != nullptr;
+		bLoaded &= (_glDeleteShader = OGL_LOAD(glDeleteShader)) != nullptr;
+		bLoaded &= (_glCompileShader = OGL_LOAD(glCompileShader)) != nullptr;
+		bLoaded &= (_glLinkProgram = OGL_LOAD(glLinkProgram)) != nullptr;
+		bLoaded &= (_glDeleteProgram = OGL_LOAD(glDeleteProgram)) != nullptr;
+		bLoaded &= (_glAttachShader = OGL_LOAD(glAttachShader)) != nullptr;
+		bLoaded &= (_glBindBuffer = OGL_LOAD(glBindBuffer)) != nullptr;
+		bLoaded &= (_glBufferData = OGL_LOAD(glBufferData)) != nullptr;
+		bLoaded &= (_glGenBuffers = OGL_LOAD(glGenBuffers)) != nullptr;
+		bLoaded &= (_glVertexAttribPointer = OGL_LOAD(glVertexAttribPointer)) != nullptr;
+		bLoaded &= (_glEnableVertexAttribArray = OGL_LOAD(glEnableVertexAttribArray)) != nullptr;
+		bLoaded &= (_glUseProgram = OGL_LOAD(glUseProgram)) != nullptr;
+		bLoaded &= (_glBindVertexArray = OGL_LOAD(glBindVertexArray)) != nullptr;
+		bLoaded &= (_glGenVertexArrays = OGL_LOAD(glGenVertexArrays)) != nullptr;
+		bLoaded &= (_glGetShaderInfoLog = OGL_LOAD(glGetShaderInfoLog)) != nullptr;
+		bLoaded &= (_glGetUniformLocation = OGL_LOAD(glGetUniformLocation)) != nullptr;
+		bLoaded &= (_glUniform1f = OGL_LOAD(glUniform1f)) != nullptr;
+		bLoaded &= (_glUniform1i = OGL_LOAD(glUniform1i)) != nullptr;
+		bLoaded &= (_glUniform2fv = OGL_LOAD(glUniform2fv)) != nullptr;
+		bLoaded &= (_glUniform4fv = OGL_LOAD(glUniform4fv)) != nullptr;
+		bLoaded &= (_glUniformMatrix4fv = OGL_LOAD(glUniformMatrix4fv)) != nullptr;
+		bLoaded &= (_glActiveTexture = OGL_LOAD(glActiveTexture)) != nullptr;
+		bLoaded &= (_glGenFramebuffers = OGL_LOAD(glGenFramebuffers)) != nullptr;
+		bLoaded &= (_glBindFramebuffer = OGL_LOAD(glBindFramebuffer)) != nullptr;
+		bLoaded &= (_glCheckFramebufferStatus = OGL_LOAD(glCheckFramebufferStatus)) != nullptr;
+		bLoaded &= (_glDeleteFramebuffers = OGL_LOAD(glDeleteFramebuffers)) != nullptr;
+		bLoaded &= (_glFramebufferTexture2D = OGL_LOAD(glFramebufferTexture2D)) != nullptr;
+		bLoaded &= (_glDrawBuffers = OGL_LOAD(glDrawBuffers)) != nullptr;
+		bLoaded &= (_glBlendFuncSeparate = OGL_LOAD(glBlendFuncSeparate)) != nullptr;
+		
 		return bLoaded;
+	}
+
+	bool gl::CheckError(const std::source_location loc)
+	{
+#if OLC_GPU_ERRORCHECK == 1
+		GLenum err;
+		bool bWasError = false;		
+		std::stringstream sLocation;
+		sLocation
+			<< loc.file_name() << '('
+			<< loc.line() << ':'
+			<< loc.column() << ") `"
+			<< loc.function_name() << "`: ";
+		while ((err = ::glGetError()) != GL_NO_ERROR)
+		{
+			switch (err)
+			{
+			case GL_INVALID_ENUM:
+				sLocation << "OGL33 Error: GL_INVALID_ENUM\n"; break;
+			case GL_INVALID_VALUE:
+				sLocation << "OGL33 Error: GL_INVALID_VALUE\n"; break;
+			case GL_INVALID_OPERATION:
+				sLocation << "OGL33 Error: GL_INVALID_OPERATION\n"; break;
+			case 0x0506: //GL_INVALID_FRAMEBUFFER_OPERATION:
+				sLocation << "OGL33 Error: GL_INVALID_FRAMEBUFFER_OPERATION\n"; break;
+			case GL_OUT_OF_MEMORY:
+				sLocation << "OGL33 Error: GL_OUT_OF_MEMORY\n"; break;
+			case GL_STACK_UNDERFLOW:
+				sLocation << "OGL33 Error: GL_STACK_UNDERFLOW\n"; break;
+			case GL_STACK_OVERFLOW:
+				sLocation << "OGL33 Error: GL_STACK_OVERFLOW\n"; break;
+			}
+			bWasError = true;
+
+			std::cout << sLocation.str() << "\n";
+			sLocation.clear();
+		}
+		return bWasError;
+#else
+		return false;
+#endif
 	}
 
 	void gl::glGenTextures(GLsizei n, GLuint* textures)
 	{
 		::glGenTextures(n, textures);
+		CheckError();
 	}
 
 	void gl::glBindTexture(GLenum target, GLuint texture)
 	{
 		::glBindTexture(target, texture);
+		CheckError();
 	}
 
 	void gl::glTexParameteri(GLenum target, GLenum pname, GLint param)
 	{
 		::glTexParameteri(target, pname, param);
+		CheckError();
 	}
 
 	void gl::glTexEnvf(GLenum target, GLenum pname, GLfloat param)
 	{
 		::glTexEnvf(target, pname, param);
+		CheckError();
 	}
 
 	void gl::glDeleteTextures(GLsizei n, const GLuint* textures)
 	{
 		::glDeleteTextures(n, textures);
+		CheckError();
 	}
 
 	void gl::glTexImage2D(GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const GLvoid* pixels)
 	{
 		::glTexImage2D(target, level, internalformat, width, height, border, format, type, pixels);
+		CheckError();
 	}
 
 	void gl::glClear(GLbitfield mask)
 	{
 		::glClear(mask);
+		CheckError();
 	}
 
 	void gl::glViewport(GLint x, GLint y, GLsizei width, GLsizei height)
 	{
 		::glViewport(x, y, width, height);
+		CheckError();
 	}
 
 	void gl::glClearColor(GLfloat red, GLfloat green, GLfloat blue, GLfloat alpha)
 	{
 		::glClearColor(red, green, blue, alpha);
+		CheckError();
 	}
 
 	void gl::glReadPixels(GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, void* data)
 	{
 		::glReadPixels(x, y, width, height, format, type, data);
+		CheckError();
+	}
+
+	void gl::glCullFace(GLenum mode)
+	{
+		::glCullFace(mode);
+		CheckError();
+	}
+
+	void gl::glEnable(GLenum cap)
+	{
+		::glEnable(cap);
+		CheckError();
+	}
+
+	void gl::glDisable(GLenum cap)
+	{
+		::glDisable(cap);
+		CheckError();
+	}
+
+	void gl::glDrawArrays(GLenum mode, GLint first, GLsizei count)
+	{
+		::glDrawArrays(mode, first, count);
+		CheckError();
+	}
+
+	void gl::glBlendFunc(GLenum sfactor, GLenum dfactor)
+	{
+		::glBlendFunc(sfactor, dfactor);
+		CheckError();
+	}
+
+	void gl::glDepthFunc(GLenum func)
+	{
+		::glDepthFunc(func);
+		CheckError();
+	}
+
+	GLuint gl::glCreateShader(GLenum type)
+	{
+		return _glCreateShader(type);
+	}
+
+	GLuint gl::glCreateProgram(void)
+	{
+		return _glCreateProgram();
+	}
+
+	void gl::glShaderSource(GLuint shader, GLsizei count, const GLchar** string, const GLint* length)
+	{
+		_glShaderSource(shader, count, string, length);
+		CheckError();
+	}
+
+	void gl::glDeleteShader(GLuint shader)
+	{
+		_glDeleteShader(shader);
+		CheckError();
+	}
+
+	void gl::glCompileShader(GLuint shader)
+	{
+		_glCompileShader(shader);
+		CheckError();
+	}
+
+	void gl::glLinkProgram(GLuint program)
+	{
+		_glLinkProgram(program);
+		CheckError();
+	}
+
+	void gl::glDeleteProgram(GLuint program)
+	{
+		_glDeleteProgram(program);
+		CheckError();
+	}
+
+	void gl::glAttachShader(GLuint program, GLuint shader)
+	{
+		_glAttachShader(program, shader);
+		CheckError();
+	}
+
+	void gl::glBindBuffer(GLenum target, GLuint buffer)
+	{
+		_glBindBuffer(target, buffer);
+		CheckError();
+	}
+
+	void gl::glBufferData(GLenum target, GLsizeiptr size, const void* data, GLenum usage)
+	{
+		_glBufferData(target, size, data, usage);
+		CheckError();
+	}
+
+	void gl::glGenBuffers(GLsizei n, GLuint* buffers)
+	{
+		_glGenBuffers(n, buffers);
+		CheckError();
+	}
+
+	void gl::glVertexAttribPointer(GLuint index, GLint size, GLenum type, GLboolean normalized, GLsizei stride, const void* pointer)
+	{
+		_glVertexAttribPointer(index, size, type, normalized, stride, pointer);
+		CheckError();
+	}
+
+	void gl::glEnableVertexAttribArray(GLuint index)
+	{
+		_glEnableVertexAttribArray(index);
+		CheckError();
+	}
+
+	void gl::glUseProgram(GLuint program)
+	{
+		_glUseProgram(program);
+		CheckError();
+	}
+
+	void gl::glBindVertexArray(GLuint array)
+	{
+		_glBindVertexArray(array);
+		CheckError();
+	}
+
+	void gl::glGenVertexArrays(GLsizei n, GLuint* arrays)
+	{
+		_glGenVertexArrays(n, arrays);
+		CheckError();
+	}
+
+	void gl::glGetShaderInfoLog(GLuint shader, GLsizei bufSize, GLsizei* length, GLchar* infoLog)
+	{
+		_glGetShaderInfoLog(shader, bufSize, length, infoLog);
+		CheckError();
+	}
+
+	GLint gl::glGetUniformLocation(GLuint program, const GLchar* name)
+	{
+		return _glGetUniformLocation(program, name);
+	}
+
+	void gl::glUniform1f(GLint location, GLfloat v0)
+	{
+		_glUniform1f(location, v0);
+		CheckError();
+	}
+
+	void gl::glUniform1i(GLint location, GLint v0)
+	{
+		_glUniform1i(location, v0);
+		CheckError();
+	}
+
+	void gl::glUniform2fv(GLint location, GLsizei count, const GLfloat* value)
+	{
+		_glUniform2fv(location, count, value);
+		CheckError();
+	}
+
+	void gl::glUniform4fv(GLint location, GLsizei count, const GLfloat* value)
+	{
+		_glUniform4fv(location, count, value);
+		CheckError();
+	}
+
+	void gl::glUniformMatrix4fv(GLint location, GLsizei count, GLboolean trasnpose, const GLfloat* value)
+	{
+		_glUniformMatrix4fv(location, count, trasnpose, value);
+		CheckError();
+	}
+
+	void gl::glActiveTexture(GLenum texture)
+	{
+		_glActiveTexture(texture);
+		CheckError();
+	}
+
+	void gl::glGenFramebuffers(GLsizei n, GLuint* ids)
+	{
+		_glGenFramebuffers(n, ids);
+		CheckError();
+	}
+
+	void gl::glBindFramebuffer(GLenum target, GLuint fb)
+	{
+		_glBindFramebuffer(target, fb);
+		CheckError();
+	}
+
+	GLenum gl::glCheckFramebufferStatus(GLenum target)
+	{
+		return _glCheckFramebufferStatus(target);
+	}
+
+	void gl::glDeleteFramebuffers(GLsizei n, const GLuint* fbs)
+	{
+		_glDeleteFramebuffers(n, fbs);
+		CheckError();
+	}
+
+	void gl::glFramebufferTexture2D(GLenum target, GLenum attachment, GLenum textarget, GLuint texture, GLint level)
+	{
+		_glFramebufferTexture2D(target, attachment, textarget, texture, level);
+		CheckError();
+	}
+
+	void gl::glDrawBuffers(GLsizei n, const GLenum* bufs)
+	{
+		_glDrawBuffers(n, bufs);
+		CheckError();
+	}
+
+	void gl::glBlendFuncSeparate(GLenum srcRGB, GLenum dstRGB, GLenum srcAlpha, GLenum dstAlpha)
+	{
+		_glBlendFuncSeparate(srcRGB, dstRGB, srcAlpha, dstAlpha);
+		CheckError();
 	}
 }
 namespace olc::gpu
@@ -2552,11 +2903,18 @@ namespace olc::gpu
 
 		// Can't load OpenGL API until context is loaded
 		auto& gl = olc::apis::opengl::gl::Get();
+		if (!gl.HasLoaded())
+		{
+			std::cout << "Error: Could not Load OpenGL!\n";
+			lastError = RendererError::None;
+			return false;
+		}
+		
 
-
+		// Create "Default" Shader
 		shaderDefault.SetPixelShaderSource(
 			"#version 330 core\n"
-			"out vec4 pixel;\n"
+			"layout(location = 0) out vec4 pixel;\n"
 			"in vec2 oTex;\n"
 			"in vec4 oCol;\n"
 			"uniform sampler2D sprTex;\n"
@@ -2566,8 +2924,8 @@ namespace olc::gpu
 		shaderDefault.SetVertexShaderSource(
 			"#version 330 core\n"
 			"layout(location = 0) in vec4 aPos;\n"
-			"layout(location = 1) in vec2 aTex;\n"
-			"layout(location = 2) in vec4 aCol;\n"
+			"layout(location = 1) in vec4 aCol;\n"
+			"layout(location = 2) in vec2 aTex;\n"
 			"uniform mat4 mvp;\n"
 			"uniform int is3d;\n"
 			"uniform vec4 tint;\n"
@@ -2580,6 +2938,70 @@ namespace olc::gpu
 		shaderDefault.CreateUniform("mvp");
 		shaderDefault.CreateUniform("is3d");
 		shaderDefault.CreateUniform("tint");
+
+		// Create "Default" Vertex Buffer / Vertex Attributes. This buffer is reused
+		// for all drawing operations. It's possible future versions may allow the
+		// creation of additional named buffers for repeated drawing operations with
+		// minimal overhead.
+		gl.glGenBuffers(1, &nDefaultVB);
+		gl.glGenVertexArrays(1, &nDefaultVA);
+		gl.glBindVertexArray(nDefaultVA);
+		gl.glBindBuffer(0x8892, nDefaultVB);
+
+		// A big one is allocated to reduce shuffles in GPU memory
+		GPUTask::Vertex verts[OLC_GPU_MAX_VERTICES];
+		gl.glBufferData(0x8892, sizeof(GPUTask::Vertex) * OLC_GPU_MAX_VERTICES, verts, 0x88E0);
+		
+		// Float Index 0 = x, 1 = y, 2 = z, 3 = w
+		gl.glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, sizeof(GPUTask::Vertex),        (void*)(0 * sizeof(float)));
+		gl.glEnableVertexAttribArray(0);		
+		// Float Index 4 = (RGBA 8-bit x4)
+		gl.glVertexAttribPointer(1, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(GPUTask::Vertex), (void*)(4 * sizeof(float)));	
+		gl.glEnableVertexAttribArray(1);
+		// Float Index 5 = u0, 6 = v0
+		gl.glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(GPUTask::Vertex),        (void*)(5 * sizeof(float)));
+		gl.glEnableVertexAttribArray(2);
+		// Float Index 7 = u1, 8 = v1
+		gl.glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, sizeof(GPUTask::Vertex), (void*)(7 * sizeof(float)));
+		gl.glEnableVertexAttribArray(3);
+		// Float Index 9 = u2, 10 = v2
+		gl.glVertexAttribPointer(4, 2, GL_FLOAT, GL_FALSE, sizeof(GPUTask::Vertex), (void*)(9 * sizeof(float)));
+		gl.glEnableVertexAttribArray(4);
+		// Float Index 11 = u3, 12 = v4
+		gl.glVertexAttribPointer(5, 2, GL_FLOAT, GL_FALSE, sizeof(GPUTask::Vertex), (void*)(11 * sizeof(float)));
+		gl.glEnableVertexAttribArray(5);
+
+		// Buffers are configured, unbind for now
+		gl.glBindBuffer(0x8892, 0);
+		gl.glBindVertexArray(0);
+
+
+		
+
+
+		// Create a null-texture so sampler doesnt fail. We don't have some of the core's helper
+		// functions here, so we construct it manually
+		imgBlank.Create({ 1,1 });
+		imgBlank.SetGPUID(CreateTexture(imgBlank.Size()));
+		imgBlank.BindCPU();
+		imgBlank.Data({ 0,0 }) = olc::Colour::WHITE;
+		imgBlank.BindGPU();
+		WriteTexture(imgBlank.GetGPUID(), imgBlank);
+
+		// Create a Frame Buffer Object for off-screen rendering things
+		gl.glGenFramebuffers(1, (GLuint*)&nDefaultFBO);
+		gl.glBindFramebuffer(36160U, nDefaultFBO); // GL_FRAMEBUFFER
+		// Attach 4 colour buffers
+		std::array<GLenum, 4> attachments = { {36064U, 36065U, 36066U, 36067U} };
+		gl.glDrawBuffers(4, attachments.data());
+		// Unlink them from any existing image textures
+		//gl.glFramebufferTexture2D(36160U, attachments[0], GL_TEXTURE_2D, 0, 0);
+		//gl.glFramebufferTexture2D(36160U, attachments[1], GL_TEXTURE_2D, 0, 0);
+		//gl.glFramebufferTexture2D(36160U, attachments[2], GL_TEXTURE_2D, 0, 0);
+		//gl.glFramebufferTexture2D(36160U, attachments[3], GL_TEXTURE_2D, 0, 0);
+		// Unbind the FBO
+		gl.glBindFramebuffer(36160U, 0);
+
 
 
 		lastError = RendererError::None;
@@ -2633,6 +3055,7 @@ namespace olc::gpu
 #if OLC_HOST != OLC_HOST_EMSCRIPTEN
 		gl.glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 #endif
+
 		return id;
 	}
 
@@ -2662,13 +3085,31 @@ namespace olc::gpu
 	bool Renderer_OGL33::AssignTextureSource(const uint32_t slot, const uint32_t texid)
 	{
 		auto& gl = olc::apis::opengl::gl::Get();
-		return false;
+
+		gl.glActiveTexture(0x84C0 + slot); // GL_TEXTURE0
+		gl.glBindTexture(GL_TEXTURE_2D, texid);
+		return true;
 	}
 
 	bool Renderer_OGL33::AssignTextureTarget(const uint32_t slot, const uint32_t texid)
 	{
 		auto& gl = olc::apis::opengl::gl::Get();
-		return false;
+
+		if (texid == 0)
+		{
+			gl.glBindFramebuffer(36160U, 0);
+			return true;
+		}
+
+		// Bind FBO
+		gl.glBindFramebuffer(36160U, nDefaultFBO);
+		// Allocate target buffers
+		std::array<GLenum, 8> attachments =
+		{ { 36064U, 36065U, 36066U, 36067U, 36068U, 36069U, 36070U, 36071U } };
+		gl.glDrawBuffers(1, attachments.data());
+		// Bind buffers to textures
+		gl.glFramebufferTexture2D(36160U, 36064U + slot, GL_TEXTURE_2D, texid, 0);		
+		return true;
 	}
 
 	bool Renderer_OGL33::ApplyShader(const Shader& shader)
@@ -2689,10 +3130,81 @@ namespace olc::gpu
 	{
 		auto& gl = olc::apis::opengl::gl::Get();
 
+		switch (task.task)
+		{
+			case GPUTask::Task::DrawPolygon:
+			{
+				if (task.pImage == nullptr)
+					AssignTextureSource(0, imgBlank.GetGPUID());
+				else
+					AssignTextureSource(0, task.pImage->GetGPUID());
 
+				// Bind generic vertex buffer
+				gl.glBindVertexArray(nDefaultVA);
+				gl.glBindBuffer(0x8892, nDefaultVB);
+				
+				// Copy data from CPU to GPU
+				gl.glBufferData(0x8892, sizeof(GPUTask::Vertex) * task.vertexBuffer.size(), task.vertexBuffer.data(), 0x88E0);
+				
+				// Shader: Configure Rendering Mode
+				gl.glUniform1i(shaderDefault.GetUniform("is3d"), 0);
 
+				// Shader: Apply MVP Matrix
+				gl.glUniformMatrix4fv(shaderDefault.GetUniform("mvp"), 1, false, task.mvpMatrix.data());
 
+				// Shader: Apply Global Tint
+				float f[4] = { 
+					float(task.tint.r) / 255.0f, 
+					float(task.tint.g) / 255.0f, 
+					float(task.tint.b) / 255.0f, 
+					float(task.tint.a) / 255.0f 
+				};
+				gl.glUniform4fv(shaderDefault.GetUniform("tint"), 1, f);
 
+				// Apply Culling modes
+				if (task.cullmode == GPUTask::CullMode::None)
+				{
+					gl.glCullFace(GL_FRONT);
+					gl.glDisable(GL_CULL_FACE);
+				}
+				else if (task.cullmode == GPUTask::CullMode::ClockWise)
+				{
+					gl.glCullFace(GL_FRONT);
+					gl.glEnable(GL_CULL_FACE);
+				}
+				else if (task.cullmode == GPUTask::CullMode::CounterClockWise)
+				{
+					gl.glCullFace(GL_BACK);
+					gl.glEnable(GL_CULL_FACE);
+				}
+
+				// Apply Depth Testing (if required)
+				if (task.bDepth)
+					gl.glEnable(GL_DEPTH_TEST);
+
+				// Draw the thing!
+				if (task.bWireframe)
+				{
+					gl.glDrawArrays(GL_LINE_LOOP, 0, (GLsizei)task.vertexBuffer.size());
+				}
+				else
+				{
+					if (task.structure == GPUTask::Structure::Fan)
+						gl.glDrawArrays(GL_TRIANGLE_FAN, 0, (GLsizei)task.vertexBuffer.size());
+					else if (task.structure == GPUTask::Structure::Strip)
+						gl.glDrawArrays(GL_TRIANGLE_STRIP, 0, (GLsizei)task.vertexBuffer.size());
+					else if (task.structure == GPUTask::Structure::List)
+						gl.glDrawArrays(GL_TRIANGLES, 0, (GLsizei)task.vertexBuffer.size());
+					else if (task.structure == GPUTask::Structure::Line)
+						gl.glDrawArrays(GL_LINES, 0, (GLsizei)task.vertexBuffer.size());
+				}
+
+				if (task.bDepth)
+					gl.glDisable(GL_DEPTH_TEST);
+
+			}
+			break;
+		}
 
 		return true;
 	}
@@ -2709,12 +3221,18 @@ namespace olc::gpu
 	{
 		auto& gl = olc::apis::opengl::gl::Get();
 		gl.glViewport(int(pos.x), int(pos.y), int(size.x), int(size.y));
-		return false;
+		return true;
 	}
 
 	bool Renderer_OGL33::DisplayPrepare()
 	{
 		auto& gl = olc::apis::opengl::gl::Get();
+
+		//gl.glUseProgram(shaderDefault.GetShaderID());
+		gl.glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		gl.glDepthFunc(GL_LESS);
+		//gl.glBindTexture(GL_TEXTURE_2D, imgBlank.GetGPUID());
+
 		return false;
 	}
 
@@ -2806,7 +3324,7 @@ void Draw2D::PrepareTargetForHW()
 void Draw2D::Pixel(const olc::vf2d& pos, const olc::Pixel col)
 {
 	PrepareTargetForSW();
-	pTarget->Data(transform.forward(pos)) = col;
+	pTarget->Data(transform.forward(((pos + 1.0f) * 0.5f) * olc::vf2d(pTarget->Size()))) = col;
 }
 
 GPUTask olc::Draw2D::TaskDrawPolygon(GPUTask::Structure structure, const std::vector<olc::vf2d>& vPoints, const std::vector<olc::Pixel>& vColours, const olc::Pixel tint)
@@ -2817,9 +3335,10 @@ GPUTask olc::Draw2D::TaskDrawPolygon(GPUTask::Structure structure, const std::ve
 GPUTask olc::Draw2D::TaskDrawPolygon(GPUTask::Structure structure, const std::vector<olc::vf2d>& vPoints, const olc::Pixel colour, const olc::Pixel tint)
 {	
 	GPUTask task;
+	task.structure = structure;
 	task.bWireframe = true;
 	for (const auto& v : vPoints)
-		task.vertexBuffer.push_back({ v.x, v.y, 0.0f, 0.0f, 0.0f, 0.0f, colour });
+		task.vertexBuffer.push_back({ v.x, v.y, 1.0f, 1.0f, colour, 0, 0, 0,0, 0, 0, 0, 0 });
 	task.tint = tint;
 	return task;
 }
@@ -2831,12 +3350,22 @@ GPUTask olc::Draw2D::TaskFillPolygon(GPUTask::Structure structure, const std::ve
 
 GPUTask olc::Draw2D::TaskFillPolygon(GPUTask::Structure structure, const std::vector<olc::vf2d>& vPoints, const olc::Pixel colour, const olc::Pixel tint)
 {
-	return GPUTask();
+	GPUTask task;
+	task.structure = structure;
+	for (const auto& v : vPoints)
+		task.vertexBuffer.push_back({ v.x, v.y, 1.0f, 1.0f, colour, 0, 0, 0,0, 0, 0, 0, 0 });
+	task.tint = tint;
+	return task;	
 }
 
-GPUTask olc::Draw2D::TaskTexturedPolygon(GPUTask::Structure structure, const std::vector<olc::Pixel>& vColours, const std::vector<olc::vf2d>& vTexCoords, olc::Image* const image, const olc::Pixel tint)
+GPUTask olc::Draw2D::TaskTexturedPolygon(GPUTask::Structure structure, const std::vector<olc::vf2d>& vPoints, const std::vector<olc::Pixel>& vColours, const std::vector<olc::vf2d>& vTexCoords, olc::Image* const image, const olc::Pixel tint)
 {
-	return GPUTask();
+	GPUTask task;
+	for (size_t i = 0; i<vPoints.size(); i++)
+		task.vertexBuffer.push_back({ vPoints[i].x, vPoints[i].y, 1.0f, 1.0f, vColours[i], vTexCoords[i].x, vTexCoords[i].y, 0, 0, 0, 0, 0, 0});
+	task.pImage = image;
+	task.tint = tint;
+	return task;
 }
 
 GPUTask Draw2D::Line(const olc::vf2d& p1, const olc::vf2d& p2, const olc::Pixel col)
@@ -2860,6 +3389,31 @@ GPUTask Draw2D::Line(const olc::vf2d& p1, const olc::vf2d& p2, const olc::Pixel 
 			transform.forward<float>({ p1, p2 }),
 			{ c1, c2 },
 			olc::Colour::WHITE
+		));
+}
+
+GPUTask olc::Draw2D::FillRect(const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel col)
+{
+	PrepareTargetForHW();
+	return vecGPUTasks.emplace_back(
+		TaskFillPolygon(
+			GPUTask::Structure::Fan,
+			transform.forward<float>({ { pos.x, pos.y }, { pos.x + size.x, pos.y }, { pos.x + size.x, pos.y + size.y }, { pos.x, pos.y + size.y } }),
+			col,
+			olc::Colour::WHITE
+		));
+}
+
+GPUTask olc::Draw2D::Image(olc::Image& image, const olc::vf2d& pos, const olc::vf2d& size)
+{
+	PrepareTargetForHW();
+	return vecGPUTasks.emplace_back(
+		TaskTexturedPolygon(
+			GPUTask::Structure::Fan,
+			transform.forward<float>({ { pos.x, pos.y }, { pos.x + size.x, pos.y }, { pos.x + size.x, pos.y + size.y }, { pos.x, pos.y + size.y } }),
+			{ olc::Colour::WHITE, olc::Colour::WHITE, olc::Colour::WHITE, olc::Colour::WHITE },
+			{ {0,0}, {1,0}, {1,1}, {0,1} },
+			&image
 		));
 }
 
@@ -2902,7 +3456,7 @@ namespace olc
 
 		// Link this olc::Window to a host resource
 		if (host)
-			host->AddWindowFrame(this, { 30,30 }, { 250, 240 }, false);
+			host->AddWindowFrame(this, { 30,30 }, config.vPixelSize * config.vScreenSize, false);
 		
 		coreActive = true;
 		coreThread = std::thread(&PixelGameEngine::EngineThread, this);
@@ -3013,7 +3567,8 @@ namespace olc
 		}
 
 
-		CreateImage(imgPrimary, GetSize());
+		CreateImage(imgPrimary, config.vScreenSize);
+		gpu->WriteTexture(imgPrimary.GetGPUID(), imgPrimary);
 
 		if (!OnUserCreate())
 		{
@@ -3070,7 +3625,7 @@ namespace olc
 			
 			// Wait for vertical sync if required. 
 			// Note: Child windows will never vsync as waiting for each buffer swap with vsync
-			// divides up teh frame rate budget across the windows.
+			// divides up the frame rate budget across the windows.
 			if (gpu->GetConfig().VerticalSync)
 			{
 				host->SyncWithDesktopComposite();
@@ -3238,7 +3793,7 @@ namespace olc
 
 	bool Window::olc_OnWindowSize(const olc::vi2d& vWindowSize)
 	{
-		return false;
+		return SetSize(vWindowSize);		
 	}
 
 	bool Window::olc_ShouldRemove() const
@@ -3254,8 +3809,15 @@ namespace olc
 		draw.SetGPU(gpu);
 		draw.SetTarget(imgPrimary);
 
-		gpu->SetViewport({ 0,0 }, GetSize());
-		gpu->ClearViewport(olc::Colour::TANGERINE, false, false);
+
+		gpu->DisplayPrepare();
+		
+
+		gpu->AssignTextureTarget(0, imgPrimary.GetGPUID());
+		gpu->SetViewport({ 0,0 }, imgPrimary.Size());
+		gpu->ClearViewport(olc::Colour::BLACK, true, true);
+
+		gpu->ApplyDefaultShader();
 
 		// User Update
 		if (!OnUserUpdate(fElapsedTime))
@@ -3268,7 +3830,15 @@ namespace olc
 			}
 		}
 
+
 		// Finialise any outstanding tasks
+		draw.ProcessGPUTasks();
+
+		// Take the window's completed "screen" and draw it as a textured quad to the backbuffer
+		gpu->AssignTextureTarget(0, 0);
+		gpu->SetViewport({ 0,0 }, GetSize());
+		gpu->ClearViewport(olc::Colour::TANGERINE, true, true);
+		draw.Image(imgPrimary, { -1.0,-1.0 }, { 2.0f,2.0f });		
 		draw.ProcessGPUTasks();
 
 		// Update Window's primary surface

@@ -72,7 +72,7 @@ void Draw2D::PrepareTargetForHW()
 void Draw2D::Pixel(const olc::vf2d& pos, const olc::Pixel col)
 {
 	PrepareTargetForSW();
-	pTarget->Data(transform.forward(pos)) = col;
+	pTarget->Data(transform.forward(((pos + 1.0f) * 0.5f) * olc::vf2d(pTarget->Size()))) = col;
 }
 
 GPUTask olc::Draw2D::TaskDrawPolygon(GPUTask::Structure structure, const std::vector<olc::vf2d>& vPoints, const std::vector<olc::Pixel>& vColours, const olc::Pixel tint)
@@ -83,9 +83,10 @@ GPUTask olc::Draw2D::TaskDrawPolygon(GPUTask::Structure structure, const std::ve
 GPUTask olc::Draw2D::TaskDrawPolygon(GPUTask::Structure structure, const std::vector<olc::vf2d>& vPoints, const olc::Pixel colour, const olc::Pixel tint)
 {	
 	GPUTask task;
+	task.structure = structure;
 	task.bWireframe = true;
 	for (const auto& v : vPoints)
-		task.vertexBuffer.push_back({ v.x, v.y, 1.0f, 1.0f, 0.0f, 0.0f, colour });
+		task.vertexBuffer.push_back({ v.x, v.y, 1.0f, 1.0f, colour, 0, 0, 0,0, 0, 0, 0, 0 });
 	task.tint = tint;
 	return task;
 }
@@ -97,12 +98,22 @@ GPUTask olc::Draw2D::TaskFillPolygon(GPUTask::Structure structure, const std::ve
 
 GPUTask olc::Draw2D::TaskFillPolygon(GPUTask::Structure structure, const std::vector<olc::vf2d>& vPoints, const olc::Pixel colour, const olc::Pixel tint)
 {
-	return GPUTask();
+	GPUTask task;
+	task.structure = structure;
+	for (const auto& v : vPoints)
+		task.vertexBuffer.push_back({ v.x, v.y, 1.0f, 1.0f, colour, 0, 0, 0,0, 0, 0, 0, 0 });
+	task.tint = tint;
+	return task;	
 }
 
-GPUTask olc::Draw2D::TaskTexturedPolygon(GPUTask::Structure structure, const std::vector<olc::Pixel>& vColours, const std::vector<olc::vf2d>& vTexCoords, olc::Image* const image, const olc::Pixel tint)
+GPUTask olc::Draw2D::TaskTexturedPolygon(GPUTask::Structure structure, const std::vector<olc::vf2d>& vPoints, const std::vector<olc::Pixel>& vColours, const std::vector<olc::vf2d>& vTexCoords, olc::Image* const image, const olc::Pixel tint)
 {
-	return GPUTask();
+	GPUTask task;
+	for (size_t i = 0; i<vPoints.size(); i++)
+		task.vertexBuffer.push_back({ vPoints[i].x, vPoints[i].y, 1.0f, 1.0f, vColours[i], vTexCoords[i].x, vTexCoords[i].y, 0, 0, 0, 0, 0, 0});
+	task.pImage = image;
+	task.tint = tint;
+	return task;
 }
 
 GPUTask Draw2D::Line(const olc::vf2d& p1, const olc::vf2d& p2, const olc::Pixel col)
@@ -126,6 +137,31 @@ GPUTask Draw2D::Line(const olc::vf2d& p1, const olc::vf2d& p2, const olc::Pixel 
 			transform.forward<float>({ p1, p2 }),
 			{ c1, c2 },
 			olc::Colour::WHITE
+		));
+}
+
+GPUTask olc::Draw2D::FillRect(const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel col)
+{
+	PrepareTargetForHW();
+	return vecGPUTasks.emplace_back(
+		TaskFillPolygon(
+			GPUTask::Structure::Fan,
+			transform.forward<float>({ { pos.x, pos.y }, { pos.x + size.x, pos.y }, { pos.x + size.x, pos.y + size.y }, { pos.x, pos.y + size.y } }),
+			col,
+			olc::Colour::WHITE
+		));
+}
+
+GPUTask olc::Draw2D::Image(olc::Image& image, const olc::vf2d& pos, const olc::vf2d& size)
+{
+	PrepareTargetForHW();
+	return vecGPUTasks.emplace_back(
+		TaskTexturedPolygon(
+			GPUTask::Structure::Fan,
+			transform.forward<float>({ { pos.x, pos.y }, { pos.x + size.x, pos.y }, { pos.x + size.x, pos.y + size.y }, { pos.x, pos.y + size.y } }),
+			{ olc::Colour::WHITE, olc::Colour::WHITE, olc::Colour::WHITE, olc::Colour::WHITE },
+			{ {0,0}, {1,0}, {1,1}, {0,1} },
+			&image
 		));
 }
 

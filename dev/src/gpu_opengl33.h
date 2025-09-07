@@ -64,6 +64,7 @@ namespace olc
 			Shader_GLSL33 shaderDefault;
 			uint32_t nDefaultVB = 0;
 			uint32_t nDefaultVA = 0;
+			uint32_t nDefaultFBO = 0;
 			olc::Image imgBlank;
 
 		};

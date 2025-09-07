@@ -41,19 +41,14 @@ namespace olc::apis::opengl
 		bLoaded &= (_glUniform4fv = OGL_LOAD(glUniform4fv)) != nullptr;
 		bLoaded &= (_glUniformMatrix4fv = OGL_LOAD(glUniformMatrix4fv)) != nullptr;
 		bLoaded &= (_glActiveTexture = OGL_LOAD(glActiveTexture)) != nullptr;
-		bLoaded &= (_glGenFrameBuffers = OGL_LOAD(glGenFrameBuffers)) != nullptr;
-		bLoaded &= (_glBindFrameBuffer = OGL_LOAD(glBindFrameBuffer)) != nullptr;
-		bLoaded &= (_glCheckFrameBufferStatus = OGL_LOAD(glCheckFrameBufferStatus)) != nullptr;
-		bLoaded &= (_glDeleteFrameBuffers = OGL_LOAD(glDeleteFrameBuffers)) != nullptr;
-		bLoaded &= (_glFrameBufferTexture2D = OGL_LOAD(glFrameBufferTexture2D)) != nullptr;
+		bLoaded &= (_glGenFramebuffers = OGL_LOAD(glGenFramebuffers)) != nullptr;
+		bLoaded &= (_glBindFramebuffer = OGL_LOAD(glBindFramebuffer)) != nullptr;
+		bLoaded &= (_glCheckFramebufferStatus = OGL_LOAD(glCheckFramebufferStatus)) != nullptr;
+		bLoaded &= (_glDeleteFramebuffers = OGL_LOAD(glDeleteFramebuffers)) != nullptr;
+		bLoaded &= (_glFramebufferTexture2D = OGL_LOAD(glFramebufferTexture2D)) != nullptr;
 		bLoaded &= (_glDrawBuffers = OGL_LOAD(glDrawBuffers)) != nullptr;
 		bLoaded &= (_glBlendFuncSeparate = OGL_LOAD(glBlendFuncSeparate)) != nullptr;
-
-		if (!bLoaded)
-			return false; // API load has failed
-
-
-
+		
 		return bLoaded;
 	}
 
@@ -335,32 +330,32 @@ namespace olc::apis::opengl
 		CheckError();
 	}
 
-	void gl::glGenFrameBuffers(GLsizei n, GLuint* ids)
+	void gl::glGenFramebuffers(GLsizei n, GLuint* ids)
 	{
-		_glGenFrameBuffers(n, ids);
+		_glGenFramebuffers(n, ids);
 		CheckError();
 	}
 
-	void gl::glBindFrameBuffer(GLenum target, GLuint fb)
+	void gl::glBindFramebuffer(GLenum target, GLuint fb)
 	{
-		_glBindFrameBuffer(target, fb);
+		_glBindFramebuffer(target, fb);
 		CheckError();
 	}
 
-	GLenum gl::glCheckFrameBufferStatus(GLenum target)
+	GLenum gl::glCheckFramebufferStatus(GLenum target)
 	{
-		return _glCheckFrameBufferStatus(target);
+		return _glCheckFramebufferStatus(target);
 	}
 
-	void gl::glDeleteFrameBuffers(GLsizei n, const GLuint* fbs)
+	void gl::glDeleteFramebuffers(GLsizei n, const GLuint* fbs)
 	{
-		_glDeleteFrameBuffers(n, fbs);
+		_glDeleteFramebuffers(n, fbs);
 		CheckError();
 	}
 
-	void gl::glFrameBufferTexture2D(GLenum target, GLenum attachment, GLenum textarget, GLuint texture, GLint level)
+	void gl::glFramebufferTexture2D(GLenum target, GLenum attachment, GLenum textarget, GLuint texture, GLint level)
 	{
-		_glFrameBufferTexture2D(target, attachment, textarget, texture, level);
+		_glFramebufferTexture2D(target, attachment, textarget, texture, level);
 		CheckError();
 	}
 

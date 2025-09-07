@@ -10,6 +10,7 @@
 //! START CUSTOMHEADER
 #include "config.h"
 #include "pixel.h"
+#include "image.h"
 #include "transform2d.h"
 //! END CUSTOMHEADER
 
@@ -33,8 +34,12 @@ namespace olc
 
 			struct Vertex 
 			{
-				float p[6];     // x, y, z, w, u, v
+				float p[4];     // x, y, z, w
 				olc::Pixel c;	// 32-bit colour
+				float t0[2];
+				float t1[2];
+				float t2[2];
+				float t3[2];
 			};
 
 			// Simple vertex buffer
@@ -56,6 +61,8 @@ namespace olc
 
 			// Overall biasing colour (great for blends)
 			olc::Pixel tint = olc::Colour::WHITE;
+
+			olc::Image* pImage = nullptr;
 
 			// Define super structure to be drawn
 			enum class Structure : uint8_t

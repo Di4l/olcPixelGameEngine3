@@ -93,6 +93,7 @@ namespace olc
 
 		GPUTask TaskTexturedPolygon(
 			GPUTask::Structure structure,
+			const std::vector<olc::vf2d>& vPoints,
 			const std::vector<olc::Pixel>& vColours,
 			const std::vector<olc::vf2d>& vTexCoords,
 			olc::Image* const image,
@@ -105,6 +106,12 @@ namespace olc
 		GPUTask Line(const olc::vf2d& p1, const olc::vf2d& p2, const olc::Pixel col = olc::Colour::WHITE);
 		// Draws a single pixel wide line with a gradient		
 		GPUTask Line(const olc::vf2d& p1, const olc::vf2d& p2, const olc::Pixel c1, const olc::Pixel c2);
+
+		// Draws a filled, single colour rectangle
+		GPUTask FillRect(const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel col = olc::Colour::WHITE);
+
+		// Draws a filled, single colour rectangle
+		GPUTask Image(olc::Image& image, const olc::vf2d& pos, const olc::vf2d& size);
 	};
 }
 #define PGE_DRAW2D_DECLARED
