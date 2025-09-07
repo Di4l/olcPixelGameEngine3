@@ -38,7 +38,7 @@ namespace olc
 
 		// Link this olc::Window to a host resource
 		if (host)
-			host->AddWindowFrame(this, { 30,30 }, { 250, 240 }, false);
+			host->AddWindowFrame(this, { 30,30 }, config.vPixelSize * config.vScreenSize, false);
 		
 		coreActive = true;
 		coreThread = std::thread(&PixelGameEngine::EngineThread, this);
@@ -149,7 +149,7 @@ namespace olc
 		}
 
 
-		CreateImage(imgPrimary, GetSize());
+		CreateImage(imgPrimary, { 200, 200 });
 
 		if (!OnUserCreate())
 		{
@@ -206,7 +206,7 @@ namespace olc
 			
 			// Wait for vertical sync if required. 
 			// Note: Child windows will never vsync as waiting for each buffer swap with vsync
-			// divides up teh frame rate budget across the windows.
+			// divides up the frame rate budget across the windows.
 			if (gpu->GetConfig().VerticalSync)
 			{
 				host->SyncWithDesktopComposite();

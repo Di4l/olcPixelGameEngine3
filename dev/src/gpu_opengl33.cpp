@@ -111,7 +111,7 @@ namespace olc::gpu
 		// Can't load OpenGL API until context is loaded
 		auto& gl = olc::apis::opengl::gl::Get();
 
-
+		// Create "Default" Shader
 		shaderDefault.SetPixelShaderSource(
 			"#version 330 core\n"
 			"out vec4 pixel;\n"
@@ -138,6 +138,44 @@ namespace olc::gpu
 		shaderDefault.CreateUniform("mvp");
 		shaderDefault.CreateUniform("is3d");
 		shaderDefault.CreateUniform("tint");
+
+		// Create "Default" Vertex Buffer / Vertex Attributes. This buffer is reused
+		// for all drawing operations. It's possible future versions may allow the
+		// creation of additional named buffers for repeated drawing operations with
+		// minimal overhead.
+		gl.glGenBuffers(1, &nDefaultVB);
+		gl.glGenVertexArrays(1, &nDefaultVA);
+		gl.glBindVertexArray(nDefaultVA);
+		gl.glBindBuffer(0x8892, nDefaultVB);
+
+		// A big one is allocated to reduce shuffles in GPU memory
+		GPUTask::Vertex verts[OLC_GPU_MAX_VERTICES];
+		gl.glBufferData(0x8892, sizeof(GPUTask::Vertex) * OLC_GPU_MAX_VERTICES, verts, 0x88E0);
+		
+		// Float Index 0 = x, 1 = y, 2 = z, 3 = w
+		gl.glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, sizeof(GPUTask::Vertex),        (void*)(0 * sizeof(float)));
+		gl.glEnableVertexAttribArray(0);
+		// Float Index 4 = u, 5 = v
+		gl.glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(GPUTask::Vertex),        (void*)(4 * sizeof(float))); 
+		gl.glEnableVertexAttribArray(1);
+		// Float Index 6 = (RGBA 8-bit x4)
+		gl.glVertexAttribPointer(2, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(GPUTask::Vertex), (void*)(6 * sizeof(float)));	
+		gl.glEnableVertexAttribArray(2);
+
+		// Buffers are configured, unbind for now
+		gl.glBindBuffer(0x8892, 0);
+		gl.glBindVertexArray(0);
+
+
+		// Create a null-texture so sampler doesnt fail. We don't have some of the core's helper
+		// functions here, so we construct it manually
+		imgBlank.Create({ 1,1 });
+		imgBlank.SetGPUID(CreateTexture(imgBlank.Size()));
+		imgBlank.BindCPU();
+		imgBlank.Data({ 0,0 }) = olc::Colour::WHITE;
+		imgBlank.BindGPU();
+		WriteTexture(imgBlank.GetGPUID(), imgBlank);
+
 
 
 		lastError = RendererError::None;
@@ -247,10 +285,81 @@ namespace olc::gpu
 	{
 		auto& gl = olc::apis::opengl::gl::Get();
 
+		switch (task.task)
+		{
+			case GPUTask::Task::DrawPolygon:
+			{
+				gl.glUseProgram(shaderDefault.GetShaderID());
+				gl.glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+				gl.glDepthFunc(GL_LESS);
+				gl.glBindTexture(GL_TEXTURE_2D, imgBlank.GetGPUID());
 
+				// Bind generic vertex buffer
+				gl.glBindVertexArray(nDefaultVA);
+				gl.glBindBuffer(0x8892, nDefaultVB);
+				
+				// Copy data from CPU to GPU
+				gl.glBufferData(0x8892, sizeof(GPUTask::Vertex) * task.vertexBuffer.size(), task.vertexBuffer.data(), 0x88E0);
+				
+				// Shader: Configure Rendering Mode
+				gl.glUniform1i(shaderDefault.GetUniform("is3d"), 0);
 
+				// Shader: Apply MVP Matrix
+				gl.glUniformMatrix4fv(shaderDefault.GetUniform("mvp"), 1, false, task.mvpMatrix.data());
 
+				// Shader: Apply Global Tint
+				float f[4] = { 
+					float(task.tint.r) / 255.0f, 
+					float(task.tint.g) / 255.0f, 
+					float(task.tint.b) / 255.0f, 
+					float(task.tint.a) / 255.0f 
+				};
+				gl.glUniform4fv(shaderDefault.GetUniform("tint"), 1, f);
 
+				// Apply Culling modes
+				if (task.cullmode == GPUTask::CullMode::None)
+				{
+					gl.glCullFace(GL_FRONT);
+					gl.glDisable(GL_CULL_FACE);
+				}
+				else if (task.cullmode == GPUTask::CullMode::ClockWise)
+				{
+					gl.glCullFace(GL_FRONT);
+					gl.glEnable(GL_CULL_FACE);
+				}
+				else if (task.cullmode == GPUTask::CullMode::CounterClockWise)
+				{
+					gl.glCullFace(GL_BACK);
+					gl.glEnable(GL_CULL_FACE);
+				}
+
+				// Apply Depth Testing (if required)
+				if (task.bDepth)
+					gl.glEnable(GL_DEPTH_TEST);
+
+				// Draw the thing!
+				if (task.bWireframe)
+				{
+					gl.glDrawArrays(GL_LINE_LOOP, 0, (GLsizei)task.vertexBuffer.size());
+				}
+				else
+				{
+					if (task.structure == GPUTask::Structure::Fan)
+						gl.glDrawArrays(GL_TRIANGLE_FAN, 0, (GLsizei)task.vertexBuffer.size());
+					else if (task.structure == GPUTask::Structure::Strip)
+						gl.glDrawArrays(GL_TRIANGLE_STRIP, 0, (GLsizei)task.vertexBuffer.size());
+					else if (task.structure == GPUTask::Structure::List)
+						gl.glDrawArrays(GL_TRIANGLES, 0, (GLsizei)task.vertexBuffer.size());
+					else if (task.structure == GPUTask::Structure::Line)
+						gl.glDrawArrays(GL_LINES, 0, (GLsizei)task.vertexBuffer.size());
+				}
+
+				if (task.bDepth)
+					gl.glDisable(GL_DEPTH_TEST);
+
+			}
+			break;
+		}
 
 		return true;
 	}
@@ -267,7 +376,7 @@ namespace olc::gpu
 	{
 		auto& gl = olc::apis::opengl::gl::Get();
 		gl.glViewport(int(pos.x), int(pos.y), int(size.x), int(size.y));
-		return false;
+		return true;
 	}
 
 	bool Renderer_OGL33::DisplayPrepare()

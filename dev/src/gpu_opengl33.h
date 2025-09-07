@@ -24,6 +24,7 @@ namespace olc
 			// Destroys a GPU device interface
 			bool DestroyDevice() override;
 
+
 		public: // Texture Resource Stuff
 			// Allocates a new texture resource in VRAM, returns handle
 			uint32_t CreateTexture(const olc::vi2d& vSize, const olc::ImageConfig& cfg = olc::ImageConfig()) override;
@@ -61,6 +62,9 @@ namespace olc
 			olc::apis::opengl::glRenderContext_t glRenderContext = 0;
 
 			Shader_GLSL33 shaderDefault;
+			uint32_t nDefaultVB = 0;
+			uint32_t nDefaultVA = 0;
+			olc::Image imgBlank;
 
 		};
 	}

@@ -26,6 +26,11 @@ namespace olc
 		// upon PGE structures
 		struct GPUTask
 		{
+			enum class Task : uint8_t
+			{
+				DrawPolygon,
+			} task = Task::DrawPolygon;
+
 			struct Vertex 
 			{
 				float p[6];     // x, y, z, w, u, v

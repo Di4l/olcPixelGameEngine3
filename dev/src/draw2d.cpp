@@ -85,7 +85,7 @@ GPUTask olc::Draw2D::TaskDrawPolygon(GPUTask::Structure structure, const std::ve
 	GPUTask task;
 	task.bWireframe = true;
 	for (const auto& v : vPoints)
-		task.vertexBuffer.push_back({ v.x, v.y, 0.0f, 0.0f, 0.0f, 0.0f, colour });
+		task.vertexBuffer.push_back({ v.x, v.y, 1.0f, 1.0f, 0.0f, 0.0f, colour });
 	task.tint = tint;
 	return task;
 }

@@ -70,6 +70,10 @@
 	#define OLC_GPU OLC_GPU_OPENGL33
 #endif
 
+
+#define OLC_GPU_MAX_VERTICES 8192
+#define OLC_GPU_ERRORCHECK 1
+
 #define LICENCE_DEFAULT "OneLoneCoder.com - Pixel Game Engine 3 - "
 
 //! END CONFIGURATION

@@ -64,7 +64,7 @@ namespace olc
 
 	bool Window::olc_OnWindowSize(const olc::vi2d& vWindowSize)
 	{
-		return false;
+		return SetSize(vWindowSize);		
 	}
 
 	bool Window::olc_ShouldRemove() const
@@ -80,8 +80,10 @@ namespace olc
 		draw.SetGPU(gpu);
 		draw.SetTarget(imgPrimary);
 
+
 		gpu->SetViewport({ 0,0 }, GetSize());
-		gpu->ClearViewport(olc::Colour::TANGERINE, false, false);
+		gpu->ClearViewport(olc::Colour::TANGERINE, true, true);
+		gpu->ApplyDefaultShader();
 
 		// User Update
 		if (!OnUserUpdate(fElapsedTime))

@@ -72,6 +72,8 @@ namespace olc
 			inline RendererError GetLastError() const { return lastError; }
 			inline const RendererConfig& GetConfig() const { return config; }
 
+			
+
 		public: // Device Stuff
 			// Constructs a GPU Device interface
 			virtual bool CreateDevice(std::vector<void*> params, const RendererConfig& cfg) = 0;

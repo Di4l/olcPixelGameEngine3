@@ -68,8 +68,9 @@ namespace olc::host
 	{
 		// The user created olc::Window object is the SSoT for what a window
 		// should look like, so get that sort of thing from there
-		olc::vi2d vWinPos = pWindow->GetPosition();
-		olc::vi2d vWinSize = pWindow->GetSize();
+		olc::vi2d vWinPos = vWindowPos;
+		olc::vi2d vWinSize = vWindowSize;
+		
 
 		// Define WindowClass
 		WNDCLASS wc = { 0 };
@@ -109,6 +110,7 @@ namespace olc::host
 		AdjustWindowRectEx(&rWndRect, dwStyle, FALSE, dwExStyle);
 		int width = rWndRect.right - rWndRect.left;
 		int height = rWndRect.bottom - rWndRect.top;
+		pWindow->SetSize({width, height});
 
 		// Create the actual OS window, return a handle
 		HWND hWnd = CreateWindowEx(dwExStyle, olcT("OLC_PIXEL_GAME_ENGINE3"), olcT(""), dwStyle,
@@ -187,7 +189,12 @@ namespace olc::host
 		
 
 			//		case WM_MOVE:       vWinPos = olc::vi2d(lParam & 0xFFFF, (lParam >> 16) & 0xFFFF);  ptrPGE->olc_UpdateWindowPos(lParam & 0xFFFF, (lParam >> 16) & 0xFFFF);	return 0;
-			//		case WM_SIZE:       vWinSize = olc::vi2d(lParam & 0xFFFF, (lParam >> 16) & 0xFFFF);  ptrPGE->olc_UpdateWindowSize(lParam & 0xFFFF, (lParam >> 16) & 0xFFFF);	return 0;
+		case WM_SIZE:
+			{				
+				window->olc_OnWindowSize(olc::vi2d(lParam & 0xFFFF, (lParam >> 16) & 0xFFFF));
+				return 0;
+			}
+			break;
 			//		case WM_MOUSEWHEEL:	ptrPGE->olc_UpdateMouseWheel(GET_WHEEL_DELTA_WPARAM(wParam));           return 0;
 			//		case WM_MOUSELEAVE: ptrPGE->olc_UpdateMouseFocus(false);                                    return 0;
 			//		case WM_SETFOCUS:	ptrPGE->olc_UpdateKeyFocus(true);                                       return 0;
