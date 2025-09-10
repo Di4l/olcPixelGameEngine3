@@ -45,7 +45,7 @@ namespace olc
 
 		void SetTransform(const olc::tf2d& trans);
 
-		const olc::tf2d& GetTransform();
+		olc::tf2d& const GetTransform();
 
 		void ProcessGPUTasks();
 
@@ -57,9 +57,17 @@ namespace olc
 
 		olc::Image* pTarget = nullptr;
 		olc::gpu::Renderer* pRenderer = nullptr;
-		olc::tf2d transform;
+		olc::tf2d transformTarget;
+		olc::tf2d transformAffine;
+		olc::mf3d transformCombined;
 
 		std::vector<olc::GPUTask> vecGPUTasks;
+
+	public: // Affine Transformation
+		void AffineReset();
+		void AffineScale(const olc::vf2d& vScale);
+		void AffineOffset(const olc::vf2d& vOffset);
+		void AffineRotate(const float& fTheta, const olc::vf2d& vPoint = { 0,0 });
 
 	public:
 		// Plot a single pixel
@@ -107,9 +115,11 @@ namespace olc
 		// Draws a single pixel wide line with a gradient		
 		GPUTask Line(const olc::vf2d& p1, const olc::vf2d& p2, const olc::Pixel c1, const olc::Pixel c2);
 
+		GPUTask Rect(const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel col = olc::Colour::WHITE);
+
+
 		// Draws a filled, single colour rectangle
 		GPUTask FillRect(const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel col = olc::Colour::WHITE);
-
 		// Draws a filled, single colour rectangle
 		GPUTask Image(olc::Image& image, const olc::vf2d& pos, const olc::vf2d& size);
 	};

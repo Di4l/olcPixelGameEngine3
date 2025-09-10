@@ -185,6 +185,13 @@ namespace olc
 			update();
 		}
 
+		template<typename Q>
+		inline constexpr auto operator * (const olc::t_2d<Q>& rhs) const
+		{
+			auto& me = *this;		
+			return me.forward_matrix() * rhs.forward_matrix();			
+		}
+
 	protected:
 		// Constructs resultant matrices when transformation changes
 		inline constexpr void update()

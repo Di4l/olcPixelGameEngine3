@@ -194,6 +194,18 @@ namespace olc
 			return out;
 		}
 
+
+		// Transform a vector of v_2d by this matrix
+		template<typename Q>
+		inline constexpr auto transform(const std::vector<olc::v_2d<Q>>& v)
+		{
+			std::vector<olc::v_2d<Q>> o(v.size());
+			std::transform(v.begin(), v.end(), o.begin(), [this](const olc::v_2d<Q>& i) {return (*this) * i; });
+			return o;
+		}
+
+
+
 		// Return this matrix as a std::string, of the form "[c1r1, c2r1, c3r1]\n[c1r2, c2r2, c3r2]\n[c1r3, c2r3, c3r3]"
 		inline std::string str() const
 		{
