@@ -79,6 +79,8 @@ namespace olc
 		void Pixel(const olc::vf2d& pos, const olc::Pixel col = olc::Colour::WHITE);
 		// Read a pixel from an image (guarantees fresh)
 		olc::Pixel GetPixel(olc::Image& image, const olc::vf2d& pos);
+
+		// Clear
 	
 	public:
 		// Draws a single pixel wide line		
@@ -89,10 +91,45 @@ namespace olc
 		// Draws a rectangle outline
 		GPUTask Rect(const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel col = olc::Colour::WHITE);
 		// Draws a filled, single colour rectangle
-		GPUTask FillRect(const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel col = olc::Colour::WHITE);
+		GPUTask FilledRect(const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel col = olc::Colour::WHITE);
+
+		//GPUTask ShadedRect(const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel colTL, const olc::Pixel colTR, const olc::Pixel colBL, const olc::Pixel colBR);
+		//TexturedRect
+
+
+		//Circle
+		//FilledCircle
+		//ShadedCircle
+		//TexturedCircle
+
+		//Ellipse
+		//FilledEllipse
+		//ShadedEllipse
+		//TexturedEllipse
+
+		//RoundRect
+		//FilledRoundRect
+		//ShadedRoundRect
+		//TexturedRoundRect
+
+		//Triangle
+		//FilledTriangle
+		//ShadedTriangle
+		//TexturedTriangle
+
+		//Polygon
+		//FilledPolygon
+		//ShadedPolygon
+		//TexturedPolygon
+
 		
 		// Draws an image
-		GPUTask Image(olc::Image& image, const olc::vf2d& pos, const olc::vf2d& size);
+		GPUTask Image(olc::ImageRegion image, const olc::vf2d& pos, const olc::vf2d& scale = { 1.0f, 1.0f });
+		
+		
+		
+		// ImageRotated
+		// ImageWarped
 	
 
 

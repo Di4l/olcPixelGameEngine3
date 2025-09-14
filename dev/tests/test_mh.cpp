@@ -32,7 +32,7 @@ public:
 
 
 		draw.SetTarget(imTest);
-		draw.FillRect({ 0,0 }, imTest.Size(), olc::Colour::BLUE);
+		draw.FilledRect({ 0,0 }, imTest.Size(), olc::Colour::BLUE);
 
 		draw.AffineRotate(fAngle, { 32.0f, 32.0f });
 		
@@ -43,7 +43,7 @@ public:
 		draw.SetTarget(imgPrimary);
 		draw.AffineReset();
 
-		draw.FillRect({ 0,0 }, imgPrimary.Size(), olc::Colour::VERY_DARK_MAGENTA);
+		draw.FilledRect({ 0,0 }, imgPrimary.Size(), olc::Colour::VERY_DARK_MAGENTA);
 
 		draw.Line({ 0,0 }, imgPrimary.Size() - 1, olc::Colour::RED);
 		draw.Line(olc::vf2d( imgPrimary.Size().x - 1, 0 ), olc::vf2d( 0, imgPrimary.Size().y - 1 ), olc::Colour::GREEN);
@@ -56,11 +56,13 @@ public:
 		draw.Image(imTest, { 10, 10 }, { 64, 64 });
 		draw.Image(imTest, { 100, 10 }, { 64, 64 });
 		draw.Image(imTest, { 10, 100 }, { 64, 64 });
+
 		draw.Image(sprite1, { 100, 100 }, { 64, 64 });
-		
+		draw.Image(sprite1.region({ 20.0f, 20.0f }, { 32.0f, 32.0f }), { 200, 100 }, { 32, 32 });		
+		draw.Image(sprite1.region({ 20.0f, 20.0f }, { 32.0f, 32.0f }, { 100.0f, 200.0f }, { 150.0f, 180.0f }), { 100, 200 }, { 32, 32 });
 		olc::Pixel p = draw.GetPixel(imTest, { 8,5 });
 
-		draw.FillRect({ 200,200 }, { 10,10 }, p);
+		draw.FilledRect({ 200,200 }, { 10,10 }, p);
 
 		////draw.AffineRotate(fAngle, { 128,120 });
 		////draw.AffineOffset({ 10,10 });

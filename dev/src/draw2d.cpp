@@ -243,7 +243,7 @@ GPUTask olc::Draw2D::Rect(const olc::vf2d& pos, const olc::vf2d& size, const olc
 }
 
 
-GPUTask olc::Draw2D::FillRect(const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel col)
+GPUTask olc::Draw2D::FilledRect(const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel col)
 {
 	PrepareTargetForHW();
 	return vecGPUTasks.emplace_back(
@@ -255,10 +255,10 @@ GPUTask olc::Draw2D::FillRect(const olc::vf2d& pos, const olc::vf2d& size, const
 		));
 }
 
-GPUTask olc::Draw2D::Image(olc::Image& image, const olc::vf2d& pos, const olc::vf2d& size)
+GPUTask olc::Draw2D::Image(olc::ImageRegion image, const olc::vf2d& pos, const olc::vf2d& size)
 {
 	// Ensure source image is up to date in VRAM
-	PrepareImageForHW(image);
+	PrepareImageForHW(image.image);
 	
 	PrepareTargetForHW();
 	return vecGPUTasks.emplace_back(
@@ -266,8 +266,9 @@ GPUTask olc::Draw2D::Image(olc::Image& image, const olc::vf2d& pos, const olc::v
 			GPUTask::Structure::Fan,
 			transformCombined.transform<float>({ { pos.x, pos.y }, { pos.x + size.x, pos.y }, { pos.x + size.x, pos.y + size.y }, { pos.x, pos.y + size.y } }),
 			{ olc::Colour::WHITE, olc::Colour::WHITE, olc::Colour::WHITE, olc::Colour::WHITE },
-			{ {0,0}, {1,0}, {1,1}, {0,1} },
-			&image
+			// Tex coords are clockwise
+			{ image.coords[0], image.coords[1], image.coords[3], image.coords[2]},
+			&image.image
 		));
 }
 

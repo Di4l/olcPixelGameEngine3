@@ -27,6 +27,8 @@ namespace olc
 		bool InVRAM = true;
 	};
 
+	struct ImageRegion;
+
 	class Image
 	{
 	public:
@@ -56,6 +58,10 @@ namespace olc
 		bool BoundToGPU() const;
 		bool BoundToCPU() const;
 
+		olc::ImageRegion region(const olc::vf2d pos, const olc::vf2d& size);
+		olc::ImageRegion region(const olc::vf2d& vTL, const olc::vf2d& vTR, const olc::vf2d& vBL, const olc::vf2d& vBR);
+
+
 	public: // Make friendly private later
 		void BindGPU();
 		void BindCPU();
@@ -68,6 +74,20 @@ namespace olc
 		bool onGPU = false;
 		bool onCPU = true;
 	};
+
+	struct ImageRegion
+	{
+		ImageRegion(olc::Image& i, const olc::vf2d& vTL = { 0,0 }, const olc::vf2d& vTR = { 1,0 }, const olc::vf2d& vBL = { 0,1 }, const olc::vf2d& vBR = { 1,1 })
+			: image(i)
+		{
+			coords = { vTL, vTR, vBL, vBR };
+		}
+
+		olc::Image& image;
+		std::array<olc::vf2d, 4> coords;
+	};
+
+	
 }
 #define PGE_IMAGE_DECLARED 1
 #endif

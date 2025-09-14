@@ -64,6 +64,17 @@ namespace olc
 		return onCPU;
 	}
 
+	olc::ImageRegion Image::region(const olc::vf2d pos, const olc::vf2d& size)
+	{
+		return region(pos, { pos.x + size.x, pos.y }, { pos.x, pos.y + size.y }, pos + size);
+	}
+
+	olc::ImageRegion Image::region(const olc::vf2d& vTL, const olc::vf2d& vTR, const olc::vf2d& vBL, const olc::vf2d& vBR)
+	{
+		auto i = 1.0f / this->Size();
+		return olc::ImageRegion(*this, vTL * i, vTR * i, vBL * i, vBR * i );
+	}
+
 	void Image::BindGPU()
 	{
 		onGPU = true;
