@@ -20,6 +20,8 @@
 //! GRAB transform2d.h DECLARATION
  
 //! GRAB image.h DECLARATION
+
+//! GRAB imload_iface.h DECLARATION
  
 //! GRAB gputask.h DECLARATION
  
@@ -27,11 +29,16 @@
 
 //! GRAB draw2d.h DECLARATION
 
+//! GRAB hw_input.h	DECLARATION
+
+//! GRAB hw_mouse.h	DECLARATION
+
 //! GRAB window.h DECLARATION
  
 //! GRAB host_iface.h DECLARATION
 
 //! GRAB core.h	DECLARATION
+
 
 
 
@@ -51,6 +58,12 @@
 //! GRAB api_opengl.h DECLARATION
 
 //! GRAB gpu_opengl33.h DECLARATION
+#endif
+
+#if OLC_IMAGELOADER == OLC_IMAGELOADER_WINGDI
+//! GRAB imload_wingdi.h WINAPI_CONFIG
+
+//! GRAB imload_wingdi.h DECLARATION
 #endif
 
 
@@ -91,8 +104,20 @@
 #define PGE_IMAGE_IMPLEMENTED 1
 #endif
 
+#if defined(OLC_PGE_APPLICATION) && !defined(PGE_HW_MOUSE_IMPLEMENTED)
+//! GRAB hw_mouse.cpp IMPLEMENTATION 
+#define PGE_HW_MOUSE_IMPLEMENTED 1
+#endif
+
 #if defined(OLC_PGE_APPLICATION) && !defined(PGE_WINDOW_IMPLEMENTED)
 //! GRAB window.cpp IMPLEMENTATION 
 #define PGE_WINDOW_IMPLEMENTED 1
+#endif
+
+#if defined(OLC_PGE_APPLICATION) && !defined(PGE_IMAGELOADER_IMPLEMENTED)
+#if OLC_IMAGELOADER == OLC_IMAGELOADER_WINGDI
+//! GRAB imload_wingdi.cpp IMPLEMENTATION 
+#endif
+#define PGE_IMAGELOADER_IMPLEMENTED 1
 #endif
 

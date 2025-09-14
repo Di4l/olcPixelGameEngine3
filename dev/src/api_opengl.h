@@ -212,7 +212,7 @@ namespace olc
 			void glDrawArrays(GLenum mode, GLint first,	GLsizei count);
 			void glBlendFunc(GLenum sfactor, GLenum dfactor);
 			void glDepthFunc(GLenum func);
-
+			void glGetTexImage(GLenum target, GLint level, GLenum format, GLenum type, void* pixels);
 
 
 		private:

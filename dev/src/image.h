@@ -43,13 +43,15 @@ namespace olc
 		// Returns read/write pointer to start of 1D stream of pixel data
 		olc::Pixel* Data();
 		// [UNSAFE] Returns pixel at location
-		olc::Pixel& Data(const olc::vf2d pos);
+		olc::Pixel& Pixel(const olc::vf2d& pos);
 		// Returns how this image was configured upon creation
 		const ImageConfig& GetConfig() const;
 		// Return GPU Resource ID
 		int32_t GetGPUID() const;
 		// Set GPU Resource ID (0 to eliminate)
 		void SetGPUID(const int32_t id);
+		// Get underlying vector of pixels
+		std::vector<olc::Pixel>& GetPixels();
 		
 		bool BoundToGPU() const;
 		bool BoundToCPU() const;

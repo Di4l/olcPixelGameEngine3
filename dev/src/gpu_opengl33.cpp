@@ -191,7 +191,7 @@ namespace olc::gpu
 		imgBlank.Create({ 1,1 });
 		imgBlank.SetGPUID(CreateTexture(imgBlank.Size()));
 		imgBlank.BindCPU();
-		imgBlank.Data({ 0,0 }) = olc::Colour::WHITE;
+		imgBlank.Pixel({ 0,0 }) = olc::Colour::WHITE;
 		imgBlank.BindGPU();
 		WriteTexture(imgBlank.GetGPUID(), imgBlank);
 
@@ -209,7 +209,8 @@ namespace olc::gpu
 		// Unbind the FBO
 		gl.glBindFramebuffer(36160U, 0);
 
-
+		glEnable(GL_TEXTURE_2D); // Turn on texturing
+		glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
 
 		lastError = RendererError::None;
 		return true;
@@ -278,7 +279,8 @@ namespace olc::gpu
 	{
 		auto& gl = olc::apis::opengl::gl::Get();
 		gl.glBindTexture(GL_TEXTURE_2D, image.GetGPUID());
-		gl.glReadPixels(0, 0, image.Size().x, image.Size().y, GL_RGBA, GL_UNSIGNED_BYTE, image.Data());
+		//gl.glReadPixels(0, 0, image.Size().x, image.Size().y, GL_RGBA, GL_UNSIGNED_BYTE, image.Data());
+		gl.glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, image.Data());
 		return true;
 	}
 
@@ -341,6 +343,8 @@ namespace olc::gpu
 		{
 			case GPUTask::Task::DrawPolygon:
 			{
+				gl.glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
 				if (task.pImage == nullptr)
 					AssignTextureSource(0, imgBlank.GetGPUID());
 				else
@@ -436,6 +440,7 @@ namespace olc::gpu
 		auto& gl = olc::apis::opengl::gl::Get();
 
 		//gl.glUseProgram(shaderDefault.GetShaderID());
+		gl.glEnable(GL_BLEND);
 		gl.glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 		gl.glDepthFunc(GL_LESS);
 		//gl.glBindTexture(GL_TEXTURE_2D, imgBlank.GetGPUID());

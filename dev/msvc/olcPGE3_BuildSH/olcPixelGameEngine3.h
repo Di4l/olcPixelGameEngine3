@@ -23,6 +23,7 @@
 #include <thread>
 #include <sstream>
 #include <source_location>
+#include <filesystem>
 
 // Version number (accessible as value for incremental comparisons)
 #define PGE_VER 300
@@ -94,8 +95,19 @@
 #endif
 
 
+
+#define OLC_IMAGELOADER_NONE 1
+#define OLC_IMAGELOADER_WINGDI 2
+
+#if !defined(OLC_IMAGELOADER)
+	#define OLC_IMAGELOADER OLC_IMAGELOADER_WINGDI
+#endif
+
+
+#define OLC_MOUSE_BUTTONS 3
+
 #define OLC_GPU_MAX_VERTICES 8192
-#define OLC_GPU_ERRORCHECK 1
+#define OLC_GPU_ERRORCHECK 0
 
 #define LICENCE_DEFAULT "OneLoneCoder.com - Pixel Game Engine 3 - "
 
@@ -899,6 +911,18 @@ namespace olc
 			return out;
 		}
 
+
+		// Transform a vector of v_2d by this matrix
+		template<typename Q>
+		inline constexpr auto transform(const std::vector<olc::v_2d<Q>>& v)
+		{
+			std::vector<olc::v_2d<Q>> o(v.size());
+			std::transform(v.begin(), v.end(), o.begin(), [this](const olc::v_2d<Q>& i) {return (*this) * i; });
+			return o;
+		}
+
+
+
 		// Return this matrix as a std::string, of the form "[c1r1, c2r1, c3r1]\n[c1r2, c2r2, c3r2]\n[c1r3, c2r3, c3r3]"
 		inline std::string str() const
 		{
@@ -1094,6 +1118,13 @@ namespace olc
 			update();
 		}
 
+		template<typename Q>
+		inline constexpr auto operator * (const olc::t_2d<Q>& rhs) const
+		{
+			auto& me = *this;		
+			return me.forward_matrix() * rhs.forward_matrix();			
+		}
+
 	protected:
 		// Constructs resultant matrices when transformation changes
 		inline constexpr void update()
@@ -1149,13 +1180,15 @@ namespace olc
 		// Returns read/write pointer to start of 1D stream of pixel data
 		olc::Pixel* Data();
 		// [UNSAFE] Returns pixel at location
-		olc::Pixel& Data(const olc::vf2d pos);
+		olc::Pixel& Pixel(const olc::vf2d& pos);
 		// Returns how this image was configured upon creation
 		const ImageConfig& GetConfig() const;
 		// Return GPU Resource ID
 		int32_t GetGPUID() const;
 		// Set GPU Resource ID (0 to eliminate)
 		void SetGPUID(const int32_t id);
+		// Get underlying vector of pixels
+		std::vector<olc::Pixel>& GetPixels();
 		
 		bool BoundToGPU() const;
 		bool BoundToCPU() const;
@@ -1174,6 +1207,38 @@ namespace olc
 	};
 }
 #define PGE_IMAGE_DECLARED 1
+#endif
+
+#if !defined(PGE_IMAGELOADER_IFACE_DECLARED)
+namespace olc
+{
+	namespace imload
+	{
+		class ImageLoader
+		{
+		public:
+			ImageLoader() = default;
+			virtual ~ImageLoader() = default;
+
+			// Create an image resource based on an image file asset on disk
+			virtual bool CreateImageFromFile(olc::Image& image, const std::string& sFileName) = 0;
+			
+			// Create an image resource based on an image file asset in memory
+			virtual bool CreateImageFromMemory(olc::Image& image, const uint8_t* data, const size_t bytes) = 0;
+
+			// Create an image resource based on an image file asset in memory
+			virtual bool CreateImageFromMemory(olc::Image& image, const std::vector<uint8_t>& data) = 0;
+			
+			// Store an image as a file asset on disk
+			virtual bool WriteImageToFile(const olc::Image& image, const std::string& sFileName) = 0;
+			
+			// Store an image as a file asset in memory
+			virtual bool WriteImageToMemoryFile(olc::Image& image, const std::vector<uint8_t>& data) = 0;
+
+		};
+	}
+}
+#define PGE_IMAGELOADER_IFACE_DECLARED 1
 #endif
  
 #if !defined(PGE_GPUTASK_DECLARED)
@@ -1426,7 +1491,7 @@ namespace olc
 
 		void SetTransform(const olc::tf2d& trans);
 
-		const olc::tf2d& GetTransform();
+		olc::tf2d& GetTransform();
 
 		void ProcessGPUTasks();
 
@@ -1436,18 +1501,49 @@ namespace olc
 		// Checks residency of image resource, and brings it to gpu VRAM for r/w
 		void PrepareTargetForHW();
 
+		// Checks residency of image resource, and brings it to cpu RAM for r/w
+		void PrepareImageForSW(olc::Image& image);
+		// Checks residency of image resource, and brings it to gpu VRAM for r/w
+		void PrepareImageForHW(olc::Image& image);
+
 		olc::Image* pTarget = nullptr;
 		olc::gpu::Renderer* pRenderer = nullptr;
-		olc::tf2d transform;
+		olc::tf2d transformTarget;
+		olc::tf2d transformAffine;
+		olc::mf3d transformCombined;
 
 		std::vector<olc::GPUTask> vecGPUTasks;
+
+	public: // Affine Transformation (these affect all subsequent draw calls for this target)
+		void AffineReset();
+		void AffineScale(const olc::vf2d& vScale);
+		void AffineOffset(const olc::vf2d& vOffset);
+		void AffineRotate(const float& fTheta, const olc::vf2d& vPoint = { 0,0 });
 
 	public:
 		// Plot a single pixel
 		void Pixel(const olc::vf2d& pos, const olc::Pixel col = olc::Colour::WHITE);
+		// Read a pixel from an image (guarantees fresh)
+		olc::Pixel GetPixel(olc::Image& image, const olc::vf2d& pos);
+	
+	public:
+		// Draws a single pixel wide line		
+		GPUTask Line(const olc::vf2d& p1, const olc::vf2d& p2, const olc::Pixel col = olc::Colour::WHITE);
+		// Draws a single pixel wide line with a gradient		
+		GPUTask Line(const olc::vf2d& p1, const olc::vf2d& p2, const olc::Pixel c1, const olc::Pixel c2);
+
+		// Draws a rectangle outline
+		GPUTask Rect(const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel col = olc::Colour::WHITE);
+		// Draws a filled, single colour rectangle
+		GPUTask FillRect(const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel col = olc::Colour::WHITE);
+		
+		// Draws an image
+		GPUTask Image(olc::Image& image, const olc::vf2d& pos, const olc::vf2d& size);
+	
 
 
-	public: // GPU Task Creator Functions
+
+	public: // GPU Task Creator Functions (not normally called by user)
 		GPUTask TaskDrawPolygon(
 			GPUTask::Structure structure,
 			const std::vector<olc::vf2d>& vPoints,
@@ -1479,23 +1575,63 @@ namespace olc
 			const std::vector<olc::vf2d>& vTexCoords,
 			olc::Image* const image,
 			const olc::Pixel tint = olc::Colour::WHITE);
-
-
-
-	public:
-		// Draws a single pixel wide line		
-		GPUTask Line(const olc::vf2d& p1, const olc::vf2d& p2, const olc::Pixel col = olc::Colour::WHITE);
-		// Draws a single pixel wide line with a gradient		
-		GPUTask Line(const olc::vf2d& p1, const olc::vf2d& p2, const olc::Pixel c1, const olc::Pixel c2);
-
-		// Draws a filled, single colour rectangle
-		GPUTask FillRect(const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel col = olc::Colour::WHITE);
-
-		// Draws a filled, single colour rectangle
-		GPUTask Image(olc::Image& image, const olc::vf2d& pos, const olc::vf2d& size);
+	
 	};
 }
 #define PGE_DRAW2D_DECLARED
+#endif
+
+#if !defined(PGE_HARDWAREINPUT_DECLARED)
+namespace olc
+{
+	namespace hw
+	{
+		struct Button
+		{
+			bool bPressed = false;
+			bool bReleased = false;
+			bool bHeld = false;
+		};
+	}
+}
+#define PGE_HARDWAREINPUT_DECLARED 1
+#endif
+
+#if !defined(PGE_HW_MOUSE_DECLARED)
+namespace olc
+{
+	// Forward declare for friendship
+	class Window;		
+
+
+	namespace hw
+	{
+		class Mouse
+		{
+			friend class olc::Window;
+
+		public:
+			Mouse() = default;
+
+		public:
+			const Button& GetButton(const int nButton) const;
+			const olc::vf2d& GetPosition() const;
+
+		protected:
+			std::array<Button, OLC_MOUSE_BUTTONS> buttons{};
+			std::array<bool, OLC_MOUSE_BUTTONS> buttons_new{};
+			std::array<bool, OLC_MOUSE_BUTTONS> buttons_old{};
+			olc::vf2d position;
+			olc::vf2d position_in;
+
+		private:
+			void SetPosition(const olc::vf2d& pos);
+			void SetButton(const int nButton, bool state);
+			void UpdateState();
+		};
+	}
+}
+#define PGE_HW_MOUSE_DECLARED 1
 #endif
 
 #if !defined(PGE_WINDOW_DECLARED)
@@ -1517,9 +1653,15 @@ namespace olc
 		class Renderer;
 	}
 
+	namespace hw
+	{
+		class Mouse;
+	}
+
 	class Window
 	{
 		friend class olc::host::FRIENDLY_HOST;
+		
 
 	public:
 		Window();
@@ -1588,6 +1730,8 @@ namespace olc
 	protected:
 		olc::Draw2D draw;
 		olc::Image imgPrimary;
+
+		olc::hw::Mouse mouse;
 	};
 }
 #define PGE_WINDOW_DECLARED 1
@@ -1716,7 +1860,7 @@ namespace olc
 		// Store an image as a file asset on disk
 		bool WriteImageToFile(const olc::Image& image, const std::string& sFileName);
 		// Store an image as a file asset in memory
-		bool WriteImageToMemory(const olc::Image& image, std::vector<uint8_t> bytes, const std::string& sFileName);
+		//bool WriteImageToMemory(const olc::Image& image, std::vector<uint8_t> bytes, const std::string& sFileName);
 		// Destroy an image
 		void DestroyImage(olc::Image& image);
 
@@ -1743,10 +1887,12 @@ namespace olc
 
 		std::unique_ptr<olc::gpu::Renderer> gpu;
 		std::unique_ptr<olc::host::Host> host;
+		std::unique_ptr<olc::imload::ImageLoader> imageloader;
 	};
 }
 #define PGE_CORE_DECLARED 1
 #endif
+
 
 
 
@@ -2028,7 +2174,7 @@ namespace olc
 			void glDrawArrays(GLenum mode, GLint first,	GLsizei count);
 			void glBlendFunc(GLenum sfactor, GLenum dfactor);
 			void glDepthFunc(GLenum func);
-
+			void glGetTexImage(GLenum target, GLint level, GLenum format, GLenum type, void* pixels);
 
 
 		private:
@@ -2119,6 +2265,73 @@ namespace olc
 	}
 }
 #define PGE_RENDERER_OPENGL33_DECLARED 1
+#endif
+#endif
+
+#if OLC_IMAGELOADER == OLC_IMAGELOADER_WINGDI
+#if defined(UNICODE) || defined(_UNICODE)
+	#define olcT(s) L##s
+#else
+	#define olcT(s) s
+#endif
+
+#define _WINSOCKAPI_
+
+#if !defined(VC_EXTRALEAN)
+	#define VC_EXTRALEAN
+#endif
+
+#if !defined(NOMINMAX)
+	#define NOMINMAX
+#endif
+
+// In Code::Blocks
+#if !defined(_WIN32_WINNT)
+	#ifdef HAVE_MSMF
+		#define _WIN32_WINNT 0x0600 // Windows Vista
+	#else
+		#define _WIN32_WINNT 0x0500 // Windows 2000
+	#endif
+#endif
+
+// Embrace MSVC superiority
+#pragma comment(lib, "gdiplus.lib")
+#pragma comment(lib, "Shlwapi.lib")
+#include <objidl.h>
+#include <gdiplus.h>
+#include <gdiplusinit.h>
+#include <shlwapi.h>
+#undef _WINSOCKAPI_
+
+#if !defined(PGE_IMAGELOADER_WINGDI_DECLARED)
+namespace olc
+{
+	namespace imload
+	{
+		class ImageLoader_WinGDI : public ImageLoader
+		{
+		public:		
+			
+			// Create an image resource based on an image file asset on disk
+			bool CreateImageFromFile(olc::Image& image, const std::string& sFileName) override;
+
+			// Create an image resource based on an image file asset in memory
+			bool CreateImageFromMemory(olc::Image& image, const uint8_t* data, const size_t bytes) override;
+
+			// Create an image resource based on an image file asset in memory
+			bool CreateImageFromMemory(olc::Image& image, const std::vector<uint8_t>& data) override;
+
+			// Store an image as a file asset on disk
+			bool WriteImageToFile(const olc::Image& image, const std::string& sFileName) override;
+
+			// Store an image as a file asset in memory
+			bool WriteImageToMemoryFile(olc::Image& image, const std::vector<uint8_t>& data) override;
+
+		};
+	}
+}
+
+#define PGE_IMAGELOADER_WINGDI_DECLARED 1
 #endif
 #endif
 
@@ -2333,12 +2546,36 @@ namespace olc::host
 			//		case WM_KEYUP:		ptrPGE->olc_UpdateKeyState(int32_t(wParam), false);                     return 0;
 			//		case WM_SYSKEYDOWN: ptrPGE->olc_UpdateKeyState(int32_t(wParam), true);						return 0;
 			//		case WM_SYSKEYUP:	ptrPGE->olc_UpdateKeyState(int32_t(wParam), false);						return 0;
-			//		case WM_LBUTTONDOWN:ptrPGE->olc_UpdateMouseState(0, true);                                  return 0;
-			//		case WM_LBUTTONUP:	ptrPGE->olc_UpdateMouseState(0, false);                                 return 0;
-			//		case WM_RBUTTONDOWN:ptrPGE->olc_UpdateMouseState(1, true);                                  return 0;
-			//		case WM_RBUTTONUP:	ptrPGE->olc_UpdateMouseState(1, false);                                 return 0;
-			//		case WM_MBUTTONDOWN:ptrPGE->olc_UpdateMouseState(2, true);                                  return 0;
-			//		case WM_MBUTTONUP:	ptrPGE->olc_UpdateMouseState(2, false);                                 return 0;
+		case WM_LBUTTONDOWN:
+			{
+				window->olc_OnMouseButton(0, true);
+				return 0;
+			}
+		case WM_LBUTTONUP:
+			{
+				window->olc_OnMouseButton(0, false);
+				return 0;
+			}
+		case WM_RBUTTONDOWN:
+			{
+				window->olc_OnMouseButton(1, true);
+				return 0;
+			}
+		case WM_RBUTTONUP:
+			{
+				window->olc_OnMouseButton(1, false);
+				return 0;
+			}
+		case WM_MBUTTONDOWN:
+			{
+				window->olc_OnMouseButton(2, true);
+				return 0;
+			}
+		case WM_MBUTTONUP:
+			{
+				window->olc_OnMouseButton(2, false);
+				return 0;
+			}
 			//		case WM_DROPFILES:
 			//		{
 			//			// This is all eww...
@@ -2609,6 +2846,12 @@ namespace olc::apis::opengl
 	void gl::glDepthFunc(GLenum func)
 	{
 		::glDepthFunc(func);
+		CheckError();
+	}
+
+	void gl::glGetTexImage(GLenum target, GLint level, GLenum format, GLenum type, void* pixels)
+	{
+		::glGetTexImage(target, level, format, type, pixels);
 		CheckError();
 	}
 
@@ -2984,7 +3227,7 @@ namespace olc::gpu
 		imgBlank.Create({ 1,1 });
 		imgBlank.SetGPUID(CreateTexture(imgBlank.Size()));
 		imgBlank.BindCPU();
-		imgBlank.Data({ 0,0 }) = olc::Colour::WHITE;
+		imgBlank.Pixel({ 0,0 }) = olc::Colour::WHITE;
 		imgBlank.BindGPU();
 		WriteTexture(imgBlank.GetGPUID(), imgBlank);
 
@@ -3002,7 +3245,8 @@ namespace olc::gpu
 		// Unbind the FBO
 		gl.glBindFramebuffer(36160U, 0);
 
-
+		glEnable(GL_TEXTURE_2D); // Turn on texturing
+		glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
 
 		lastError = RendererError::None;
 		return true;
@@ -3071,7 +3315,8 @@ namespace olc::gpu
 	{
 		auto& gl = olc::apis::opengl::gl::Get();
 		gl.glBindTexture(GL_TEXTURE_2D, image.GetGPUID());
-		gl.glReadPixels(0, 0, image.Size().x, image.Size().y, GL_RGBA, GL_UNSIGNED_BYTE, image.Data());
+		//gl.glReadPixels(0, 0, image.Size().x, image.Size().y, GL_RGBA, GL_UNSIGNED_BYTE, image.Data());
+		gl.glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, image.Data());
 		return true;
 	}
 
@@ -3134,6 +3379,8 @@ namespace olc::gpu
 		{
 			case GPUTask::Task::DrawPolygon:
 			{
+				gl.glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
 				if (task.pImage == nullptr)
 					AssignTextureSource(0, imgBlank.GetGPUID());
 				else
@@ -3229,6 +3476,7 @@ namespace olc::gpu
 		auto& gl = olc::apis::opengl::gl::Get();
 
 		//gl.glUseProgram(shaderDefault.GetShaderID());
+		gl.glEnable(GL_BLEND);
 		gl.glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 		gl.glDepthFunc(GL_LESS);
 		//gl.glBindTexture(GL_TEXTURE_2D, imgBlank.GetGPUID());
@@ -3268,22 +3516,41 @@ void Draw2D::SetGPU(olc::gpu::Renderer* const renderer)
 
 void Draw2D::SetTarget(olc::Image& image)
 {
-	pTarget = &image;
+	ProcessGPUTasks();
+
+	// Store the target image
+	pTarget = &image;	
+
+	// Create a transform to denormalise the image and present it 
+	// in pixel space
+	transformTarget.scale(olc::vf2d(2.0f, 2.0f) / olc::vf2d(pTarget->Size()));
+	transformTarget.translate(
+		olc::vf2d(
+			-1.0f + (1.0f / float(pTarget->Size().x)),
+			-1.0f + (1.0f / float(pTarget->Size().y))
+		));
+
+	AffineReset();
+
+	pRenderer->AssignTextureTarget(0, pTarget->GetGPUID());
+	pRenderer->SetViewport({ 0,0 }, pTarget->Size());
 }
 
 void Draw2D::ClearTransform()
 {
-	transform = olc::tf2d();
+	transformTarget = olc::tf2d();
+	transformAffine = olc::tf2d();
+	transformCombined = olc::mf3d();
 }
 
 void Draw2D::SetTransform(const olc::tf2d& trans)
 {
-	transform = trans;
+	transformTarget = trans;
 }
 
-const tf2d& olc::Draw2D::GetTransform()
+tf2d& olc::Draw2D::GetTransform()
 {
-	return transform;
+	return transformAffine;
 }
 
 void olc::Draw2D::ProcessGPUTasks()
@@ -3321,15 +3588,86 @@ void Draw2D::PrepareTargetForHW()
 	}
 }
 
+void Draw2D::PrepareImageForSW(olc::Image& image)
+{
+	if (image.BoundToGPU())
+	{
+		// Process GPU queue bound for the target
+		ProcessGPUTasks();
+
+		// Image resource is primed for GPU operations, bring it to CPU
+		pRenderer->ReadTexture(image.GetGPUID(), image);
+
+		// Image is now CPU bound
+		image.BindCPU();
+	}
+}
+
+void Draw2D::PrepareImageForHW(olc::Image& image)
+{
+	if (image.BoundToCPU())
+	{
+		// Image resource is primed for CPU operations, send it to GPU
+		pRenderer->WriteTexture(image.GetGPUID(), image);
+
+		// Image is now GPU bound
+		image.BindGPU();
+	}
+}
+
+void olc::Draw2D::AffineReset()
+{
+	transformAffine = olc::tf2d();
+	transformCombined = transformAffine * transformTarget;
+}
+
+void olc::Draw2D::AffineScale(const olc::vf2d& vScale)
+{
+	transformAffine.scale(vScale);
+	transformCombined = transformAffine * transformTarget;
+}
+
+void olc::Draw2D::AffineOffset(const olc::vf2d& vOffset)
+{
+	transformAffine.translate(vOffset);
+	transformCombined = transformAffine * transformTarget;
+}
+
+void olc::Draw2D::AffineRotate(const float& fTheta, const olc::vf2d& vPoint)
+{
+	transformAffine.rotate(fTheta, vPoint);
+	transformCombined = transformAffine * transformTarget;
+}
+
 void Draw2D::Pixel(const olc::vf2d& pos, const olc::Pixel col)
 {
-	PrepareTargetForSW();
-	pTarget->Data(transform.forward(((pos + 1.0f) * 0.5f) * olc::vf2d(pTarget->Size()))) = col;
+	// Check if in bounds
+	olc::vf2d tpos = transformTarget.forward(pos);
+	if (tpos.x >= 0 && tpos.y >= 0 && tpos.x < pTarget->Size().x && tpos.y < pTarget->Size().y)
+	{
+		PrepareTargetForSW();
+		pTarget->Pixel(tpos) = col;
+	}
+
+	// otherwise do nothing
+}
+
+olc::Pixel olc::Draw2D::GetPixel(olc::Image& image, const olc::vf2d& pos)
+{
+	PrepareImageForSW(image);
+	return image.Pixel(pos);
 }
 
 GPUTask olc::Draw2D::TaskDrawPolygon(GPUTask::Structure structure, const std::vector<olc::vf2d>& vPoints, const std::vector<olc::Pixel>& vColours, const olc::Pixel tint)
 {
-	return GPUTask();
+	GPUTask task;
+	task.structure = structure;
+	task.bWireframe = true;
+	for (size_t i = 0; i < vPoints.size(); i++)
+		task.vertexBuffer.push_back({ vPoints[i].x, vPoints[i].y, 1.0f, 1.0f, vColours[i], 0, 0, 0,0, 0, 0, 0, 0});
+	//task.mvpMatrix = transformCombined.m
+	task.tint = tint;
+	return task;
 }
 
 GPUTask olc::Draw2D::TaskDrawPolygon(GPUTask::Structure structure, const std::vector<olc::vf2d>& vPoints, const olc::Pixel colour, const olc::Pixel tint)
@@ -3374,7 +3712,7 @@ GPUTask Draw2D::Line(const olc::vf2d& p1, const olc::vf2d& p2, const olc::Pixel 
 	return vecGPUTasks.emplace_back(
 		TaskDrawPolygon(
 			GPUTask::Structure::Line,
-			transform.forward<float>({ p1, p2 }),
+			transformCombined.transform<float>({ p1, p2 }),
 			col,
 			olc::Colour::WHITE
 		));
@@ -3386,11 +3724,24 @@ GPUTask Draw2D::Line(const olc::vf2d& p1, const olc::vf2d& p2, const olc::Pixel 
 	return vecGPUTasks.emplace_back(
 		TaskDrawPolygon(
 			GPUTask::Structure::Line,
-			transform.forward<float>({ p1, p2 }),
+			transformCombined.transform<float>({ p1, p2 }),
 			{ c1, c2 },
 			olc::Colour::WHITE
 		));
 }
+
+GPUTask olc::Draw2D::Rect(const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel col)
+{
+	PrepareTargetForHW();
+	return vecGPUTasks.emplace_back(
+		TaskDrawPolygon(
+			GPUTask::Structure::Fan,
+			transformCombined.transform<float>({ { pos.x, pos.y }, { pos.x + size.x, pos.y }, { pos.x + size.x, pos.y + size.y }, { pos.x, pos.y + size.y } }),
+			col,
+			olc::Colour::WHITE
+		));
+}
+
 
 GPUTask olc::Draw2D::FillRect(const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel col)
 {
@@ -3398,7 +3749,7 @@ GPUTask olc::Draw2D::FillRect(const olc::vf2d& pos, const olc::vf2d& size, const
 	return vecGPUTasks.emplace_back(
 		TaskFillPolygon(
 			GPUTask::Structure::Fan,
-			transform.forward<float>({ { pos.x, pos.y }, { pos.x + size.x, pos.y }, { pos.x + size.x, pos.y + size.y }, { pos.x, pos.y + size.y } }),
+			transformCombined.transform<float>({ { pos.x, pos.y }, { pos.x + size.x, pos.y }, { pos.x + size.x, pos.y + size.y }, { pos.x, pos.y + size.y } }),
 			col,
 			olc::Colour::WHITE
 		));
@@ -3406,11 +3757,14 @@ GPUTask olc::Draw2D::FillRect(const olc::vf2d& pos, const olc::vf2d& size, const
 
 GPUTask olc::Draw2D::Image(olc::Image& image, const olc::vf2d& pos, const olc::vf2d& size)
 {
+	// Ensure source image is up to date in VRAM
+	PrepareImageForHW(image);
+	
 	PrepareTargetForHW();
 	return vecGPUTasks.emplace_back(
 		TaskTexturedPolygon(
 			GPUTask::Structure::Fan,
-			transform.forward<float>({ { pos.x, pos.y }, { pos.x + size.x, pos.y }, { pos.x + size.x, pos.y + size.y }, { pos.x, pos.y + size.y } }),
+			transformCombined.transform<float>({ { pos.x, pos.y }, { pos.x + size.x, pos.y }, { pos.x + size.x, pos.y + size.y }, { pos.x, pos.y + size.y } }),
 			{ olc::Colour::WHITE, olc::Colour::WHITE, olc::Colour::WHITE, olc::Colour::WHITE },
 			{ {0,0}, {1,0}, {1,1}, {0,1} },
 			&image
@@ -3506,7 +3860,24 @@ namespace olc
 	}
 
 	bool PixelGameEngine::CreateImageFromFile(olc::Image& image, const std::string& sFileName, const ImageConfig& cfg)
-	{		
+	{	
+		if (imageloader->CreateImageFromFile(image, sFileName))
+		{
+			// Image has loaded ok, and populated into pixel vector
+			// 
+			// Create GPU Image
+			auto id = gpu->CreateTexture(image.Size(), cfg);
+			if (id == 0)
+			{
+				image.Create({ 0,0 });
+				return false;
+			}
+
+			// Associate CPU object with GPU Resource
+			image.SetGPUID(id);
+			return true;
+		}
+
 		return false;
 	}
 
@@ -3520,10 +3891,10 @@ namespace olc
 		return false;
 	}
 
-	bool PixelGameEngine::WriteImageToMemory(const olc::Image& image, std::vector<uint8_t> bytes, const std::string& sFileName)
-	{
-		return false;
-	}
+	//bool PixelGameEngine::WriteImageToMemory(const olc::Image& image, std::vector<uint8_t> bytes, const std::string& sFileName)
+	//{
+	//	return false;
+	//}
 
 	void PixelGameEngine::DestroyImage(olc::Image& image)
 	{
@@ -3549,6 +3920,9 @@ namespace olc
 		using namespace std::chrono_literals;
 		timeFrame2 = std::chrono::steady_clock::now();
 		timeFrame1 = std::chrono::steady_clock::now();
+
+		// Initialise ImageLoader Interface
+		imageloader = std::make_unique<olc::imload::ImageLoader_WinGDI>();
 		
 
 		// Initialise GPU Interface	- This thread is the context
@@ -3685,9 +4059,9 @@ namespace olc
 		return pixels.data();
 	}
 
-	olc::Pixel& Image::Data(const olc::vf2d pos)
+	olc::Pixel& Image::Pixel(const olc::vf2d& pos)
 	{
-		return pixels[pos.y * dimensions.x + pos.x];
+		return pixels[int(pos.y) * dimensions.x + int(pos.x)];
 	}
 
 	const ImageConfig& Image::GetConfig() const
@@ -3703,6 +4077,11 @@ namespace olc
 	void Image::SetGPUID(const int32_t id)
 	{
 		gpuResourceID = id;
+	}
+
+	std::vector<olc::Pixel>& Image::GetPixels()
+	{
+		return pixels;
 	}
 
 	bool Image::BoundToGPU() const
@@ -3729,6 +4108,57 @@ namespace olc
 
 };
 #define PGE_IMAGE_IMPLEMENTED 1
+#endif
+
+#if defined(OLC_PGE_APPLICATION) && !defined(PGE_HW_MOUSE_IMPLEMENTED)
+namespace olc::hw
+{
+    const Button& Mouse::GetButton(const int nButton) const
+    {
+        return buttons.at(nButton);
+    }
+
+    const olc::vf2d& Mouse::GetPosition() const
+    {
+        return position;
+    }
+
+    void Mouse::SetPosition(const olc::vf2d& pos)
+    {
+        position_in = pos;
+    }
+
+    void Mouse::SetButton(const int nButton, bool state)
+    {        
+        buttons_new[nButton] = state;            
+    }
+
+    void Mouse::UpdateState()
+    {
+        for (size_t i=0; i<buttons.size(); i++)
+        {
+            buttons[i].bPressed = false;
+            buttons[i].bReleased = false;
+            if (buttons_new[i] != buttons_old[i])
+            {
+                if (buttons_new[i])
+                {
+                    buttons[i].bPressed = !buttons[i].bHeld;
+                    buttons[i].bHeld = true;
+                }
+                else
+                {
+                    buttons[i].bReleased = true;
+                    buttons[i].bHeld = false;
+                }
+            }
+            buttons_old[i] = buttons_new[i];
+        }
+
+        position = position_in;
+    }
+}
+#define PGE_HW_MOUSE_IMPLEMENTED 1
 #endif
 
 #if defined(OLC_PGE_APPLICATION) && !defined(PGE_WINDOW_IMPLEMENTED)
@@ -3767,12 +4197,13 @@ namespace olc
 
 	bool Window::olc_OnMouseButton(const uint8_t nButton, const bool bPressed)
 	{
+		mouse.SetButton(nButton, bPressed);
 		return false;
 	}
 
 	bool Window::olc_OnMouseMove(const olc::vi2d& vMousePos)
-	{
-		volatile_vMousePos = vMousePos;
+	{		
+		mouse.SetPosition(olc::vf2d(vMousePos) / olc::vf2d(GetSize()) * imgPrimary.Size());
 		return true;
 	}
 
@@ -3805,7 +4236,10 @@ namespace olc
 	{
 		// Environmental changes
 
-		draw.ClearTransform();
+		// Input Changes
+		mouse.UpdateState();
+
+
 		draw.SetGPU(gpu);
 		draw.SetTarget(imgPrimary);
 
@@ -3837,8 +4271,9 @@ namespace olc
 		// Take the window's completed "screen" and draw it as a textured quad to the backbuffer
 		gpu->AssignTextureTarget(0, 0);
 		gpu->SetViewport({ 0,0 }, GetSize());
-		gpu->ClearViewport(olc::Colour::TANGERINE, true, true);
-		draw.Image(imgPrimary, { -1.0,-1.0 }, { 2.0f,2.0f });		
+		gpu->ClearViewport(olc::Colour::BLANK, true, true);
+		draw.ClearTransform();
+		draw.Image(imgPrimary, { -1.0,1.0 }, { 2.0f,-2.0f });		
 		draw.ProcessGPUTasks();
 
 		// Update Window's primary surface
@@ -3896,5 +4331,97 @@ namespace olc
 	}
 };
 #define PGE_WINDOW_IMPLEMENTED 1
+#endif
+
+#if defined(OLC_PGE_APPLICATION) && !defined(PGE_IMAGELOADER_IMPLEMENTED)
+#if OLC_IMAGELOADER == OLC_IMAGELOADER_WINGDI
+namespace olc::imload
+{
+	namespace internals
+	{
+		std::wstring ConvertS2W(std::string s)
+		{
+#ifdef __MINGW32__
+			wchar_t* buffer = new wchar_t[s.length() + 1];
+			mbstowcs(buffer, s.c_str(), s.length());
+			buffer[s.length()] = L'\0';
+#else
+			int count = MultiByteToWideChar(CP_UTF8, 0, s.c_str(), -1, NULL, 0);
+			wchar_t* buffer = new wchar_t[count];
+			MultiByteToWideChar(CP_UTF8, 0, s.c_str(), -1, buffer, count);
+#endif
+			std::wstring w(buffer);
+			delete[] buffer;
+			return w;
+		}
+
+		static class GDIPlusStartup
+		{
+		public:
+			GDIPlusStartup()
+			{
+				Gdiplus::GdiplusStartupInput startupInput;
+				GdiplusStartup(&token, &startupInput, NULL);
+			}
+
+			ULONG_PTR	token;
+
+			~GDIPlusStartup()
+			{
+				Gdiplus::GdiplusShutdown(token);
+			}
+
+		} gdistartup;
+	}
+
+	bool ImageLoader_WinGDI::CreateImageFromFile(olc::Image& image, const std::string& sFileName)
+	{
+		// Check file exists
+		if (!std::filesystem::exists(sFileName))
+			return false; // File doesn't exist
+		
+		// Load file into windows "bitmap". 1992 calling...
+		Gdiplus::Bitmap* bmp = nullptr;
+		bmp = Gdiplus::Bitmap::FromFile(internals::ConvertS2W(sFileName).c_str());
+		if (bmp->GetLastStatus() != Gdiplus::Ok)
+			return false; // File wasn't valid
+
+		// Need to swizzle each pixel...
+		image.Create(olc::vi2d(bmp->GetWidth(), bmp->GetHeight()));
+		for (int y = 0; y < image.Size().y; y++)
+			for (int x = 0; x < image.Size().x; x++)
+			{
+				Gdiplus::Color c;
+				bmp->GetPixel(x, y, &c);
+				image.Pixel(olc::vi2d(x, y)) = olc::Pixel(c.GetRed(), c.GetGreen(), c.GetBlue(), c.GetAlpha());
+			}
+
+		// All done
+		delete bmp;
+		return true;
+	}
+
+	bool ImageLoader_WinGDI::CreateImageFromMemory(olc::Image& image, const uint8_t* data, const size_t bytes)
+	{
+		return false;
+	}
+
+	bool ImageLoader_WinGDI::CreateImageFromMemory(olc::Image& image, const std::vector<uint8_t>& data)
+	{
+		return false;
+	}
+
+	bool ImageLoader_WinGDI::WriteImageToFile(const olc::Image& image, const std::string& sFileName)
+	{
+		return false;
+	}
+
+	bool ImageLoader_WinGDI::WriteImageToMemoryFile(olc::Image& image, const std::vector<uint8_t>& data)
+	{
+		return false;
+	}
+}
+#endif
+#define PGE_IMAGELOADER_IMPLEMENTED 1
 #endif
 

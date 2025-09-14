@@ -189,6 +189,12 @@ namespace olc::apis::opengl
 		CheckError();
 	}
 
+	void gl::glGetTexImage(GLenum target, GLint level, GLenum format, GLenum type, void* pixels)
+	{
+		::glGetTexImage(target, level, format, type, pixels);
+		CheckError();
+	}
+
 	GLuint gl::glCreateShader(GLenum type)
 	{
 		return _glCreateShader(type);

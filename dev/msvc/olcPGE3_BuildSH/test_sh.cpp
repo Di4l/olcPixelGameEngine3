@@ -9,26 +9,58 @@ public:
 
 	}
 
+	olc::Image imTest;
+
+	olc::Image sprite1;
+
+	float fAngle = 0.0f;
+
 public:
 	bool OnUserCreate() override
 	{
+		CreateImage(imTest, { 64,64 });
+		CreateImageFromFile(sprite1, "E:/assets/Graphics/Tiles_SideOn/HiQ/FactoryPack/png/256/objects/static/Computer (1).png");
+
 		return true;
 	}
 
 	bool OnUserUpdate(float fElapsedTime) override
 	{
-		draw.Line({ 0,0 }, { 1, 1 }, olc::Colour::RED);
-		draw.Line({ 0,0 }, { 1, -1 }, olc::Colour::GREEN);
-		draw.Line({ 0,0 }, { -1, -1 }, olc::Colour::CYAN);
-		draw.Line({ 0,0 }, { -1, 1 }, olc::Colour::WHITE);
+		fAngle += fElapsedTime;
 
-		draw.Pixel({ -0.5f, -0.25f }, olc::Colour::YELLOW);
 
-		draw.FillRect({ 0.25f, 0.25f }, { 0.3f, 0.6f }, olc::Colour::TANGERINE);
 
-		draw.Pixel({ 0.3f, 0.3f }, olc::Colour::BLACK);
-		draw.Pixel({ 0.32f, 0.3f }, olc::Colour::BLACK);
-		draw.Pixel({ 0.34f, 0.3f }, olc::Colour::BLACK);
+
+		draw.SetTarget(imTest);
+		draw.FillRect({ 0,0 }, imTest.Size(), olc::Colour::BLUE);
+
+		draw.AffineRotate(fAngle, { 32.0f, 32.0f });
+
+		draw.Rect({ 5,5 }, { 10,10 }, olc::Colour::YELLOW);
+		draw.Line({ 0,0 }, { 20, 20 });
+
+
+		draw.SetTarget(imgPrimary);
+		draw.AffineReset();
+
+		draw.FillRect({ 0,0 }, imgPrimary.Size(), olc::Colour::VERY_DARK_MAGENTA);
+
+		draw.Line({ 0,0 }, imgPrimary.Size() - 1, olc::Colour::RED);
+		draw.Line(olc::vf2d(imgPrimary.Size().x - 1, 0), olc::vf2d(0, imgPrimary.Size().y - 1), olc::Colour::GREEN);
+
+		if (mouse.GetButton(0).bHeld)
+			draw.Line({ 0,0 }, mouse.GetPosition(), olc::Colour::TANGERINE);
+
+		draw.AffineRotate(fAngle * 0.2f, imgPrimary.Size() * 0.5f);
+		draw.Rect({ 0,0 }, imgPrimary.Size());
+		draw.Image(imTest, { 10, 10 }, { 64, 64 });
+		draw.Image(imTest, { 100, 10 }, { 64, 64 });
+		draw.Image(imTest, { 10, 100 }, { 64, 64 });
+		draw.Image(sprite1, { 100, 100 }, { 64, 64 });
+
+		olc::Pixel p = draw.GetPixel(imTest, { 8,5 });
+
+		draw.FillRect({ 200,200 }, { 10,10 }, p);
 		return true;
 	}
 };

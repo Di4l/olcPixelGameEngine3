@@ -110,11 +110,13 @@ namespace olc::host
 		AdjustWindowRectEx(&rWndRect, dwStyle, FALSE, dwExStyle);
 		int width = rWndRect.right - rWndRect.left;
 		int height = rWndRect.bottom - rWndRect.top;
-		pWindow->SetSize({width, height});
+		pWindow->SetSize(vWindowSize);
 
 		// Create the actual OS window, return a handle
 		HWND hWnd = CreateWindowEx(dwExStyle, olcT("OLC_PIXEL_GAME_ENGINE3"), olcT(""), dwStyle,
 			vTopLeft.x, vTopLeft.y, width, height, NULL, NULL, GetModuleHandle(nullptr), this);
+
+		SetWindowPos(hWnd, NULL, vWinPos.x, vWinPos.y, width, height, SWP_SHOWWINDOW);
 
 		// Now... awkwardly, the above has already fired off some window messages
 		// and they arent necessarily in a consistent order. Whereas one might 
@@ -203,12 +205,36 @@ namespace olc::host
 			//		case WM_KEYUP:		ptrPGE->olc_UpdateKeyState(int32_t(wParam), false);                     return 0;
 			//		case WM_SYSKEYDOWN: ptrPGE->olc_UpdateKeyState(int32_t(wParam), true);						return 0;
 			//		case WM_SYSKEYUP:	ptrPGE->olc_UpdateKeyState(int32_t(wParam), false);						return 0;
-			//		case WM_LBUTTONDOWN:ptrPGE->olc_UpdateMouseState(0, true);                                  return 0;
-			//		case WM_LBUTTONUP:	ptrPGE->olc_UpdateMouseState(0, false);                                 return 0;
-			//		case WM_RBUTTONDOWN:ptrPGE->olc_UpdateMouseState(1, true);                                  return 0;
-			//		case WM_RBUTTONUP:	ptrPGE->olc_UpdateMouseState(1, false);                                 return 0;
-			//		case WM_MBUTTONDOWN:ptrPGE->olc_UpdateMouseState(2, true);                                  return 0;
-			//		case WM_MBUTTONUP:	ptrPGE->olc_UpdateMouseState(2, false);                                 return 0;
+		case WM_LBUTTONDOWN:
+			{
+				window->olc_OnMouseButton(0, true);
+				return 0;
+			}
+		case WM_LBUTTONUP:
+			{
+				window->olc_OnMouseButton(0, false);
+				return 0;
+			}
+		case WM_RBUTTONDOWN:
+			{
+				window->olc_OnMouseButton(1, true);
+				return 0;
+			}
+		case WM_RBUTTONUP:
+			{
+				window->olc_OnMouseButton(1, false);
+				return 0;
+			}
+		case WM_MBUTTONDOWN:
+			{
+				window->olc_OnMouseButton(2, true);
+				return 0;
+			}
+		case WM_MBUTTONUP:
+			{
+				window->olc_OnMouseButton(2, false);
+				return 0;
+			}
 			//		case WM_DROPFILES:
 			//		{
 			//			// This is all eww...

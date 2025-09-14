@@ -45,7 +45,7 @@ namespace olc
 
 		void SetTransform(const olc::tf2d& trans);
 
-		olc::tf2d& const GetTransform();
+		olc::tf2d& GetTransform();
 
 		void ProcessGPUTasks();
 
@@ -55,6 +55,11 @@ namespace olc
 		// Checks residency of image resource, and brings it to gpu VRAM for r/w
 		void PrepareTargetForHW();
 
+		// Checks residency of image resource, and brings it to cpu RAM for r/w
+		void PrepareImageForSW(olc::Image& image);
+		// Checks residency of image resource, and brings it to gpu VRAM for r/w
+		void PrepareImageForHW(olc::Image& image);
+
 		olc::Image* pTarget = nullptr;
 		olc::gpu::Renderer* pRenderer = nullptr;
 		olc::tf2d transformTarget;
@@ -63,7 +68,7 @@ namespace olc
 
 		std::vector<olc::GPUTask> vecGPUTasks;
 
-	public: // Affine Transformation
+	public: // Affine Transformation (these affect all subsequent draw calls for this target)
 		void AffineReset();
 		void AffineScale(const olc::vf2d& vScale);
 		void AffineOffset(const olc::vf2d& vOffset);
@@ -72,9 +77,27 @@ namespace olc
 	public:
 		// Plot a single pixel
 		void Pixel(const olc::vf2d& pos, const olc::Pixel col = olc::Colour::WHITE);
+		// Read a pixel from an image (guarantees fresh)
+		olc::Pixel GetPixel(olc::Image& image, const olc::vf2d& pos);
+	
+	public:
+		// Draws a single pixel wide line		
+		GPUTask Line(const olc::vf2d& p1, const olc::vf2d& p2, const olc::Pixel col = olc::Colour::WHITE);
+		// Draws a single pixel wide line with a gradient		
+		GPUTask Line(const olc::vf2d& p1, const olc::vf2d& p2, const olc::Pixel c1, const olc::Pixel c2);
+
+		// Draws a rectangle outline
+		GPUTask Rect(const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel col = olc::Colour::WHITE);
+		// Draws a filled, single colour rectangle
+		GPUTask FillRect(const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel col = olc::Colour::WHITE);
+		
+		// Draws an image
+		GPUTask Image(olc::Image& image, const olc::vf2d& pos, const olc::vf2d& size);
+	
 
 
-	public: // GPU Task Creator Functions
+
+	public: // GPU Task Creator Functions (not normally called by user)
 		GPUTask TaskDrawPolygon(
 			GPUTask::Structure structure,
 			const std::vector<olc::vf2d>& vPoints,
@@ -106,22 +129,7 @@ namespace olc
 			const std::vector<olc::vf2d>& vTexCoords,
 			olc::Image* const image,
 			const olc::Pixel tint = olc::Colour::WHITE);
-
-
-
-	public:
-		// Draws a single pixel wide line		
-		GPUTask Line(const olc::vf2d& p1, const olc::vf2d& p2, const olc::Pixel col = olc::Colour::WHITE);
-		// Draws a single pixel wide line with a gradient		
-		GPUTask Line(const olc::vf2d& p1, const olc::vf2d& p2, const olc::Pixel c1, const olc::Pixel c2);
-
-		GPUTask Rect(const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel col = olc::Colour::WHITE);
-
-
-		// Draws a filled, single colour rectangle
-		GPUTask FillRect(const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel col = olc::Colour::WHITE);
-		// Draws a filled, single colour rectangle
-		GPUTask Image(olc::Image& image, const olc::vf2d& pos, const olc::vf2d& size);
+	
 	};
 }
 #define PGE_DRAW2D_DECLARED

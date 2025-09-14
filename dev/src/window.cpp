@@ -38,12 +38,13 @@ namespace olc
 
 	bool Window::olc_OnMouseButton(const uint8_t nButton, const bool bPressed)
 	{
+		mouse.SetButton(nButton, bPressed);
 		return false;
 	}
 
 	bool Window::olc_OnMouseMove(const olc::vi2d& vMousePos)
-	{
-		volatile_vMousePos = vMousePos;
+	{		
+		mouse.SetPosition(olc::vf2d(vMousePos) / olc::vf2d(GetSize()) * imgPrimary.Size());
 		return true;
 	}
 
@@ -76,6 +77,10 @@ namespace olc
 	{
 		// Environmental changes
 
+		// Input Changes
+		mouse.UpdateState();
+
+
 		draw.SetGPU(gpu);
 		draw.SetTarget(imgPrimary);
 
@@ -107,9 +112,9 @@ namespace olc
 		// Take the window's completed "screen" and draw it as a textured quad to the backbuffer
 		gpu->AssignTextureTarget(0, 0);
 		gpu->SetViewport({ 0,0 }, GetSize());
-		gpu->ClearViewport(olc::Colour::TANGERINE, true, true);
+		gpu->ClearViewport(olc::Colour::BLANK, true, true);
 		draw.ClearTransform();
-		draw.Image(imgPrimary, { -1.0,-1.0 }, { 2.0f,2.0f });		
+		draw.Image(imgPrimary, { -1.0,1.0 }, { 2.0f,-2.0f });		
 		draw.ProcessGPUTasks();
 
 		// Update Window's primary surface

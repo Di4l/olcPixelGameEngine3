@@ -2,6 +2,7 @@
 
 #include "gpu_opengl33.h"
 #include "host_win_winapi.h"
+#include "imload_wingdi.h"
 
 //! START IMPLEMENTATION
 namespace olc
@@ -88,7 +89,24 @@ namespace olc
 	}
 
 	bool PixelGameEngine::CreateImageFromFile(olc::Image& image, const std::string& sFileName, const ImageConfig& cfg)
-	{		
+	{	
+		if (imageloader->CreateImageFromFile(image, sFileName))
+		{
+			// Image has loaded ok, and populated into pixel vector
+			// 
+			// Create GPU Image
+			auto id = gpu->CreateTexture(image.Size(), cfg);
+			if (id == 0)
+			{
+				image.Create({ 0,0 });
+				return false;
+			}
+
+			// Associate CPU object with GPU Resource
+			image.SetGPUID(id);
+			return true;
+		}
+
 		return false;
 	}
 
@@ -102,10 +120,10 @@ namespace olc
 		return false;
 	}
 
-	bool PixelGameEngine::WriteImageToMemory(const olc::Image& image, std::vector<uint8_t> bytes, const std::string& sFileName)
-	{
-		return false;
-	}
+	//bool PixelGameEngine::WriteImageToMemory(const olc::Image& image, std::vector<uint8_t> bytes, const std::string& sFileName)
+	//{
+	//	return false;
+	//}
 
 	void PixelGameEngine::DestroyImage(olc::Image& image)
 	{
@@ -131,6 +149,9 @@ namespace olc
 		using namespace std::chrono_literals;
 		timeFrame2 = std::chrono::steady_clock::now();
 		timeFrame1 = std::chrono::steady_clock::now();
+
+		// Initialise ImageLoader Interface
+		imageloader = std::make_unique<olc::imload::ImageLoader_WinGDI>();
 		
 
 		// Initialise GPU Interface	- This thread is the context

@@ -16,20 +16,24 @@ void Draw2D::SetGPU(olc::gpu::Renderer* const renderer)
 
 void Draw2D::SetTarget(olc::Image& image)
 {
+	ProcessGPUTasks();
+
 	// Store the target image
 	pTarget = &image;	
 
 	// Create a transform to denormalise the image and present it 
 	// in pixel space
-	transformTarget.scale(olc::vf2d(2.0f, -2.0f) / olc::vf2d(pTarget->Size()));
+	transformTarget.scale(olc::vf2d(2.0f, 2.0f) / olc::vf2d(pTarget->Size()));
 	transformTarget.translate(
 		olc::vf2d(
-			-1.0 + (1.0f / float(pTarget->Size().x)),
-			1.0f - (1.0f / float(pTarget->Size().y))
+			-1.0f + (1.0f / float(pTarget->Size().x)),
+			-1.0f + (1.0f / float(pTarget->Size().y))
 		));
 
 	AffineReset();
-	
+
+	pRenderer->AssignTextureTarget(0, pTarget->GetGPUID());
+	pRenderer->SetViewport({ 0,0 }, pTarget->Size());
 }
 
 void Draw2D::ClearTransform()
@@ -44,7 +48,7 @@ void Draw2D::SetTransform(const olc::tf2d& trans)
 	transformTarget = trans;
 }
 
-tf2d& const olc::Draw2D::GetTransform()
+tf2d& olc::Draw2D::GetTransform()
 {
 	return transformAffine;
 }
@@ -84,6 +88,33 @@ void Draw2D::PrepareTargetForHW()
 	}
 }
 
+void Draw2D::PrepareImageForSW(olc::Image& image)
+{
+	if (image.BoundToGPU())
+	{
+		// Process GPU queue bound for the target
+		ProcessGPUTasks();
+
+		// Image resource is primed for GPU operations, bring it to CPU
+		pRenderer->ReadTexture(image.GetGPUID(), image);
+
+		// Image is now CPU bound
+		image.BindCPU();
+	}
+}
+
+void Draw2D::PrepareImageForHW(olc::Image& image)
+{
+	if (image.BoundToCPU())
+	{
+		// Image resource is primed for CPU operations, send it to GPU
+		pRenderer->WriteTexture(image.GetGPUID(), image);
+
+		// Image is now GPU bound
+		image.BindGPU();
+	}
+}
+
 void olc::Draw2D::AffineReset()
 {
 	transformAffine = olc::tf2d();
@@ -110,8 +141,21 @@ void olc::Draw2D::AffineRotate(const float& fTheta, const olc::vf2d& vPoint)
 
 void Draw2D::Pixel(const olc::vf2d& pos, const olc::Pixel col)
 {
-	PrepareTargetForSW();
-	pTarget->Data(transformTarget.forward(((pos + 1.0f) * 0.5f) * olc::vf2d(pTarget->Size()))) = col;
+	// Check if in bounds
+	olc::vf2d tpos = transformTarget.forward(pos);
+	if (tpos.x >= 0 && tpos.y >= 0 && tpos.x < pTarget->Size().x && tpos.y < pTarget->Size().y)
+	{
+		PrepareTargetForSW();
+		pTarget->Pixel(tpos) = col;
+	}
+
+	// otherwise do nothing
+}
+
+olc::Pixel olc::Draw2D::GetPixel(olc::Image& image, const olc::vf2d& pos)
+{
+	PrepareImageForSW(image);
+	return image.Pixel(pos);
 }
 
 GPUTask olc::Draw2D::TaskDrawPolygon(GPUTask::Structure structure, const std::vector<olc::vf2d>& vPoints, const std::vector<olc::Pixel>& vColours, const olc::Pixel tint)
@@ -213,6 +257,9 @@ GPUTask olc::Draw2D::FillRect(const olc::vf2d& pos, const olc::vf2d& size, const
 
 GPUTask olc::Draw2D::Image(olc::Image& image, const olc::vf2d& pos, const olc::vf2d& size)
 {
+	// Ensure source image is up to date in VRAM
+	PrepareImageForHW(image);
+	
 	PrepareTargetForHW();
 	return vecGPUTasks.emplace_back(
 		TaskTexturedPolygon(
