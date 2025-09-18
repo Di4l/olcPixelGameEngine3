@@ -80,11 +80,20 @@ namespace olc
 		ImageRegion(olc::Image& i, const olc::vf2d& vTL = { 0,0 }, const olc::vf2d& vTR = { 1,0 }, const olc::vf2d& vBL = { 0,1 }, const olc::vf2d& vBR = { 1,1 })
 			: image(i)
 		{
-			coords = { vTL, vTR, vBL, vBR };
+			coords = { vTL, vTR, vBR, vBL };
+			regionsize = (vBR - vTL) * image.Size();
 		}
 
-		olc::Image& image;
-		std::array<olc::vf2d, 4> coords;
+		olc::Image& image;		
+		olc::vf2d regionsize;
+		union
+		{
+			std::array<olc::vf2d, 4> coords;
+			olc::vf2d tl;
+			olc::vf2d tr;
+			olc::vf2d br;
+			olc::vf2d bl;
+		};
 	};
 
 	

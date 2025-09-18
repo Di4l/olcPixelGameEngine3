@@ -11,27 +11,123 @@ public:
 
 	olc::Image imTest;
 
-	olc::Image sprite1;
+	olc::Image imLogo;
 
 	float fAngle = 0.0f;
+
+
+	struct logo
+	{
+		olc::vf2d pos;
+		olc::vf2d vel;
+		float ang;
+		float angvel;
+	};
+	std::vector<logo> vecLogos;
+
+	std::vector<olc::vf2d> vecVerts;
+
+
+	int nSelectedVert = -1;
 
 public:
 	bool OnUserCreate() override
 	{
-		CreateImage(imTest, { 64,64 });
-		CreateImageFromFile(sprite1, "E:/assets/Graphics/Tiles_SideOn/HiQ/FactoryPack/png/256/objects/static/Computer (1).png");
+		//CreateImage(imTest, { 64,64 });
+		CreateImageFromFile(imLogo, "../tests/olc.png");
+
+
+		size_t x = 1;
+		vecLogos.resize(x);
+		for (auto& a : vecLogos)
+		{
+			a.pos = olc::vf2d(rand() % imgPrimary.Size().x, rand() % imgPrimary.Size().y);
+			//a.vel = olc::vf2d(rand() % 100 - 50, rand() % 100 - 50);
+			a.angvel = 1.1f;
+		}
+
+		vecVerts = {
+			{200.0f, 200.0f},
+			{ 400.0f, 200.0f},
+			{ 400.0f, 400.0f},
+			{200.0f, 400.0f}
+		};
 
 		return true;
 	}
 
 	bool OnUserUpdate(float fElapsedTime) override
 	{
-		fAngle += fElapsedTime;
+		fAngle += 0.1f * fElapsedTime;
+		draw.WorldRotate(fAngle, imgPrimary.Size() / 2.0f);
+		auto vMouse = draw.ScreenToWorld(mouse.GetPosition());
 
+		if (mouse.GetButton(0).bPressed)
+		{
+			float dist = 100000.0f;
+			int idx = -1;
+			for (int i = 0; i < 4; i++)
+			{
+				float d = (vecVerts[i] - vMouse).mag();
+				if (d < 8 && d < dist)
+				{
+					dist = d;
+					idx = i;
+				}
+			}
+			nSelectedVert = idx;
+		}
+
+		if (nSelectedVert != -1 && mouse.GetButton(0).bHeld)
+			vecVerts[nSelectedVert] = vMouse;
+
+		if (mouse.GetButton(0).bReleased)
+			nSelectedVert = -1;
+
+		draw.ImageQuad(imLogo.region({ 0,0 }, { 10,10 }), vecVerts);
+
+		draw.Line(vecVerts[0], vecVerts[1], olc::Colour::MAGENTA);
+		draw.Line(vecVerts[1], vecVerts[2], olc::Colour::MAGENTA);
+		draw.Line(vecVerts[2], vecVerts[3], olc::Colour::MAGENTA);
+		draw.Line(vecVerts[3], vecVerts[0], olc::Colour::MAGENTA);
+
+
+
+		/*for (auto& a : vecLogos)
+		{
+			a.pos += a.vel * fElapsedTime;
+			a.ang += a.angvel * fElapsedTime;
+
+			if (a.pos.x >= imgPrimary.Size().x - 46)
+			{
+				a.pos.x = imgPrimary.Size().x - 46;
+				a.vel.x *= -1.0f;
+			}
+
+			if (a.pos.y >= imgPrimary.Size().y - 28)
+			{
+				a.pos.y = imgPrimary.Size().y - 28;
+				a.vel.y *= -1.0f;
+			}
+
+			if (a.pos.x < 0)
+			{
+				a.pos.x = 0;
+				a.vel.x *= -1.0f;
+			}
+
+			if (a.pos.y < 0)
+			{
+				a.pos.y = 0;
+				a.vel.y *= -1.0f;
+			}
+
+			draw.ImageRotated(imLogo, a.pos, a.ang, { 10,10 }, { 2.0f, 4.0f });
+		}*/
 		
 
 
-		draw.SetTarget(imTest);
+		/*draw.SetTarget(imTest);
 		draw.FilledRect({ 0,0 }, imTest.Size(), olc::Colour::BLUE);
 
 		draw.AffineRotate(fAngle, { 32.0f, 32.0f });
@@ -62,7 +158,7 @@ public:
 		draw.Image(sprite1.region({ 20.0f, 20.0f }, { 32.0f, 32.0f }, { 100.0f, 200.0f }, { 150.0f, 180.0f }), { 100, 200 }, { 32, 32 });
 		olc::Pixel p = draw.GetPixel(imTest, { 8,5 });
 
-		draw.FilledRect({ 200,200 }, { 10,10 }, p);
+		draw.FilledRect({ 200,200 }, { 10,10 }, p);*/
 
 		////draw.AffineRotate(fAngle, { 128,120 });
 		////draw.AffineOffset({ 10,10 });
@@ -121,8 +217,8 @@ public:
 int main()
 {
 	Example demo;
-	if (demo.Construct({ 256, 240 }, { 4, 4 }))
-	//if (demo.Construct({ 1280, 960 }, { 1, 1 }))
+	//if (demo.Construct({ 256, 240 }, { 4, 4 }))
+	if (demo.Construct({ 1280, 960 }, { 1, 1 }))
 		demo.Start();
 
 	return 0;

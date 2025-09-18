@@ -139,6 +139,8 @@ namespace olc::gpu
 			"out vec2 oTex;\n"
 			"out vec4 oCol;\n"
 			"void main(){ if(is3d!=0) {gl_Position = mvp * vec4(aPos.x, aPos.y, aPos.z, 1.0); oTex = aTex;} else {float p = 1.0 / aPos.z; gl_Position = p * vec4(aPos.x, aPos.y, 0.0, 1.0); oTex = p * aTex;} oCol = aCol * tint;}"
+			//"void main(){ if(is3d!=0) {gl_Position = mvp * vec4(aPos.x, aPos.y, aPos.z, 1.0); oTex = aTex;} else {float p = 1.0 / aPos.z; gl_Position = mvp * (p * vec4(aPos.x, aPos.y, 0.0, 1.0)); oTex = p * aTex;} oCol = aCol * tint;}"
+
 		);
 
 		shaderDefault.Compile();
@@ -332,6 +334,8 @@ namespace olc::gpu
 	{
 		auto& gl = olc::apis::opengl::gl::Get();
 		gl.glUseProgram(shaderDefault.GetShaderID());
+
+
 		return true;
 	}
 
@@ -361,7 +365,7 @@ namespace olc::gpu
 				gl.glUniform1i(shaderDefault.GetUniform("is3d"), 0);
 
 				// Shader: Apply MVP Matrix
-				gl.glUniformMatrix4fv(shaderDefault.GetUniform("mvp"), 1, false, task.mvpMatrix.data());
+				//gl.glUniformMatrix4fv(shaderDefault.GetUniform("mvp"), 1, true, task.mvpMatrix.data());
 
 				// Shader: Apply Global Tint
 				float f[4] = { 

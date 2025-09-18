@@ -81,6 +81,17 @@ namespace olc
 			me(2, 2) = 1;			
 		}
 
+		inline constexpr std::array<T, 16> m4x4()
+		{
+			auto& me = (*this);
+			return {
+				me(0,0), me(1,0), me(2,0), 0,
+				me(0,1), me(1,1), me(2,1), 0,
+				me(0,2), me(1,2), me(2,2), 0,
+					  0,       0,       0, 1
+			};
+		}
+
 		// Create translation matrix via components
 		template<typename Q>
 		inline constexpr void translate(const Q x, const Q y)

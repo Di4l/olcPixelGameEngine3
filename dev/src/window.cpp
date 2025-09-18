@@ -114,7 +114,7 @@ namespace olc
 		gpu->SetViewport({ 0,0 }, GetSize());
 		gpu->ClearViewport(olc::Colour::BLANK, true, true);
 		draw.ClearTransform();
-		draw.Image(imgPrimary, { -1.0,1.0 }, { 2.0f,-2.0f });		
+		draw.ImageRect(imgPrimary, { -1.0,1.0 }, { 2.0f,-2.0f });		
 		draw.ProcessGPUTasks();
 
 		// Update Window's primary surface

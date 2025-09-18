@@ -30,6 +30,7 @@ namespace olc
 			enum class Task : uint8_t
 			{
 				DrawPolygon,
+				NullTask
 			} task = Task::DrawPolygon;
 
 			struct Vertex 
