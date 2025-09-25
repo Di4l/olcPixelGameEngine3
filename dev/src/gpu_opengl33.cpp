@@ -119,55 +119,104 @@ namespace olc::gpu
 		
 
 		// Create "Default" Shader
-		shaderDefault.SetPixelShaderSource(
-			"#version 330 core\n"
-			"layout(location = 0) out vec4 pixel;\n"
-			"in vec2 oTex;\n"
-			"in vec4 oCol;\n"
-			"uniform sampler2D sprTex;\n"
-			"void main(){pixel = texture(sprTex, oTex) * oCol;}"
-		);
+		shaderDefault.SetPixelShaderSource(R"(
+			#version 330 core
+			layout(location = 0) out vec4 pixel;
+			in vec2 oTex;
+			in vec4 oCol;
+			uniform sampler2D sprTex;
 
-		shaderDefault.SetVertexShaderSource(
-			"#version 330 core\n"
-			"layout(location = 0) in vec4 aPos;\n"
-			"layout(location = 1) in vec4 aCol;\n"
-			"layout(location = 2) in vec2 aTex;\n"
-			"uniform mat4 mvp;\n"
-			"uniform int drawtype;\n"
-			"uniform vec4 tint;\n"
-			"uniform vec2 target;\n"
-			"uniform vec2 invtarget;\n"
-			"out vec2 oTex;\n"
-			"out vec4 oCol;\n"
-			"void main()\n"
-			"{\n 																																				  "
-			"	if(drawtype == 2)\n // 3D\n																																  "
-			"	{\n																																			  "
-			"		gl_Position = mvp * vec4(aPos.x, aPos.y, aPos.z, 1.0);\n 																					  "
-			"		oTex = aTex;\n																															  "
-			"	}\n 				 "
-			"\n"
-			"	else if(drawtype == 1)\n // Line\n																																		  "
-			"	{\n																																			  "
-			"		float p = 1.0 / aPos.z;\n 																												  "
-			"		gl_Position = p * vec4(2.0 * ((floor(aPos.x) + 0.5) * invtarget.x) - 1.0,2.0 * ((floor(aPos.y)+0.5) * invtarget.y) - 1.0, 0.0, 1.0);\n 	  "
-			"		oTex = p * vec2(aTex.x, aTex.y);\n																										  "
-			"	}\n 			  "
-			""
-			"	else if(drawtype == 0)\n // Quad\n																																		  "
-			"	{\n																																			  "
-			"		float p = 1.0 / aPos.z;\n 																												  "
-			"		gl_Position = p * vec4(2.0 * ((floor(aPos.x)) * invtarget.x) - 1.0,2.0 * ((floor(aPos.y)) * invtarget.y) - 1.0, 0.0, 1.0);\n 	  "
-			"		oTex = p * vec2(aTex.x, aTex.y);\n																										  "
-			"	} else {gl_Position = aPos;}\n 																																			  "
-			"	\n	 "
-			"	\n																																			  "
-			"	oCol = aCol * tint;\n																															  "
-			"}\n"
-			//"void main(){ if(is3d!=0) {gl_Position = mvp * vec4(aPos.x, aPos.y, aPos.z, 1.0); oTex = aTex;} else {float p = 1.0 / aPos.z; gl_Position = mvp * (p * vec4(aPos.x, aPos.y, 0.0, 1.0)); oTex = p * aTex;} oCol = aCol * tint;}"
+			void main()
+			{
+				pixel = texture(sprTex, oTex) * oCol;
+			}
+		)");
 
-		);
+		shaderDefault.SetVertexShaderSource(R"(
+			#version 330 core
+			layout(location = 0) in vec4 aPos;
+			layout(location = 1) in vec4 aCol;
+			layout(location = 2) in vec2 aTex;
+			uniform mat4 mvp;
+			uniform int drawtype;
+			uniform vec4 tint;
+			uniform vec2 target;
+			uniform vec2 invtarget;
+			out vec2 oTex;
+			out vec4 oCol;
+
+			void main()
+			{ 																																				  
+				if(drawtype == 2) // 3D																																  
+				{																																			  
+					gl_Position = mvp * vec4(aPos.x, aPos.y, aPos.z, 1.0); 																					  
+					oTex = aTex;																															  
+				} 				 
+			
+				else if(drawtype == 1) // 2D Line																																		  
+				{																																			  
+					float p = 1.0 / aPos.z; 																												  
+					gl_Position = p * vec4(vec2(2.0 * ((floor(aPos.xy) + 0.5) * invtarget) - 1.0), 0.0, 1.0);	  
+					oTex = aTex;																										  
+				} 			  
+			
+				else if(drawtype == 0) // 2D Polygon																																		  
+				{																																			  
+					float p = 1.0 / aPos.z; 																												  
+					gl_Position = p * vec4(vec2(2.0 * ((floor(aPos.xy)) * invtarget) - 1.0), 0.0, 1.0);	  
+					oTex = p * vec2(aTex.x, aTex.y);																										  
+				} 
+				
+				else  // Balanced default
+				{
+					gl_Position = aPos;
+					oTex = aTex;
+				} 																																			  
+																																			  
+				oCol = aCol * tint;																															  
+			}
+		)");
+
+		//shaderDefault.SetVertexShaderSource(
+		//	"#version 330 core\n"
+		//	"layout(location = 0) in vec4 aPos;\n"
+		//	"layout(location = 1) in vec4 aCol;\n"
+		//	"layout(location = 2) in vec2 aTex;\n"
+		//	"uniform mat4 mvp;\n"
+		//	"uniform int drawtype;\n"
+		//	"uniform vec4 tint;\n"
+		//	"uniform vec2 target;\n"
+		//	"uniform vec2 invtarget;\n"
+		//	"out vec2 oTex;\n"
+		//	"out vec4 oCol;\n"
+		//	"void main()\n"
+		//	"{\n 																																				  "
+		//	"	if(drawtype == 2)\n // 3D\n																																  "
+		//	"	{\n																																			  "
+		//	"		gl_Position = mvp * vec4(aPos.x, aPos.y, aPos.z, 1.0);\n 																					  "
+		//	"		oTex = aTex;\n																															  "
+		//	"	}\n 				 "
+		//	"\n"
+		//	"	else if(drawtype == 1)\n // Line\n																																		  "
+		//	"	{\n																																			  "
+		//	"		float p = 1.0 / aPos.z;\n 																												  "
+		//	"		gl_Position = p * vec4(2.0 * ((floor(aPos.x) + 0.5) * invtarget.x) - 1.0,2.0 * ((floor(aPos.y)+0.5) * invtarget.y) - 1.0, 0.0, 1.0);\n 	  "
+		//	"		oTex = p * vec2(aTex.x, aTex.y);\n																										  "
+		//	"	}\n 			  "
+		//	""
+		//	"	else if(drawtype == 0)\n // Quad\n																																		  "
+		//	"	{\n																																			  "
+		//	"		float p = 1.0 / aPos.z;\n 																												  "
+		//	"		gl_Position = p * vec4(2.0 * ((floor(aPos.x)) * invtarget.x) - 1.0,2.0 * ((floor(aPos.y)) * invtarget.y) - 1.0, 0.0, 1.0);\n 	  "
+		//	"		oTex = p * vec2(aTex.x, aTex.y);\n																										  "
+		//	"	} else {gl_Position = aPos;}\n 																																			  "
+		//	"	\n	 "
+		//	"	\n																																			  "
+		//	"	oCol = aCol * tint;\n																															  "
+		//	"}\n"
+		//	//"void main(){ if(is3d!=0) {gl_Position = mvp * vec4(aPos.x, aPos.y, aPos.z, 1.0); oTex = aTex;} else {float p = 1.0 / aPos.z; gl_Position = mvp * (p * vec4(aPos.x, aPos.y, 0.0, 1.0)); oTex = p * aTex;} oCol = aCol * tint;}"
+
+		//);
 
 		shaderDefault.Compile();
 		shaderDefault.CreateUniform("mvp");

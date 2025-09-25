@@ -296,8 +296,8 @@ int main()
 	//if (demo.Construct({ 256, 240 }, { 4, 4 }))
 
 	olc::PGEConfig cfg;
-	cfg.vPixelSize = { 16,16 };
-	cfg.vScreenSize = { 64, 64 };
+	cfg.vPixelSize = { 4,4 };
+	cfg.vScreenSize = { 256, 240 };
 	//cfg.bVSync = true;
 
 	//if (demo.Construct({ 1280, 960 }, { 1, 1 }, cfg))
