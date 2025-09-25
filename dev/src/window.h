@@ -15,6 +15,8 @@
 #include "pixel.h"
 #include "vector2d.h"
 #include "gpu_iface.h"
+#include "draw2d.h"
+#include "hw_mouse.h"
 //! END CUSTOMHEADER
 
 //! START DECLARATION
@@ -37,9 +39,15 @@ namespace olc
 		class Renderer;
 	}
 
+	namespace hw
+	{
+		class Mouse;
+	}
+
 	class Window
 	{
 		friend class olc::host::FRIENDLY_HOST;
+		
 
 	public:
 		Window();
@@ -104,6 +112,12 @@ namespace olc
 		
 		olc::host::Host* pHost = nullptr;
 		//olc::gpu::Renderer* pRenderer = nullptr;
+
+	protected:
+		olc::Draw2D draw;
+		olc::Image imgPrimary;
+
+		olc::hw::Mouse mouse;
 	};
 }
 #define PGE_WINDOW_DECLARED 1

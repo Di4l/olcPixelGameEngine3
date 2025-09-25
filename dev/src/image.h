@@ -27,6 +27,8 @@ namespace olc
 		bool InVRAM = true;
 	};
 
+	struct ImageRegion;
+
 	class Image
 	{
 	public:
@@ -42,29 +44,59 @@ namespace olc
 		const olc::vi2d& Size() const;
 		// Returns read/write pointer to start of 1D stream of pixel data
 		olc::Pixel* Data();
+		// [UNSAFE] Returns pixel at location
+		olc::Pixel& Pixel(const olc::vf2d& pos);
 		// Returns how this image was configured upon creation
 		const ImageConfig& GetConfig() const;
 		// Return GPU Resource ID
 		int32_t GetGPUID() const;
 		// Set GPU Resource ID (0 to eliminate)
 		void SetGPUID(const int32_t id);
+		// Get underlying vector of pixels
+		std::vector<olc::Pixel>& GetPixels();
 		
-		// True if data mirror has in-front RAM image		
-		bool HasWetCPU() const;
-		// True if data mirror has in-front VRAM image
-		bool HasWetGPU() const;
+		bool BoundToGPU() const;
+		bool BoundToCPU() const;
 
-		void PrimeCPU();
-		void PrimeGPU();
+		olc::ImageRegion region(const olc::vf2d pos, const olc::vf2d& size);
+		olc::ImageRegion region(const olc::vf2d& vTL, const olc::vf2d& vTR, const olc::vf2d& vBL, const olc::vf2d& vBR);
+
+
+	public: // Make friendly private later
+		void BindGPU();
+		void BindCPU();
 
 	protected:
 		ImageConfig config;
 		olc::vi2d dimensions;
 		std::vector<olc::Pixel> pixels;
 		int32_t gpuResourceID = 0;
-		bool gpuWet = false;
-		bool cpuWet = true;
+		bool onGPU = false;
+		bool onCPU = true;
 	};
+
+	struct ImageRegion
+	{
+		ImageRegion(olc::Image& i, const olc::vf2d& vTL = { 0,0 }, const olc::vf2d& vTR = { 1,0 }, const olc::vf2d& vBL = { 0,1 }, const olc::vf2d& vBR = { 1,1 })
+			: image(i)
+		{
+			coords = { vTL, vTR, vBR, vBL };
+			regionsize = (vBR - vTL) * image.Size();
+		}
+
+		olc::Image& image;		
+		olc::vf2d regionsize;
+		union
+		{
+			std::array<olc::vf2d, 4> coords;
+			olc::vf2d tl;
+			olc::vf2d tr;
+			olc::vf2d br;
+			olc::vf2d bl;
+		};
+	};
+
+	
 }
 #define PGE_IMAGE_DECLARED 1
 #endif

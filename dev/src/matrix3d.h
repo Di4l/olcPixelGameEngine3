@@ -81,6 +81,17 @@ namespace olc
 			me(2, 2) = 1;			
 		}
 
+		inline constexpr std::array<T, 16> m4x4()
+		{
+			auto& me = (*this);
+			return {
+				me(0,0), me(1,0), me(2,0), 0,
+				me(0,1), me(1,1), me(2,1), 0,
+				me(0,2), me(1,2), me(2,2), 0,
+					  0,       0,       0, 1
+			};
+		}
+
 		// Create translation matrix via components
 		template<typename Q>
 		inline constexpr void translate(const Q x, const Q y)
@@ -193,6 +204,18 @@ namespace olc
 					out(r, c) = me(r, 0) * rhs(0, c) + me(r, 1) * rhs(1, c) + me(r, 2) * rhs(2, c);
 			return out;
 		}
+
+
+		// Transform a vector of v_2d by this matrix
+		template<typename Q>
+		inline constexpr auto transform(const std::vector<olc::v_2d<Q>>& v)
+		{
+			std::vector<olc::v_2d<Q>> o(v.size());
+			std::transform(v.begin(), v.end(), o.begin(), [this](const olc::v_2d<Q>& i) {return (*this) * i; });
+			return o;
+		}
+
+
 
 		// Return this matrix as a std::string, of the form "[c1r1, c2r1, c3r1]\n[c1r2, c2r2, c3r2]\n[c1r3, c2r3, c3r3]"
 		inline std::string str() const

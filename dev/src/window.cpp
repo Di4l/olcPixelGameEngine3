@@ -38,12 +38,13 @@ namespace olc
 
 	bool Window::olc_OnMouseButton(const uint8_t nButton, const bool bPressed)
 	{
+		mouse.SetButton(nButton, bPressed);
 		return false;
 	}
 
 	bool Window::olc_OnMouseMove(const olc::vi2d& vMousePos)
-	{
-		volatile_vMousePos = vMousePos;
+	{		
+		mouse.SetPosition(olc::vf2d(vMousePos) / olc::vf2d(GetSize()) * imgPrimary.Size());
 		return true;
 	}
 
@@ -64,7 +65,7 @@ namespace olc
 
 	bool Window::olc_OnWindowSize(const olc::vi2d& vWindowSize)
 	{
-		return false;
+		return SetSize(vWindowSize);		
 	}
 
 	bool Window::olc_ShouldRemove() const
@@ -76,8 +77,22 @@ namespace olc
 	{
 		// Environmental changes
 
-		gpu->SetViewport({ 0,0 }, GetSize());
-		gpu->ClearViewport(olc::Colour::TANGERINE, false, false);
+		// Input Changes
+		mouse.UpdateState();
+
+
+		draw.SetGPU(gpu);
+		draw.SetTarget(imgPrimary);
+
+
+		gpu->DisplayPrepare();
+		
+
+		gpu->AssignTextureTarget(0, imgPrimary.GetGPUID());
+		gpu->SetViewport({ 0,0 }, imgPrimary.Size());
+		//gpu->ClearViewport(olc::Colour::BLACK, true, true);
+
+		gpu->ApplyDefaultShader();
 
 		// User Update
 		if (!OnUserUpdate(fElapsedTime))
@@ -90,7 +105,20 @@ namespace olc
 			}
 		}
 
-		
+
+		// Finialise any outstanding tasks
+		draw.ProcessGPUTasks();
+
+		// Take the window's completed "screen" and draw it as a textured quad to the backbuffer
+		gpu->AssignTextureTarget(0, 0);
+		gpu->SetViewport({ 0,0 }, GetSize());
+		gpu->ClearViewport(olc::Colour::MAGENTA, true, true);
+		draw.ClearTransform();
+		//draw.ImageRect(imgPrimary, { -1.0,1.0 }, { 2.0f,-2.0f });	
+		draw.ImageRect(imgPrimary, { 0.0,0.0 }, GetSize());
+		draw.ProcessGPUTasks();
+
+		// Update Window's primary surface
 		gpu->DisplayDraw();
 
 		return true;

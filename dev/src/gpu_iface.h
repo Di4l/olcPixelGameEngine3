@@ -34,6 +34,33 @@ namespace olc
 			FailedToSwitchRenderContext,
 		};
 
+		class Shader
+		{
+		public:
+			virtual ~Shader();
+
+		public:
+			void SetPixelShaderSource(const std::string& src);
+			void SetVertexShaderSource(const std::string& src);
+			void SetGeometryShaderSource(const std::string& src);
+
+			virtual std::string Compile() = 0;
+			virtual int32_t CreateUniform(const std::string& name) = 0;
+
+			int32_t GetUniform(const std::string& name)	const;
+			int32_t GetShaderID() const;
+
+		protected:
+			std::string srcPixelShader;
+			std::string srcVertexShader;
+			std::string srcGeometryShader;
+			int32_t nPixelShaderID;
+			int32_t nVertexShaderID;
+			int32_t nGeometryShaderID;
+			int32_t nCompiledShaderID;
+			std::unordered_map<std::string, int32_t> mapUniforms;
+		};
+
 		class Renderer
 		{
 		public:
@@ -44,6 +71,8 @@ namespace olc
 			// Check/Get last error
 			inline RendererError GetLastError() const { return lastError; }
 			inline const RendererConfig& GetConfig() const { return config; }
+
+			
 
 		public: // Device Stuff
 			// Constructs a GPU Device interface
@@ -67,8 +96,11 @@ namespace olc
 
 		public: // Shader Construction Stuff
 
+			virtual bool ApplyShader(const Shader& shader) = 0;
+			virtual bool ApplyDefaultShader() = 0;
+
 		public: // GPU Task Processing Stuff
-			virtual bool DoGPUTask(const olc::pgeguts::GPUTask& task) = 0;
+			virtual bool DoGPUTask(const olc::GPUTask& task) = 0;
 
 		public: // Swap Chain Stuff
 			// Clears the viewport to a specific colour and depth

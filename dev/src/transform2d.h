@@ -50,14 +50,14 @@ namespace olc
 
 		// Transform a vector by this transform
 		template<typename Q>
-		inline constexpr auto forward(const olc::v_2d<Q>& v)
+		inline constexpr auto forward(const olc::v_2d<Q>& v) const
 		{
 			return m_mForward * v;
 		}
 
 		// Transform a vector of v_2d by this transform
 		template<typename Q>
-		inline constexpr auto forward(const std::vector<olc::v_2d<Q>>& v)
+		inline constexpr auto forward(const std::vector<olc::v_2d<Q>>& v) const
 		{
 			std::vector<olc::v_2d<Q>> o(v.size());
 			std::transform(v.begin(), v.end(), o.begin(), [this](const olc::v_2d<Q>& i) {return m_mForward * i; });
@@ -66,14 +66,14 @@ namespace olc
 
 		// Transform a vector by the inverse of this transform
 		template<typename Q>
-		inline constexpr auto inverse(const olc::v_2d<Q>& v)
+		inline constexpr auto inverse(const olc::v_2d<Q>& v) const
 		{
 			return m_mInverse * v;
 		}
 
 		// Transform a vector by this transform
 		template<typename Q>
-		inline constexpr auto inverse(const std::vector<olc::v_2d<Q>>& v)
+		inline constexpr auto inverse(const std::vector<olc::v_2d<Q>>& v) const
 		{
 			std::vector<olc::v_2d<Q>> o(v.size());
 			std::transform(v.begin(), v.end(), o.begin(), [this](const olc::v_2d<Q>& i) {return m_mInverse * i; });
@@ -183,6 +183,13 @@ namespace olc
 			m_mScale.scale(m_vScale);
 			m_mRotate.rotate(m_dTheta);
 			update();
+		}
+
+		template<typename Q>
+		inline constexpr auto operator * (const olc::t_2d<Q>& rhs) const
+		{
+			auto& me = *this;		
+			return me.forward_matrix() * rhs.forward_matrix();			
 		}
 
 	protected:

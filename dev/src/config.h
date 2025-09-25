@@ -11,7 +11,7 @@
 #define PGE_PIXEL_LAYOUT_ABGR 2
 
 #if !defined(PGE_PIXEL_LAYOUT)
-	#define PGE_PIXEL_LAYOUT PGE_PIXEL_LAYOUT_ABGR
+	#define PGE_PIXEL_LAYOUT PGE_PIXEL_LAYOUT_RGBA
 #endif
 
 
@@ -69,6 +69,21 @@
 #if !defined(OLC_GPU)
 	#define OLC_GPU OLC_GPU_OPENGL33
 #endif
+
+
+
+#define OLC_IMAGELOADER_NONE 1
+#define OLC_IMAGELOADER_WINGDI 2
+
+#if !defined(OLC_IMAGELOADER)
+	#define OLC_IMAGELOADER OLC_IMAGELOADER_WINGDI
+#endif
+
+
+#define OLC_MOUSE_BUTTONS 3
+
+#define OLC_GPU_MAX_VERTICES 8192
+#define OLC_GPU_ERRORCHECK 0
 
 #define LICENCE_DEFAULT "OneLoneCoder.com - Pixel Game Engine 3 - "
 

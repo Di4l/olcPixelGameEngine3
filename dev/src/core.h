@@ -19,6 +19,7 @@
 #include "window.h"
 #include "gpu_iface.h"
 #include "host_iface.h"
+#include "imload_iface.h"
 //! END CUSTOMHEADER GLOBAL
 
 //! START DECLARATION
@@ -84,7 +85,7 @@ namespace olc
 		// Store an image as a file asset on disk
 		bool WriteImageToFile(const olc::Image& image, const std::string& sFileName);
 		// Store an image as a file asset in memory
-		bool WriteImageToMemory(const olc::Image& image, std::vector<uint8_t> bytes, const std::string& sFileName);
+		//bool WriteImageToMemory(const olc::Image& image, std::vector<uint8_t> bytes, const std::string& sFileName);
 		// Destroy an image
 		void DestroyImage(olc::Image& image);
 
@@ -111,6 +112,7 @@ namespace olc
 
 		std::unique_ptr<olc::gpu::Renderer> gpu;
 		std::unique_ptr<olc::host::Host> host;
+		std::unique_ptr<olc::imload::ImageLoader> imageloader;
 	};
 }
 #define PGE_CORE_DECLARED 1

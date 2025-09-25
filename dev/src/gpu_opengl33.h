@@ -9,6 +9,13 @@ namespace olc
 {
 	namespace gpu
 	{
+		class Shader_GLSL33 : public olc::gpu::Shader
+		{
+		public:
+			std::string Compile() override;
+			int32_t CreateUniform(const std::string& name) override;
+		};
+
 		class Renderer_OGL33 : public olc::gpu::Renderer
 		{
 		public: // Device Stuff
@@ -16,6 +23,7 @@ namespace olc
 			bool CreateDevice(std::vector<void*> params, const RendererConfig& cfg) override;
 			// Destroys a GPU device interface
 			bool DestroyDevice() override;
+
 
 		public: // Texture Resource Stuff
 			// Allocates a new texture resource in VRAM, returns handle
@@ -31,9 +39,12 @@ namespace olc
 			// Makes active the given texture resource (for subsequent rendering operations)
 			bool AssignTextureTarget(const uint32_t slot, const uint32_t texid) override;
 
+		public: // Shader Construction Stuff
+			bool ApplyShader(const Shader& shader) override;
+			bool ApplyDefaultShader() override;
 
 		public: // GPU Task Stuff
-			virtual bool DoGPUTask(const olc::pgeguts::GPUTask& task) override;
+			virtual bool DoGPUTask(const olc::GPUTask& task) override;
 
 		public: // Swap Chain Stuff
 			// Clears the viewport to a specific colour and depth
@@ -49,6 +60,13 @@ namespace olc
 		protected: // These may need some thinking about re multiple window
 			olc::apis::opengl::glDeviceContext_t glDeviceContext = 0;
 			olc::apis::opengl::glRenderContext_t glRenderContext = 0;
+
+			Shader_GLSL33 shaderDefault;
+			uint32_t nDefaultVB = 0;
+			uint32_t nDefaultVA = 0;
+			uint32_t nDefaultFBO = 0;
+			olc::Image imgBlank;
+			olc::vf2d vTargetSize;
 
 		};
 	}

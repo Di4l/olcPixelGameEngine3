@@ -3,7 +3,14 @@
 
 //! START CUSTOMHEADER
 #include "config.h"
+
 //! END CUSTOMHEADER
+
+//! START STDHEADER GLOBAL
+#include <iostream>
+#include <sstream>
+#include <source_location>
+//! END STDHEADER
 
 
 //! START OPENGL_CONFIG
@@ -68,6 +75,7 @@ namespace olc
 
 		typedef GLuint CALLSTYLE glCreateShader_t(GLenum type);
 		typedef GLuint CALLSTYLE glCreateProgram_t(void);
+		typedef void CALLSTYLE glShaderSource_t(GLuint shader, GLsizei count, const GLchar** string, const GLint* length);
 		typedef void CALLSTYLE glDeleteShader_t(GLuint shader);
 		typedef void CALLSTYLE glCompileShader_t(GLuint shader);
 		typedef void CALLSTYLE glLinkProgram_t(GLuint program);
@@ -89,11 +97,11 @@ namespace olc
 		typedef void CALLSTYLE glUniform4fv_t(GLint location, GLsizei count, const GLfloat* value);
 		typedef void CALLSTYLE glUniformMatrix4fv_t(GLint location, GLsizei count, GLboolean trasnpose, const GLfloat* value);
 		typedef void CALLSTYLE glActiveTexture_t(GLenum texture);
-		typedef void CALLSTYLE glGenFrameBuffers_t(GLsizei n, GLuint* ids);
-		typedef void CALLSTYLE glBindFrameBuffer_t(GLenum target, GLuint fb);
-		typedef GLenum CALLSTYLE glCheckFrameBufferStatus_t(GLenum target);
-		typedef void CALLSTYLE glDeleteFrameBuffers_t(GLsizei n, const GLuint* fbs);
-		typedef void CALLSTYLE glFrameBufferTexture2D_t(GLenum target, GLenum attachment, GLenum textarget, GLuint texture, GLint level);
+		typedef void CALLSTYLE glGenFramebuffers_t(GLsizei n, GLuint* ids);
+		typedef void CALLSTYLE glBindFramebuffer_t(GLenum target, GLuint fb);
+		typedef GLenum CALLSTYLE glCheckFramebufferStatus_t(GLenum target);
+		typedef void CALLSTYLE glDeleteFramebuffers_t(GLsizei n, const GLuint* fbs);
+		typedef void CALLSTYLE glFramebufferTexture2D_t(GLenum target, GLenum attachment, GLenum textarget, GLuint texture, GLint level);
 		typedef void CALLSTYLE glDrawBuffers_t(GLsizei n, const GLenum* bufs);
 		typedef void CALLSTYLE glBlendFuncSeparate_t(GLenum srcRGB, GLenum dstRGB, GLenum srcAlpha, GLenum dstAlpha);
 
@@ -108,6 +116,7 @@ namespace olc
 		{
 		public:
 			static gl& Get();
+			inline bool HasLoaded() const { return bLoaded; }
 
 		private:
 			gl() = default;
@@ -116,37 +125,75 @@ namespace olc
 		private:
 			bool LoadAll();
 
+		protected:
+			glCreateShader_t* _glCreateShader = nullptr;
+			glCreateProgram_t* _glCreateProgram = nullptr;
+			glShaderSource_t* _glShaderSource = nullptr;
+			glDeleteShader_t* _glDeleteShader = nullptr;
+			glCompileShader_t* _glCompileShader = nullptr;
+			glLinkProgram_t* _glLinkProgram = nullptr;
+			glDeleteProgram_t* _glDeleteProgram = nullptr;
+			glAttachShader_t* _glAttachShader = nullptr;
+			glBindBuffer_t* _glBindBuffer = nullptr;
+			glBufferData_t* _glBufferData = nullptr;
+			glGenBuffers_t* _glGenBuffers = nullptr;
+			glVertexAttribPointer_t* _glVertexAttribPointer = nullptr;
+			glEnableVertexAttribArray_t* _glEnableVertexAttribArray = nullptr;
+			glUseProgram_t* _glUseProgram = nullptr;
+			glBindVertexArray_t* _glBindVertexArray = nullptr;
+			glGenVertexArrays_t* _glGenVertexArrays = nullptr;
+			glGetShaderInfoLog_t* _glGetShaderInfoLog = nullptr;
+			glGetUniformLocation_t* _glGetUniformLocation = nullptr;
+			glUniform1f_t* _glUniform1f = nullptr;
+			glUniform1i_t* _glUniform1i = nullptr;
+			glUniform2fv_t* _glUniform2fv = nullptr;
+			glUniform4fv_t* _glUniform4fv = nullptr;
+			glUniformMatrix4fv_t* _glUniformMatrix4fv = nullptr;
+			glActiveTexture_t* _glActiveTexture = nullptr;
+			glGenFramebuffers_t* _glGenFramebuffers = nullptr;
+			glBindFramebuffer_t* _glBindFramebuffer = nullptr;
+			glCheckFramebufferStatus_t* _glCheckFramebufferStatus = nullptr;
+			glDeleteFramebuffers_t* _glDeleteFramebuffers = nullptr;
+			glFramebufferTexture2D_t* _glFramebufferTexture2D = nullptr;
+			glDrawBuffers_t* _glDrawBuffers = nullptr;
+			glBlendFuncSeparate_t* _glBlendFuncSeparate = nullptr;
+
 		public:
-			glCreateShader_t* glCreateShader = nullptr;
-			glCreateProgram_t* glCreateProgram = nullptr;
-			glDeleteShader_t* glDeleteShader = nullptr;
-			glCompileShader_t* glCompileShader = nullptr;
-			glLinkProgram_t* glLinkProgram = nullptr;
-			glDeleteProgram_t* glDeleteProgram = nullptr;
-			glAttachShader_t* glAttachShader = nullptr;
-			glBindBuffer_t* glBindBuffer = nullptr;
-			glBufferData_t* glBufferData = nullptr;
-			glGenBuffers_t* glGenBuffers = nullptr;
-			glVertexAttribPointer_t* glVertexAttribPointer = nullptr;
-			glEnableVertexAttribArray_t* glEnableVertexAttribArray = nullptr;
-			glUseProgram_t* glUseProgram = nullptr;
-			glBindVertexArray_t* glBindVertexArray = nullptr;
-			glGenVertexArrays_t* glGenVertexArrays = nullptr;
-			glGetShaderInfoLog_t* glGetShaderInfoLog = nullptr;
-			glGetUniformLocation_t* glGetUniformLocation = nullptr;
-			glUniform1f_t* glUniform1f = nullptr;
-			glUniform1i_t* glUniform1i = nullptr;
-			glUniform2fv_t* glUniform2fv = nullptr;
-			glUniform4fv_t* glUniform4fv = nullptr;
-			glUniformMatrix4fv_t* glUniformMatrix4fv = nullptr;
-			glActiveTexture_t* glActiveTexture = nullptr;
-			glGenFrameBuffers_t* glGenFrameBuffers = nullptr;
-			glBindFrameBuffer_t* glBindFrameBuffer = nullptr;
-			glCheckFrameBufferStatus_t* glCheckFrameBufferStatus = nullptr;
-			glDeleteFrameBuffers_t* glDeleteFrameBuffers = nullptr;
-			glFrameBufferTexture2D_t* glFrameBufferTexture2D = nullptr;
-			glDrawBuffers_t* glDrawBuffers = nullptr;
-			glBlendFuncSeparate_t* glBlendFuncSeparate = nullptr;
+			// Proxies allow switchable, clutter-free error checking
+
+			// OpenGL3.3 Proxies
+
+			GLuint glCreateShader(GLenum type);
+			GLuint glCreateProgram(void);
+			void glShaderSource(GLuint shader, GLsizei count, const GLchar** string, const GLint* length);
+			void glDeleteShader(GLuint shader);
+			void glCompileShader(GLuint shader);
+			void glLinkProgram(GLuint program);
+			void glDeleteProgram(GLuint program);
+			void glAttachShader(GLuint program, GLuint shader);
+			void glBindBuffer(GLenum target, GLuint buffer);
+			void glBufferData(GLenum target, GLsizeiptr size, const void* data, GLenum usage);
+			void glGenBuffers(GLsizei n, GLuint* buffers);
+			void glVertexAttribPointer(GLuint index, GLint size, GLenum type, GLboolean normalized, GLsizei stride, const void* pointer);
+			void glEnableVertexAttribArray(GLuint index);
+			void glUseProgram(GLuint program);
+			void glBindVertexArray(GLuint array);
+			void glGenVertexArrays(GLsizei n, GLuint* arrays);
+			void glGetShaderInfoLog(GLuint shader, GLsizei bufSize, GLsizei* length, GLchar* infoLog);
+			GLint glGetUniformLocation(GLuint program, const GLchar* name);
+			void glUniform1f(GLint location, GLfloat v0);
+			void glUniform1i(GLint location, GLint v0);
+			void glUniform2fv(GLint location, GLsizei count, const GLfloat* value);
+			void glUniform4fv(GLint location, GLsizei count, const GLfloat* value);
+			void glUniformMatrix4fv(GLint location, GLsizei count, GLboolean trasnpose, const GLfloat* value);
+			void glActiveTexture(GLenum texture);
+			void glGenFramebuffers(GLsizei n, GLuint* ids);
+			void glBindFramebuffer(GLenum target, GLuint fb);
+			GLenum glCheckFramebufferStatus(GLenum target);
+			void glDeleteFramebuffers(GLsizei n, const GLuint* fbs);
+			void glFramebufferTexture2D(GLenum target, GLenum attachment, GLenum textarget, GLuint texture, GLint level);
+			void glDrawBuffers(GLsizei n, const GLenum* bufs);
+			void glBlendFuncSeparate(GLenum srcRGB, GLenum dstRGB, GLenum srcAlpha, GLenum dstAlpha);
 
 			// OpenGL1.2 Proxies (just keeps things tidy imo)
 			void glGenTextures(GLsizei n, GLuint* textures);
@@ -158,6 +205,18 @@ namespace olc
 			void glClear(GLbitfield mask);
 			void glViewport(GLint x, GLint y, GLsizei width, GLsizei height);
 			void glClearColor(GLfloat red, GLfloat green, GLfloat blue, GLfloat alpha);
+			void glReadPixels(GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, void* data);
+			void glCullFace(GLenum mode);
+			void glEnable(GLenum cap);
+		    void glDisable(GLenum cap);
+			void glDrawArrays(GLenum mode, GLint first,	GLsizei count);
+			void glBlendFunc(GLenum sfactor, GLenum dfactor);
+			void glDepthFunc(GLenum func);
+			void glGetTexImage(GLenum target, GLint level, GLenum format, GLenum type, void* pixels);
+
+
+		private:
+			bool CheckError(const std::source_location loc = std::source_location::current());
 
 		};
 	}

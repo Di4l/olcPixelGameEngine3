@@ -7,10 +7,15 @@
 #include "transform2d.h"
 #include "window.h"
 #include "core.h"
+
 #include "image.h"
+#include "imload_iface.h"
+#include "imload_wingdi.h"
+
 #include "gputask.h"
 #include "gpu_iface.h"
 #include "gpu_opengl33.h"
+
 
 
 

@@ -21,15 +21,24 @@
  
 //! GRAB image.h DECLARATION
 
-//! GRAB window.h DECLARATION
+//! GRAB imload_iface.h DECLARATION
  
 //! GRAB gputask.h DECLARATION
  
 //! GRAB gpu_iface.h DECLARATION
+
+//! GRAB draw2d.h DECLARATION
+
+//! GRAB hw_input.h	DECLARATION
+
+//! GRAB hw_mouse.h	DECLARATION
+
+//! GRAB window.h DECLARATION
  
 //! GRAB host_iface.h DECLARATION
 
 //! GRAB core.h	DECLARATION
+
 
 
 
@@ -51,15 +60,18 @@
 //! GRAB gpu_opengl33.h DECLARATION
 #endif
 
+#if OLC_IMAGELOADER == OLC_IMAGELOADER_WINGDI
+//! GRAB imload_wingdi.h WINAPI_CONFIG
 
-
-
-
-
-#if defined(OLC_PGE_APPLICATION) && !defined(PGE_WINDOW_IMPLEMENTED)
-//! GRAB window.cpp IMPLEMENTATION 
-#define PGE_WINDOW_IMPLEMENTED 1
+//! GRAB imload_wingdi.h DECLARATION
 #endif
+
+
+
+
+
+
+
 
 #if defined(OLC_PGE_APPLICATION) && !defined(PGE_HOST_IMPLEMENTED)
 #if OLC_HOST == OLC_HOST_WINDOWS
@@ -70,10 +82,16 @@
 
 #if defined(OLC_PGE_APPLICATION) && !defined(PGE_GPU_IMPLEMENTED)
 #if OLC_GPU == OLC_GPU_OPENGL33
+//! GRAB gpu_iface.cpp IMPLEMENTATION
 //! GRAB api_opengl.cpp IMPLEMENTATION
 //! GRAB gpu_opengl33.cpp IMPLEMENTATION
 #endif
 #define PGE_GPU_IMPLEMENTED 1
+#endif
+
+#if defined(OLC_PGE_APPLICATION) && !defined(PGE_DRAW2D_IMPLEMENTED)
+//! GRAB draw2d.cpp IMPLEMENTATION 
+#define PGE_DRAW2D_IMPLEMENTED 1
 #endif
 
 #if defined(OLC_PGE_APPLICATION) && !defined(PGE_CORE_IMPLEMENTED)
@@ -86,4 +104,20 @@
 #define PGE_IMAGE_IMPLEMENTED 1
 #endif
 
+#if defined(OLC_PGE_APPLICATION) && !defined(PGE_HW_MOUSE_IMPLEMENTED)
+//! GRAB hw_mouse.cpp IMPLEMENTATION 
+#define PGE_HW_MOUSE_IMPLEMENTED 1
+#endif
+
+#if defined(OLC_PGE_APPLICATION) && !defined(PGE_WINDOW_IMPLEMENTED)
+//! GRAB window.cpp IMPLEMENTATION 
+#define PGE_WINDOW_IMPLEMENTED 1
+#endif
+
+#if defined(OLC_PGE_APPLICATION) && !defined(PGE_IMAGELOADER_IMPLEMENTED)
+#if OLC_IMAGELOADER == OLC_IMAGELOADER_WINGDI
+//! GRAB imload_wingdi.cpp IMPLEMENTATION 
+#endif
+#define PGE_IMAGELOADER_IMPLEMENTED 1
+#endif
 

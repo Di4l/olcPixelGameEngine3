@@ -187,7 +187,13 @@
     <ClInclude Include="..\src\host_lin_x11.h" />
     <ClInclude Include="..\src\host_web_emscripten.h" />
     <ClInclude Include="..\src\host_win_winapi.h" />
+    <ClInclude Include="..\src\hw_input.h" />
+    <ClInclude Include="..\src\hw_keyboard.h" />
+    <ClInclude Include="..\src\hw_mouse.h" />
+    <ClInclude Include="..\src\hw_touch.h" />
     <ClInclude Include="..\src\image.h" />
+    <ClInclude Include="..\src\imload_iface.h" />
+    <ClInclude Include="..\src\imload_wingdi.h" />
     <ClInclude Include="..\src\matrix3d.h" />
     <ClInclude Include="..\src\olcpge3.h" />
     <ClInclude Include="..\src\pixel.h" />
@@ -200,9 +206,13 @@
   <ItemGroup>
     <ClCompile Include="..\src\api_opengl.cpp" />
     <ClCompile Include="..\src\core.cpp" />
+    <ClCompile Include="..\src\draw2d.cpp" />
+    <ClCompile Include="..\src\gpu_iface.cpp" />
     <ClCompile Include="..\src\gpu_opengl33.cpp" />
     <ClCompile Include="..\src\host_win_winapi.cpp" />
+    <ClCompile Include="..\src\hw_mouse.cpp" />
     <ClCompile Include="..\src\image.cpp" />
+    <ClCompile Include="..\src\imload_wingdi.cpp" />
     <ClCompile Include="..\src\window.cpp" />
     <ClCompile Include="..\tests\test_main.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
@@ -210,19 +220,22 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </ClCompile>
-    <ClCompile Include="..\tests\test_matrices.cpp" />
+    <ClCompile Include="..\tests\test_matrices.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
     <ClCompile Include="..\tests\test_mh.cpp" />
     <ClCompile Include="..\tests\test_pixels.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="..\tests\test_vector2d.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </ClCompile>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

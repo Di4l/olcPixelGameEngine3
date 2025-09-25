@@ -2,6 +2,7 @@
 
 #include "gpu_opengl33.h"
 #include "host_win_winapi.h"
+#include "imload_wingdi.h"
 
 //! START IMPLEMENTATION
 namespace olc
@@ -26,8 +27,7 @@ namespace olc
 	bool PixelGameEngine::Construct(const PGEConfig& cfg)
 	{		
 		config = cfg;
-
-		return false;
+		return true;
 	}
 
 	bool PixelGameEngine::Start()
@@ -38,7 +38,7 @@ namespace olc
 
 		// Link this olc::Window to a host resource
 		if (host)
-			host->AddWindowFrame(this, { 30,30 }, { 250, 240 }, false);
+			host->AddWindowFrame(this, { 30,30 }, config.vPixelSize * config.vScreenSize, false);
 		
 		coreActive = true;
 		coreThread = std::thread(&PixelGameEngine::EngineThread, this);
@@ -88,7 +88,24 @@ namespace olc
 	}
 
 	bool PixelGameEngine::CreateImageFromFile(olc::Image& image, const std::string& sFileName, const ImageConfig& cfg)
-	{		
+	{	
+		if (imageloader->CreateImageFromFile(image, sFileName))
+		{
+			// Image has loaded ok, and populated into pixel vector
+			// 
+			// Create GPU Image
+			auto id = gpu->CreateTexture(image.Size(), cfg);
+			if (id == 0)
+			{
+				image.Create({ 0,0 });
+				return false;
+			}
+
+			// Associate CPU object with GPU Resource
+			image.SetGPUID(id);
+			return true;
+		}
+
 		return false;
 	}
 
@@ -102,10 +119,10 @@ namespace olc
 		return false;
 	}
 
-	bool PixelGameEngine::WriteImageToMemory(const olc::Image& image, std::vector<uint8_t> bytes, const std::string& sFileName)
-	{
-		return false;
-	}
+	//bool PixelGameEngine::WriteImageToMemory(const olc::Image& image, std::vector<uint8_t> bytes, const std::string& sFileName)
+	//{
+	//	return false;
+	//}
 
 	void PixelGameEngine::DestroyImage(olc::Image& image)
 	{
@@ -131,10 +148,15 @@ namespace olc
 		using namespace std::chrono_literals;
 		timeFrame2 = std::chrono::steady_clock::now();
 		timeFrame1 = std::chrono::steady_clock::now();
+
+		// Initialise ImageLoader Interface
+		imageloader = std::make_unique<olc::imload::ImageLoader_WinGDI>();
 		
 
 		// Initialise GPU Interface	- This thread is the context
 		olc::gpu::RendererConfig cfgRenderer;
+		cfgRenderer.VerticalSync = config.bVSync;
+
 		gpu = std::make_unique<olc::gpu::Renderer_OGL33>();
 
 		// The GPU device can be based upon the primary window configuration. This
@@ -148,13 +170,22 @@ namespace olc
 			return;
 		}
 
+
+		CreateImage(imgPrimary, config.vScreenSize);
+		
+
+		draw.SetGPU(gpu.get());
+		gpu->ApplyDefaultShader();
+		draw.SetTarget(imgPrimary);
+
 		if (!OnUserCreate())
 		{
 			// Creation process signalled abort
 			return;
 		}
 		
-
+		draw.ProcessGPUTasks();
+		draw.SetTarget(imgPrimary);
 
 		// Initialise Input Devices
 
@@ -203,7 +234,7 @@ namespace olc
 			
 			// Wait for vertical sync if required. 
 			// Note: Child windows will never vsync as waiting for each buffer swap with vsync
-			// divides up teh frame rate budget across the windows.
+			// divides up the frame rate budget across the windows.
 			if (gpu->GetConfig().VerticalSync)
 			{
 				host->SyncWithDesktopComposite();
