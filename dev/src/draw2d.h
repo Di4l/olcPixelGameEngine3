@@ -71,6 +71,7 @@ namespace olc
 			const olc::vf2d& pos);
 
 		// Clear
+		void Clear(const olc::Pixel& col);
 	
 	public:
 		// Draws a single pixel wide line		

@@ -1,6 +1,8 @@
 #define OLC_PGE_APPLICATION
 #include "olcpge3.h"
 
+
+
 class Example : public olc::PixelGameEngine
 {
 public:
@@ -12,6 +14,34 @@ public:
 	olc::Image imTest;
 
 	olc::Image imLogo;
+	olc::Image imTemp;
+
+	olc::Image imSampleTest;
+
+	void CreateSampleTestImage(olc::Image& image, const olc::vi2d& s)
+	{
+		CreateImage(image, s);
+		draw.SetTarget(image);
+
+		draw.Clear(olc::Colour::WHITE);
+
+		std::vector<olc::Pixel> vColours = {
+			olc::Colour::RED,
+			olc::Colour::YELLOW,
+			olc::Colour::GREEN,
+			olc::Colour::CYAN,
+			olc::Colour::BLUE,
+			olc::Colour::MAGENTA,
+		};
+
+		for (int i = 0; i < s.x/2; i++)
+		{
+			draw.Rect(olc::vi2d{ i,i }, s - olc::vi2d{ (i * 2)+1 ,(i * 2)+1  },  vColours[i % vColours.size()]);
+		}
+
+		draw.Pixel({ 0.0,1 }, olc::Colour::BLACK);
+
+	}
 
 	float fAngle = 0.0f;
 
@@ -36,6 +66,9 @@ public:
 		//CreateImage(imTest, { 64,64 });
 		CreateImageFromFile(imLogo, "../tests/olc.png");
 
+		CreateSampleTestImage(imSampleTest, { 33, 33 });
+
+		CreateImage(imTemp, { 64, 64 });
 
 		size_t x = 1;
 		vecLogos.resize(x);
@@ -47,10 +80,10 @@ public:
 		}
 
 		vecVerts = {
-			{200.0f, 200.0f},
+			{ 200.0f,  200.0f},
 			{ 400.0f, 200.0f},
 			{ 400.0f, 400.0f},
-			{200.0f, 400.0f}
+			{ 200.0f,  400.0f}
 		};
 
 		return true;
@@ -58,8 +91,36 @@ public:
 
 	bool OnUserUpdate(float fElapsedTime) override
 	{
-		fAngle += 0.1f * fElapsedTime;
-		draw.WorldRotate(fAngle, imgPrimary.Size() / 2.0f);
+		//draw.SetTarget(imTemp);
+		//draw.Clear(olc::Colour::BLANK);
+		//draw.FilledRect({ 20,5 }, { 6, 54 }, olc::Colour::GREEN);
+		//draw.FilledRect({ 0,0 }, imTemp.Size(), olc::Colour::BLANK);
+
+
+		//draw.SetTarget(imgPrimary);
+		//draw.Clear(olc::Colour::BLUE);
+
+
+		//draw.WorldReset();
+		//draw.FilledRect({ 0,0 }, imgPrimary.Size() * olc::vf2d(0.5f, 1.0f), olc::Pixel(0, 0, 0, 1));
+
+
+		draw.Clear(olc::Colour::VERY_DARK_BLUE);
+
+		if (mouse.GetButton(1).bHeld)
+		{		
+			fAngle += 0.2f * fElapsedTime;
+			draw.WorldRotate(fAngle, imgPrimary.Size() / 2.0f);
+		}
+		//for (int x = 0; x < imgPrimary.Size().x; x++)
+		//	for (int y = 0; y < imgPrimary.Size().y; y++)
+		//		draw.Pixel(olc::vf2d( x, y ), olc::Pixel(rand() % 255, rand() % 255, rand() % 255));
+
+	 ////  
+		//return true;
+
+
+		//std::cout << mouse.GetPosition() << "\n";
 		auto vMouse = draw.ScreenToWorld(mouse.GetPosition());
 
 		if (mouse.GetButton(0).bPressed)
@@ -78,6 +139,8 @@ public:
 			nSelectedVert = idx;
 		}
 
+		
+
 		if (nSelectedVert != -1 && mouse.GetButton(0).bHeld)
 			vecVerts[nSelectedVert] = vMouse;
 
@@ -91,7 +154,20 @@ public:
 		draw.Line(vecVerts[2], vecVerts[3], olc::Colour::MAGENTA);
 		draw.Line(vecVerts[3], vecVerts[0], olc::Colour::MAGENTA);
 
+		//draw.Image(imTemp, vMouse, { 4,4 });
 
+		draw.Image(imSampleTest, vMouse);
+
+
+		//draw.Pixel(vMouse, olc::Colour::GREEN);
+		//draw.Line(vMouse, vMouse + 1,  olc::Colour::GREEN);
+		draw.FilledRect({ 5,5 }, { 10,10 }, olc::Colour::YELLOW);
+		draw.Rect({ 8,8 }, { 20,20 }, olc::Colour::RED);
+
+		if(mouse.GetButton(0).bHeld)
+			draw.Line({ 1.0f, 1.0f }, { 25.5f, 25.5f });
+
+		//draw.Rect(vMouse, { 100,100 });
 
 		/*for (auto& a : vecLogos)
 		{
@@ -218,7 +294,14 @@ int main()
 {
 	Example demo;
 	//if (demo.Construct({ 256, 240 }, { 4, 4 }))
-	if (demo.Construct({ 1280, 960 }, { 1, 1 }))
+
+	olc::PGEConfig cfg;
+	cfg.vPixelSize = { 16,16 };
+	cfg.vScreenSize = { 64, 64 };
+	//cfg.bVSync = true;
+
+	//if (demo.Construct({ 1280, 960 }, { 1, 1 }, cfg))
+	if(demo.Construct(cfg))
 		demo.Start();
 
 	return 0;

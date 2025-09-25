@@ -134,19 +134,47 @@ namespace olc::gpu
 			"layout(location = 1) in vec4 aCol;\n"
 			"layout(location = 2) in vec2 aTex;\n"
 			"uniform mat4 mvp;\n"
-			"uniform int is3d;\n"
+			"uniform int drawtype;\n"
 			"uniform vec4 tint;\n"
+			"uniform vec2 target;\n"
+			"uniform vec2 invtarget;\n"
 			"out vec2 oTex;\n"
 			"out vec4 oCol;\n"
-			"void main(){ if(is3d!=0) {gl_Position = mvp * vec4(aPos.x, aPos.y, aPos.z, 1.0); oTex = aTex;} else {float p = 1.0 / aPos.z; gl_Position = p * vec4(aPos.x, aPos.y, 0.0, 1.0); oTex = p * aTex;} oCol = aCol * tint;}"
+			"void main()\n"
+			"{\n 																																				  "
+			"	if(drawtype == 2)\n // 3D\n																																  "
+			"	{\n																																			  "
+			"		gl_Position = mvp * vec4(aPos.x, aPos.y, aPos.z, 1.0);\n 																					  "
+			"		oTex = aTex;\n																															  "
+			"	}\n 				 "
+			"\n"
+			"	else if(drawtype == 1)\n // Line\n																																		  "
+			"	{\n																																			  "
+			"		float p = 1.0 / aPos.z;\n 																												  "
+			"		gl_Position = p * vec4(2.0 * ((floor(aPos.x) + 0.5) * invtarget.x) - 1.0,2.0 * ((floor(aPos.y)+0.5) * invtarget.y) - 1.0, 0.0, 1.0);\n 	  "
+			"		oTex = p * vec2(aTex.x, aTex.y);\n																										  "
+			"	}\n 			  "
+			""
+			"	else if(drawtype == 0)\n // Quad\n																																		  "
+			"	{\n																																			  "
+			"		float p = 1.0 / aPos.z;\n 																												  "
+			"		gl_Position = p * vec4(2.0 * ((floor(aPos.x)) * invtarget.x) - 1.0,2.0 * ((floor(aPos.y)) * invtarget.y) - 1.0, 0.0, 1.0);\n 	  "
+			"		oTex = p * vec2(aTex.x, aTex.y);\n																										  "
+			"	} else {gl_Position = aPos;}\n 																																			  "
+			"	\n	 "
+			"	\n																																			  "
+			"	oCol = aCol * tint;\n																															  "
+			"}\n"
 			//"void main(){ if(is3d!=0) {gl_Position = mvp * vec4(aPos.x, aPos.y, aPos.z, 1.0); oTex = aTex;} else {float p = 1.0 / aPos.z; gl_Position = mvp * (p * vec4(aPos.x, aPos.y, 0.0, 1.0)); oTex = p * aTex;} oCol = aCol * tint;}"
 
 		);
 
 		shaderDefault.Compile();
 		shaderDefault.CreateUniform("mvp");
-		shaderDefault.CreateUniform("is3d");
+		shaderDefault.CreateUniform("drawtype");
 		shaderDefault.CreateUniform("tint");
+		shaderDefault.CreateUniform("target");
+		shaderDefault.CreateUniform("invtarget");
 
 		// Create "Default" Vertex Buffer / Vertex Attributes. This buffer is reused
 		// for all drawing operations. It's possible future versions may allow the
@@ -320,6 +348,8 @@ namespace olc::gpu
 		gl.glDrawBuffers(1, attachments.data());
 		// Bind buffers to textures
 		gl.glFramebufferTexture2D(36160U, 36064U + slot, GL_TEXTURE_2D, texid, 0);		
+
+		
 		return true;
 	}
 
@@ -347,7 +377,9 @@ namespace olc::gpu
 		{
 			case GPUTask::Task::DrawPolygon:
 			{
+				
 				gl.glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+				//gl.glBlendFunc(GL_DST_COLOR, GL_ONE_MINUS_SRC_ALPHA);
 
 				if (task.pImage == nullptr)
 					AssignTextureSource(0, imgBlank.GetGPUID());
@@ -361,8 +393,7 @@ namespace olc::gpu
 				// Copy data from CPU to GPU
 				gl.glBufferData(0x8892, sizeof(GPUTask::Vertex) * task.vertexBuffer.size(), task.vertexBuffer.data(), 0x88E0);
 				
-				// Shader: Configure Rendering Mode
-				gl.glUniform1i(shaderDefault.GetUniform("is3d"), 0);
+				
 
 				// Shader: Apply MVP Matrix
 				//gl.glUniformMatrix4fv(shaderDefault.GetUniform("mvp"), 1, true, task.mvpMatrix.data());
@@ -376,34 +407,44 @@ namespace olc::gpu
 				};
 				gl.glUniform4fv(shaderDefault.GetUniform("tint"), 1, f);
 
-				// Apply Culling modes
-				if (task.cullmode == GPUTask::CullMode::None)
-				{
-					gl.glCullFace(GL_FRONT);
-					gl.glDisable(GL_CULL_FACE);
-				}
-				else if (task.cullmode == GPUTask::CullMode::ClockWise)
-				{
-					gl.glCullFace(GL_FRONT);
-					gl.glEnable(GL_CULL_FACE);
-				}
-				else if (task.cullmode == GPUTask::CullMode::CounterClockWise)
-				{
-					gl.glCullFace(GL_BACK);
-					gl.glEnable(GL_CULL_FACE);
-				}
+				f[0] = 64.0f;
+				f[1] = 64.0f;
+				gl.glUniform2fv(shaderDefault.GetUniform("target"), 1, vTargetSize.a().data());
+				gl.glUniform2fv(shaderDefault.GetUniform("invtarget"), 1, ((1.0f / vTargetSize)).a().data());
 
-				// Apply Depth Testing (if required)
-				if (task.bDepth)
-					gl.glEnable(GL_DEPTH_TEST);
+				// Apply Culling modes
+				//if (task.cullmode == GPUTask::CullMode::None)
+				//{
+				//	gl.glCullFace(GL_FRONT);
+				//	gl.glDisable(GL_CULL_FACE);
+				//}
+				//else if (task.cullmode == GPUTask::CullMode::ClockWise)
+				//{
+				//	gl.glCullFace(GL_FRONT);
+				//	gl.glEnable(GL_CULL_FACE);
+				//}
+				//else if (task.cullmode == GPUTask::CullMode::CounterClockWise)
+				//{
+				//	gl.glCullFace(GL_BACK);
+				//	gl.glEnable(GL_CULL_FACE);
+				//}
+
+				//// Apply Depth Testing (if required)
+				//if (task.bDepth)
+				//	gl.glEnable(GL_DEPTH_TEST);
 
 				// Draw the thing!
 				if (task.bWireframe)
 				{
+					// Shader: Configure Rendering Mode
+					gl.glUniform1i(shaderDefault.GetUniform("drawtype"), 1);
 					gl.glDrawArrays(GL_LINE_LOOP, 0, (GLsizei)task.vertexBuffer.size());
 				}
 				else
 				{
+					// Shader: Configure Rendering Mode
+					gl.glUniform1i(shaderDefault.GetUniform("drawtype"), 0);
+
 					if (task.structure == GPUTask::Structure::Fan)
 						gl.glDrawArrays(GL_TRIANGLE_FAN, 0, (GLsizei)task.vertexBuffer.size());
 					else if (task.structure == GPUTask::Structure::Strip)
@@ -412,6 +453,8 @@ namespace olc::gpu
 						gl.glDrawArrays(GL_TRIANGLES, 0, (GLsizei)task.vertexBuffer.size());
 					else if (task.structure == GPUTask::Structure::Line)
 						gl.glDrawArrays(GL_LINES, 0, (GLsizei)task.vertexBuffer.size());
+					else if (task.structure == GPUTask::Structure::Point)
+						gl.glDrawArrays(GL_POINTS, 0, (GLsizei)task.vertexBuffer.size());
 				}
 
 				if (task.bDepth)
@@ -436,6 +479,7 @@ namespace olc::gpu
 	{
 		auto& gl = olc::apis::opengl::gl::Get();
 		gl.glViewport(int(pos.x), int(pos.y), int(size.x), int(size.y));
+		vTargetSize = size;
 		return true;
 	}
 

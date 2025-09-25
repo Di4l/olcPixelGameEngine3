@@ -90,7 +90,7 @@ namespace olc
 
 		gpu->AssignTextureTarget(0, imgPrimary.GetGPUID());
 		gpu->SetViewport({ 0,0 }, imgPrimary.Size());
-		gpu->ClearViewport(olc::Colour::BLACK, true, true);
+		//gpu->ClearViewport(olc::Colour::BLACK, true, true);
 
 		gpu->ApplyDefaultShader();
 
@@ -112,9 +112,10 @@ namespace olc
 		// Take the window's completed "screen" and draw it as a textured quad to the backbuffer
 		gpu->AssignTextureTarget(0, 0);
 		gpu->SetViewport({ 0,0 }, GetSize());
-		gpu->ClearViewport(olc::Colour::BLANK, true, true);
+		gpu->ClearViewport(olc::Colour::MAGENTA, true, true);
 		draw.ClearTransform();
-		draw.ImageRect(imgPrimary, { -1.0,1.0 }, { 2.0f,-2.0f });		
+		//draw.ImageRect(imgPrimary, { -1.0,1.0 }, { 2.0f,-2.0f });	
+		draw.ImageRect(imgPrimary, { 0.0,0.0 }, GetSize());
 		draw.ProcessGPUTasks();
 
 		// Update Window's primary surface

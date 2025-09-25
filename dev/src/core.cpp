@@ -27,8 +27,7 @@ namespace olc
 	bool PixelGameEngine::Construct(const PGEConfig& cfg)
 	{		
 		config = cfg;
-
-		return false;
+		return true;
 	}
 
 	bool PixelGameEngine::Start()
@@ -156,6 +155,8 @@ namespace olc
 
 		// Initialise GPU Interface	- This thread is the context
 		olc::gpu::RendererConfig cfgRenderer;
+		cfgRenderer.VerticalSync = config.bVSync;
+
 		gpu = std::make_unique<olc::gpu::Renderer_OGL33>();
 
 		// The GPU device can be based upon the primary window configuration. This
@@ -171,7 +172,11 @@ namespace olc
 
 
 		CreateImage(imgPrimary, config.vScreenSize);
-		gpu->WriteTexture(imgPrimary.GetGPUID(), imgPrimary);
+		
+
+		draw.SetGPU(gpu.get());
+		gpu->ApplyDefaultShader();
+		draw.SetTarget(imgPrimary);
 
 		if (!OnUserCreate())
 		{
@@ -179,7 +184,8 @@ namespace olc
 			return;
 		}
 		
-
+		draw.ProcessGPUTasks();
+		draw.SetTarget(imgPrimary);
 
 		// Initialise Input Devices
 

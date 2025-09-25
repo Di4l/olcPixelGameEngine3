@@ -15,7 +15,7 @@ namespace olc
 	{
 		dimensions = size;
 		config = cfg;
-		pixels.resize(dimensions.area(), olc::Pixel(255, 165, 0));
+		pixels.resize(dimensions.area(), olc::Colour::TANGERINE);
 		return true;
 	}
 
