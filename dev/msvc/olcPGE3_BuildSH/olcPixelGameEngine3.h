@@ -798,6 +798,17 @@ namespace olc
 			me(2, 2) = 1;			
 		}
 
+		inline constexpr std::array<T, 16> m4x4()
+		{
+			auto& me = (*this);
+			return {
+				me(0,0), me(1,0), me(2,0), 0,
+				me(0,1), me(1,1), me(2,1), 0,
+				me(0,2), me(1,2), me(2,2), 0,
+					  0,       0,       0, 1
+			};
+		}
+
 		// Create translation matrix via components
 		template<typename Q>
 		inline constexpr void translate(const Q x, const Q y)
@@ -983,14 +994,14 @@ namespace olc
 
 		// Transform a vector by this transform
 		template<typename Q>
-		inline constexpr auto forward(const olc::v_2d<Q>& v)
+		inline constexpr auto forward(const olc::v_2d<Q>& v) const
 		{
 			return m_mForward * v;
 		}
 
 		// Transform a vector of v_2d by this transform
 		template<typename Q>
-		inline constexpr auto forward(const std::vector<olc::v_2d<Q>>& v)
+		inline constexpr auto forward(const std::vector<olc::v_2d<Q>>& v) const
 		{
 			std::vector<olc::v_2d<Q>> o(v.size());
 			std::transform(v.begin(), v.end(), o.begin(), [this](const olc::v_2d<Q>& i) {return m_mForward * i; });
@@ -999,14 +1010,14 @@ namespace olc
 
 		// Transform a vector by the inverse of this transform
 		template<typename Q>
-		inline constexpr auto inverse(const olc::v_2d<Q>& v)
+		inline constexpr auto inverse(const olc::v_2d<Q>& v) const
 		{
 			return m_mInverse * v;
 		}
 
 		// Transform a vector by this transform
 		template<typename Q>
-		inline constexpr auto inverse(const std::vector<olc::v_2d<Q>>& v)
+		inline constexpr auto inverse(const std::vector<olc::v_2d<Q>>& v) const
 		{
 			std::vector<olc::v_2d<Q>> o(v.size());
 			std::transform(v.begin(), v.end(), o.begin(), [this](const olc::v_2d<Q>& i) {return m_mInverse * i; });
@@ -1164,6 +1175,8 @@ namespace olc
 		bool InVRAM = true;
 	};
 
+	struct ImageRegion;
+
 	class Image
 	{
 	public:
@@ -1193,6 +1206,10 @@ namespace olc
 		bool BoundToGPU() const;
 		bool BoundToCPU() const;
 
+		olc::ImageRegion region(const olc::vf2d pos, const olc::vf2d& size);
+		olc::ImageRegion region(const olc::vf2d& vTL, const olc::vf2d& vTR, const olc::vf2d& vBL, const olc::vf2d& vBR);
+
+
 	public: // Make friendly private later
 		void BindGPU();
 		void BindCPU();
@@ -1205,6 +1222,29 @@ namespace olc
 		bool onGPU = false;
 		bool onCPU = true;
 	};
+
+	struct ImageRegion
+	{
+		ImageRegion(olc::Image& i, const olc::vf2d& vTL = { 0,0 }, const olc::vf2d& vTR = { 1,0 }, const olc::vf2d& vBL = { 0,1 }, const olc::vf2d& vBR = { 1,1 })
+			: image(i)
+		{
+			coords = { vTL, vTR, vBR, vBL };
+			regionsize = (vBR - vTL) * image.Size();
+		}
+
+		olc::Image& image;		
+		olc::vf2d regionsize;
+		union
+		{
+			std::array<olc::vf2d, 4> coords;
+			olc::vf2d tl;
+			olc::vf2d tr;
+			olc::vf2d br;
+			olc::vf2d bl;
+		};
+	};
+
+	
 }
 #define PGE_IMAGE_DECLARED 1
 #endif
@@ -1256,6 +1296,7 @@ namespace olc
 			enum class Task : uint8_t
 			{
 				DrawPolygon,
+				NullTask
 			} task = Task::DrawPolygon;
 
 			struct Vertex 
@@ -1495,50 +1536,115 @@ namespace olc
 
 		void ProcessGPUTasks();
 
-	protected:
-		// Checks residency of image resource, and brings it to cpu RAM for r/w
-		void PrepareTargetForSW();
-		// Checks residency of image resource, and brings it to gpu VRAM for r/w
-		void PrepareTargetForHW();
-
-		// Checks residency of image resource, and brings it to cpu RAM for r/w
-		void PrepareImageForSW(olc::Image& image);
-		// Checks residency of image resource, and brings it to gpu VRAM for r/w
-		void PrepareImageForHW(olc::Image& image);
-
-		olc::Image* pTarget = nullptr;
-		olc::gpu::Renderer* pRenderer = nullptr;
-		olc::tf2d transformTarget;
-		olc::tf2d transformAffine;
-		olc::mf3d transformCombined;
-
-		std::vector<olc::GPUTask> vecGPUTasks;
+	
 
 	public: // Affine Transformation (these affect all subsequent draw calls for this target)
-		void AffineReset();
-		void AffineScale(const olc::vf2d& vScale);
-		void AffineOffset(const olc::vf2d& vOffset);
-		void AffineRotate(const float& fTheta, const olc::vf2d& vPoint = { 0,0 });
+		void WorldReset();
+		void WorldScale(const olc::vf2d& vScale);
+		void WorldOffset(const olc::vf2d& vOffset);
+		void WorldRotate(const float& fTheta, const olc::vf2d& vPoint = { 0,0 });
+		olc::vf2d WorldToScreen(const olc::vf2d& v) const;
+		olc::vf2d ScreenToWorld(const olc::vf2d& v) const;
 
 	public:
 		// Plot a single pixel
-		void Pixel(const olc::vf2d& pos, const olc::Pixel col = olc::Colour::WHITE);
+		void Pixel(
+			const olc::vf2d& pos, 
+			const olc::Pixel col = olc::Colour::WHITE);
+
 		// Read a pixel from an image (guarantees fresh)
-		olc::Pixel GetPixel(olc::Image& image, const olc::vf2d& pos);
+		olc::Pixel GetPixel(
+			olc::Image& image, 
+			const olc::vf2d& pos);
+
+		// Clear
+		void Clear(const olc::Pixel& col);
 	
 	public:
 		// Draws a single pixel wide line		
-		GPUTask Line(const olc::vf2d& p1, const olc::vf2d& p2, const olc::Pixel col = olc::Colour::WHITE);
+		GPUTask Line(
+			const olc::vf2d& p1, 
+			const olc::vf2d& p2, 
+			const olc::Pixel col = olc::Colour::WHITE);
+
 		// Draws a single pixel wide line with a gradient		
-		GPUTask Line(const olc::vf2d& p1, const olc::vf2d& p2, const olc::Pixel c1, const olc::Pixel c2);
+		GPUTask Line(
+			const olc::vf2d& p1, 
+			const olc::vf2d& p2, 
+			const olc::Pixel c1, 
+			const olc::Pixel c2);
 
 		// Draws a rectangle outline
-		GPUTask Rect(const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel col = olc::Colour::WHITE);
+		GPUTask Rect(
+			const olc::vf2d& pos, 
+			const olc::vf2d& size, 
+			const olc::Pixel col = olc::Colour::WHITE);
+
 		// Draws a filled, single colour rectangle
-		GPUTask FillRect(const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel col = olc::Colour::WHITE);
+		GPUTask FilledRect(
+			const olc::vf2d& pos, 
+			const olc::vf2d& size, 
+			const olc::Pixel col = olc::Colour::WHITE);
+
+		//GPUTask ShadedRect(const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel colTL, const olc::Pixel colTR, const olc::Pixel colBL, const olc::Pixel colBR);
+		//TexturedRect
+
+
+		//Circle
+		//FilledCircle
+		//ShadedCircle
+		//TexturedCircle
+
+		//Ellipse
+		//FilledEllipse
+		//ShadedEllipse
+		//TexturedEllipse
+
+		//RoundRect
+		//FilledRoundRect
+		//ShadedRoundRect
+		//TexturedRoundRect
+
+		//Triangle
+		//FilledTriangle
+		//ShadedTriangle
+		//TexturedTriangle
+
+		//Polygon
+		//FilledPolygon
+		//ShadedPolygon
+		//TexturedPolygon
+
 		
-		// Draws an image
-		GPUTask Image(olc::Image& image, const olc::vf2d& pos, const olc::vf2d& size);
+		// Draws a scaled image at specified location
+		GPUTask Image(
+			olc::ImageRegion image, 
+			const olc::vf2d& pos, 
+			const olc::vf2d& scale = { 1.0f, 1.0f });						
+		
+		// Draws an image rotated around a point at specified location
+		GPUTask ImageRotated(
+			olc::ImageRegion image, 
+			const olc::vf2d& pos, 
+			const float theta, 
+			const olc::vf2d& center = { 0.0f, 0.0f }, 
+			const olc::vf2d& scale = { 1.0f, 1.0f });
+
+		// Draws an image warped correctly to linearly fill a quadrilateral (formerly DrawWarped...)
+		GPUTask ImageQuad(
+			olc::ImageRegion image, 
+			const olc::vf2d& vTL, 
+			const olc::vf2d& vTR, 
+			const olc::vf2d& vBR, 
+			const olc::vf2d& vBL);
+
+		GPUTask ImageQuad(
+			olc::ImageRegion image, 
+			const std::vector<olc::vf2d>& vecPoints);
+
+
+		// Draws an image scaled to a specified rectangular area
+		GPUTask ImageRect(olc::ImageRegion image, const olc::vf2d& pos, const olc::vf2d& size);
 	
 
 
@@ -1575,6 +1681,34 @@ namespace olc
 			const std::vector<olc::vf2d>& vTexCoords,
 			olc::Image* const image,
 			const olc::Pixel tint = olc::Colour::WHITE);
+
+		GPUTask TaskTexturedPolygon(
+			GPUTask::Structure structure,
+			const std::vector<olc::vf2d>& vPoints,
+			const std::vector<olc::vf2d>& vZWs,
+			const std::vector<olc::Pixel>& vColours,
+			const std::vector<olc::vf2d>& vTexCoords,
+			olc::Image* const image,
+			const olc::Pixel tint = olc::Colour::WHITE);
+
+		protected:
+			// Checks residency of image resource, and brings it to cpu RAM for r/w
+			void PrepareTargetForSW();
+			// Checks residency of image resource, and brings it to gpu VRAM for r/w
+			void PrepareTargetForHW();
+
+			// Checks residency of image resource, and brings it to cpu RAM for r/w
+			void PrepareImageForSW(olc::Image& image);
+			// Checks residency of image resource, and brings it to gpu VRAM for r/w
+			void PrepareImageForHW(olc::Image& image);
+
+			olc::Image* pTarget = nullptr;
+			olc::gpu::Renderer* pRenderer = nullptr;
+			olc::tf2d transformTarget;
+			olc::tf2d transformAffine;
+			olc::mf3d transformCombined;
+
+			std::vector<olc::GPUTask> vecGPUTasks;
 	
 	};
 }
@@ -2260,6 +2394,7 @@ namespace olc
 			uint32_t nDefaultVA = 0;
 			uint32_t nDefaultFBO = 0;
 			olc::Image imgBlank;
+			olc::vf2d vTargetSize;
 
 		};
 	}
@@ -2453,11 +2588,13 @@ namespace olc::host
 		AdjustWindowRectEx(&rWndRect, dwStyle, FALSE, dwExStyle);
 		int width = rWndRect.right - rWndRect.left;
 		int height = rWndRect.bottom - rWndRect.top;
-		pWindow->SetSize({width, height});
+		pWindow->SetSize(vWindowSize);
 
 		// Create the actual OS window, return a handle
 		HWND hWnd = CreateWindowEx(dwExStyle, olcT("OLC_PIXEL_GAME_ENGINE3"), olcT(""), dwStyle,
 			vTopLeft.x, vTopLeft.y, width, height, NULL, NULL, GetModuleHandle(nullptr), this);
+
+		SetWindowPos(hWnd, NULL, vWinPos.x, vWinPos.y, width, height, SWP_SHOWWINDOW);
 
 		// Now... awkwardly, the above has already fired off some window messages
 		// and they arent necessarily in a consistent order. Whereas one might 
@@ -3155,32 +3292,111 @@ namespace olc::gpu
 		
 
 		// Create "Default" Shader
-		shaderDefault.SetPixelShaderSource(
-			"#version 330 core\n"
-			"layout(location = 0) out vec4 pixel;\n"
-			"in vec2 oTex;\n"
-			"in vec4 oCol;\n"
-			"uniform sampler2D sprTex;\n"
-			"void main(){pixel = texture(sprTex, oTex) * oCol;}"
-		);
+		shaderDefault.SetPixelShaderSource(R"(
+			#version 330 core
+			layout(location = 0) out vec4 pixel;
+			in vec2 oTex;
+			in vec4 oCol;
+			uniform sampler2D sprTex;
 
-		shaderDefault.SetVertexShaderSource(
-			"#version 330 core\n"
-			"layout(location = 0) in vec4 aPos;\n"
-			"layout(location = 1) in vec4 aCol;\n"
-			"layout(location = 2) in vec2 aTex;\n"
-			"uniform mat4 mvp;\n"
-			"uniform int is3d;\n"
-			"uniform vec4 tint;\n"
-			"out vec2 oTex;\n"
-			"out vec4 oCol;\n"
-			"void main(){ if(is3d!=0) {gl_Position = mvp * vec4(aPos.x, aPos.y, aPos.z, 1.0); oTex = aTex;} else {float p = 1.0 / aPos.z; gl_Position = p * vec4(aPos.x, aPos.y, 0.0, 1.0); oTex = p * aTex;} oCol = aCol * tint;}"
-		);
+			void main()
+			{
+				pixel = texture(sprTex, oTex) * oCol;
+			}
+		)");
+
+		shaderDefault.SetVertexShaderSource(R"(
+			#version 330 core
+			layout(location = 0) in vec4 aPos;
+			layout(location = 1) in vec4 aCol;
+			layout(location = 2) in vec2 aTex;
+			uniform mat4 mvp;
+			uniform int drawtype;
+			uniform vec4 tint;
+			uniform vec2 target;
+			uniform vec2 invtarget;
+			out vec2 oTex;
+			out vec4 oCol;
+
+			void main()
+			{ 																																				  
+				if(drawtype == 2) // 3D																																  
+				{																																			  
+					gl_Position = mvp * vec4(aPos.x, aPos.y, aPos.z, 1.0); 																					  
+					oTex = aTex;																															  
+				} 				 
+			
+				else if(drawtype == 1) // 2D Line																																		  
+				{																																			  
+					float p = 1.0 / aPos.z; 																												  
+					gl_Position = p * vec4(vec2(2.0 * ((floor(aPos.xy) + 0.5) * invtarget) - 1.0), 0.0, 1.0);	  
+					oTex = aTex;																										  
+				} 			  
+			
+				else if(drawtype == 0) // 2D Polygon																																		  
+				{																																			  
+					float p = 1.0 / aPos.z; 																												  
+					gl_Position = p * vec4(vec2(2.0 * ((floor(aPos.xy)) * invtarget) - 1.0), 0.0, 1.0);	  
+					oTex = p * vec2(aTex.x, aTex.y);																										  
+				} 
+				
+				else  // Balanced default
+				{
+					gl_Position = aPos;
+					oTex = aTex;
+				} 																																			  
+																																			  
+				oCol = aCol * tint;																															  
+			}
+		)");
+
+		//shaderDefault.SetVertexShaderSource(
+		//	"#version 330 core\n"
+		//	"layout(location = 0) in vec4 aPos;\n"
+		//	"layout(location = 1) in vec4 aCol;\n"
+		//	"layout(location = 2) in vec2 aTex;\n"
+		//	"uniform mat4 mvp;\n"
+		//	"uniform int drawtype;\n"
+		//	"uniform vec4 tint;\n"
+		//	"uniform vec2 target;\n"
+		//	"uniform vec2 invtarget;\n"
+		//	"out vec2 oTex;\n"
+		//	"out vec4 oCol;\n"
+		//	"void main()\n"
+		//	"{\n 																																				  "
+		//	"	if(drawtype == 2)\n // 3D\n																																  "
+		//	"	{\n																																			  "
+		//	"		gl_Position = mvp * vec4(aPos.x, aPos.y, aPos.z, 1.0);\n 																					  "
+		//	"		oTex = aTex;\n																															  "
+		//	"	}\n 				 "
+		//	"\n"
+		//	"	else if(drawtype == 1)\n // Line\n																																		  "
+		//	"	{\n																																			  "
+		//	"		float p = 1.0 / aPos.z;\n 																												  "
+		//	"		gl_Position = p * vec4(2.0 * ((floor(aPos.x) + 0.5) * invtarget.x) - 1.0,2.0 * ((floor(aPos.y)+0.5) * invtarget.y) - 1.0, 0.0, 1.0);\n 	  "
+		//	"		oTex = p * vec2(aTex.x, aTex.y);\n																										  "
+		//	"	}\n 			  "
+		//	""
+		//	"	else if(drawtype == 0)\n // Quad\n																																		  "
+		//	"	{\n																																			  "
+		//	"		float p = 1.0 / aPos.z;\n 																												  "
+		//	"		gl_Position = p * vec4(2.0 * ((floor(aPos.x)) * invtarget.x) - 1.0,2.0 * ((floor(aPos.y)) * invtarget.y) - 1.0, 0.0, 1.0);\n 	  "
+		//	"		oTex = p * vec2(aTex.x, aTex.y);\n																										  "
+		//	"	} else {gl_Position = aPos;}\n 																																			  "
+		//	"	\n	 "
+		//	"	\n																																			  "
+		//	"	oCol = aCol * tint;\n																															  "
+		//	"}\n"
+		//	//"void main(){ if(is3d!=0) {gl_Position = mvp * vec4(aPos.x, aPos.y, aPos.z, 1.0); oTex = aTex;} else {float p = 1.0 / aPos.z; gl_Position = mvp * (p * vec4(aPos.x, aPos.y, 0.0, 1.0)); oTex = p * aTex;} oCol = aCol * tint;}"
+
+		//);
 
 		shaderDefault.Compile();
 		shaderDefault.CreateUniform("mvp");
-		shaderDefault.CreateUniform("is3d");
+		shaderDefault.CreateUniform("drawtype");
 		shaderDefault.CreateUniform("tint");
+		shaderDefault.CreateUniform("target");
+		shaderDefault.CreateUniform("invtarget");
 
 		// Create "Default" Vertex Buffer / Vertex Attributes. This buffer is reused
 		// for all drawing operations. It's possible future versions may allow the
@@ -3354,6 +3570,8 @@ namespace olc::gpu
 		gl.glDrawBuffers(1, attachments.data());
 		// Bind buffers to textures
 		gl.glFramebufferTexture2D(36160U, 36064U + slot, GL_TEXTURE_2D, texid, 0);		
+
+		
 		return true;
 	}
 
@@ -3368,6 +3586,8 @@ namespace olc::gpu
 	{
 		auto& gl = olc::apis::opengl::gl::Get();
 		gl.glUseProgram(shaderDefault.GetShaderID());
+
+
 		return true;
 	}
 
@@ -3379,7 +3599,9 @@ namespace olc::gpu
 		{
 			case GPUTask::Task::DrawPolygon:
 			{
+				
 				gl.glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+				//gl.glBlendFunc(GL_DST_COLOR, GL_ONE_MINUS_SRC_ALPHA);
 
 				if (task.pImage == nullptr)
 					AssignTextureSource(0, imgBlank.GetGPUID());
@@ -3393,11 +3615,10 @@ namespace olc::gpu
 				// Copy data from CPU to GPU
 				gl.glBufferData(0x8892, sizeof(GPUTask::Vertex) * task.vertexBuffer.size(), task.vertexBuffer.data(), 0x88E0);
 				
-				// Shader: Configure Rendering Mode
-				gl.glUniform1i(shaderDefault.GetUniform("is3d"), 0);
+				
 
 				// Shader: Apply MVP Matrix
-				gl.glUniformMatrix4fv(shaderDefault.GetUniform("mvp"), 1, false, task.mvpMatrix.data());
+				//gl.glUniformMatrix4fv(shaderDefault.GetUniform("mvp"), 1, true, task.mvpMatrix.data());
 
 				// Shader: Apply Global Tint
 				float f[4] = { 
@@ -3408,34 +3629,44 @@ namespace olc::gpu
 				};
 				gl.glUniform4fv(shaderDefault.GetUniform("tint"), 1, f);
 
-				// Apply Culling modes
-				if (task.cullmode == GPUTask::CullMode::None)
-				{
-					gl.glCullFace(GL_FRONT);
-					gl.glDisable(GL_CULL_FACE);
-				}
-				else if (task.cullmode == GPUTask::CullMode::ClockWise)
-				{
-					gl.glCullFace(GL_FRONT);
-					gl.glEnable(GL_CULL_FACE);
-				}
-				else if (task.cullmode == GPUTask::CullMode::CounterClockWise)
-				{
-					gl.glCullFace(GL_BACK);
-					gl.glEnable(GL_CULL_FACE);
-				}
+				f[0] = 64.0f;
+				f[1] = 64.0f;
+				gl.glUniform2fv(shaderDefault.GetUniform("target"), 1, vTargetSize.a().data());
+				gl.glUniform2fv(shaderDefault.GetUniform("invtarget"), 1, ((1.0f / vTargetSize)).a().data());
 
-				// Apply Depth Testing (if required)
-				if (task.bDepth)
-					gl.glEnable(GL_DEPTH_TEST);
+				// Apply Culling modes
+				//if (task.cullmode == GPUTask::CullMode::None)
+				//{
+				//	gl.glCullFace(GL_FRONT);
+				//	gl.glDisable(GL_CULL_FACE);
+				//}
+				//else if (task.cullmode == GPUTask::CullMode::ClockWise)
+				//{
+				//	gl.glCullFace(GL_FRONT);
+				//	gl.glEnable(GL_CULL_FACE);
+				//}
+				//else if (task.cullmode == GPUTask::CullMode::CounterClockWise)
+				//{
+				//	gl.glCullFace(GL_BACK);
+				//	gl.glEnable(GL_CULL_FACE);
+				//}
+
+				//// Apply Depth Testing (if required)
+				//if (task.bDepth)
+				//	gl.glEnable(GL_DEPTH_TEST);
 
 				// Draw the thing!
 				if (task.bWireframe)
 				{
+					// Shader: Configure Rendering Mode
+					gl.glUniform1i(shaderDefault.GetUniform("drawtype"), 1);
 					gl.glDrawArrays(GL_LINE_LOOP, 0, (GLsizei)task.vertexBuffer.size());
 				}
 				else
 				{
+					// Shader: Configure Rendering Mode
+					gl.glUniform1i(shaderDefault.GetUniform("drawtype"), 0);
+
 					if (task.structure == GPUTask::Structure::Fan)
 						gl.glDrawArrays(GL_TRIANGLE_FAN, 0, (GLsizei)task.vertexBuffer.size());
 					else if (task.structure == GPUTask::Structure::Strip)
@@ -3444,6 +3675,8 @@ namespace olc::gpu
 						gl.glDrawArrays(GL_TRIANGLES, 0, (GLsizei)task.vertexBuffer.size());
 					else if (task.structure == GPUTask::Structure::Line)
 						gl.glDrawArrays(GL_LINES, 0, (GLsizei)task.vertexBuffer.size());
+					else if (task.structure == GPUTask::Structure::Point)
+						gl.glDrawArrays(GL_POINTS, 0, (GLsizei)task.vertexBuffer.size());
 				}
 
 				if (task.bDepth)
@@ -3468,6 +3701,7 @@ namespace olc::gpu
 	{
 		auto& gl = olc::apis::opengl::gl::Get();
 		gl.glViewport(int(pos.x), int(pos.y), int(size.x), int(size.y));
+		vTargetSize = size;
 		return true;
 	}
 
@@ -3516,7 +3750,11 @@ void Draw2D::SetGPU(olc::gpu::Renderer* const renderer)
 
 void Draw2D::SetTarget(olc::Image& image)
 {
+	// Perform any outstanding tasks for current target
 	ProcessGPUTasks();
+
+	// Endure new target exists in GPU up to date
+	PrepareImageForHW(image);
 
 	// Store the target image
 	pTarget = &image;	
@@ -3526,11 +3764,11 @@ void Draw2D::SetTarget(olc::Image& image)
 	transformTarget.scale(olc::vf2d(2.0f, 2.0f) / olc::vf2d(pTarget->Size()));
 	transformTarget.translate(
 		olc::vf2d(
-			-1.0f + (1.0f / float(pTarget->Size().x)),
-			-1.0f + (1.0f / float(pTarget->Size().y))
+			-1.0f,// +(1.0f / float(pTarget->Size().x)),
+			-1.0f// + (1.0f / float(pTarget->Size().y))
 		));
 
-	AffineReset();
+	WorldReset();
 
 	pRenderer->AssignTextureTarget(0, pTarget->GetGPUID());
 	pRenderer->SetViewport({ 0,0 }, pTarget->Size());
@@ -3615,34 +3853,44 @@ void Draw2D::PrepareImageForHW(olc::Image& image)
 	}
 }
 
-void olc::Draw2D::AffineReset()
+void olc::Draw2D::WorldReset()
 {
 	transformAffine = olc::tf2d();
 	transformCombined = transformAffine * transformTarget;
 }
 
-void olc::Draw2D::AffineScale(const olc::vf2d& vScale)
+void olc::Draw2D::WorldScale(const olc::vf2d& vScale)
 {
 	transformAffine.scale(vScale);
 	transformCombined = transformAffine * transformTarget;
 }
 
-void olc::Draw2D::AffineOffset(const olc::vf2d& vOffset)
+void olc::Draw2D::WorldOffset(const olc::vf2d& vOffset)
 {
 	transformAffine.translate(vOffset);
 	transformCombined = transformAffine * transformTarget;
 }
 
-void olc::Draw2D::AffineRotate(const float& fTheta, const olc::vf2d& vPoint)
+void olc::Draw2D::WorldRotate(const float& fTheta, const olc::vf2d& vPoint)
 {
 	transformAffine.rotate(fTheta, vPoint);
 	transformCombined = transformAffine * transformTarget;
 }
 
+olc::vf2d olc::Draw2D::WorldToScreen(const olc::vf2d& v) const
+{
+	return transformAffine.forward(v);
+}
+
+olc::vf2d olc::Draw2D::ScreenToWorld(const olc::vf2d& v) const
+{
+	return transformAffine.inverse(v);
+}
+
 void Draw2D::Pixel(const olc::vf2d& pos, const olc::Pixel col)
 {
 	// Check if in bounds
-	olc::vf2d tpos = transformTarget.forward(pos);
+	olc::vf2d tpos = transformAffine.forward(pos);
 	if (tpos.x >= 0 && tpos.y >= 0 && tpos.x < pTarget->Size().x && tpos.y < pTarget->Size().y)
 	{
 		PrepareTargetForSW();
@@ -3656,6 +3904,12 @@ olc::Pixel olc::Draw2D::GetPixel(olc::Image& image, const olc::vf2d& pos)
 {
 	PrepareImageForSW(image);
 	return image.Pixel(pos);
+}
+
+void olc::Draw2D::Clear(const olc::Pixel& col)
+{
+	//PrepareImageForHW(*pTarget);
+	pRenderer->ClearViewport(col, true, true);
 }
 
 GPUTask olc::Draw2D::TaskDrawPolygon(GPUTask::Structure structure, const std::vector<olc::vf2d>& vPoints, const std::vector<olc::Pixel>& vColours, const olc::Pixel tint)
@@ -3676,7 +3930,7 @@ GPUTask olc::Draw2D::TaskDrawPolygon(GPUTask::Structure structure, const std::ve
 	task.structure = structure;
 	task.bWireframe = true;
 	for (const auto& v : vPoints)
-		task.vertexBuffer.push_back({ v.x, v.y, 1.0f, 1.0f, colour, 0, 0, 0,0, 0, 0, 0, 0 });
+		task.vertexBuffer.push_back({ v.x+0.0f, v.y+0.0f, 1.0f, 1.0f, colour, 0, 0, 0,0, 0, 0, 0, 0 });
 	task.tint = tint;
 	return task;
 }
@@ -3703,6 +3957,17 @@ GPUTask olc::Draw2D::TaskTexturedPolygon(GPUTask::Structure structure, const std
 		task.vertexBuffer.push_back({ vPoints[i].x, vPoints[i].y, 1.0f, 1.0f, vColours[i], vTexCoords[i].x, vTexCoords[i].y, 0, 0, 0, 0, 0, 0});
 	task.pImage = image;
 	task.tint = tint;
+	//task.mvpMatrix = transformCombined.m4x4();
+	return task;
+}
+
+GPUTask olc::Draw2D::TaskTexturedPolygon(GPUTask::Structure structure, const std::vector<olc::vf2d>& vPoints, const std::vector<olc::vf2d>& vZWs, const std::vector<olc::Pixel>& vColours, const std::vector<olc::vf2d>& vTexCoords, olc::Image* const image, const olc::Pixel tint)
+{
+	GPUTask task;
+	for (size_t i = 0; i < vPoints.size(); i++)
+		task.vertexBuffer.push_back({ vPoints[i].x, vPoints[i].y, vZWs[i].x, vZWs[i].y, vColours[i], vTexCoords[i].x, vTexCoords[i].y, 0, 0, 0, 0, 0, 0});
+	task.pImage = image;
+	task.tint = tint;
 	return task;
 }
 
@@ -3712,7 +3977,8 @@ GPUTask Draw2D::Line(const olc::vf2d& p1, const olc::vf2d& p2, const olc::Pixel 
 	return vecGPUTasks.emplace_back(
 		TaskDrawPolygon(
 			GPUTask::Structure::Line,
-			transformCombined.transform<float>({ p1, p2 }),
+			//transformCombined.transform<float>({ p1, p2 }),
+			{p1, p2},
 			col,
 			olc::Colour::WHITE
 		));
@@ -3732,45 +3998,176 @@ GPUTask Draw2D::Line(const olc::vf2d& p1, const olc::vf2d& p2, const olc::Pixel 
 
 GPUTask olc::Draw2D::Rect(const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel col)
 {
+	// Right a big, hearty, F&^% you to OpenGL's Diamond Exit Strategy. It makes line drawing
+	// with OpenGL a smidge unreliable
+
+	// Check if its axis aligned
+	if (std::abs(transformAffine.rotate()) < 0.0001f)
+	{
+		// SW Raster the line
+	}
+
 	PrepareTargetForHW();
 	return vecGPUTasks.emplace_back(
 		TaskDrawPolygon(
 			GPUTask::Structure::Fan,
-			transformCombined.transform<float>({ { pos.x, pos.y }, { pos.x + size.x, pos.y }, { pos.x + size.x, pos.y + size.y }, { pos.x, pos.y + size.y } }),
+			transformAffine.forward<float>({ 
+				olc::vf2d( pos.x + 0.0f, pos.y + 0.0f ),
+				olc::vf2d( pos.x + size.x +0.0f, pos.y + 0.0f ),
+				
+				//olc::vf2d( pos.x + size.x + 0.0f, pos.y + 0.0f),
+				olc::vf2d( pos.x + size.x + 0.0f, pos.y + size.y + 0.0f ),
+
+				//olc::vf2d( pos.x + size.x + 0.0f, pos.y + size.y + 0.0f),
+				olc::vf2d( pos.x + 0.0f, pos.y + size.y + 0.0f ),
+
+				//olc::vf2d( pos.x + 0.0f, pos.y + size.y + 0.0f),
+				//olc::vf2d( pos.x + 0.0f, pos.y + 0.0f),
+				}),
+
+		//	transformCombined.transform<float>({ { pos.x, pos.y }, { pos.x + size.x, pos.y }, { pos.x + size.x, pos.y + size.y }, { pos.x, pos.y + size.y } }),
 			col,
 			olc::Colour::WHITE
 		));
+
 }
 
 
-GPUTask olc::Draw2D::FillRect(const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel col)
+GPUTask olc::Draw2D::FilledRect(const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel col)
 {
 	PrepareTargetForHW();
 	return vecGPUTasks.emplace_back(
 		TaskFillPolygon(
 			GPUTask::Structure::Fan,
-			transformCombined.transform<float>({ { pos.x, pos.y }, { pos.x + size.x, pos.y }, { pos.x + size.x, pos.y + size.y }, { pos.x, pos.y + size.y } }),
+			//transformCombined.transform<float>({ { pos.x, pos.y }, { pos.x + size.x, pos.y }, { pos.x + size.x, pos.y + size.y }, { pos.x, pos.y + size.y } }),
+			{ { pos.x, pos.y }, { pos.x + size.x, pos.y }, { pos.x + size.x, pos.y + size.y }, { pos.x, pos.y + size.y } },
+
 			col,
 			olc::Colour::WHITE
 		));
 }
 
-GPUTask olc::Draw2D::Image(olc::Image& image, const olc::vf2d& pos, const olc::vf2d& size)
+GPUTask olc::Draw2D::Image(olc::ImageRegion image, const olc::vf2d& pos, const olc::vf2d& scale)
 {
 	// Ensure source image is up to date in VRAM
-	PrepareImageForHW(image);
+	PrepareImageForHW(image.image);
 	
 	PrepareTargetForHW();
+
+	olc::vf2d size = image.regionsize * scale;
+
 	return vecGPUTasks.emplace_back(
 		TaskTexturedPolygon(
 			GPUTask::Structure::Fan,
-			transformCombined.transform<float>({ { pos.x, pos.y }, { pos.x + size.x, pos.y }, { pos.x + size.x, pos.y + size.y }, { pos.x, pos.y + size.y } }),
+			//transformCombined.transform<float>({ { pos.x, pos.y }, { pos.x + size.x, pos.y }, { pos.x + size.x, pos.y + size.y }, { pos.x, pos.y + size.y } }),
+			transformAffine.forward<float>({ { pos.x, pos.y }, { pos.x + size.x, pos.y }, { pos.x + size.x, pos.y + size.y }, { pos.x, pos.y + size.y } }),
 			{ olc::Colour::WHITE, olc::Colour::WHITE, olc::Colour::WHITE, olc::Colour::WHITE },
-			{ {0,0}, {1,0}, {1,1}, {0,1} },
-			&image
+			// Tex coords are clockwise
+			{ image.coords[0], image.coords[1], image.coords[2], image.coords[3]},
+			&image.image
 		));
 }
 
+GPUTask olc::Draw2D::ImageRotated(olc::ImageRegion image, const olc::vf2d& pos, const float theta, const olc::vf2d& center, const olc::vf2d& scale)
+{
+	// Ensure source image is up to date in VRAM
+	PrepareImageForHW(image.image);
+	PrepareTargetForHW();
+
+	olc::vf2d size = image.regionsize * scale;
+
+	std::vector<olc::vf2d> vPoints(4);
+	vPoints[0] = (olc::vf2d(0.0f, 0.0f) - center) * scale;
+	vPoints[1] = (olc::vf2d(size.x, 0.0f) - center) * scale;
+	vPoints[2] = (size - center) * scale;
+	vPoints[3] = (olc::vf2d(0.0f, size.y) - center) * scale;
+
+	float c = cos(theta), s = sin(theta);
+	for (int i = 0; i < 4; i++)
+		vPoints[i] = pos + olc::vf2d(vPoints[i].x * c - vPoints[i].y * s, vPoints[i].x * s + vPoints[i].y * c);
+
+	return vecGPUTasks.emplace_back(
+		TaskTexturedPolygon(
+			GPUTask::Structure::Fan,
+			//transformCombined.transform<float>(vPoints),
+			vPoints,
+			{ olc::Colour::WHITE, olc::Colour::WHITE, olc::Colour::WHITE, olc::Colour::WHITE },
+			{ image.coords[0], image.coords[1], image.coords[2], image.coords[3] },
+			&image.image
+		));
+}
+
+GPUTask olc::Draw2D::ImageQuad(olc::ImageRegion image, const olc::vf2d& vTL, const olc::vf2d& vTR, const olc::vf2d& vBR, const olc::vf2d& vBL)
+{
+	// Ensure source image is up to date in VRAM
+	PrepareImageForHW(image.image);
+	PrepareTargetForHW();
+
+
+	float rd = ((vBR.x - vTL.x) * (vTR.y - vBL.y) - (vTR.x - vBL.x) * (vBR.y - vTL.y));
+	if (rd != 0)
+	{
+		rd = 1.0f / rd;
+		float rn = ((vTR.x - vBL.x) * (vTL.y - vBL.y) - (vTR.y - vBL.y) * (vTL.x - vBL.x)) * rd;
+		float sn = ((vBR.x - vTL.x) * (vTL.y - vBL.y) - (vBR.y - vTL.y) * (vTL.x - vBL.x)) * rd;
+		
+		olc::vf2d center;
+		if (!(rn < 0.f || rn > 1.f || sn < 0.f || sn > 1.f)) 
+			center = vTL + rn * (vBR - vTL);
+
+		std::array<float, 4> d = { {
+			(vTL - center).mag(), 
+			(vTR - center).mag(), 
+			(vBR - center).mag(), 
+			(vBL - center).mag(),
+		} };
+
+		std::array<float, 4> q = { {
+			d[0] == 0.0f ? 1.0f : (d[0] + d[2]) / d[2],
+			d[1] == 0.0f ? 1.0f : (d[1] + d[3]) / d[3],
+			d[2] == 0.0f ? 1.0f : (d[2] + d[0]) / d[0],
+			d[3] == 0.0f ? 1.0f : (d[3] + d[1]) / d[1],
+		} };
+	
+		return vecGPUTasks.emplace_back(
+			TaskTexturedPolygon(
+				GPUTask::Structure::Fan,
+				//transformCombined.transform<float>({ vTL, vTR, vBR, vBL }),
+				{ vTL, vTR, vBR, vBL },
+				{ {q[0], 1.0f}, {q[1], 1.0f}, {q[2], 1.0f}, {q[3], 1.0f} },
+				{ olc::Colour::WHITE, olc::Colour::WHITE, olc::Colour::WHITE, olc::Colour::WHITE },
+				{ image.coords[0] * q[0], image.coords[1] * q[1], image.coords[2] * q[2], image.coords[3] * q[3] },
+				&image.image
+			));		
+	}
+
+	return GPUTask();
+}
+
+GPUTask olc::Draw2D::ImageQuad(olc::ImageRegion image, const std::vector<olc::vf2d>& vecPoints)
+{
+	return ImageQuad(image, vecPoints[0], vecPoints[1], vecPoints[2], vecPoints[3]);
+}
+
+
+GPUTask olc::Draw2D::ImageRect(olc::ImageRegion image, const olc::vf2d& pos, const olc::vf2d& size)
+{
+	// Ensure source image is up to date in VRAM
+	PrepareImageForHW(image.image);
+
+	PrepareTargetForHW();
+
+	return vecGPUTasks.emplace_back(
+		TaskTexturedPolygon(
+			GPUTask::Structure::Fan,
+			//transformCombined.transform<float>({ { pos.x, pos.y }, { pos.x + size.x, pos.y }, { pos.x + size.x, pos.y + size.y }, { pos.x, pos.y + size.y } }),
+			{ { pos.x, pos.y }, { pos.x + size.x, pos.y }, { pos.x + size.x, pos.y + size.y }, { pos.x, pos.y + size.y } },
+			{ olc::Colour::WHITE, olc::Colour::WHITE, olc::Colour::WHITE, olc::Colour::WHITE },
+			// Tex coords are clockwise
+			{ image.coords[3], image.coords[2], image.coords[1], image.coords[0] },
+			&image.image
+		));
+}
 
 #define PGE_DRAW2D_IMPLEMENTED 1
 #endif
@@ -3798,8 +4195,7 @@ namespace olc
 	bool PixelGameEngine::Construct(const PGEConfig& cfg)
 	{		
 		config = cfg;
-
-		return false;
+		return true;
 	}
 
 	bool PixelGameEngine::Start()
@@ -3927,6 +4323,8 @@ namespace olc
 
 		// Initialise GPU Interface	- This thread is the context
 		olc::gpu::RendererConfig cfgRenderer;
+		cfgRenderer.VerticalSync = config.bVSync;
+
 		gpu = std::make_unique<olc::gpu::Renderer_OGL33>();
 
 		// The GPU device can be based upon the primary window configuration. This
@@ -3942,7 +4340,11 @@ namespace olc
 
 
 		CreateImage(imgPrimary, config.vScreenSize);
-		gpu->WriteTexture(imgPrimary.GetGPUID(), imgPrimary);
+		
+
+		draw.SetGPU(gpu.get());
+		gpu->ApplyDefaultShader();
+		draw.SetTarget(imgPrimary);
 
 		if (!OnUserCreate())
 		{
@@ -3950,7 +4352,8 @@ namespace olc
 			return;
 		}
 		
-
+		draw.ProcessGPUTasks();
+		draw.SetTarget(imgPrimary);
 
 		// Initialise Input Devices
 
@@ -4045,7 +4448,7 @@ namespace olc
 	{
 		dimensions = size;
 		config = cfg;
-		pixels.resize(dimensions.area(), olc::Pixel(255, 165, 0));
+		pixels.resize(dimensions.area(), olc::Colour::TANGERINE);
 		return true;
 	}
 
@@ -4092,6 +4495,17 @@ namespace olc
 	bool Image::BoundToCPU() const
 	{
 		return onCPU;
+	}
+
+	olc::ImageRegion Image::region(const olc::vf2d pos, const olc::vf2d& size)
+	{
+		return region(pos, { pos.x + size.x, pos.y }, { pos.x, pos.y + size.y }, pos + size);
+	}
+
+	olc::ImageRegion Image::region(const olc::vf2d& vTL, const olc::vf2d& vTR, const olc::vf2d& vBL, const olc::vf2d& vBR)
+	{
+		auto i = 1.0f / this->Size();
+		return olc::ImageRegion(*this, vTL * i, vTR * i, vBL * i, vBR * i );
 	}
 
 	void Image::BindGPU()
@@ -4249,7 +4663,7 @@ namespace olc
 
 		gpu->AssignTextureTarget(0, imgPrimary.GetGPUID());
 		gpu->SetViewport({ 0,0 }, imgPrimary.Size());
-		gpu->ClearViewport(olc::Colour::BLACK, true, true);
+		//gpu->ClearViewport(olc::Colour::BLACK, true, true);
 
 		gpu->ApplyDefaultShader();
 
@@ -4271,9 +4685,10 @@ namespace olc
 		// Take the window's completed "screen" and draw it as a textured quad to the backbuffer
 		gpu->AssignTextureTarget(0, 0);
 		gpu->SetViewport({ 0,0 }, GetSize());
-		gpu->ClearViewport(olc::Colour::BLANK, true, true);
+		gpu->ClearViewport(olc::Colour::MAGENTA, true, true);
 		draw.ClearTransform();
-		draw.Image(imgPrimary, { -1.0,1.0 }, { 2.0f,-2.0f });		
+		//draw.ImageRect(imgPrimary, { -1.0,1.0 }, { 2.0f,-2.0f });	
+		draw.ImageRect(imgPrimary, { 0.0,0.0 }, GetSize());
 		draw.ProcessGPUTasks();
 
 		// Update Window's primary surface
