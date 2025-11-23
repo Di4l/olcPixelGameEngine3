@@ -111,6 +111,9 @@
 
 #define LICENCE_DEFAULT "OneLoneCoder.com - Pixel Game Engine 3 - "
 
+// De-Noise in MSVC (C++20)
+#pragma warning(disable:4820) // Disable Padding Warnings
+
 
 #if !defined(PGE_PIXEL_DECLARED)
 namespace olc
@@ -168,7 +171,13 @@ namespace olc
 
 		// Construction via individual channels
 		inline constexpr Pixel(const uint8_t red, const uint8_t green, const uint8_t blue, const uint8_t alpha = 0xFF)
-			: a(alpha), b(blue), g(green), r(red) 
+#if PGE_PIXEL_LAYOUT == PGE_PIXEL_LAYOUT_RGBA
+			:  r(red), g(green), b(blue), a(alpha)
+#endif
+#if PGE_PIXEL_LAYOUT == PGE_PIXEL_LAYOUT_ABGR
+			: a(alpha), b(blue), g(green), r(red)
+#endif
+
 		{ }
 
 		// Construction via numeric assignment (e.g. #00DDBBFF)
@@ -1225,13 +1234,6 @@ namespace olc
 
 	struct ImageRegion
 	{
-		ImageRegion(olc::Image& i, const olc::vf2d& vTL = { 0,0 }, const olc::vf2d& vTR = { 1,0 }, const olc::vf2d& vBL = { 0,1 }, const olc::vf2d& vBR = { 1,1 })
-			: image(i)
-		{
-			coords = { vTL, vTR, vBR, vBL };
-			regionsize = (vBR - vTL) * image.Size();
-		}
-
 		olc::Image& image;		
 		olc::vf2d regionsize;
 		union
@@ -1242,6 +1244,18 @@ namespace olc
 			olc::vf2d br;
 			olc::vf2d bl;
 		};
+
+		ImageRegion(olc::Image& i, const olc::vf2d& vTL = { 0,0 }, const olc::vf2d& vTR = { 1,0 }, const olc::vf2d& vBL = { 0,1 }, const olc::vf2d& vBR = { 1,1 })
+			: image(i)
+		{
+			coords = { vTL, vTR, vBR, vBL };
+			regionsize = (vBR - vTL) * image.Size();
+		}
+
+		ImageRegion& operator=(ImageRegion& o)
+		{
+
+		}
 	};
 
 	
@@ -1522,19 +1536,13 @@ namespace olc
 
 		// Associate this drawing toolbox with a renderer
 		void SetGPU(olc::gpu::Renderer* const renderer);
+		void ProcessGPUTasks();
 
 	public:
 		// Sets the drawing target of this drawing toolbox
 		void SetTarget(olc::Image& image);
 
-		// Clears transform stack and sets identity transform
-		void ClearTransform();
 
-		void SetTransform(const olc::tf2d& trans);
-
-		olc::tf2d& GetTransform();
-
-		void ProcessGPUTasks();
 
 	
 
@@ -1543,6 +1551,8 @@ namespace olc
 		void WorldScale(const olc::vf2d& vScale);
 		void WorldOffset(const olc::vf2d& vOffset);
 		void WorldRotate(const float& fTheta, const olc::vf2d& vPoint = { 0,0 });
+		void SetWorldTransform(const olc::tf2d& trans);
+		olc::tf2d& GetWorldTransform();
 		olc::vf2d WorldToScreen(const olc::vf2d& v) const;
 		olc::vf2d ScreenToWorld(const olc::vf2d& v) const;
 
@@ -1557,36 +1567,45 @@ namespace olc
 			olc::Image& image, 
 			const olc::vf2d& pos);
 
-		// Clear
+		// Clear entire draw target to specific colour
 		void Clear(const olc::Pixel& col);
 	
 	public:
 		// Draws a single pixel wide line		
-		GPUTask Line(
+		const GPUTask& Line(
 			const olc::vf2d& p1, 
 			const olc::vf2d& p2, 
 			const olc::Pixel col = olc::Colour::WHITE);
 
 		// Draws a single pixel wide line with a gradient		
-		GPUTask Line(
+		const GPUTask& Line(
 			const olc::vf2d& p1, 
 			const olc::vf2d& p2, 
 			const olc::Pixel c1, 
 			const olc::Pixel c2);
 
 		// Draws a rectangle outline
-		GPUTask Rect(
+		const GPUTask& Rect(
 			const olc::vf2d& pos, 
 			const olc::vf2d& size, 
 			const olc::Pixel col = olc::Colour::WHITE);
 
 		// Draws a filled, single colour rectangle
-		GPUTask FilledRect(
+		const GPUTask& FilledRect(
 			const olc::vf2d& pos, 
 			const olc::vf2d& size, 
 			const olc::Pixel col = olc::Colour::WHITE);
 
-		//GPUTask ShadedRect(const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel colTL, const olc::Pixel colTR, const olc::Pixel colBL, const olc::Pixel colBR);
+		// Draws a filled, multiple colour rectangle, with linear colour interpolation
+		const GPUTask& FilledRect(
+			const olc::vf2d& pos, 
+			const olc::vf2d& size, 
+			const olc::Pixel colTL, 
+			const olc::Pixel colTR, 
+			const olc::Pixel colBL, 
+			const olc::Pixel colBR);
+		
+		
 		//TexturedRect
 
 
@@ -1617,34 +1636,35 @@ namespace olc
 
 		
 		// Draws a scaled image at specified location
-		GPUTask Image(
+		const GPUTask& Image(
 			olc::ImageRegion image, 
 			const olc::vf2d& pos, 
 			const olc::vf2d& scale = { 1.0f, 1.0f });						
 		
 		// Draws an image rotated around a point at specified location
-		GPUTask ImageRotated(
+		const GPUTask& ImageRotated(
 			olc::ImageRegion image, 
 			const olc::vf2d& pos, 
 			const float theta, 
 			const olc::vf2d& center = { 0.0f, 0.0f }, 
 			const olc::vf2d& scale = { 1.0f, 1.0f });
 
-		// Draws an image warped correctly to linearly fill a quadrilateral (formerly DrawWarped...)
-		GPUTask ImageQuad(
+		// Draws an image warped correctly to linearly fill a quadrilateral (formerly DrawWarped...)		
+		const GPUTask& ImageQuad(
 			olc::ImageRegion image, 
 			const olc::vf2d& vTL, 
 			const olc::vf2d& vTR, 
 			const olc::vf2d& vBR, 
 			const olc::vf2d& vBL);
 
-		GPUTask ImageQuad(
+		// Draws an image warped correctly to linearly fill a quadrilateral (formerly DrawWarped...)
+		const GPUTask& ImageQuad(
 			olc::ImageRegion image, 
 			const std::vector<olc::vf2d>& vecPoints);
 
 
 		// Draws an image scaled to a specified rectangular area
-		GPUTask ImageRect(olc::ImageRegion image, const olc::vf2d& pos, const olc::vf2d& size);
+		const GPUTask& ImageRect(olc::ImageRegion image, const olc::vf2d& pos, const olc::vf2d& size);
 	
 
 
@@ -1704,9 +1724,7 @@ namespace olc
 
 			olc::Image* pTarget = nullptr;
 			olc::gpu::Renderer* pRenderer = nullptr;
-			olc::tf2d transformTarget;
 			olc::tf2d transformAffine;
-			olc::mf3d transformCombined;
 
 			std::vector<olc::GPUTask> vecGPUTasks;
 	
@@ -1735,7 +1753,8 @@ namespace olc
 namespace olc
 {
 	// Forward declare for friendship
-	class Window;		
+	class Window;
+	class PGEWindow;
 
 
 	namespace hw
@@ -1743,6 +1762,7 @@ namespace olc
 		class Mouse
 		{
 			friend class olc::Window;
+			friend class olc::PGEWindow;
 
 		public:
 			Mouse() = default;
@@ -1750,6 +1770,7 @@ namespace olc
 		public:
 			const Button& GetButton(const int nButton) const;
 			const olc::vf2d& GetPosition() const;
+			int32_t GetWheel() const;
 
 		protected:
 			std::array<Button, OLC_MOUSE_BUTTONS> buttons{};
@@ -1757,10 +1778,13 @@ namespace olc
 			std::array<bool, OLC_MOUSE_BUTTONS> buttons_old{};
 			olc::vf2d position;
 			olc::vf2d position_in;
+			int32_t wheel_in;
+			int32_t wheel;
 
 		private:
 			void SetPosition(const olc::vf2d& pos);
 			void SetButton(const int nButton, bool state);
+			void SetWheel(const int32_t w);
 			void UpdateState();
 		};
 	}
@@ -1787,6 +1811,11 @@ namespace olc
 		class Renderer;
 	}
 
+	namespace imload
+	{
+		class ImageLoader;
+	}
+
 	namespace hw
 	{
 		class Mouse;
@@ -1800,27 +1829,22 @@ namespace olc
 	public:
 		Window();
 		virtual ~Window();
+										
+		void LinkToHost(olc::host::Host* host);
 
-		void ConnecToHost(olc::host::Host* host);
+	
 
-	public:
-		// Return true if window is to continue
-		virtual bool OnUserCreate();
-		// Return true if window is to continue
-		virtual bool OnUserUpdate(float fElapsedTime);
-		// Return true if window is to close
-		virtual bool OnUserDestroy();
-
-	private:
+	private: // These are called externally from the host
 		// Set Mouse Device State
-		bool olc_OnMouseButton(const uint8_t nButton, const bool bPressed);
-		bool olc_OnMouseMove(const olc::vi2d& vMousePos);
-		bool olc_OnMouseWheel(const int32_t nScroll);
-		bool olc_OnMouseFocus(const bool bHasFocus);
+		virtual bool olc_OnMouseButton(const uint8_t nButton, const bool bPressed);
+		virtual bool olc_OnMouseMove(const olc::vi2d& vMousePos);
+		virtual bool olc_OnMouseWheel(const int32_t nScroll);
+		virtual bool olc_OnMouseFocus(const bool bHasFocus);
 		
 		// Set Window State
-		bool olc_OnWindowPosition(const olc::vi2d& vWindowPos);
-		bool olc_OnWindowSize(const olc::vi2d& vWindowSize);
+		virtual bool olc_OnWindowPosition(const olc::vi2d& vWindowPos);
+		virtual bool olc_OnWindowSize(const olc::vi2d& vWindowSize);
+		virtual bool olc_OnWindowClose();
 
 		// Set Keyboard State
 
@@ -1828,25 +1852,22 @@ namespace olc
 
 	public:
 		bool olc_ShouldRemove() const;
-		bool olc_WindowUpdate(const float fElapsedTime, olc::gpu::Renderer* const gpu);
+		
 
 	public:
 		size_t GetUID() const;
 
-		const olc::vi2d& GetSize() const;
-		bool SetSize(const olc::vi2d& vSize);
+		const olc::vi2d& GetWindowSize() const;
+		bool SetWindowSize(const olc::vi2d& vSize);
 
-		const olc::vi2d& GetPosition() const;
-		bool SetPosition(const olc::vi2d& vPosition);
+		const olc::vi2d& GetWindowPosition() const;
+		bool SetWindowPosition(const olc::vi2d& vPosition);
 
-		const std::string& GetTitle() const;
-		bool SetTitle(const std::string& sTitle);
-
-
-	protected:
-		virtual bool olc_PrimaryWindowInit();
+		const std::string& GetWindowTitle() const;
+		bool SetWindowTitle(const std::string& sTitle);
 
 	protected:
+		bool bRequestToClose = false;
 		bool bShouldRemove = false;
 
 	protected:
@@ -1856,16 +1877,11 @@ namespace olc
 		std::string sFrameTitle;
 	
 	private:
-		olc::vi2d volatile_vMousePos;
-		
 		olc::host::Host* pHost = nullptr;
-		//olc::gpu::Renderer* pRenderer = nullptr;
 
 	protected:
-		olc::Draw2D draw;
-		olc::Image imgPrimary;
-
 		olc::hw::Mouse mouse;
+
 	};
 }
 #define PGE_WINDOW_DECLARED 1
@@ -1962,28 +1978,20 @@ namespace olc
 		bool bAllowChildWindows = true;
 	};
 
-	class PixelGameEngine : protected Window
+	class PGEWindow : public Window
 	{
 	public:
-		PixelGameEngine();
-		virtual ~PixelGameEngine();
-
+		bool Create(const olc::vi2d& vScreenSize, const olc::vi2d& vPixelSize);
+	
 	public:
-		bool Construct(const olc::vi2d& vScreenSize, const olc::vi2d& vPixelSize, bool bFullScreen = false);
-		bool Construct(const PGEConfig& cfg = PGEConfig{});
-
-	public:
-		bool Start();
-
-	public:	// The "Overridables"
-		// Called once when the engine is ready and the window is created
-		bool OnUserCreate() override;
-		// Called every frame while the engine is running
-		bool OnUserUpdate(float fElapsedTime) override;
-		// Called when something requests the engine shut down
-		bool OnUserDestroy() override;
-
-
+		// Return true if window is to continue
+		virtual bool OnUserCreate();
+		// Return true if window is to continue
+		virtual bool OnUserUpdate(float fElapsedTime);
+		// Return true if window is to close
+		virtual bool OnUserDestroy();
+		
+	
 	public:	// olc::Image Handling
 		// Create an image resource
 		bool CreateImage(olc::Image& image, const olc::vi2d& size, const ImageConfig& cfg = olc::ImageConfig());
@@ -1998,14 +2006,51 @@ namespace olc
 		// Destroy an image
 		void DestroyImage(olc::Image& image);
 
+	public:
+		void LinkToRenderer(olc::gpu::Renderer* gpu);
+		void LinkToImageLoader(olc::imload::ImageLoader* imload);
+
+
+		olc::Image& GetDefaultImage();
+		
+
 	protected:
-		bool olc_PrimaryWindowInit() override;
+		bool olc_OnMouseMove(const olc::vi2d& vMousePos) override;
+
+	public:
+		virtual bool olc_WindowUpdate(const float fElapsedTime);
+
+	protected:
+		olc::Draw2D draw;
+		
+		
+	private:
+		olc::Image imgPrimary;
+		olc::gpu::Renderer* pRenderer = nullptr;
+		olc::imload::ImageLoader* pImageLoader = nullptr;
+	};
+
+	class PixelGameEngine : protected PGEWindow
+	{
+	public:
+		PixelGameEngine();
+		virtual ~PixelGameEngine();
+
+	public:
+		bool Construct(const olc::vi2d& vScreenSize, const olc::vi2d& vPixelSize, bool bFullScreen = false);
+		bool Construct(const PGEConfig& cfg = PGEConfig{});
+
+	public:
+		bool Start();
+
+	public: // Child Windows
+		bool AddChildWindow(std::shared_ptr<olc::PGEWindow> window);
 
 	private:
 		void EngineThread();
 
 	private:
-		std::deque<std::shared_ptr<Window>> deqChildWindows;
+		std::deque<std::shared_ptr<PGEWindow>> deqChildWindows;
 
 		// Frame Timing & Overall Clocking
 		std::chrono::steady_clock::time_point timeFrame1;
@@ -2421,13 +2466,13 @@ namespace olc
 #endif
 
 // In Code::Blocks
-#if !defined(_WIN32_WINNT)
-	#ifdef HAVE_MSMF
-		#define _WIN32_WINNT 0x0600 // Windows Vista
-	#else
-		#define _WIN32_WINNT 0x0500 // Windows 2000
-	#endif
-#endif
+//#if !defined(_WIN32_WINNT)
+//	#ifdef HAVE_MSMF
+//		#define _WIN32_WINNT 0x0600 // Windows Vista
+//	#else
+//		#define _WIN32_WINNT 0x0500 // Windows 2000
+//	#endif
+//#endif
 
 // Embrace MSVC superiority
 #pragma comment(lib, "gdiplus.lib")
@@ -2477,7 +2522,7 @@ namespace olc
 
 
 
-#if defined(OLC_PGE_APPLICATION) && !defined(PGE_HOST_IMPLEMENTED)
+#if defined(OLC_PGE3_APPLICATION) && !defined(PGE_HOST_IMPLEMENTED)
 #if OLC_HOST == OLC_HOST_WINDOWS
 namespace olc::host
 {
@@ -2489,13 +2534,13 @@ namespace olc::host
 	bool Host_Windows_WinAPI::StartSystemEventLoop()
 	{
 		MSG msg;
-		while (GetMessage(&msg, NULL, 0, 0) > 0)
+		while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE) > 0)
 		{
 			TranslateMessage(&msg);
 			DispatchMessage(&msg);
 		}
 
-		return true;
+		return true;    
 	}
 
 	// Static linkage to lpfnWndProc - the hWnd is tagged with meta-info to get
@@ -2551,7 +2596,8 @@ namespace olc::host
 		
 
 		// Define WindowClass
-		WNDCLASS wc = { 0 };
+		WNDCLASSEX wc = { 0 };		
+		wc.cbSize = sizeof(WNDCLASSEX);
 		wc.hIcon = LoadIcon(NULL, IDI_APPLICATION);
 		wc.hCursor = LoadCursor(NULL, IDC_ARROW);
 		wc.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
@@ -2562,7 +2608,7 @@ namespace olc::host
 		wc.lpszMenuName = nullptr;
 		wc.hbrBackground = nullptr;
 		wc.lpszClassName = olcT("OLC_PIXEL_GAME_ENGINE3");
-		RegisterClass(&wc);
+		RegisterClassEx(&wc);
 
 		// Define window furniture
 		DWORD dwExStyle = WS_EX_APPWINDOW | WS_EX_WINDOWEDGE;
@@ -2588,13 +2634,20 @@ namespace olc::host
 		AdjustWindowRectEx(&rWndRect, dwStyle, FALSE, dwExStyle);
 		int width = rWndRect.right - rWndRect.left;
 		int height = rWndRect.bottom - rWndRect.top;
-		pWindow->SetSize(vWindowSize);
+		pWindow->SetWindowSize(vWindowSize);
 
 		// Create the actual OS window, return a handle
 		HWND hWnd = CreateWindowEx(dwExStyle, olcT("OLC_PIXEL_GAME_ENGINE3"), olcT(""), dwStyle,
 			vTopLeft.x, vTopLeft.y, width, height, NULL, NULL, GetModuleHandle(nullptr), this);
 
-		SetWindowPos(hWnd, NULL, vWinPos.x, vWinPos.y, width, height, SWP_SHOWWINDOW);
+		LONG_PTR lp = GetWindowLongPtr(hWnd, GWL_STYLE);
+		SetWindowLongPtr(hWnd, GWL_STYLE, lp | (WS_CAPTION | WS_SYSMENU | WS_POPUPWINDOW | WS_THICKFRAME));
+		lp = GetWindowLongPtr(hWnd, GWL_EXSTYLE);
+		SetWindowLongPtr(hWnd, GWL_EXSTYLE, lp | (WS_EX_WINDOWEDGE));
+
+		//SetWindowPos(hWnd, NULL, vWinPos.x, vWinPos.y, width, height, SWP_SHOWWINDOW);
+		//ShowWindow(hWnd, 1);
+		//UpdateWindow(hWnd);
 
 		// Now... awkwardly, the above has already fired off some window messages
 		// and they arent necessarily in a consistent order. Whereas one might 
@@ -2608,7 +2661,7 @@ namespace olc::host
 		mapUID2HWND.insert_or_assign(pWindow->GetUID(), hWnd);
 		mapHWND2PTR.insert_or_assign(hWnd, pWindow);
 
-		pWindow->ConnecToHost(this);
+	
 
 
 		//DragAcceptFiles(olc_hWnd, true);
@@ -2619,9 +2672,9 @@ namespace olc::host
 	bool Host_Windows_WinAPI::UpdateWindowFrameTitle(olc::Window* pWindow)
 	{
 #ifdef UNICODE
-		SetWindowText(mapUID2HWND.at(pWindow->GetUID()), ConvertS2W(pWindow->GetTitle()).c_str());
+		SetWindowText(mapUID2HWND.at(pWindow->GetUID()), ConvertS2W(pWindow->GetWindowTitle()).c_str());
 #else
-		SetWindowText(mapUID2HWND.at(pWindow->GetUID()), sTitle.c_str());
+		SetWindowText(mapUID2HWND.at(pWindow->GetUID()), pWindow->GetWindowTitle().c_str());
 #endif
 		return true;
 	}
@@ -2644,7 +2697,7 @@ namespace olc::host
 	LRESULT Host_Windows_WinAPI::OnWindowEvent(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 	{
 		if (!mapHWND2PTR.contains(hWnd))
-			return false;
+			return DefWindowProc(hWnd, uMsg, wParam, lParam);;
 
 		// Get target olc::Window
 		const auto& window = mapHWND2PTR.at(hWnd);
@@ -2675,7 +2728,13 @@ namespace olc::host
 				return 0;
 			}
 			break;
-			//		case WM_MOUSEWHEEL:	ptrPGE->olc_UpdateMouseWheel(GET_WHEEL_DELTA_WPARAM(wParam));           return 0;
+
+		case WM_MOUSEWHEEL:
+			{
+				window->olc_OnMouseWheel(GET_WHEEL_DELTA_WPARAM(wParam));
+				return 0;
+			}
+			break;
 			//		case WM_MOUSELEAVE: ptrPGE->olc_UpdateMouseFocus(false);                                    return 0;
 			//		case WM_SETFOCUS:	ptrPGE->olc_UpdateKeyFocus(true);                                       return 0;
 			//		case WM_KILLFOCUS:	ptrPGE->olc_UpdateKeyFocus(false);                                      return 0;
@@ -2751,7 +2810,11 @@ namespace olc::host
 			//		break;
 			//			
 			//			
-			//		case WM_CLOSE:		ptrPGE->olc_Terminate();                                                return 0;
+		case WM_CLOSE:
+			{
+				window->olc_OnWindowClose();
+				return 0;
+			}
 		case WM_DESTROY:	
 			PostQuitMessage(0); 
 			DestroyWindow(hWnd);
@@ -2765,7 +2828,7 @@ namespace olc::host
 #define PGE_HOST_IMPLEMENTED 1
 #endif
 
-#if defined(OLC_PGE_APPLICATION) && !defined(PGE_GPU_IMPLEMENTED)
+#if defined(OLC_PGE3_APPLICATION) && !defined(PGE_GPU_IMPLEMENTED)
 #if OLC_GPU == OLC_GPU_OPENGL33
 namespace olc
 {
@@ -2849,7 +2912,7 @@ namespace olc::apis::opengl
 		return bLoaded;
 	}
 
-	bool gl::CheckError(const std::source_location loc)
+	bool gl::CheckError([[maybe_unused]] const std::source_location  loc)
 	{
 #if OLC_GPU_ERRORCHECK == 1
 		GLenum err;
@@ -3736,7 +3799,7 @@ namespace olc::gpu
 #define PGE_GPU_IMPLEMENTED 1
 #endif
 
-#if defined(OLC_PGE_APPLICATION) && !defined(PGE_DRAW2D_IMPLEMENTED)
+#if defined(OLC_PGE3_APPLICATION) && !defined(PGE_DRAW2D_IMPLEMENTED)
 using namespace olc;
 
 Draw2D::Draw2D()
@@ -3759,36 +3822,12 @@ void Draw2D::SetTarget(olc::Image& image)
 	// Store the target image
 	pTarget = &image;	
 
-	// Create a transform to denormalise the image and present it 
-	// in pixel space
-	transformTarget.scale(olc::vf2d(2.0f, 2.0f) / olc::vf2d(pTarget->Size()));
-	transformTarget.translate(
-		olc::vf2d(
-			-1.0f,// +(1.0f / float(pTarget->Size().x)),
-			-1.0f// + (1.0f / float(pTarget->Size().y))
-		));
-
+	// Reset Affine transform to unity
 	WorldReset();
 
+	// Configure default render target
 	pRenderer->AssignTextureTarget(0, pTarget->GetGPUID());
 	pRenderer->SetViewport({ 0,0 }, pTarget->Size());
-}
-
-void Draw2D::ClearTransform()
-{
-	transformTarget = olc::tf2d();
-	transformAffine = olc::tf2d();
-	transformCombined = olc::mf3d();
-}
-
-void Draw2D::SetTransform(const olc::tf2d& trans)
-{
-	transformTarget = trans;
-}
-
-tf2d& olc::Draw2D::GetTransform()
-{
-	return transformAffine;
 }
 
 void olc::Draw2D::ProcessGPUTasks()
@@ -3856,25 +3895,31 @@ void Draw2D::PrepareImageForHW(olc::Image& image)
 void olc::Draw2D::WorldReset()
 {
 	transformAffine = olc::tf2d();
-	transformCombined = transformAffine * transformTarget;
 }
 
 void olc::Draw2D::WorldScale(const olc::vf2d& vScale)
 {
 	transformAffine.scale(vScale);
-	transformCombined = transformAffine * transformTarget;
 }
 
 void olc::Draw2D::WorldOffset(const olc::vf2d& vOffset)
 {
 	transformAffine.translate(vOffset);
-	transformCombined = transformAffine * transformTarget;
 }
 
 void olc::Draw2D::WorldRotate(const float& fTheta, const olc::vf2d& vPoint)
 {
 	transformAffine.rotate(fTheta, vPoint);
-	transformCombined = transformAffine * transformTarget;
+}
+
+void olc::Draw2D::SetWorldTransform(const olc::tf2d& trans)
+{
+	transformAffine = trans;
+}
+
+olc::tf2d& olc::Draw2D::GetWorldTransform()
+{
+	return transformAffine;
 }
 
 olc::vf2d olc::Draw2D::WorldToScreen(const olc::vf2d& v) const
@@ -3937,7 +3982,12 @@ GPUTask olc::Draw2D::TaskDrawPolygon(GPUTask::Structure structure, const std::ve
 
 GPUTask olc::Draw2D::TaskFillPolygon(GPUTask::Structure structure, const std::vector<olc::vf2d>& vPoints, const std::vector<olc::Pixel>& vColours, const olc::Pixel tint)
 {
-	return GPUTask();
+	GPUTask task;
+	task.structure = structure;
+	for (size_t i = 0; i < vPoints.size(); i++)
+		task.vertexBuffer.push_back({ vPoints[i].x, vPoints[i].y, 1.0f, 1.0f, vColours[i], 0, 0, 0, 0, 0, 0, 0, 0 });
+	task.tint = tint;
+	return task;
 }
 
 GPUTask olc::Draw2D::TaskFillPolygon(GPUTask::Structure structure, const std::vector<olc::vf2d>& vPoints, const olc::Pixel colour, const olc::Pixel tint)
@@ -3971,32 +4021,31 @@ GPUTask olc::Draw2D::TaskTexturedPolygon(GPUTask::Structure structure, const std
 	return task;
 }
 
-GPUTask Draw2D::Line(const olc::vf2d& p1, const olc::vf2d& p2, const olc::Pixel col)
+const GPUTask& Draw2D::Line(const olc::vf2d& p1, const olc::vf2d& p2, const olc::Pixel col)
 {
 	PrepareTargetForHW();
 	return vecGPUTasks.emplace_back(
 		TaskDrawPolygon(
 			GPUTask::Structure::Line,
-			//transformCombined.transform<float>({ p1, p2 }),
-			{p1, p2},
+			transformAffine.forward<float>({p1, p2}),
 			col,
 			olc::Colour::WHITE
 		));
 }
 
-GPUTask Draw2D::Line(const olc::vf2d& p1, const olc::vf2d& p2, const olc::Pixel c1, const olc::Pixel c2)
+const GPUTask& Draw2D::Line(const olc::vf2d& p1, const olc::vf2d& p2, const olc::Pixel c1, const olc::Pixel c2)
 {
 	PrepareTargetForHW();
 	return vecGPUTasks.emplace_back(
 		TaskDrawPolygon(
 			GPUTask::Structure::Line,
-			transformCombined.transform<float>({ p1, p2 }),
+			transformAffine.forward<float>({ p1, p2 }),
 			{ c1, c2 },
 			olc::Colour::WHITE
 		));
 }
 
-GPUTask olc::Draw2D::Rect(const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel col)
+const GPUTask& olc::Draw2D::Rect(const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel col)
 {
 	// Right a big, hearty, F&^% you to OpenGL's Diamond Exit Strategy. It makes line drawing
 	// with OpenGL a smidge unreliable
@@ -4014,18 +4063,9 @@ GPUTask olc::Draw2D::Rect(const olc::vf2d& pos, const olc::vf2d& size, const olc
 			transformAffine.forward<float>({ 
 				olc::vf2d( pos.x + 0.0f, pos.y + 0.0f ),
 				olc::vf2d( pos.x + size.x +0.0f, pos.y + 0.0f ),
-				
-				//olc::vf2d( pos.x + size.x + 0.0f, pos.y + 0.0f),
 				olc::vf2d( pos.x + size.x + 0.0f, pos.y + size.y + 0.0f ),
-
-				//olc::vf2d( pos.x + size.x + 0.0f, pos.y + size.y + 0.0f),
 				olc::vf2d( pos.x + 0.0f, pos.y + size.y + 0.0f ),
-
-				//olc::vf2d( pos.x + 0.0f, pos.y + size.y + 0.0f),
-				//olc::vf2d( pos.x + 0.0f, pos.y + 0.0f),
 				}),
-
-		//	transformCombined.transform<float>({ { pos.x, pos.y }, { pos.x + size.x, pos.y }, { pos.x + size.x, pos.y + size.y }, { pos.x, pos.y + size.y } }),
 			col,
 			olc::Colour::WHITE
 		));
@@ -4033,21 +4073,32 @@ GPUTask olc::Draw2D::Rect(const olc::vf2d& pos, const olc::vf2d& size, const olc
 }
 
 
-GPUTask olc::Draw2D::FilledRect(const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel col)
+const GPUTask& olc::Draw2D::FilledRect(const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel col)
 {
 	PrepareTargetForHW();
 	return vecGPUTasks.emplace_back(
 		TaskFillPolygon(
 			GPUTask::Structure::Fan,
-			//transformCombined.transform<float>({ { pos.x, pos.y }, { pos.x + size.x, pos.y }, { pos.x + size.x, pos.y + size.y }, { pos.x, pos.y + size.y } }),
-			{ { pos.x, pos.y }, { pos.x + size.x, pos.y }, { pos.x + size.x, pos.y + size.y }, { pos.x, pos.y + size.y } },
+			transformAffine.forward<float>({ { pos.x, pos.y }, { pos.x + size.x, pos.y }, { pos.x + size.x, pos.y + size.y }, { pos.x, pos.y + size.y } }),
 
 			col,
 			olc::Colour::WHITE
 		));
 }
 
-GPUTask olc::Draw2D::Image(olc::ImageRegion image, const olc::vf2d& pos, const olc::vf2d& scale)
+const GPUTask& olc::Draw2D::FilledRect(const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel colTL, const olc::Pixel colTR, const olc::Pixel colBL, const olc::Pixel colBR)
+{
+	PrepareTargetForHW();
+	return vecGPUTasks.emplace_back(
+		TaskFillPolygon(
+			GPUTask::Structure::Fan,
+			transformAffine.forward<float>({ { pos.x, pos.y }, { pos.x + size.x, pos.y }, { pos.x + size.x, pos.y + size.y }, { pos.x, pos.y + size.y } }),
+			{ colTL, colTR, colBR, colBL },
+			olc::Colour::WHITE
+		));
+}
+
+const GPUTask& olc::Draw2D::Image(olc::ImageRegion image, const olc::vf2d& pos, const olc::vf2d& scale)
 {
 	// Ensure source image is up to date in VRAM
 	PrepareImageForHW(image.image);
@@ -4059,7 +4110,6 @@ GPUTask olc::Draw2D::Image(olc::ImageRegion image, const olc::vf2d& pos, const o
 	return vecGPUTasks.emplace_back(
 		TaskTexturedPolygon(
 			GPUTask::Structure::Fan,
-			//transformCombined.transform<float>({ { pos.x, pos.y }, { pos.x + size.x, pos.y }, { pos.x + size.x, pos.y + size.y }, { pos.x, pos.y + size.y } }),
 			transformAffine.forward<float>({ { pos.x, pos.y }, { pos.x + size.x, pos.y }, { pos.x + size.x, pos.y + size.y }, { pos.x, pos.y + size.y } }),
 			{ olc::Colour::WHITE, olc::Colour::WHITE, olc::Colour::WHITE, olc::Colour::WHITE },
 			// Tex coords are clockwise
@@ -4068,7 +4118,7 @@ GPUTask olc::Draw2D::Image(olc::ImageRegion image, const olc::vf2d& pos, const o
 		));
 }
 
-GPUTask olc::Draw2D::ImageRotated(olc::ImageRegion image, const olc::vf2d& pos, const float theta, const olc::vf2d& center, const olc::vf2d& scale)
+const GPUTask& olc::Draw2D::ImageRotated(olc::ImageRegion image, const olc::vf2d& pos, const float theta, const olc::vf2d& center, const olc::vf2d& scale)
 {
 	// Ensure source image is up to date in VRAM
 	PrepareImageForHW(image.image);
@@ -4089,15 +4139,14 @@ GPUTask olc::Draw2D::ImageRotated(olc::ImageRegion image, const olc::vf2d& pos, 
 	return vecGPUTasks.emplace_back(
 		TaskTexturedPolygon(
 			GPUTask::Structure::Fan,
-			//transformCombined.transform<float>(vPoints),
-			vPoints,
+			transformAffine.forward<float>(vPoints),
 			{ olc::Colour::WHITE, olc::Colour::WHITE, olc::Colour::WHITE, olc::Colour::WHITE },
 			{ image.coords[0], image.coords[1], image.coords[2], image.coords[3] },
 			&image.image
 		));
 }
 
-GPUTask olc::Draw2D::ImageQuad(olc::ImageRegion image, const olc::vf2d& vTL, const olc::vf2d& vTR, const olc::vf2d& vBR, const olc::vf2d& vBL)
+const GPUTask& olc::Draw2D::ImageQuad(olc::ImageRegion image, const olc::vf2d& vTL, const olc::vf2d& vTR, const olc::vf2d& vBR, const olc::vf2d& vBL)
 {
 	// Ensure source image is up to date in VRAM
 	PrepareImageForHW(image.image);
@@ -4132,8 +4181,7 @@ GPUTask olc::Draw2D::ImageQuad(olc::ImageRegion image, const olc::vf2d& vTL, con
 		return vecGPUTasks.emplace_back(
 			TaskTexturedPolygon(
 				GPUTask::Structure::Fan,
-				//transformCombined.transform<float>({ vTL, vTR, vBR, vBL }),
-				{ vTL, vTR, vBR, vBL },
+				transformAffine.forward<float>({ vTL, vTR, vBR, vBL }),
 				{ {q[0], 1.0f}, {q[1], 1.0f}, {q[2], 1.0f}, {q[3], 1.0f} },
 				{ olc::Colour::WHITE, olc::Colour::WHITE, olc::Colour::WHITE, olc::Colour::WHITE },
 				{ image.coords[0] * q[0], image.coords[1] * q[1], image.coords[2] * q[2], image.coords[3] * q[3] },
@@ -4141,16 +4189,24 @@ GPUTask olc::Draw2D::ImageQuad(olc::ImageRegion image, const olc::vf2d& vTL, con
 			));		
 	}
 
-	return GPUTask();
+	// Default is just return a textured quad
+	return vecGPUTasks.emplace_back(
+		TaskTexturedPolygon(
+			GPUTask::Structure::Fan,
+			transformAffine.forward<float>({ vTL, vTR, vBR, vBL }),
+			{ olc::Colour::WHITE, olc::Colour::WHITE, olc::Colour::WHITE, olc::Colour::WHITE },
+			{ image.coords[0], image.coords[1], image.coords[2], image.coords[3] },
+			&image.image
+		));
 }
 
-GPUTask olc::Draw2D::ImageQuad(olc::ImageRegion image, const std::vector<olc::vf2d>& vecPoints)
+const GPUTask& olc::Draw2D::ImageQuad(olc::ImageRegion image, const std::vector<olc::vf2d>& vecPoints)
 {
 	return ImageQuad(image, vecPoints[0], vecPoints[1], vecPoints[2], vecPoints[3]);
 }
 
 
-GPUTask olc::Draw2D::ImageRect(olc::ImageRegion image, const olc::vf2d& pos, const olc::vf2d& size)
+const GPUTask& olc::Draw2D::ImageRect(olc::ImageRegion image, const olc::vf2d& pos, const olc::vf2d& size)
 {
 	// Ensure source image is up to date in VRAM
 	PrepareImageForHW(image.image);
@@ -4160,8 +4216,7 @@ GPUTask olc::Draw2D::ImageRect(olc::ImageRegion image, const olc::vf2d& pos, con
 	return vecGPUTasks.emplace_back(
 		TaskTexturedPolygon(
 			GPUTask::Structure::Fan,
-			//transformCombined.transform<float>({ { pos.x, pos.y }, { pos.x + size.x, pos.y }, { pos.x + size.x, pos.y + size.y }, { pos.x, pos.y + size.y } }),
-			{ { pos.x, pos.y }, { pos.x + size.x, pos.y }, { pos.x + size.x, pos.y + size.y }, { pos.x, pos.y + size.y } },
+			transformAffine.forward<float>({ { pos.x, pos.y }, { pos.x + size.x, pos.y }, { pos.x + size.x, pos.y + size.y }, { pos.x, pos.y + size.y } }),
 			{ olc::Colour::WHITE, olc::Colour::WHITE, olc::Colour::WHITE, olc::Colour::WHITE },
 			// Tex coords are clockwise
 			{ image.coords[3], image.coords[2], image.coords[1], image.coords[0] },
@@ -4172,10 +4227,170 @@ GPUTask olc::Draw2D::ImageRect(olc::ImageRegion image, const olc::vf2d& pos, con
 #define PGE_DRAW2D_IMPLEMENTED 1
 #endif
 
-#if defined(OLC_PGE_APPLICATION) && !defined(PGE_CORE_IMPLEMENTED)
+#if defined(OLC_PGE3_APPLICATION) && !defined(PGE_CORE_IMPLEMENTED)
 namespace olc
 {
-	PixelGameEngine::PixelGameEngine() : Window()
+	bool PGEWindow::Create(const olc::vi2d& vScreenSize, const olc::vi2d& vPixelSize)
+	{
+		CreateImage(GetDefaultImage(), vScreenSize);
+		SetWindowSize(vScreenSize * vPixelSize);
+		return true;
+	}
+
+	bool PGEWindow::OnUserCreate()
+	{
+		return true;
+	}
+
+	bool PGEWindow::OnUserUpdate(float fElapsedTime)
+	{
+		return true;
+	}
+
+	bool PGEWindow::OnUserDestroy()
+	{
+		return true;
+	}
+
+	bool PGEWindow::olc_WindowUpdate(const float fElapsedTime)
+	{
+		// Input Changes
+		mouse.UpdateState();
+
+
+		draw.SetGPU(pRenderer);
+		draw.SetTarget(GetDefaultImage());
+
+
+		pRenderer->ApplyDefaultShader();
+
+
+
+		// User Update
+		if (!OnUserUpdate(fElapsedTime) || bRequestToClose)
+		{
+			// User has requested termination of window by returning false
+			if (OnUserDestroy())
+			{
+				// User has confirmed window destruction by returning true
+				bShouldRemove = true;
+			}
+			else
+				bRequestToClose = false; // User vetoed closure
+		}
+
+
+		// Finialise any outstanding tasks
+		draw.ProcessGPUTasks();
+
+		// Take the window's completed "screen" and draw it as a textured quad to the backbuffer
+		pRenderer->AssignTextureTarget(0, 0);
+		pRenderer->SetViewport({ 0,0 }, GetWindowSize());
+		pRenderer->ClearViewport(olc::Colour::MAGENTA, true, true);
+		
+		draw.WorldReset();		
+		draw.ImageRect(imgPrimary, { 0.0,0.0 }, GetWindowSize());
+		draw.ProcessGPUTasks();
+
+		// Update Window's primary surface
+		pRenderer->DisplayDraw();
+
+		return true;
+	}
+
+	bool PGEWindow::CreateImage(olc::Image& image, const olc::vi2d& size, const ImageConfig& cfg)
+	{
+		// Create CPU Image
+		if (!image.Create(size, cfg))
+			return false;
+
+		// Create GPU Image
+		auto id = pRenderer->CreateTexture(image.Size(), cfg);
+		if (id == 0)
+		{
+			image.Create({ 0,0 });
+			return false;
+		}
+
+		// Associate CPU object with GPU Resource
+		image.SetGPUID(id);
+		return true;
+	}
+
+	bool PGEWindow::CreateImageFromFile(olc::Image& image, const std::string& sFileName, const ImageConfig& cfg)
+	{
+		if (pImageLoader->CreateImageFromFile(image, sFileName))
+		{
+			// Image has loaded ok, and populated into pixel vector
+			// 
+			// Create GPU Image
+			auto id = pRenderer->CreateTexture(image.Size(), cfg);
+			if (id == 0)
+			{
+				image.Create({ 0,0 });
+				return false;
+			}
+
+			// Associate CPU object with GPU Resource
+			image.SetGPUID(id);
+			return true;
+		}
+
+		return false;
+	}
+
+	bool PGEWindow::CreateImageFromMemory(olc::Image& image, const uint8_t* data, const size_t bytes, const ImageConfig& cfg)
+	{
+		return false;
+	}
+
+	bool PGEWindow::WriteImageToFile(const olc::Image& image, const std::string& sFileName)
+	{
+		return false;
+	}
+
+	void PGEWindow::DestroyImage(olc::Image& image)
+	{
+		// If image has gpu resource, remove it
+		if (image.GetGPUID() != 0)
+		{
+			pRenderer->DeleteTexture(image.GetGPUID());
+			image.SetGPUID(0);
+		}
+
+		// Free any cpu memory associated with image
+		image.Create({ 0,0 });
+	}
+
+	void PGEWindow::LinkToRenderer(olc::gpu::Renderer* gpu)
+	{
+		pRenderer = gpu;
+	}
+
+	void PGEWindow::LinkToImageLoader(olc::imload::ImageLoader* imload)
+	{
+		pImageLoader = imload;
+	}
+
+	olc::Image& PGEWindow::GetDefaultImage()
+	{
+		return imgPrimary;
+	}
+
+	bool PGEWindow::olc_OnMouseMove(const olc::vi2d& vMousePos)
+	{
+		mouse.SetPosition(olc::vf2d(vMousePos) / olc::vf2d(GetWindowSize()) * GetDefaultImage().Size());
+		return true;
+	}
+
+
+
+
+
+
+
+
+	PixelGameEngine::PixelGameEngine() : PGEWindow()
 	{
 	}
 
@@ -4204,118 +4419,46 @@ namespace olc
 		host = std::make_unique<olc::host::Host_Windows_WinAPI>();
 		
 
-		// Link this olc::Window to a host resource
-		if (host)
-			host->AddWindowFrame(this, { 30,30 }, config.vPixelSize * config.vScreenSize, false);
+		
+		
 		
 		coreActive = true;
 		coreThread = std::thread(&PixelGameEngine::EngineThread, this);
 
-		// This will block depending upon the system
-		host->StartSystemEventLoop();
+		
 
 		// Gracefully terminate the main engine thread
-		coreActive = false;
+		//coreActive = false;
 		coreThread.join();
 
 		return true;
 	}
 
-	bool PixelGameEngine::OnUserCreate()
+	bool PixelGameEngine::AddChildWindow(std::shared_ptr<olc::PGEWindow> window)
 	{
-		return false;
-	}
-
-	bool PixelGameEngine::OnUserUpdate(float fElapsedTime)
-	{
-		return false;
-	}
-
-	bool PixelGameEngine::OnUserDestroy()
-	{
-		return false;
-	}
-
-	bool PixelGameEngine::CreateImage(olc::Image& image, const olc::vi2d& size, const ImageConfig& cfg)
-	{
-		// Create CPU Image
-		if (!image.Create(size, cfg))
-			return false;
-
-		// Create GPU Image
-		auto id = gpu->CreateTexture(image.Size(), cfg);
-		if (id == 0)
+		// Link this olc::Window to a host resource
+		if (host)
 		{
-			image.Create({ 0,0 });
-			return false;
+			host->AddWindowFrame(window.get(), {30,30}, config.vPixelSize * config.vScreenSize, false);
+			window->LinkToHost(host.get());
+			window->LinkToRenderer(gpu.get());
+			window->LinkToImageLoader(imageloader.get());
+			window->Create({ 64, 64 }, { 8,8 });
+			deqChildWindows.push_back(window);
 		}
 
-		// Associate CPU object with GPU Resource
-		image.SetGPUID(id);
 		return true;
 	}
 
-	bool PixelGameEngine::CreateImageFromFile(olc::Image& image, const std::string& sFileName, const ImageConfig& cfg)
-	{	
-		if (imageloader->CreateImageFromFile(image, sFileName))
-		{
-			// Image has loaded ok, and populated into pixel vector
-			// 
-			// Create GPU Image
-			auto id = gpu->CreateTexture(image.Size(), cfg);
-			if (id == 0)
-			{
-				image.Create({ 0,0 });
-				return false;
-			}
-
-			// Associate CPU object with GPU Resource
-			image.SetGPUID(id);
-			return true;
-		}
-
-		return false;
-	}
-
-	bool PixelGameEngine::CreateImageFromMemory(olc::Image& image, const uint8_t* data, const size_t bytes, const ImageConfig& cfg)
-	{
-		return false;
-	}
-
-	bool PixelGameEngine::WriteImageToFile(const olc::Image& image, const std::string& sFileName)
-	{
-		return false;
-	}
-
-	//bool PixelGameEngine::WriteImageToMemory(const olc::Image& image, std::vector<uint8_t> bytes, const std::string& sFileName)
-	//{
-	//	return false;
-	//}
-
-	void PixelGameEngine::DestroyImage(olc::Image& image)
-	{
-		// If image has gpu resource, remove it
-		if (image.GetGPUID() != 0)
-		{
-			gpu->DeleteTexture(image.GetGPUID());
-			image.SetGPUID(0);
-		}
-
-		// Free any cpu memory associated with image
-		image.Create({ 0,0 });
-	}
-
-	bool PixelGameEngine::olc_PrimaryWindowInit()
-	{
-		// Called by window to initialise core systems. Sub windows should ignore this
-		return false;
-	}
 
 	void PixelGameEngine::EngineThread()
 	{
 		using namespace std::chrono_literals;
 		timeFrame2 = std::chrono::steady_clock::now();
 		timeFrame1 = std::chrono::steady_clock::now();
+
+		// Create Primary Window
+		host->AddWindowFrame(this, { 30,30 }, config.vPixelSize * config.vScreenSize, false);
 
 		// Initialise ImageLoader Interface
 		imageloader = std::make_unique<olc::imload::ImageLoader_WinGDI>();
@@ -4326,6 +4469,11 @@ namespace olc
 		cfgRenderer.VerticalSync = config.bVSync;
 
 		gpu = std::make_unique<olc::gpu::Renderer_OGL33>();
+
+		// Link this windows devices
+		LinkToHost(host.get());
+		LinkToRenderer(gpu.get());
+		LinkToImageLoader(imageloader.get());
 
 		// The GPU device can be based upon the primary window configuration. This
 		// gives us completed gpu and host objects to pass to other windows as and
@@ -4339,12 +4487,12 @@ namespace olc
 		}
 
 
-		CreateImage(imgPrimary, config.vScreenSize);
+		CreateImage(GetDefaultImage(), config.vScreenSize);
 		
 
 		draw.SetGPU(gpu.get());
 		gpu->ApplyDefaultShader();
-		draw.SetTarget(imgPrimary);
+		draw.SetTarget(GetDefaultImage());
 
 		if (!OnUserCreate())
 		{
@@ -4353,7 +4501,7 @@ namespace olc
 		}
 		
 		draw.ProcessGPUTasks();
-		draw.SetTarget(imgPrimary);
+		draw.SetTarget(GetDefaultImage());
 
 		// Initialise Input Devices
 
@@ -4362,6 +4510,9 @@ namespace olc
 
 		while (coreActive)
 		{
+			// This will block depending upon the system
+			host->StartSystemEventLoop();
+
 			// Frame Delta Timing - "ElapsedTime" since last core update
 			// ~~~~~~~~~~~~~~~~~~
 			// All timing is synchronous to the primary window, i.e child
@@ -4389,41 +4540,44 @@ namespace olc
 			{
 				durationFrameCount -= 1s;
 				std::string sTitle = "OneLoneCoder.com - Pixel Game Engine 3 - Test - FPS: " + std::to_string(frameCount);
-				SetTitle(sTitle);
+				SetWindowTitle(sTitle);
 				frameCount = 0;
 			}
-			
-			// Update Child Windows (if any)
-			for (auto& winChild : deqChildWindows)
-				winChild->olc_WindowUpdate(fDT, gpu.get());
-
-			// Update Primary Window
-			olc_WindowUpdate(fDT, gpu.get());
-			
-			// Wait for vertical sync if required. 
-			// Note: Child windows will never vsync as waiting for each buffer swap with vsync
-			// divides up the frame rate budget across the windows.
-			if (gpu->GetConfig().VerticalSync)
-			{
-				host->SyncWithDesktopComposite();
-			}
-
-			// Remove child windows that have requested closure
-			if (!deqChildWindows.empty())
-			{
-				deqChildWindows.erase(std::remove_if(deqChildWindows.begin(), deqChildWindows.end(),
-					[](const std::shared_ptr<Window>& w)
-					{
-						return w->olc_ShouldRemove();
-					}
-				));
-			}
+						
 
 			// Primary Window
 			if (olc_ShouldRemove())
 			{
-				// Application is to be terminated
+				// Application is to be terminated as primary window has closed
 				coreActive = false;
+			}
+			else
+			{
+				// Update Child Windows (if any)
+				for (auto& winChild : deqChildWindows)
+					winChild->olc_WindowUpdate(fDT);
+
+				// Remove child windows that have requested closure
+				if (!deqChildWindows.empty())
+				{
+					deqChildWindows.erase(std::remove_if(deqChildWindows.begin(), deqChildWindows.end(),
+						[](const std::shared_ptr<PGEWindow>& w)
+						{
+							return w->olc_ShouldRemove();
+						}
+					), deqChildWindows.end());
+				}
+
+				// Update Primary Window
+				olc_WindowUpdate(fDT);
+
+				// Wait for vertical sync if required. 
+				// Note: Child windows will never vsync as waiting for each buffer swap with vsync
+				// divides up the frame rate budget across the windows.
+				if (gpu->GetConfig().VerticalSync)
+				{
+					host->SyncWithDesktopComposite();
+				}
 			}
 
 			
@@ -4433,7 +4587,7 @@ namespace olc
 #define PGE_CORE_IMPLEMENTED 1
 #endif
 
-#if defined(OLC_PGE_APPLICATION) && !defined(PGE_IMAGE_IMPLEMENTED)
+#if defined(OLC_PGE3_APPLICATION) && !defined(PGE_IMAGE_IMPLEMENTED)
 namespace olc
 {
 	/*Image::Image(const olc::vi2d& size, const ImageConfig& cfg)
@@ -4524,7 +4678,7 @@ namespace olc
 #define PGE_IMAGE_IMPLEMENTED 1
 #endif
 
-#if defined(OLC_PGE_APPLICATION) && !defined(PGE_HW_MOUSE_IMPLEMENTED)
+#if defined(OLC_PGE3_APPLICATION) && !defined(PGE_HW_MOUSE_IMPLEMENTED)
 namespace olc::hw
 {
     const Button& Mouse::GetButton(const int nButton) const
@@ -4537,6 +4691,11 @@ namespace olc::hw
         return position;
     }
 
+    int32_t Mouse::GetWheel() const
+    {
+        return wheel;
+    }
+
     void Mouse::SetPosition(const olc::vf2d& pos)
     {
         position_in = pos;
@@ -4545,6 +4704,11 @@ namespace olc::hw
     void Mouse::SetButton(const int nButton, bool state)
     {        
         buttons_new[nButton] = state;            
+    }
+
+    void Mouse::SetWheel(const int32_t w)
+    {
+        wheel_in = w;
     }
 
     void Mouse::UpdateState()
@@ -4570,12 +4734,14 @@ namespace olc::hw
         }
 
         position = position_in;
+        wheel = wheel_in;
+        wheel_in = 0;
     }
 }
 #define PGE_HW_MOUSE_IMPLEMENTED 1
 #endif
 
-#if defined(OLC_PGE_APPLICATION) && !defined(PGE_WINDOW_IMPLEMENTED)
+#if defined(OLC_PGE3_APPLICATION) && !defined(PGE_WINDOW_IMPLEMENTED)
 namespace olc
 {
 	Window::Window()
@@ -4587,27 +4753,13 @@ namespace olc
 	{
 	}
 
-	void Window::ConnecToHost(olc::host::Host* host)
+	void Window::LinkToHost(olc::host::Host* host)
 	{
 		pHost = host;
 		sFrameTitle = "OneLoneCoder.com - Pixel Game Engine 3";
 		pHost->UpdateWindowFrameTitle(this);
 	}
 
-	bool Window::OnUserCreate()
-	{
-		return false;
-	}
-
-	bool Window::OnUserUpdate(float fElapsedTime)
-	{
-		return false;
-	}
-
-	bool Window::OnUserDestroy()
-	{
-		return false;
-	}
 
 	bool Window::olc_OnMouseButton(const uint8_t nButton, const bool bPressed)
 	{
@@ -4617,13 +4769,14 @@ namespace olc
 
 	bool Window::olc_OnMouseMove(const olc::vi2d& vMousePos)
 	{		
-		mouse.SetPosition(olc::vf2d(vMousePos) / olc::vf2d(GetSize()) * imgPrimary.Size());
+		mouse.SetPosition(olc::vf2d(vMousePos) / olc::vf2d(GetWindowSize()));
 		return true;
 	}
 
 	bool Window::olc_OnMouseWheel(const int32_t nScroll)
 	{
-		return false;
+		mouse.SetWheel(nScroll);
+		return true;
 	}
 
 	bool Window::olc_OnMouseFocus(const bool bHasFocus)
@@ -4638,7 +4791,13 @@ namespace olc
 
 	bool Window::olc_OnWindowSize(const olc::vi2d& vWindowSize)
 	{
-		return SetSize(vWindowSize);		
+		return SetWindowSize(vWindowSize);		
+	}
+
+	bool Window::olc_OnWindowClose()
+	{
+		bRequestToClose = true;		
+		return true;
 	}
 
 	bool Window::olc_ShouldRemove() const
@@ -4646,73 +4805,23 @@ namespace olc
 		return bShouldRemove;
 	}
 
-	bool Window::olc_WindowUpdate(const float fElapsedTime, olc::gpu::Renderer* const gpu)
-	{
-		// Environmental changes
-
-		// Input Changes
-		mouse.UpdateState();
-
-
-		draw.SetGPU(gpu);
-		draw.SetTarget(imgPrimary);
-
-
-		gpu->DisplayPrepare();
-		
-
-		gpu->AssignTextureTarget(0, imgPrimary.GetGPUID());
-		gpu->SetViewport({ 0,0 }, imgPrimary.Size());
-		//gpu->ClearViewport(olc::Colour::BLACK, true, true);
-
-		gpu->ApplyDefaultShader();
-
-		// User Update
-		if (!OnUserUpdate(fElapsedTime))
-		{
-			// User has requested termination of window by returning false
-			if (OnUserDestroy())
-			{
-				// User has confirmed window destruction by returning true
-				bShouldRemove = true;
-			}
-		}
-
-
-		// Finialise any outstanding tasks
-		draw.ProcessGPUTasks();
-
-		// Take the window's completed "screen" and draw it as a textured quad to the backbuffer
-		gpu->AssignTextureTarget(0, 0);
-		gpu->SetViewport({ 0,0 }, GetSize());
-		gpu->ClearViewport(olc::Colour::MAGENTA, true, true);
-		draw.ClearTransform();
-		//draw.ImageRect(imgPrimary, { -1.0,1.0 }, { 2.0f,-2.0f });	
-		draw.ImageRect(imgPrimary, { 0.0,0.0 }, GetSize());
-		draw.ProcessGPUTasks();
-
-		// Update Window's primary surface
-		gpu->DisplayDraw();
-
-		return true;
-	}
 
 	size_t Window::GetUID() const
 	{
 		return nUniqueID;
 	}
 
-	const olc::vi2d& Window::GetSize() const
+	const olc::vi2d& Window::GetWindowSize() const
 	{
 		return vWindowSize;
 	}
 
-	const olc::vi2d& Window::GetPosition() const
+	const olc::vi2d& Window::GetWindowPosition() const
 	{
 		return vWindowPos;
 	}
 
-	bool Window::SetSize(const olc::vi2d& vSize)
+	bool Window::SetWindowSize(const olc::vi2d& vSize)
 	{
 		// Request host to change geometry of window object
 
@@ -4720,7 +4829,7 @@ namespace olc
 		return true;
 	}
 
-	bool Window::SetPosition(const olc::vi2d& vPosition)
+	bool Window::SetWindowPosition(const olc::vi2d& vPosition)
 	{
 		// Request host to change geometry of window object
 
@@ -4728,27 +4837,23 @@ namespace olc
 		return true;
 	}
 
-	const std::string& Window::GetTitle() const
+	const std::string& Window::GetWindowTitle() const
 	{
 		return sFrameTitle;
 	}
 
-	bool Window::SetTitle(const std::string& sTitle)
+	bool Window::SetWindowTitle(const std::string& sTitle)
 	{
 		sFrameTitle = sTitle;
 		pHost->UpdateWindowFrameTitle(this);
 		return false;
 	}
 
-	bool Window::olc_PrimaryWindowInit()
-	{
-		return false;
-	}
 };
 #define PGE_WINDOW_IMPLEMENTED 1
 #endif
 
-#if defined(OLC_PGE_APPLICATION) && !defined(PGE_IMAGELOADER_IMPLEMENTED)
+#if defined(OLC_PGE3_APPLICATION) && !defined(PGE_IMAGELOADER_IMPLEMENTED)
 #if OLC_IMAGELOADER == OLC_IMAGELOADER_WINGDI
 namespace olc::imload
 {

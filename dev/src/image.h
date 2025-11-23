@@ -77,13 +77,6 @@ namespace olc
 
 	struct ImageRegion
 	{
-		ImageRegion(olc::Image& i, const olc::vf2d& vTL = { 0,0 }, const olc::vf2d& vTR = { 1,0 }, const olc::vf2d& vBL = { 0,1 }, const olc::vf2d& vBR = { 1,1 })
-			: image(i)
-		{
-			coords = { vTL, vTR, vBR, vBL };
-			regionsize = (vBR - vTL) * image.Size();
-		}
-
 		olc::Image& image;		
 		olc::vf2d regionsize;
 		union
@@ -94,6 +87,18 @@ namespace olc
 			olc::vf2d br;
 			olc::vf2d bl;
 		};
+
+		ImageRegion(olc::Image& i, const olc::vf2d& vTL = { 0,0 }, const olc::vf2d& vTR = { 1,0 }, const olc::vf2d& vBL = { 0,1 }, const olc::vf2d& vBR = { 1,1 })
+			: image(i)
+		{
+			coords = { vTL, vTR, vBR, vBL };
+			regionsize = (vBR - vTL) * image.Size();
+		}
+
+		ImageRegion& operator=(ImageRegion& o)
+		{
+
+		}
 	};
 
 	

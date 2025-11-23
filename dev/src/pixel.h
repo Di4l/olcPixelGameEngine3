@@ -72,7 +72,13 @@ namespace olc
 
 		// Construction via individual channels
 		inline constexpr Pixel(const uint8_t red, const uint8_t green, const uint8_t blue, const uint8_t alpha = 0xFF)
-			: a(alpha), b(blue), g(green), r(red) 
+#if PGE_PIXEL_LAYOUT == PGE_PIXEL_LAYOUT_RGBA
+			:  r(red), g(green), b(blue), a(alpha)
+#endif
+#if PGE_PIXEL_LAYOUT == PGE_PIXEL_LAYOUT_ABGR
+			: a(alpha), b(blue), g(green), r(red)
+#endif
+
 		{ }
 
 		// Construction via numeric assignment (e.g. #00DDBBFF)

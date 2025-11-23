@@ -87,4 +87,7 @@
 
 #define LICENCE_DEFAULT "OneLoneCoder.com - Pixel Game Engine 3 - "
 
+// De-Noise in MSVC (C++20)
+#pragma warning(disable:4820) // Disable Padding Warnings
+
 //! END CONFIGURATION

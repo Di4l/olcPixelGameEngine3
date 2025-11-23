@@ -52,7 +52,7 @@ namespace olc::apis::opengl
 		return bLoaded;
 	}
 
-	bool gl::CheckError(const std::source_location loc)
+	bool gl::CheckError([[maybe_unused]] const std::source_location  loc)
 	{
 #if OLC_GPU_ERRORCHECK == 1
 		GLenum err;
