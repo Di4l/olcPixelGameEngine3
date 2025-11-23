@@ -119,7 +119,7 @@ namespace olc
 		bool Start();
 
 	public: // Child Windows
-		bool AddChildWindow(std::shared_ptr<olc::PGEWindow> window);
+		bool AddChildWindow(std::shared_ptr<olc::PGEWindow> window, const olc::vi2d& vScreenSize, const olc::vi2d& vPixelSize);
 
 	private:
 		void EngineThread();

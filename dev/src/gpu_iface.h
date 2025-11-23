@@ -76,9 +76,13 @@ namespace olc
 
 		public: // Device Stuff
 			// Constructs a GPU Device interface
-			virtual bool CreateDevice(std::vector<void*> params, const RendererConfig& cfg) = 0;
+			virtual bool CreateDevice(std::vector<void*> os_win_id, const RendererConfig& cfg) = 0;
 			// Destroys a GPU device interface
 			virtual bool DestroyDevice() = 0;
+			// If applicable, retarget the rendering context
+			virtual bool RetargetDevice(std::vector<void*> os_win_id) = 0;
+			// Prepare an OS rendering target
+			virtual bool PrepareWindowTarget(std::vector<void*> os_win_id) = 0;
 
 		public: // Texture Resource Stuff
 			// Allocates a new texture resource in VRAM, returns handle
@@ -110,7 +114,7 @@ namespace olc
 			// Configures defaults prior to drawing
 			virtual bool DisplayPrepare() = 0;
 			// Displays the final output
-			virtual bool DisplayDraw(bool bVerticalSyncNow = false) = 0;
+			virtual bool DisplayDraw(std::vector<void*> os_win_id, bool bVerticalSyncNow = false) = 0;
 
 
 		protected:

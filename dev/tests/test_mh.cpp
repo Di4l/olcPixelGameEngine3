@@ -16,9 +16,16 @@ public:
 	// Return true if window is to continue
 	bool OnUserUpdate(float fElapsedTime) override
 	{
+		fTotalTime += fElapsedTime;
 
+		draw.Clear(olc::Colour::RED);
+		draw.WorldRotate(fTotalTime, GetDefaultImage().Size() / 2);
+		draw.FilledRect({ 10,10 }, { 20,20 }, olc::Colour::BLUE);
 		return true;
-	}		
+	}
+
+
+	float fTotalTime = 0;
 };
 
 
@@ -117,8 +124,7 @@ public:
 			{ 100.0f,  200.0f}
 		};
 
-		win2 = std::make_shared<SecondWindow>();
-		AddChildWindow(win2);
+		
 		
 
 		return true;
@@ -155,6 +161,12 @@ public:
 		{		
 			fAngle += 0.2f * fElapsedTime;
 			draw.WorldRotate(fAngle, imLowRes.Size() / 2.0f);
+		}
+
+		if (mouse.GetButton(2).bPressed)
+		{
+			auto w = std::make_shared<SecondWindow>();
+			AddChildWindow(w, { 100,100 }, { 2, 2 });
 		}
 
 		if (mouse.GetWheel() > 0)

@@ -103,7 +103,7 @@ namespace olc
 		olc::vi2d vWindowSize;
 		std::string sFrameTitle;
 	
-	private:
+	protected:
 		olc::host::Host* pHost = nullptr;
 
 	protected:
