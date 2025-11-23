@@ -53,28 +53,20 @@ namespace olc
 		bool bAllowChildWindows = true;
 	};
 
-	class PixelGameEngine : protected Window
+	class PGEWindow : public Window
 	{
 	public:
-		PixelGameEngine();
-		virtual ~PixelGameEngine();
-
+		bool Create(const olc::vi2d& vScreenSize, const olc::vi2d& vPixelSize);
+	
 	public:
-		bool Construct(const olc::vi2d& vScreenSize, const olc::vi2d& vPixelSize, bool bFullScreen = false);
-		bool Construct(const PGEConfig& cfg = PGEConfig{});
-
-	public:
-		bool Start();
-
-	public:	// The "Overridables"
-		// Called once when the engine is ready and the window is created
-		bool OnUserCreate() override;
-		// Called every frame while the engine is running
-		bool OnUserUpdate(float fElapsedTime) override;
-		// Called when something requests the engine shut down
-		bool OnUserDestroy() override;
-
-
+		// Return true if window is to continue
+		virtual bool OnUserCreate();
+		// Return true if window is to continue
+		virtual bool OnUserUpdate(float fElapsedTime);
+		// Return true if window is to close
+		virtual bool OnUserDestroy();
+		
+	
 	public:	// olc::Image Handling
 		// Create an image resource
 		bool CreateImage(olc::Image& image, const olc::vi2d& size, const ImageConfig& cfg = olc::ImageConfig());
@@ -89,14 +81,51 @@ namespace olc
 		// Destroy an image
 		void DestroyImage(olc::Image& image);
 
+	public:
+		void LinkToRenderer(olc::gpu::Renderer* gpu);
+		void LinkToImageLoader(olc::imload::ImageLoader* imload);
+
+
+		olc::Image& GetDefaultImage();
+		
+
 	protected:
-		bool olc_PrimaryWindowInit() override;
+		bool olc_OnMouseMove(const olc::vi2d& vMousePos) override;
+
+	public:
+		virtual bool olc_WindowUpdate(const float fElapsedTime);
+
+	protected:
+		olc::Draw2D draw;
+		
+		
+	private:
+		olc::Image imgPrimary;
+		olc::gpu::Renderer* pRenderer = nullptr;
+		olc::imload::ImageLoader* pImageLoader = nullptr;
+	};
+
+	class PixelGameEngine : protected PGEWindow
+	{
+	public:
+		PixelGameEngine();
+		virtual ~PixelGameEngine();
+
+	public:
+		bool Construct(const olc::vi2d& vScreenSize, const olc::vi2d& vPixelSize, bool bFullScreen = false);
+		bool Construct(const PGEConfig& cfg = PGEConfig{});
+
+	public:
+		bool Start();
+
+	public: // Child Windows
+		bool AddChildWindow(std::shared_ptr<olc::PGEWindow> window);
 
 	private:
 		void EngineThread();
 
 	private:
-		std::deque<std::shared_ptr<Window>> deqChildWindows;
+		std::deque<std::shared_ptr<PGEWindow>> deqChildWindows;
 
 		// Frame Timing & Overall Clocking
 		std::chrono::steady_clock::time_point timeFrame1;

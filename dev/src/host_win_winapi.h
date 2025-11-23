@@ -66,6 +66,7 @@ namespace olc
 		public:
 			bool StartSystemEventLoop();
 			bool AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen);			
+			bool CloseWindowFrame(olc::Window* pWindow);
 			bool UpdateWindowFrameTitle(olc::Window* pWindow);
 			
 			std::vector<void*> GetHostWindowDescriptor(olc::Window* pWindow);

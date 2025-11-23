@@ -15,7 +15,8 @@
 namespace olc
 {
 	// Forward declare for friendship
-	class Window;		
+	class Window;
+	class PGEWindow;
 
 
 	namespace hw
@@ -23,6 +24,7 @@ namespace olc
 		class Mouse
 		{
 			friend class olc::Window;
+			friend class olc::PGEWindow;
 
 		public:
 			Mouse() = default;
@@ -30,6 +32,7 @@ namespace olc
 		public:
 			const Button& GetButton(const int nButton) const;
 			const olc::vf2d& GetPosition() const;
+			int32_t GetWheel() const;
 
 		protected:
 			std::array<Button, OLC_MOUSE_BUTTONS> buttons{};
@@ -37,10 +40,13 @@ namespace olc
 			std::array<bool, OLC_MOUSE_BUTTONS> buttons_old{};
 			olc::vf2d position;
 			olc::vf2d position_in;
+			int32_t wheel_in;
+			int32_t wheel;
 
 		private:
 			void SetPosition(const olc::vf2d& pos);
 			void SetButton(const int nButton, bool state);
+			void SetWheel(const int32_t w);
 			void UpdateState();
 		};
 	}
