@@ -8,13 +8,25 @@ namespace olc::host
 
 	// Windows app needs an event loop somewhere. This is blocking of course. This loop handles
 	// all windows created for this host.
-	bool Host_Windows_WinAPI::StartSystemEventLoop()
+	bool Host_Windows_WinAPI::StartSystemEventLoop(bool bBlockIfPossible)
 	{
-		MSG msg;
-		while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE) > 0)
+		if (bBlockIfPossible)
 		{
-			TranslateMessage(&msg);
-			DispatchMessage(&msg);
+			MSG msg;
+			while (GetMessage(&msg, NULL, 0, 0) > 0)
+			{
+				TranslateMessage(&msg);
+				DispatchMessage(&msg);
+			}
+		}
+		else
+		{
+			MSG msg;
+			while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE) > 0)
+			{
+				TranslateMessage(&msg);
+				DispatchMessage(&msg);
+			}
 		}
 
 		return true;    
