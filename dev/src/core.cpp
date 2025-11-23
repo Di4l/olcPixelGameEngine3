@@ -9,6 +9,8 @@ namespace olc
 {
 	bool PGEWindow::Create(const olc::vi2d& vScreenSize, const olc::vi2d& vPixelSize)
 	{
+		//pRenderer->RetargetDevice(pHost->GetHostWindowDescriptor(this));
+		pRenderer->PrepareWindowTarget(pHost->GetHostWindowDescriptor(this));
 		CreateImage(GetDefaultImage(), vScreenSize);
 		SetWindowSize(vScreenSize * vPixelSize);
 		return true;
@@ -33,12 +35,10 @@ namespace olc
 	{
 		// Input Changes
 		mouse.UpdateState();
-
-
+		
 		draw.SetGPU(pRenderer);
 		draw.SetTarget(GetDefaultImage());
-
-
+		pRenderer->RetargetDevice(pHost->GetHostWindowDescriptor(this));
 		pRenderer->ApplyDefaultShader();
 
 
@@ -70,7 +70,8 @@ namespace olc
 		draw.ProcessGPUTasks();
 
 		// Update Window's primary surface
-		pRenderer->DisplayDraw();
+		//pRenderer->RetargetDevice(pHost->GetHostWindowDescriptor(this));
+		pRenderer->DisplayDraw(pHost->GetHostWindowDescriptor(this));
 
 		return true;
 	}
@@ -165,8 +166,6 @@ namespace olc
 
 
 
-
-
 	PixelGameEngine::PixelGameEngine() : PGEWindow()
 	{
 	}
@@ -195,32 +194,31 @@ namespace olc
 		// Initialise Host Interface
 		host = std::make_unique<olc::host::Host_Windows_WinAPI>();
 		
-
-		
-		
 		
 		coreActive = true;
-		coreThread = std::thread(&PixelGameEngine::EngineThread, this);
+		//coreThread = std::thread(&PixelGameEngine::EngineThread, this);
 
-		
+		EngineThread();
 
 		// Gracefully terminate the main engine thread
 		//coreActive = false;
-		coreThread.join();
+		//coreThread.join();
 
 		return true;
 	}
 
-	bool PixelGameEngine::AddChildWindow(std::shared_ptr<olc::PGEWindow> window)
+	bool PixelGameEngine::AddChildWindow(std::shared_ptr<olc::PGEWindow> window, const olc::vi2d& vScreenSize, const olc::vi2d& vPixelSize)
 	{
 		// Link this olc::Window to a host resource
 		if (host)
 		{
-			host->AddWindowFrame(window.get(), {30,30}, config.vPixelSize * config.vScreenSize, false);
+			host->AddWindowFrame(window.get(), { 30,30 }, vScreenSize * vPixelSize, false);
 			window->LinkToHost(host.get());
 			window->LinkToRenderer(gpu.get());
 			window->LinkToImageLoader(imageloader.get());
-			window->Create({ 64, 64 }, { 8,8 });
+
+			//gpu->RetargetDevice(host->GetHostWindowDescriptor(window.get()));
+			window->Create(vScreenSize, vPixelSize);
 			deqChildWindows.push_back(window);
 		}
 
@@ -228,11 +226,15 @@ namespace olc
 	}
 
 
+	
 	void PixelGameEngine::EngineThread()
 	{
 		using namespace std::chrono_literals;
 		timeFrame2 = std::chrono::steady_clock::now();
 		timeFrame1 = std::chrono::steady_clock::now();
+
+		// Start the host system event loop in its own thread
+		//auto t1 = std::thread([this]() { host->StartSystemEventLoop(true); });
 
 		// Create Primary Window
 		host->AddWindowFrame(this, { 30,30 }, config.vPixelSize * config.vScreenSize, false);
@@ -264,6 +266,8 @@ namespace olc
 		}
 
 
+		
+
 		CreateImage(GetDefaultImage(), config.vScreenSize);
 		
 
@@ -276,6 +280,8 @@ namespace olc
 			// Creation process signalled abort
 			return;
 		}
+
+
 		
 		draw.ProcessGPUTasks();
 		draw.SetTarget(GetDefaultImage());
@@ -285,9 +291,10 @@ namespace olc
 
 		durationFrameCount = 0s;
 
+
+
 		while (coreActive)
 		{
-			// This will block depending upon the system
 			host->StartSystemEventLoop();
 
 			// Frame Delta Timing - "ElapsedTime" since last core update
@@ -320,8 +327,9 @@ namespace olc
 				SetWindowTitle(sTitle);
 				frameCount = 0;
 			}
-						
+				
 
+			
 			// Primary Window
 			if (olc_ShouldRemove())
 			{

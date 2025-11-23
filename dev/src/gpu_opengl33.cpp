@@ -58,37 +58,22 @@ namespace olc::gpu
 
 
 
-	bool Renderer_OGL33::CreateDevice(std::vector<void*> params, const RendererConfig& cfg)
+	bool Renderer_OGL33::CreateDevice(std::vector<void*> os_win_id, const RendererConfig& cfg)
 	{
 		config = cfg;
 
 
-		// Create OpenGL Device Context
+		
 #if OLC_HOST == OLC_HOST_WINDOWS
-		// "wgl*" all live in WinGDI
-		glDeviceContext = GetDC((HWND)(params[0]));
-
-		PIXELFORMATDESCRIPTOR pfd =
+		// Create OpenGL Device Context
+		if (!PrepareWindowTarget(os_win_id))
 		{
-			sizeof(PIXELFORMATDESCRIPTOR), 1,
-			PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER,
-			PFD_TYPE_RGBA, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-			PFD_MAIN_PLANE, 0, 0, 0, 0
-		};
-
-		int pf = 0;
-		if (!(pf = ChoosePixelFormat(glDeviceContext, &pfd)))
-		{
-			lastError = RendererError::InvalidDCPixelFormat;
 			return false;
 		}
 
-		if (!SetPixelFormat(glDeviceContext, pf, &pfd))
-		{
-			lastError = RendererError::FailedToSetDCPixelFormat;
-			return false;
-		}
+		auto glDeviceContext = GetDC((HWND)(os_win_id[0]));
 
+		// Create OpenGL Render Context
 		if (!(glRenderContext = wglCreateContext(glDeviceContext))) 
 		{
 			lastError = RendererError::FailedToCreateRenderContext;
@@ -303,6 +288,52 @@ namespace olc::gpu
 		wglDeleteContext(glRenderContext);
 #endif
 		return false;
+	}
+
+	bool Renderer_OGL33::RetargetDevice(std::vector<void*> os_win_id)
+	{
+#if OLC_HOST == OLC_HOST_WINDOWS
+		auto glDeviceContext = GetDC((HWND)(os_win_id[0]));
+
+		if (!wglMakeCurrent(glDeviceContext, glRenderContext))
+		{
+			lastError = RendererError::FailedToSwitchRenderContext;
+			auto err = ::GetLastError();
+			return false;
+		}
+#endif
+
+		return true;
+	}
+
+	bool Renderer_OGL33::PrepareWindowTarget(std::vector<void*> os_win_id)
+	{
+#if OLC_HOST == OLC_HOST_WINDOWS
+		auto dc = GetDC((HWND)(os_win_id[0]));
+
+		PIXELFORMATDESCRIPTOR pfd =
+		{
+			sizeof(PIXELFORMATDESCRIPTOR), 1,
+			PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER,
+			PFD_TYPE_RGBA, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+			PFD_MAIN_PLANE, 0, 0, 0, 0
+		};
+
+		int pf = 0;
+		if (!(pf = ChoosePixelFormat(dc, &pfd)))
+		{
+			lastError = RendererError::InvalidDCPixelFormat;
+			return false;
+		}
+
+		if (!SetPixelFormat(dc, pf, &pfd))
+		{
+			lastError = RendererError::FailedToSetDCPixelFormat;
+			return false;
+		}
+#endif
+
+		return true;
 	}
 
 	uint32_t Renderer_OGL33::CreateTexture(const olc::vi2d& vSize, const olc::ImageConfig& cfg)
@@ -545,16 +576,17 @@ namespace olc::gpu
 		return false;
 	}
 
-	bool Renderer_OGL33::DisplayDraw(bool bVerticalSyncNow)
+	bool Renderer_OGL33::DisplayDraw(std::vector<void*> os_win_id, bool bVerticalSyncNow)
 	{
 		auto& gl = olc::apis::opengl::gl::Get();
 
 
 #if OLC_HOST == OLC_HOST_WINDOWS
-		SwapBuffers(glDeviceContext);		
+		auto glDeviceContext = GetDC((HWND)(os_win_id[0]));
+		SwapBuffers(glDeviceContext);
 #endif	
 
-		return false;
+		return true;
 	}
 
 

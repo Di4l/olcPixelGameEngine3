@@ -107,7 +107,7 @@
 #define OLC_MOUSE_BUTTONS 3
 
 #define OLC_GPU_MAX_VERTICES 8192
-#define OLC_GPU_ERRORCHECK 0
+#define OLC_GPU_ERRORCHECK 1
 
 #define LICENCE_DEFAULT "OneLoneCoder.com - Pixel Game Engine 3 - "
 
@@ -1474,9 +1474,13 @@ namespace olc
 
 		public: // Device Stuff
 			// Constructs a GPU Device interface
-			virtual bool CreateDevice(std::vector<void*> params, const RendererConfig& cfg) = 0;
+			virtual bool CreateDevice(std::vector<void*> os_win_id, const RendererConfig& cfg) = 0;
 			// Destroys a GPU device interface
 			virtual bool DestroyDevice() = 0;
+			// If applicable, retarget the rendering context
+			virtual bool RetargetDevice(std::vector<void*> os_win_id) = 0;
+			// Prepare an OS rendering target
+			virtual bool PrepareWindowTarget(std::vector<void*> os_win_id) = 0;
 
 		public: // Texture Resource Stuff
 			// Allocates a new texture resource in VRAM, returns handle
@@ -1508,7 +1512,7 @@ namespace olc
 			// Configures defaults prior to drawing
 			virtual bool DisplayPrepare() = 0;
 			// Displays the final output
-			virtual bool DisplayDraw(bool bVerticalSyncNow = false) = 0;
+			virtual bool DisplayDraw(std::vector<void*> os_win_id, bool bVerticalSyncNow = false) = 0;
 
 
 		protected:
@@ -1876,7 +1880,7 @@ namespace olc
 		olc::vi2d vWindowSize;
 		std::string sFrameTitle;
 	
-	private:
+	protected:
 		olc::host::Host* pHost = nullptr;
 
 	protected:
@@ -1927,9 +1931,9 @@ namespace olc
 			HostError GetLastError() const { return lastError; }
 
 		public: 
-			virtual bool StartSystemEventLoop() = 0;
+			virtual bool StartSystemEventLoop(bool bBlockIfPossible = false) = 0;
 			virtual bool AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen) = 0;
-			
+			virtual bool CloseWindowFrame(olc::Window* pWindow) = 0;
 			virtual bool UpdateWindowFrameTitle(olc::Window* pWindow) = 0;
 
 			virtual std::vector<void*> GetHostWindowDescriptor(olc::Window* pWindow) = 0;
@@ -2044,7 +2048,7 @@ namespace olc
 		bool Start();
 
 	public: // Child Windows
-		bool AddChildWindow(std::shared_ptr<olc::PGEWindow> window);
+		bool AddChildWindow(std::shared_ptr<olc::PGEWindow> window, const olc::vi2d& vScreenSize, const olc::vi2d& vPixelSize);
 
 	private:
 		void EngineThread();
@@ -2131,8 +2135,9 @@ namespace olc
 
 
 		public:
-			bool StartSystemEventLoop();
+			bool StartSystemEventLoop(bool bBlockIfPossible = false);
 			bool AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen);			
+			bool CloseWindowFrame(olc::Window* pWindow);
 			bool UpdateWindowFrameTitle(olc::Window* pWindow);
 			
 			std::vector<void*> GetHostWindowDescriptor(olc::Window* pWindow);
@@ -2393,9 +2398,13 @@ namespace olc
 		{
 		public: // Device Stuff
 			// Constructs a GPU Device interface
-			bool CreateDevice(std::vector<void*> params, const RendererConfig& cfg) override;
+			bool CreateDevice(std::vector<void*> os_win_id, const RendererConfig& cfg) override;
 			// Destroys a GPU device interface
 			bool DestroyDevice() override;
+			// If applicable, relocate the rendering context
+			bool RetargetDevice(std::vector<void*> os_win_id) override;
+			// Prepare an OS rendering target
+			bool PrepareWindowTarget(std::vector<void*> os_win_id) override;
 
 
 		public: // Texture Resource Stuff
@@ -2427,11 +2436,11 @@ namespace olc
 			// Configures defaults prior to drawing
 			virtual bool DisplayPrepare() override;
 			// Displays the final output
-			virtual bool DisplayDraw(bool bVerticalSyncNow) override;
+			virtual bool DisplayDraw(std::vector<void*> os_win_id, bool bVerticalSyncNow) override;
 
 		
 		protected: // These may need some thinking about re multiple window
-			olc::apis::opengl::glDeviceContext_t glDeviceContext = 0;
+			//olc::apis::opengl::glDeviceContext_t glDeviceContext = 0;
 			olc::apis::opengl::glRenderContext_t glRenderContext = 0;
 
 			Shader_GLSL33 shaderDefault;
@@ -2531,13 +2540,25 @@ namespace olc::host
 
 	// Windows app needs an event loop somewhere. This is blocking of course. This loop handles
 	// all windows created for this host.
-	bool Host_Windows_WinAPI::StartSystemEventLoop()
+	bool Host_Windows_WinAPI::StartSystemEventLoop(bool bBlockIfPossible)
 	{
-		MSG msg;
-		while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE) > 0)
+		if (bBlockIfPossible)
 		{
-			TranslateMessage(&msg);
-			DispatchMessage(&msg);
+			MSG msg;
+			while (GetMessage(&msg, NULL, 0, 0) > 0)
+			{
+				TranslateMessage(&msg);
+				DispatchMessage(&msg);
+			}
+		}
+		else
+		{
+			MSG msg;
+			while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE) > 0)
+			{
+				TranslateMessage(&msg);
+				DispatchMessage(&msg);
+			}
 		}
 
 		return true;    
@@ -2667,6 +2688,12 @@ namespace olc::host
 		//DragAcceptFiles(olc_hWnd, true);
 
 		return true;
+	}
+
+	bool Host_Windows_WinAPI::CloseWindowFrame(olc::Window* pWindow)
+	{
+		DestroyWindow((HWND)GetHostWindowDescriptor(pWindow).front());
+		return false;
 	}
 
 	bool Host_Windows_WinAPI::UpdateWindowFrameTitle(olc::Window* pWindow)
@@ -3294,37 +3321,22 @@ namespace olc::gpu
 
 
 
-	bool Renderer_OGL33::CreateDevice(std::vector<void*> params, const RendererConfig& cfg)
+	bool Renderer_OGL33::CreateDevice(std::vector<void*> os_win_id, const RendererConfig& cfg)
 	{
 		config = cfg;
 
 
-		// Create OpenGL Device Context
+		
 #if OLC_HOST == OLC_HOST_WINDOWS
-		// "wgl*" all live in WinGDI
-		glDeviceContext = GetDC((HWND)(params[0]));
-
-		PIXELFORMATDESCRIPTOR pfd =
+		// Create OpenGL Device Context
+		if (!PrepareWindowTarget(os_win_id))
 		{
-			sizeof(PIXELFORMATDESCRIPTOR), 1,
-			PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER,
-			PFD_TYPE_RGBA, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-			PFD_MAIN_PLANE, 0, 0, 0, 0
-		};
-
-		int pf = 0;
-		if (!(pf = ChoosePixelFormat(glDeviceContext, &pfd)))
-		{
-			lastError = RendererError::InvalidDCPixelFormat;
 			return false;
 		}
 
-		if (!SetPixelFormat(glDeviceContext, pf, &pfd))
-		{
-			lastError = RendererError::FailedToSetDCPixelFormat;
-			return false;
-		}
+		auto glDeviceContext = GetDC((HWND)(os_win_id[0]));
 
+		// Create OpenGL Render Context
 		if (!(glRenderContext = wglCreateContext(glDeviceContext))) 
 		{
 			lastError = RendererError::FailedToCreateRenderContext;
@@ -3539,6 +3551,52 @@ namespace olc::gpu
 		wglDeleteContext(glRenderContext);
 #endif
 		return false;
+	}
+
+	bool Renderer_OGL33::RetargetDevice(std::vector<void*> os_win_id)
+	{
+#if OLC_HOST == OLC_HOST_WINDOWS
+		auto glDeviceContext = GetDC((HWND)(os_win_id[0]));
+
+		if (!wglMakeCurrent(glDeviceContext, glRenderContext))
+		{
+			lastError = RendererError::FailedToSwitchRenderContext;
+			auto err = ::GetLastError();
+			return false;
+		}
+#endif
+
+		return true;
+	}
+
+	bool Renderer_OGL33::PrepareWindowTarget(std::vector<void*> os_win_id)
+	{
+#if OLC_HOST == OLC_HOST_WINDOWS
+		auto dc = GetDC((HWND)(os_win_id[0]));
+
+		PIXELFORMATDESCRIPTOR pfd =
+		{
+			sizeof(PIXELFORMATDESCRIPTOR), 1,
+			PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER,
+			PFD_TYPE_RGBA, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+			PFD_MAIN_PLANE, 0, 0, 0, 0
+		};
+
+		int pf = 0;
+		if (!(pf = ChoosePixelFormat(dc, &pfd)))
+		{
+			lastError = RendererError::InvalidDCPixelFormat;
+			return false;
+		}
+
+		if (!SetPixelFormat(dc, pf, &pfd))
+		{
+			lastError = RendererError::FailedToSetDCPixelFormat;
+			return false;
+		}
+#endif
+
+		return true;
 	}
 
 	uint32_t Renderer_OGL33::CreateTexture(const olc::vi2d& vSize, const olc::ImageConfig& cfg)
@@ -3781,16 +3839,17 @@ namespace olc::gpu
 		return false;
 	}
 
-	bool Renderer_OGL33::DisplayDraw(bool bVerticalSyncNow)
+	bool Renderer_OGL33::DisplayDraw(std::vector<void*> os_win_id, bool bVerticalSyncNow)
 	{
 		auto& gl = olc::apis::opengl::gl::Get();
 
 
 #if OLC_HOST == OLC_HOST_WINDOWS
-		SwapBuffers(glDeviceContext);		
+		auto glDeviceContext = GetDC((HWND)(os_win_id[0]));
+		SwapBuffers(glDeviceContext);
 #endif	
 
-		return false;
+		return true;
 	}
 
 
@@ -4232,6 +4291,8 @@ namespace olc
 {
 	bool PGEWindow::Create(const olc::vi2d& vScreenSize, const olc::vi2d& vPixelSize)
 	{
+		//pRenderer->RetargetDevice(pHost->GetHostWindowDescriptor(this));
+		pRenderer->PrepareWindowTarget(pHost->GetHostWindowDescriptor(this));
 		CreateImage(GetDefaultImage(), vScreenSize);
 		SetWindowSize(vScreenSize * vPixelSize);
 		return true;
@@ -4256,12 +4317,10 @@ namespace olc
 	{
 		// Input Changes
 		mouse.UpdateState();
-
-
+		
 		draw.SetGPU(pRenderer);
 		draw.SetTarget(GetDefaultImage());
-
-
+		pRenderer->RetargetDevice(pHost->GetHostWindowDescriptor(this));
 		pRenderer->ApplyDefaultShader();
 
 
@@ -4293,7 +4352,8 @@ namespace olc
 		draw.ProcessGPUTasks();
 
 		// Update Window's primary surface
-		pRenderer->DisplayDraw();
+		//pRenderer->RetargetDevice(pHost->GetHostWindowDescriptor(this));
+		pRenderer->DisplayDraw(pHost->GetHostWindowDescriptor(this));
 
 		return true;
 	}
@@ -4388,8 +4448,6 @@ namespace olc
 
 
 
-
-
 	PixelGameEngine::PixelGameEngine() : PGEWindow()
 	{
 	}
@@ -4418,32 +4476,31 @@ namespace olc
 		// Initialise Host Interface
 		host = std::make_unique<olc::host::Host_Windows_WinAPI>();
 		
-
-		
-		
 		
 		coreActive = true;
-		coreThread = std::thread(&PixelGameEngine::EngineThread, this);
+		//coreThread = std::thread(&PixelGameEngine::EngineThread, this);
 
-		
+		EngineThread();
 
 		// Gracefully terminate the main engine thread
 		//coreActive = false;
-		coreThread.join();
+		//coreThread.join();
 
 		return true;
 	}
 
-	bool PixelGameEngine::AddChildWindow(std::shared_ptr<olc::PGEWindow> window)
+	bool PixelGameEngine::AddChildWindow(std::shared_ptr<olc::PGEWindow> window, const olc::vi2d& vScreenSize, const olc::vi2d& vPixelSize)
 	{
 		// Link this olc::Window to a host resource
 		if (host)
 		{
-			host->AddWindowFrame(window.get(), {30,30}, config.vPixelSize * config.vScreenSize, false);
+			host->AddWindowFrame(window.get(), { 30,30 }, vScreenSize * vPixelSize, false);
 			window->LinkToHost(host.get());
 			window->LinkToRenderer(gpu.get());
 			window->LinkToImageLoader(imageloader.get());
-			window->Create({ 64, 64 }, { 8,8 });
+
+			//gpu->RetargetDevice(host->GetHostWindowDescriptor(window.get()));
+			window->Create(vScreenSize, vPixelSize);
 			deqChildWindows.push_back(window);
 		}
 
@@ -4451,11 +4508,15 @@ namespace olc
 	}
 
 
+	
 	void PixelGameEngine::EngineThread()
 	{
 		using namespace std::chrono_literals;
 		timeFrame2 = std::chrono::steady_clock::now();
 		timeFrame1 = std::chrono::steady_clock::now();
+
+		// Start the host system event loop in its own thread
+		//auto t1 = std::thread([this]() { host->StartSystemEventLoop(true); });
 
 		// Create Primary Window
 		host->AddWindowFrame(this, { 30,30 }, config.vPixelSize * config.vScreenSize, false);
@@ -4487,6 +4548,8 @@ namespace olc
 		}
 
 
+		
+
 		CreateImage(GetDefaultImage(), config.vScreenSize);
 		
 
@@ -4499,6 +4562,8 @@ namespace olc
 			// Creation process signalled abort
 			return;
 		}
+
+
 		
 		draw.ProcessGPUTasks();
 		draw.SetTarget(GetDefaultImage());
@@ -4508,9 +4573,10 @@ namespace olc
 
 		durationFrameCount = 0s;
 
+
+
 		while (coreActive)
 		{
-			// This will block depending upon the system
 			host->StartSystemEventLoop();
 
 			// Frame Delta Timing - "ElapsedTime" since last core update
@@ -4543,8 +4609,9 @@ namespace olc
 				SetWindowTitle(sTitle);
 				frameCount = 0;
 			}
-						
+				
 
+			
 			// Primary Window
 			if (olc_ShouldRemove())
 			{
@@ -4561,8 +4628,12 @@ namespace olc
 				if (!deqChildWindows.empty())
 				{
 					deqChildWindows.erase(std::remove_if(deqChildWindows.begin(), deqChildWindows.end(),
-						[](const std::shared_ptr<PGEWindow>& w)
+						[this](const std::shared_ptr<PGEWindow>& w)
 						{
+							if (w->olc_ShouldRemove())
+							{
+								host->CloseWindowFrame(w.get());
+							}
 							return w->olc_ShouldRemove();
 						}
 					), deqChildWindows.end());
