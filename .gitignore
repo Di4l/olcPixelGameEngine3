@@ -36,3 +36,4 @@
 /dev/tests/build
 /dev/msvc/olcPGE3_BuildSH/x64/Debug
 /dev/msvc/olcPGE3/x64/Release
+/dev/msvc/x64/Debug/olcPGE3.tlog
