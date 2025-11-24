@@ -38,7 +38,9 @@ namespace olc
 		
 		draw.SetGPU(pRenderer);
 		draw.SetTarget(GetDefaultImage());
+#if OLC_MULTIWINDOW == OLC_MULTIWINDOW_YES
 		pRenderer->RetargetDevice(pHost->GetHostWindowDescriptor(this));
+#endif
 		pRenderer->ApplyDefaultShader();
 
 
@@ -194,21 +196,29 @@ namespace olc
 		// Initialise Host Interface
 		host = std::make_unique<olc::host::Host_Windows_WinAPI>();
 		
-		
+#if OLC_MULTIWINDOW == OLC_MULTIWINDOW_NO
+		// Create OS window on this thread
+		host->AddWindowFrame(this, { 30,30 }, config.vPixelSize * config.vScreenSize, false);
+		// Create EngineThread - no more windows will be created now. We needed one window
+		// at least to initialise teh rendering subsystem... sigh.
 		coreActive = true;
-		//coreThread = std::thread(&PixelGameEngine::EngineThread, this);
-
-		EngineThread();
-
-		// Gracefully terminate the main engine thread
-		//coreActive = false;
-		//coreThread.join();
-
+		coreThread = std::thread(&PixelGameEngine::EngineThread, this);
+		// Handle window events on this thread (and block)
+		host->StartSystemEventLoop(true);		
+		// Window has closed its event handler, so shut down gracefully
+		coreActive = false;
+		// Wait for engine thread to terminate
+		coreThread.join();
+#else
+		
+#endif
+		
 		return true;
 	}
 
 	bool PixelGameEngine::AddChildWindow(std::shared_ptr<olc::PGEWindow> window, const olc::vi2d& vScreenSize, const olc::vi2d& vPixelSize)
 	{
+#if OLC_MULTIWINDOW == OLC_MULTIWINDOW_YES
 		// Link this olc::Window to a host resource
 		if (host)
 		{
@@ -221,8 +231,11 @@ namespace olc
 			window->Create(vScreenSize, vPixelSize);
 			deqChildWindows.push_back(window);
 		}
-
 		return true;
+#else
+		// Can't create new windows
+		return false;
+#endif
 	}
 
 
@@ -233,12 +246,12 @@ namespace olc
 		timeFrame2 = std::chrono::steady_clock::now();
 		timeFrame1 = std::chrono::steady_clock::now();
 
-		// Start the host system event loop in its own thread
-		//auto t1 = std::thread([this]() { host->StartSystemEventLoop(true); });
-
-		// Create Primary Window
+#if OLC_MULTIWINDOW == OLC_MULTIWINDOW_YES
+		// Create Primary Window on EngineThread, event loop also exists for all windows
+		// on this thread, and all windows will be created on this thread
 		host->AddWindowFrame(this, { 30,30 }, config.vPixelSize * config.vScreenSize, false);
-
+#endif
+		
 		// Initialise ImageLoader Interface
 		imageloader = std::make_unique<olc::imload::ImageLoader_WinGDI>();
 		
@@ -295,7 +308,10 @@ namespace olc
 
 		while (coreActive)
 		{
-			host->StartSystemEventLoop();
+#if OLC_MULTIWINDOW == OLC_MULTIWINDOW_YES
+			// Multiwindow system uses one event loop (non blocking) for all windows
+			host->StartSystemEventLoop(false);
+#endif
 
 			// Frame Delta Timing - "ElapsedTime" since last core update
 			// ~~~~~~~~~~~~~~~~~~
@@ -338,6 +354,7 @@ namespace olc
 			}
 			else
 			{
+#if OLC_MULTIWINDOW == OLC_MULTIWINDOW_YES
 				// Update Child Windows (if any)
 				for (auto& winChild : deqChildWindows)
 					winChild->olc_WindowUpdate(fDT);
@@ -356,6 +373,7 @@ namespace olc
 						}
 					), deqChildWindows.end());
 				}
+#endif
 
 				// Update Primary Window
 				olc_WindowUpdate(fDT);
