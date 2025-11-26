@@ -211,25 +211,22 @@ namespace olc::host
 				int16_t iy = *(int16_t*)&y;
 				// Tell window new mouse location
 				window->olc_OnMouseMove(olc::vi2d{ ix, iy });
-				return 0;
+				break;
 			}
-			break;
 		
 
 			//		case WM_MOVE:       vWinPos = olc::vi2d(lParam & 0xFFFF, (lParam >> 16) & 0xFFFF);  ptrPGE->olc_UpdateWindowPos(lParam & 0xFFFF, (lParam >> 16) & 0xFFFF);	return 0;
 		case WM_SIZE:
 			{				
 				window->olc_OnWindowSize(olc::vi2d(lParam & 0xFFFF, (lParam >> 16) & 0xFFFF));
-				return 0;
+				break;
 			}
-			break;
 
 		case WM_MOUSEWHEEL:
 			{
 				window->olc_OnMouseWheel(GET_WHEEL_DELTA_WPARAM(wParam));
-				return 0;
+				break;
 			}
-			break;
 			//		case WM_MOUSELEAVE: ptrPGE->olc_UpdateMouseFocus(false);                                    return 0;
 			//		case WM_SETFOCUS:	ptrPGE->olc_UpdateKeyFocus(true);                                       return 0;
 			//		case WM_KILLFOCUS:	ptrPGE->olc_UpdateKeyFocus(false);                                      return 0;
@@ -240,32 +237,32 @@ namespace olc::host
 		case WM_LBUTTONDOWN:
 			{
 				window->olc_OnMouseButton(0, true);
-				return 0;
+				break;
 			}
 		case WM_LBUTTONUP:
 			{
 				window->olc_OnMouseButton(0, false);
-				return 0;
+				break;
 			}
 		case WM_RBUTTONDOWN:
 			{
 				window->olc_OnMouseButton(1, true);
-				return 0;
+				break;
 			}
 		case WM_RBUTTONUP:
 			{
 				window->olc_OnMouseButton(1, false);
-				return 0;
+				break;
 			}
 		case WM_MBUTTONDOWN:
 			{
 				window->olc_OnMouseButton(2, true);
-				return 0;
+				break;
 			}
 		case WM_MBUTTONUP:
 			{
 				window->olc_OnMouseButton(2, false);
-				return 0;
+				break;
 			}
 			//		case WM_DROPFILES:
 			//		{
@@ -308,13 +305,16 @@ namespace olc::host
 		case WM_CLOSE:
 			{
 				window->olc_OnWindowClose();
-				return 0;
+				break;
+				//return DefWindowProc(hWnd, uMsg, wParam, lParam);
 			}
 		case WM_DESTROY:	
 			PostQuitMessage(0); 
 			DestroyWindow(hWnd);
 
 		}
+
+
 		return DefWindowProc(hWnd, uMsg, wParam, lParam);
 	}
 

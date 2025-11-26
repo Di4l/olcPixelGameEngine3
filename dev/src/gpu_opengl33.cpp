@@ -301,6 +301,7 @@ namespace olc::gpu
 			auto err = ::GetLastError();
 			return false;
 		}
+		ReleaseDC((HWND)(os_win_id[0]), glDeviceContext);
 #endif
 
 		return true;
@@ -309,7 +310,7 @@ namespace olc::gpu
 	bool Renderer_OGL33::PrepareWindowTarget(std::vector<void*> os_win_id)
 	{
 #if OLC_HOST == OLC_HOST_WINDOWS
-		auto dc = GetDC((HWND)(os_win_id[0]));
+		auto glDeviceContext = GetDC((HWND)(os_win_id[0]));
 
 		PIXELFORMATDESCRIPTOR pfd =
 		{
@@ -320,17 +321,18 @@ namespace olc::gpu
 		};
 
 		int pf = 0;
-		if (!(pf = ChoosePixelFormat(dc, &pfd)))
+		if (!(pf = ChoosePixelFormat(glDeviceContext, &pfd)))
 		{
 			lastError = RendererError::InvalidDCPixelFormat;
 			return false;
 		}
 
-		if (!SetPixelFormat(dc, pf, &pfd))
+		if (!SetPixelFormat(glDeviceContext, pf, &pfd))
 		{
 			lastError = RendererError::FailedToSetDCPixelFormat;
 			return false;
 		}
+		ReleaseDC((HWND)(os_win_id[0]), glDeviceContext);
 #endif
 
 		return true;
@@ -584,6 +586,7 @@ namespace olc::gpu
 #if OLC_HOST == OLC_HOST_WINDOWS
 		auto glDeviceContext = GetDC((HWND)(os_win_id[0]));
 		SwapBuffers(glDeviceContext);
+		ReleaseDC((HWND)(os_win_id[0]), glDeviceContext);
 #endif	
 
 		return true;

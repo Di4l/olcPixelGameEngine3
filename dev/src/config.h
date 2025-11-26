@@ -80,6 +80,14 @@
 #endif
 
 
+#define OLC_MULTIWINDOW_NO 1
+#define OLC_MULTIWINDOW_YES 2
+
+#if !defined(OLC_MULTIWINDOW)
+	#define OLC_MULTIWINDOW OLC_MULTIWINDOW_NO
+#endif
+
+
 #define OLC_MOUSE_BUTTONS 3
 
 #define OLC_GPU_MAX_VERTICES 8192

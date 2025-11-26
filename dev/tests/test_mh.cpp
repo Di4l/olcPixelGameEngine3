@@ -166,7 +166,7 @@ public:
 		if (mouse.GetButton(2).bPressed)
 		{
 			auto w = std::make_shared<SecondWindow>();
-			AddChildWindow(w, { 100,100 }, { 2, 2 });
+			//AddChildWindow(w, { 100,100 }, { 2, 2 });
 		}
 
 		if (mouse.GetWheel() > 0)
