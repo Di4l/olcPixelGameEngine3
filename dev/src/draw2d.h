@@ -16,6 +16,7 @@
 #include "pixel.h"
 #include "image.h"
 #include "gputask.h"
+#include "font.h"
 //! END CUSTOMHEADER
 
 //! START DECLARATION
@@ -132,6 +133,11 @@ namespace olc
 		//FilledPolygon
 		//ShadedPolygon
 		//TexturedPolygon
+
+		const GPUTask& String(
+			const olc::vf2d& pos,
+			const std::string& text, 
+			olc::Font& font = olc::fontClassicPGE);
 
 		
 		// Draws a scaled image at specified location

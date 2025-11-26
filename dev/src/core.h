@@ -20,6 +20,7 @@
 #include "gpu_iface.h"
 #include "host_iface.h"
 #include "imload_iface.h"
+#include "font.h"
 //! END CUSTOMHEADER GLOBAL
 
 //! START DECLARATION
