@@ -301,6 +301,41 @@ const GPUTask& olc::Draw2D::FilledRect(const olc::vf2d& pos, const olc::vf2d& si
 		));
 }
 
+const GPUTask& olc::Draw2D::String(const olc::vf2d& pos, const std::string& text, olc::Font& font)
+{
+	PrepareTargetForHW();
+
+	olc::vf2d spos = { 0.0f, 0.0f };
+	//olc::vf2d size = image.regionsize * scale;
+
+	for (auto c : text)
+	{
+		if (c == '\n')
+		{
+			spos.x = 0; spos.y += 8.0f * 1.0f;
+		}
+		else if (c == '\t')
+		{
+			spos.x += 8.0f * float(4) * 1.0f;
+		}
+		else
+		{
+			int32_t ox = (c - 32) % 16;
+			int32_t oy = (c - 32) / 16;
+			Image(font.glyphs[c].imgGlyph, pos + spos);
+
+
+
+
+
+
+			spos.x += 8.0f * 1.0f;
+		}
+	}
+
+	return vecGPUTasks.emplace_back();
+}
+
 const GPUTask& olc::Draw2D::Image(olc::ImageRegion image, const olc::vf2d& pos, const olc::vf2d& scale)
 {
 	// Ensure source image is up to date in VRAM

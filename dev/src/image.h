@@ -45,7 +45,7 @@ namespace olc
 		// Returns read/write pointer to start of 1D stream of pixel data
 		olc::Pixel* Data();
 		// [UNSAFE] Returns pixel at location
-		olc::Pixel& Pixel(const olc::vf2d& pos);
+		olc::Pixel& Pixel(const olc::vi2d& pos);
 		// Returns how this image was configured upon creation
 		const ImageConfig& GetConfig() const;
 		// Return GPU Resource ID

@@ -284,6 +284,10 @@ namespace olc
 		CreateImage(GetDefaultImage(), config.vScreenSize);
 		
 
+		// Initialise Font System
+		olc::pgeguts::CreateClassicFont(this);
+
+
 		draw.SetGPU(gpu.get());
 		gpu->ApplyDefaultShader();
 		draw.SetTarget(GetDefaultImage());

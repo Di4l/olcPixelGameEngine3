@@ -228,6 +228,10 @@ public:
 
 		draw.Image(imSampleTest, vMouse);
 
+		draw.Image(olc::fontClassicPGE.imgFontSheet, vMouse);
+
+		draw.String({ 10.0f, 10.0f }, "Hello World!");
+
 
 		//draw.Pixel(vMouse, olc::Colour::GREEN);
 		//draw.Line(vMouse, vMouse + 1,  olc::Colour::GREEN);
