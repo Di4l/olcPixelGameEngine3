@@ -273,8 +273,9 @@ namespace olc::gpu
 		// Unbind the FBO
 		gl.glBindFramebuffer(36160U, 0);
 
-		glEnable(GL_TEXTURE_2D); // Turn on texturing
-		glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
+		gl.glEnable(GL_TEXTURE_2D); // Turn on texturing
+		gl.glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
+		gl.glEnable(GL_BLEND);
 
 		lastError = RendererError::None;
 		return true;
