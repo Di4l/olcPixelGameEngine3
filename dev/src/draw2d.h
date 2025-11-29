@@ -56,7 +56,7 @@ namespace olc
 		olc::vf2d WorldToScreen(const olc::vf2d& v) const;
 		olc::vf2d ScreenToWorld(const olc::vf2d& v) const;
 
-	public:
+	public: // Primitive Drawing Functions
 		// Plot a single pixel
 		void Pixel(
 			const olc::vf2d& pos, 
@@ -70,7 +70,7 @@ namespace olc
 		// Clear entire draw target to specific colour
 		void Clear(const olc::Pixel& col);
 	
-	public:
+	public: // Shape Drawing Functions
 		// Draws a single pixel wide line		
 		const GPUTask& Line(
 			const olc::vf2d& p1, 
@@ -134,17 +134,36 @@ namespace olc
 		//ShadedPolygon
 		//TexturedPolygon
 
+	public: // Text Drawing Functions
+		// Draws a string at specified location in monospace font
 		const GPUTask& String(
 			const olc::vf2d& pos,
 			const std::string& text, 
+			const olc::Pixel col = olc::Colour::WHITE,
+			const olc::vf2d& scale = { 1.0f, 1.0f },
 			olc::Font& font = olc::fontClassicPGE);
 
-		
+		// Draws a string at specified location in proportional font
+		const GPUTask& StringProp(
+			const olc::vf2d& pos,
+			const std::string& text,
+			const olc::Pixel col = olc::Colour::WHITE,
+			const olc::vf2d& scale = { 1.0f, 1.0f },
+			olc::Font& font = olc::fontClassicPGE);
+
+		olc::vf2d GetTextSize(
+			const std::string& text,
+			const bool bProportional = false,
+			const olc::vf2d& scale = { 1.0f, 1.0f },
+			olc::Font& font = olc::fontClassicPGE);
+
+	public: // Image Drawing Functions		
 		// Draws a scaled image at specified location
 		const GPUTask& Image(
 			olc::ImageRegion image, 
 			const olc::vf2d& pos, 
-			const olc::vf2d& scale = { 1.0f, 1.0f });						
+			const olc::vf2d& scale = { 1.0f, 1.0f }, 
+			const olc::Pixel tint = olc::Colour::WHITE);						
 		
 		// Draws an image rotated around a point at specified location
 		const GPUTask& ImageRotated(
@@ -152,7 +171,8 @@ namespace olc
 			const olc::vf2d& pos, 
 			const float theta, 
 			const olc::vf2d& center = { 0.0f, 0.0f }, 
-			const olc::vf2d& scale = { 1.0f, 1.0f });
+			const olc::vf2d& scale = { 1.0f, 1.0f },
+			const olc::Pixel tint = olc::Colour::WHITE);
 
 		// Draws an image warped correctly to linearly fill a quadrilateral (formerly DrawWarped...)		
 		const GPUTask& ImageQuad(
@@ -160,16 +180,21 @@ namespace olc
 			const olc::vf2d& vTL, 
 			const olc::vf2d& vTR, 
 			const olc::vf2d& vBR, 
-			const olc::vf2d& vBL);
+			const olc::vf2d& vBL,
+			const olc::Pixel tint = olc::Colour::WHITE);
 
 		// Draws an image warped correctly to linearly fill a quadrilateral (formerly DrawWarped...)
 		const GPUTask& ImageQuad(
 			olc::ImageRegion image, 
-			const std::vector<olc::vf2d>& vecPoints);
-
+			const std::vector<olc::vf2d>& vecPoints,
+			const olc::Pixel tint = olc::Colour::WHITE);
 
 		// Draws an image scaled to a specified rectangular area
-		const GPUTask& ImageRect(olc::ImageRegion image, const olc::vf2d& pos, const olc::vf2d& size);
+		const GPUTask& ImageRect(
+			olc::ImageRegion image, 
+			const olc::vf2d& pos, 
+			const olc::vf2d& size,
+			const olc::Pixel tint = olc::Colour::WHITE);
 	
 
 

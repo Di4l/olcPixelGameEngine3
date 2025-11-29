@@ -25,8 +25,16 @@ namespace olc
 
 	struct FontGlyph	
 	{
+		// Region of an olc::Image that contains the glyph
+		// in bitmap format. Typically WHITE on TRANSPARENT...
+		// ...though have fun with crazy alternatives :P
 		olc::ImageRegion imgGlyph;
-		olc::vf2d vKerning;
+		// Leading spacing in pixels before glyph
+		float spacing;
+		// Size of the glyph in pixels
+		olc::vf2d vPropSize;
+		// Size of the glyph in monospace format
+		olc::vf2d vMonoSize;
 	};
 
 	class Font
@@ -35,20 +43,23 @@ namespace olc
 		Font() = default;
 		~Font() = default;
 
-		//void CreateFontSheet(const olc::Image& imgFont, const std::array<FontGlyph, 256>& glyphs);
-		//bool LoadFontSheet(imload::ImageLoader* imload, const std::string& sImageFile, const std::array<FontGlyph, 256>& glyphs);
-		//FontGlyph GetGlyph(const char c);
-
 	public:		
-		olc::Image imgFontSheet;
+		// Image that contains all glyphs
+		olc::Image imgFont;
+		// All glyphs in the font
 		std::vector<FontGlyph> glyphs;
-		olc::vf2d vCharSize;
+		// Line height in pixels
+		float fLineHeight = 10.0f;
+		// Tab width in pixels
+		float fTabWidth = 32.0f;
 	};		
 
+	// Predefined classic PGE font
 	inline olc::Font fontClassicPGE;
 
 	namespace pgeguts
 	{
+		// Create the classic PGE font
 		void CreateClassicFont(olc::PGEWindow* pge);
 	}
 

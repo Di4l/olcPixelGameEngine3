@@ -195,6 +195,12 @@ namespace olc::apis::opengl
 		CheckError();
 	}
 
+	void gl::glHint(GLenum target, GLenum mode)
+	{
+		::glHint(target, mode);
+		CheckError();
+	}
+
 	GLuint gl::glCreateShader(GLenum type)
 	{
 		return _glCreateShader(type);

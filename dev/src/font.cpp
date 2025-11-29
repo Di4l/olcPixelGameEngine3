@@ -5,30 +5,6 @@
 //! START IMPLEMENTATION
 namespace olc
 {
-
-
-	/*void Font::CreateFontSheet(const olc::Image& imgFont, const std::array<FontGlyph, 256>& glyphs)
-	{
-		imgFontSheet = imgFont;
-		allGlyphs = glyphs;
-	}*/
-
-	/*bool Font::LoadFontSheet(imload::ImageLoader* imload, const std::string& sImageFile, const std::array<FontGlyph, 256>& glyphs)
-	{
-		if (imload->CreateImageFromFile(imgFontSheet, sImageFile))
-		{
-			allGlyphs = glyphs;
-			return true;
-		}
-		
-		return false;
-	}*/
-
-	/*olc::FontGlyph Font::GetGlyph(const char c)
-	{
-		return allGlyphs[uint8_t(c)];
-	}*/
-
 	namespace pgeguts
 	{
 		void CreateClassicFont(olc::PGEWindow* pge)
@@ -51,12 +27,20 @@ namespace olc
 				"O`000P08Od400g`<3V=P0G`673IP0`@3>1`00P@6O`P00g`<O`000GP800000000"
 				"?P9PL020O`<`N3R0@E4HC7b0@ET<ATB0@@l6C4B0O`H3N7b0?P01L3R000000020";
 
+
+			// Pixels Space, then Pixels Width
+			constexpr std::array<uint8_t, 96> vSpacing = {
+				0x03,0x25,0x16,0x08,0x07,0x08,0x08,0x04,0x15,0x15,0x08,0x07,0x15,0x07,0x24,0x08,
+				0x08,0x17,0x08,0x08,0x08,0x08,0x08,0x08,0x08,0x08,0x24,0x15,0x06,0x07,0x16,0x17,
+				0x08,0x08,0x08,0x08,0x08,0x08,0x08,0x08,0x08,0x17,0x08,0x08,0x17,0x08,0x08,0x08,
+				0x08,0x08,0x08,0x08,0x17,0x08,0x08,0x08,0x08,0x17,0x08,0x15,0x08,0x15,0x08,0x08,
+				0x24,0x18,0x17,0x17,0x17,0x17,0x17,0x17,0x17,0x33,0x17,0x17,0x33,0x18,0x17,0x17,
+				0x17,0x17,0x17,0x17,0x07,0x17,0x17,0x18,0x18,0x17,0x17,0x07,0x33,0x07,0x08,0x00 };
+
 			
+			pge->CreateImage(fontClassicPGE.imgFont, { 128, 48 });
 
-			//olc::Image img;
-			pge->CreateImage(fontClassicPGE.imgFontSheet, { 128, 48 });
-
-			fontClassicPGE.imgFontSheet.BindCPU();
+			fontClassicPGE.imgFont.BindCPU();
 
 			int px = 0, py = 0;
 			for (size_t b = 0; b < 1024; b += 4)
@@ -70,33 +54,40 @@ namespace olc
 				for (int i = 0; i < 24; i++)
 				{
 					int k = r & (1 << i) ? 255 : 0;
-					fontClassicPGE.imgFontSheet.Pixel({ px, py }) = olc::Pixel(k, k, k, k);
+					fontClassicPGE.imgFont.Pixel({ px, py }) = olc::Pixel(k, k, k, k);
 					if (++py == 48) { px++; py = 0; }
 				}
 			}
 
-			// Monospace font, 8x8 pixels per character
 			for (int c = 0; c < 256; c++)
 			{
 				if (c >= 32 && c < 128)
 				{
+					int i = c - 32;
+
+					float fSpace = float(vSpacing[i] >> 4);
+					float fWidth = float(vSpacing[i] & 15);
+
+					olc::vf2d vPos =
+						{ float((i % 16) * 8) + fSpace, float((i / 16) * 8) };
+
+					olc::vf2d vSize = 
+						{ fWidth, 8.0f };
+
 					FontGlyph glyph{
-						fontClassicPGE.imgFontSheet.region(
-							{ float(((c - 32) % 16) * 8), float(((c - 32) / 16) * 8) },
-							{ 8.0f, 8.0f }
-						),
-						{ 8.0f, 8.0f }
+						fontClassicPGE.imgFont.region(vPos, vSize),
+						fSpace, 
+						vSize,
+						{ 8.0f, 8.0f },
 					};
 					fontClassicPGE.glyphs.push_back(glyph);
 				}
 				else
-					fontClassicPGE.glyphs.push_back(FontGlyph{ fontClassicPGE.imgFontSheet.region({0,0}, {8,8}) , {8.0f, 8.0f} });
-				
+					fontClassicPGE.glyphs.push_back(FontGlyph{ fontClassicPGE.imgFont.region({0,0}, {8,8}) , 8.0f, {8.0f, 8.0f} });
 			}
 
-
-			//fontClassicPGE.imgFontSheet = img;
-
+			fontClassicPGE.fLineHeight = 10.0f;
+			fontClassicPGE.fTabWidth = 32.0f;
 		}
 	}
 }
