@@ -87,7 +87,10 @@ namespace olc
 		void LinkToImageLoader(olc::imload::ImageLoader* imload);
 
 
+	public:
 		olc::Image& GetDefaultImage();
+		olc::Draw2D& GetDraw();
+		olc::hw::Mouse& GetMouse();
 		
 
 	protected:
@@ -106,7 +109,7 @@ namespace olc
 		olc::imload::ImageLoader* pImageLoader = nullptr;
 	};
 
-	class PixelGameEngine : protected PGEWindow
+	class PixelGameEngine : public PGEWindow
 	{
 	public:
 		PixelGameEngine();
