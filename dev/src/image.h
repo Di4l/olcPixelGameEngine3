@@ -54,6 +54,8 @@ namespace olc
 		void SetGPUID(const int32_t id);
 		// Get underlying vector of pixels
 		std::vector<olc::Pixel>& GetPixels();
+
+		void Resize(const olc::vi2d& size);
 		
 		bool BoundToGPU() const;
 		bool BoundToCPU() const;

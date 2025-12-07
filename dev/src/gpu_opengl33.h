@@ -72,6 +72,9 @@ namespace olc
 			olc::Image imgBlank;
 			olc::vf2d vTargetSize;
 
+			uint32_t nCurrentTextureTarget = 0;
+			uint32_t nCurrentTextureSource = 0;
+
 		};
 	}
 }

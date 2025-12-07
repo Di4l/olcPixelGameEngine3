@@ -55,12 +55,26 @@ namespace olc
 			return m_mForward * v;
 		}
 
+		template<typename Q>
+		inline constexpr auto forwardRound(const olc::v_2d<Q>& v) const
+		{
+			return (m_mForward * v).round();
+		}
+
 		// Transform a vector of v_2d by this transform
 		template<typename Q>
 		inline constexpr auto forward(const std::vector<olc::v_2d<Q>>& v) const
 		{
 			std::vector<olc::v_2d<Q>> o(v.size());
 			std::transform(v.begin(), v.end(), o.begin(), [this](const olc::v_2d<Q>& i) {return m_mForward * i; });
+			return o;
+		}
+
+		template<typename Q>
+		inline constexpr auto forwardRound(const std::vector<olc::v_2d<Q>>& v) const
+		{
+			std::vector<olc::v_2d<Q>> o(v.size());
+			std::transform(v.begin(), v.end(), o.begin(), [this](const olc::v_2d<Q>& i) {return (m_mForward * i).round(); });
 			return o;
 		}
 

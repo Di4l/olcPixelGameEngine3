@@ -157,6 +157,16 @@ namespace olc
 		return imgPrimary;
 	}
 
+	olc::Draw2D& PGEWindow::GetDraw()
+	{
+		return draw;
+	}
+
+	olc::hw::Mouse& PGEWindow::GetMouse()
+	{
+		return mouse;
+	}
+
 	bool PGEWindow::olc_OnMouseMove(const olc::vi2d& vMousePos)
 	{
 		mouse.SetPosition(olc::vf2d(vMousePos) / olc::vf2d(GetWindowSize()) * GetDefaultImage().Size());

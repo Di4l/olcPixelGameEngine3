@@ -187,7 +187,7 @@
 #endif
 
 
-#define OLC_MOUSE_BUTTONS 3
+#define OLC_MOUSE_BUTTONS 5
 
 #define OLC_GPU_MAX_VERTICES 8192
 #define OLC_GPU_ERRORCHECK 1
@@ -1294,6 +1294,8 @@ namespace olc
 		void SetGPUID(const int32_t id);
 		// Get underlying vector of pixels
 		std::vector<olc::Pixel>& GetPixels();
+
+		void Resize(const olc::vi2d& size);
 		
 		bool BoundToGPU() const;
 		bool BoundToCPU() const;
@@ -2178,7 +2180,10 @@ namespace olc
 		void LinkToImageLoader(olc::imload::ImageLoader* imload);
 
 
+	public:
 		olc::Image& GetDefaultImage();
+		olc::Draw2D& GetDraw();
+		olc::hw::Mouse& GetMouse();
 		
 
 	protected:
@@ -2197,7 +2202,7 @@ namespace olc
 		olc::imload::ImageLoader* pImageLoader = nullptr;
 	};
 
-	class PixelGameEngine : protected PGEWindow
+	class PixelGameEngine : public PGEWindow
 	{
 	public:
 		PixelGameEngine();
@@ -2614,6 +2619,9 @@ namespace olc
 			uint32_t nDefaultFBO = 0;
 			olc::Image imgBlank;
 			olc::vf2d vTargetSize;
+
+			uint32_t nCurrentTextureTarget = 0;
+			uint32_t nCurrentTextureSource = 0;
 
 		};
 	}
@@ -3842,8 +3850,21 @@ namespace olc::gpu
 	{
 		auto& gl = olc::apis::opengl::gl::Get();
 
+		// If the requested source texture is currently attached as the render target,
+		// unbind the framebuffer to avoid sampling from a texture that's being written to.
+		if (texid == nCurrentTextureTarget && texid != 0)
+		{
+			std::cout << "Warning ATS: Requested source is currently attached as target (" << texid << ") - unbinding FBO\n";
+			gl.glBindFramebuffer(36160U, 0);
+			nCurrentTextureTarget = 0;
+		}
+
+		if (nCurrentTextureSource == texid)
+			return true;
+
 		gl.glActiveTexture(0x84C0 + slot); // GL_TEXTURE0
 		gl.glBindTexture(GL_TEXTURE_2D, texid);
+		nCurrentTextureSource = texid;
 		return true;
 	}
 
@@ -3851,21 +3872,40 @@ namespace olc::gpu
 	{
 		auto& gl = olc::apis::opengl::gl::Get();
 
-		if (texid == 0)
+
+		// If the requested target texture is currently bound as a source, unbind it
+		// from all texture units to ensure we do not sample from a texture that's
+		// attached to the FBO (undefined behavior).
+		if (texid != 0 && texid == nCurrentTextureSource)
 		{
-			gl.glBindFramebuffer(36160U, 0);
-			return true;
+			std::cout << "Warning ATT: Requested target is currently bound as source (" << texid << ") - unbinding texture units\n";
+			// Unbind from a reasonable number of texture units (0..7) used by this renderer
+			for (int i = 0; i < 8; ++i)
+			{
+				gl.glActiveTexture(0x84C0 + i);
+				gl.glBindTexture(GL_TEXTURE_2D, 0);
+			}
+			nCurrentTextureSource = 0;
 		}
 
+		if (texid == 0)
+		{
+			// Unbind the FBO (bind default framebuffer)
+			gl.glBindFramebuffer(36160U, 0);
+			return true;
+		}	
+		
 		// Bind FBO
 		gl.glBindFramebuffer(36160U, nDefaultFBO);
-		// Allocate target buffers
+		// Allocate target buffers - pick the single attachment corresponding to 'slot'
 		std::array<GLenum, 8> attachments =
 		{ { 36064U, 36065U, 36066U, 36067U, 36068U, 36069U, 36070U, 36071U } };
-		gl.glDrawBuffers(1, attachments.data());
-		// Bind buffers to textures
-		gl.glFramebufferTexture2D(36160U, 36064U + slot, GL_TEXTURE_2D, texid, 0);		
+		GLenum draw = attachments[slot];
+		gl.glDrawBuffers(1, &draw);
+		// Bind buffers to texture
+		gl.glFramebufferTexture2D(36160U, 36064U + slot, GL_TEXTURE_2D, texid, 0);
 
+		nCurrentTextureTarget = texid;
 		
 		return true;
 	}
@@ -4431,10 +4471,17 @@ const GPUTask& olc::Draw2D::Image(olc::ImageRegion image, const olc::vf2d& pos, 
 
 	olc::vf2d size = image.regionsize * scale;
 
+	auto quantisedPositions = transformAffine.forward<float>({ { pos.x, pos.y }, { pos.x + size.x, pos.y }, { pos.x + size.x, pos.y + size.y }, { pos.x, pos.y + size.y } });
+	std::transform(quantisedPositions.begin(), quantisedPositions.end(), quantisedPositions.begin(),
+		[](const olc::vf2d& v) {
+			return olc::vf2d(std::round(v.x), std::round(v.y));
+		});	
+
 	return vecGPUTasks.emplace_back(
 		TaskTexturedPolygon(
 			GPUTask::Structure::Fan,
-			transformAffine.forward<float>({ { pos.x, pos.y }, { pos.x + size.x, pos.y }, { pos.x + size.x, pos.y + size.y }, { pos.x, pos.y + size.y } }),
+			//transformAffine.forward<float>({ { pos.x, pos.y }, { pos.x + size.x, pos.y }, { pos.x + size.x, pos.y + size.y }, { pos.x, pos.y + size.y } }),
+			quantisedPositions,
 			{ tint, tint, tint, tint },
 			// Tex coords are clockwise
 			{ image.coords[0], image.coords[1], image.coords[2], image.coords[3]},
@@ -4702,6 +4749,16 @@ namespace olc
 	olc::Image& PGEWindow::GetDefaultImage()
 	{
 		return imgPrimary;
+	}
+
+	olc::Draw2D& PGEWindow::GetDraw()
+	{
+		return draw;
+	}
+
+	olc::hw::Mouse& PGEWindow::GetMouse()
+	{
+		return mouse;
 	}
 
 	bool PGEWindow::olc_OnMouseMove(const olc::vi2d& vMousePos)
@@ -4999,6 +5056,13 @@ namespace olc
 		return pixels;
 	}
 
+	void Image::Resize(const olc::vi2d& size)
+	{
+		dimensions = size;
+		pixels.resize(dimensions.area(), olc::Colour::TANGERINE);
+		BindCPU();
+	}
+
 	bool Image::BoundToGPU() const
 	{
 		return onGPU;
@@ -5018,6 +5082,7 @@ namespace olc
 	{
 		auto i = 1.0f / this->Size();
 		return olc::ImageRegion(*this, vTL * i, vTR * i, vBL * i, vBR * i );
+		//return olc::ImageRegion(*this, (vTL + olc::vf2d{0.5f, 0.5f}) * i, (vTR + olc::vf2d{ -0.5f, 0.5f })* i, (vBL + olc::vf2d{ 0.5f, -0.5f })* i, (vBR + olc::vf2d{ -0.5f, -0.5f })* i);
 	}
 
 	void Image::BindGPU()
