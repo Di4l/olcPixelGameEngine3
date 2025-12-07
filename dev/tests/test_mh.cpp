@@ -228,6 +228,21 @@ public:
 
 		draw.Image(imSampleTest, vMouse);
 
+		draw.Image(olc::fontClassicPGE.imgFont, vMouse);
+
+		std::string sTest = "Hello World!\nThe quick brown fox JUMPS over the LaZy dog...";
+		olc::vf2d vSizeMono = draw.GetTextSize(sTest, false, { 1, 2 });
+		olc::vf2d vSizeProp = draw.GetTextSize(sTest, true, { 1, 2 });
+
+
+		draw.String({ 10.0f, 10.0f }, "Hello World!\nThe quick brown fox JUMPS over the LaZy dog...", olc::Colour::WHITE, { 1, 2 });
+		draw.Rect({ 10.0f, 10.0f }, vSizeMono, olc::Colour::GREEN);
+
+		draw.StringProp({ 10.0f, 100.0f }, "Hello World!\nThe quick brown fox JUMPS over the LaZy dog...", olc::Colour::BLUE, { 1, 2 });
+		draw.Rect({ 10.0f, 100.0f }, vSizeProp, olc::Colour::GREEN);
+
+		draw.StringProp({ 10.0f, 200.0f }, "Hello World!\nThe quick brown fox JUMPS over the LaZy dog...", olc::PixelF(0.5f, 0.0f, 0.0f, 0.25f), {1, 2});
+		draw.Rect({ 10.0f, 200.0f }, vSizeProp, olc::Colour::GREEN);
 
 		//draw.Pixel(vMouse, olc::Colour::GREEN);
 		//draw.Line(vMouse, vMouse + 1,  olc::Colour::GREEN);

@@ -95,6 +95,12 @@ namespace olc
 			return v_2d(std::floor(x), std::floor(y));
 		}
 
+		// Rounds both components accurately
+		inline constexpr v_2d round() const
+		{
+			return v_2d(std::round(x), std::round(y));
+		}
+
 		// Rounds both components up
 		inline constexpr v_2d ceil() const
 		{

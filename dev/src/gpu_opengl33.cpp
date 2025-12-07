@@ -273,8 +273,9 @@ namespace olc::gpu
 		// Unbind the FBO
 		gl.glBindFramebuffer(36160U, 0);
 
-		glEnable(GL_TEXTURE_2D); // Turn on texturing
-		glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
+		gl.glEnable(GL_TEXTURE_2D); // Turn on texturing
+		gl.glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
+		gl.glEnable(GL_BLEND);
 
 		lastError = RendererError::None;
 		return true;
@@ -407,8 +408,23 @@ namespace olc::gpu
 	{
 		auto& gl = olc::apis::opengl::gl::Get();
 
+		// If the requested source texture is currently attached as the render target,
+		// unbind the framebuffer to avoid sampling from a texture that's being written to.
+		if (texid == nCurrentTextureTarget && texid != 0)
+		{
+#if defined(OLC_GPU_DEBUG)
+			std::cout << "Warning ATS: Requested source is currently attached as target (" << texid << ") - unbinding FBO\n";
+#endif
+			gl.glBindFramebuffer(36160U, 0);
+			nCurrentTextureTarget = 0;
+		}
+
+		if (nCurrentTextureSource == texid)
+			return true;
+
 		gl.glActiveTexture(0x84C0 + slot); // GL_TEXTURE0
 		gl.glBindTexture(GL_TEXTURE_2D, texid);
+		nCurrentTextureSource = texid;
 		return true;
 	}
 
@@ -416,21 +432,42 @@ namespace olc::gpu
 	{
 		auto& gl = olc::apis::opengl::gl::Get();
 
-		if (texid == 0)
+
+		// If the requested target texture is currently bound as a source, unbind it
+		// from all texture units to ensure we do not sample from a texture that's
+		// attached to the FBO (undefined behavior).
+		if (texid != 0 && texid == nCurrentTextureSource)
 		{
-			gl.glBindFramebuffer(36160U, 0);
-			return true;
+#if defined(OLC_GPU_DEBUG)
+			std::cout << "Warning ATT: Requested target is currently bound as source (" << texid << ") - unbinding texture units\n";
+#endif
+			// Unbind from a reasonable number of texture units (0..7) used by this renderer
+			for (int i = 0; i < 8; ++i)
+			{
+				gl.glActiveTexture(0x84C0 + i);
+				gl.glBindTexture(GL_TEXTURE_2D, 0);
+			}
+			nCurrentTextureSource = 0;
 		}
 
+		if (texid == 0)
+		{
+			// Unbind the FBO (bind default framebuffer)
+			gl.glBindFramebuffer(36160U, 0);
+			return true;
+		}	
+		
 		// Bind FBO
 		gl.glBindFramebuffer(36160U, nDefaultFBO);
-		// Allocate target buffers
+		// Allocate target buffers - pick the single attachment corresponding to 'slot'
 		std::array<GLenum, 8> attachments =
 		{ { 36064U, 36065U, 36066U, 36067U, 36068U, 36069U, 36070U, 36071U } };
-		gl.glDrawBuffers(1, attachments.data());
-		// Bind buffers to textures
-		gl.glFramebufferTexture2D(36160U, 36064U + slot, GL_TEXTURE_2D, texid, 0);		
+		GLenum draw = attachments[slot];
+		gl.glDrawBuffers(1, &draw);
+		// Bind buffers to texture
+		gl.glFramebufferTexture2D(36160U, 36064U + slot, GL_TEXTURE_2D, texid, 0);
 
+		nCurrentTextureTarget = texid;
 		
 		return true;
 	}

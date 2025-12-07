@@ -180,6 +180,7 @@
     <ClInclude Include="..\src\config.h" />
     <ClInclude Include="..\src\core.h" />
     <ClInclude Include="..\src\draw2d.h" />
+    <ClInclude Include="..\src\font.h" />
     <ClInclude Include="..\src\gputask.h" />
     <ClInclude Include="..\src\gpu_iface.h" />
     <ClInclude Include="..\src\gpu_opengl33.h" />
@@ -208,6 +209,7 @@
     <ClCompile Include="..\src\api_opengl.cpp" />
     <ClCompile Include="..\src\core.cpp" />
     <ClCompile Include="..\src\draw2d.cpp" />
+    <ClCompile Include="..\src\font.cpp" />
     <ClCompile Include="..\src\gpu_iface.cpp" />
     <ClCompile Include="..\src\gpu_opengl33.cpp" />
     <ClCompile Include="..\src\host_win_winapi.cpp" />

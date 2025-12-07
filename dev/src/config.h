@@ -88,7 +88,7 @@
 #endif
 
 
-#define OLC_MOUSE_BUTTONS 3
+#define OLC_MOUSE_BUTTONS 5
 
 #define OLC_GPU_MAX_VERTICES 8192
 #define OLC_GPU_ERRORCHECK 1
