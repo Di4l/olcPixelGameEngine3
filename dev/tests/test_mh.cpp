@@ -93,6 +93,9 @@ public:
 
 	std::shared_ptr<SecondWindow> win2;
 
+	olc::Image imBlend;
+	olc::Image imTempBuffer;
+
 public:
 	bool OnUserCreate() override
 	{
@@ -102,7 +105,9 @@ public:
 
 		//CreateImage(imTest, { 64,64 });
 		CreateImageFromFile(imLogo, "../tests/olc.png");
+		CreateImageFromFile(imBlend, "../tests/blend.png");
 
+		CreateImage(imTempBuffer, { 128, 128 });
 
 		CreateSampleTestImage(imSampleTest, { 32, 32 });
 
@@ -145,6 +150,10 @@ public:
 		//draw.WorldReset();
 		//draw.FilledRect({ 0,0 }, imgPrimary.Size() * olc::vf2d(0.5f, 1.0f), olc::Pixel(0, 0, 0, 1));
 
+
+		draw.SetTarget(imTempBuffer);
+		draw.Clear(olc::Colour::WHITE);
+		draw.Image(imBlend, { 0,0 });
 
 
 		draw.SetTarget(GetDefaultImage());
@@ -226,9 +235,11 @@ public:
 
 		//draw.Image(imTemp, vMouse, { 4,4 });
 
-		draw.Image(imSampleTest, vMouse);
+		//draw.Image(imSampleTest, vMouse);
 
-		draw.Image(olc::fontClassicPGE.imgFont, vMouse);
+	//draw.Image(olc::fontClassicPGE.imgFont, vMouse);
+
+		
 
 		std::string sTest = "Hello World!\nThe quick brown fox JUMPS over the LaZy dog...";
 		olc::vf2d vSizeMono = draw.GetTextSize(sTest, false, { 1, 2 });
@@ -260,7 +271,7 @@ public:
 
 
 
-
+		draw.Image(imTempBuffer, vMouse);
 
 		//draw.SetTarget(imgPrimary);
 		//draw.WorldReset();
