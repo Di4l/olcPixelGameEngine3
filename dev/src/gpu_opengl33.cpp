@@ -148,7 +148,7 @@ namespace olc::gpu
 				else if(drawtype == 0) // 2D Polygon																																		  
 				{																																			  
 					float p = 1.0 / aPos.z; 																												  
-					gl_Position = p * vec4(vec2(2.0 * ((floor(aPos.xy)) * invtarget) - 1.0), 0.0, 1.0);	  
+					gl_Position = p * vec4(vec2(2.0 * ((floor(aPos.xy) ) * invtarget) - 1.0), 0.0, 1.0);	  
 					oTex = p * vec2(aTex.x, aTex.y);																										  
 				} 
 				
@@ -377,6 +377,7 @@ namespace olc::gpu
 		gl.glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 #endif
 
+		std::cout << "Created Texture ID: " << id << " Size: " << vSize.x << "x" << vSize.y << "\n";
 		return id;
 	}
 
@@ -419,8 +420,8 @@ namespace olc::gpu
 			nCurrentTextureTarget = 0;
 		}
 
-		if (nCurrentTextureSource == texid)
-			return true;
+		//if (nCurrentTextureSource == texid)
+		//	return true;
 
 		gl.glActiveTexture(0x84C0 + slot); // GL_TEXTURE0
 		gl.glBindTexture(GL_TEXTURE_2D, texid);
@@ -447,6 +448,8 @@ namespace olc::gpu
 				gl.glActiveTexture(0x84C0 + i);
 				gl.glBindTexture(GL_TEXTURE_2D, 0);
 			}
+			// Reset to texture unit 0
+			gl.glActiveTexture(0x84C0);
 			nCurrentTextureSource = 0;
 		}
 
