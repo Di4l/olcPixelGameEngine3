@@ -148,7 +148,7 @@ namespace olc::gpu
 				else if(drawtype == 0) // 2D Polygon																																		  
 				{																																			  
 					float p = 1.0 / aPos.z; 																												  
-					gl_Position = p * vec4(vec2(2.0 * ((floor(aPos.xy) ) * invtarget) - 1.0), 0.0, 1.0);	  
+					gl_Position = p * vec4(vec2(2.0 * ((floor(aPos.xy)) * invtarget) - 1.0), 0.0, 1.0);	  
 					oTex = p * vec2(aTex.x, aTex.y);																										  
 				} 
 				

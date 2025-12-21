@@ -235,7 +235,7 @@ public:
 
 		//draw.Image(imTemp, vMouse, { 4,4 });
 
-		//draw.Image(imSampleTest, vMouse);
+		
 
 	//draw.Image(olc::fontClassicPGE.imgFont, vMouse);
 
@@ -271,8 +271,8 @@ public:
 
 
 
-		draw.Image(imTempBuffer, vMouse);
-
+		//draw.Image(imTempBuffer, vMouse);
+		draw.Image(imSampleTest, vMouse);
 		//draw.SetTarget(imgPrimary);
 		//draw.WorldReset();
 		//draw.Image(imLowRes, { 0,0 }, { 4, 4 });
