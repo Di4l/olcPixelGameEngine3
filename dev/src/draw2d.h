@@ -90,6 +90,15 @@ namespace olc
 			const olc::vf2d& size, 
 			const olc::Pixel col = olc::Colour::WHITE);
 
+		// Draws a multiple colour rectangle, with linear colour interpolation
+		const GPUTask& Rect(
+			const olc::vf2d& pos,
+			const olc::vf2d& size,
+			const olc::Pixel colTL,
+			const olc::Pixel colTR,
+			const olc::Pixel colBL,
+			const olc::Pixel colBR);
+
 		// Draws a filled, single colour rectangle
 		const GPUTask& FilledRect(
 			const olc::vf2d& pos, 
@@ -255,6 +264,33 @@ namespace olc
 				const olc::vf2d& p2,
 				const olc::Pixel c1,
 				const olc::Pixel c2);
+
+			// Draws a rectangle outline
+			void swRect(
+				const olc::vf2d& pos,
+				const olc::vf2d& size,
+				const olc::Pixel col = olc::Colour::WHITE);
+
+			// Draws a multiple colour rectangle, with linear colour interpolation
+			void swRect(
+				const olc::vf2d& pos,
+				const olc::vf2d& size,
+				const olc::Pixel colTL,
+				const olc::Pixel colTR,
+				const olc::Pixel colBL,
+				const olc::Pixel colBR);
+
+
+
+			// Software rasteriser helper functions
+
+			// Clips a line to a rectangular region, returns true if line is visible
+			bool swClipLine(
+				olc::vf2d& v0,
+				olc::vf2d& v1,
+				const olc::vf2d& vMin,
+				const olc::vf2d& vMax);
+
 		
 
 

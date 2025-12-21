@@ -264,7 +264,7 @@ public:
 
 
 
-		draw.Rect({ 8,8 }, { 20,20 }, olc::Colour::RED);
+	//	draw.Rect({ 8,8 }, { 20,20 }, olc::Colour::RED);
 
 		if(mouse.GetButton(0).bHeld)
 			draw.Line({ 1.0f, 1.0f }, { 25.5f, 25.5f });
@@ -276,6 +276,12 @@ public:
 		//draw.SetTarget(imgPrimary);
 		//draw.WorldReset();
 		//draw.Image(imLowRes, { 0,0 }, { 4, 4 });
+
+
+		draw.swLine({ 100,100 }, vMouse, olc::Colour::BLACK, olc::Colour::YELLOW);
+
+		draw.Rect({ 8,8, }, { 20,20 }, olc::Colour::RED, olc::Colour::GREEN, olc::Colour::BLUE, olc::Colour::WHITE);
+		draw.swRect({ 7,7, }, { 22,22 }, olc::Colour::RED, olc::Colour::GREEN, olc::Colour::BLUE, olc::Colour::WHITE);
 	
 		//draw.Rect(vMouse, { 100,100 });
 
