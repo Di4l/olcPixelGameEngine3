@@ -45,7 +45,7 @@ namespace olc
 		// Returns read/write pointer to start of 1D stream of pixel data
 		olc::Pixel* Data();
 		// [UNSAFE] Returns pixel at location
-		olc::Pixel& Pixel(const olc::vf2d& pos);
+		olc::Pixel& Pixel(const olc::vi2d& pos);
 		// Returns how this image was configured upon creation
 		const ImageConfig& GetConfig() const;
 		// Return GPU Resource ID
@@ -54,6 +54,8 @@ namespace olc
 		void SetGPUID(const int32_t id);
 		// Get underlying vector of pixels
 		std::vector<olc::Pixel>& GetPixels();
+
+		void Resize(const olc::vi2d& size);
 		
 		bool BoundToGPU() const;
 		bool BoundToCPU() const;
@@ -77,13 +79,6 @@ namespace olc
 
 	struct ImageRegion
 	{
-		ImageRegion(olc::Image& i, const olc::vf2d& vTL = { 0,0 }, const olc::vf2d& vTR = { 1,0 }, const olc::vf2d& vBL = { 0,1 }, const olc::vf2d& vBR = { 1,1 })
-			: image(i)
-		{
-			coords = { vTL, vTR, vBR, vBL };
-			regionsize = (vBR - vTL) * image.Size();
-		}
-
 		olc::Image& image;		
 		olc::vf2d regionsize;
 		union
@@ -94,6 +89,18 @@ namespace olc
 			olc::vf2d br;
 			olc::vf2d bl;
 		};
+
+		ImageRegion(olc::Image& i, const olc::vf2d& vTL = { 0,0 }, const olc::vf2d& vTR = { 1,0 }, const olc::vf2d& vBL = { 0,1 }, const olc::vf2d& vBR = { 1,1 })
+			: image(i)
+		{
+			coords = { vTL, vTR, vBR, vBL };
+			regionsize = (vBR - vTL) * image.Size();
+		}
+
+		ImageRegion& operator=(ImageRegion& o)
+		{
+
+		}
 	};
 
 	

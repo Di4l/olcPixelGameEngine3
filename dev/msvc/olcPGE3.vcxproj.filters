@@ -99,6 +99,9 @@
     <ClInclude Include="..\src\hw_touch.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\font.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\tests\test_main.cpp">
@@ -144,6 +147,12 @@
       <Filter>Header Files</Filter>
     </ClCompile>
     <ClCompile Include="..\src\hw_mouse.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\font.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\draw2d_sw.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

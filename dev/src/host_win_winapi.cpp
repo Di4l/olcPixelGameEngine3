@@ -8,16 +8,28 @@ namespace olc::host
 
 	// Windows app needs an event loop somewhere. This is blocking of course. This loop handles
 	// all windows created for this host.
-	bool Host_Windows_WinAPI::StartSystemEventLoop()
+	bool Host_Windows_WinAPI::StartSystemEventLoop(bool bBlockIfPossible)
 	{
-		MSG msg;
-		while (GetMessage(&msg, NULL, 0, 0) > 0)
+		if (bBlockIfPossible)
 		{
-			TranslateMessage(&msg);
-			DispatchMessage(&msg);
+			MSG msg;
+			while (GetMessage(&msg, NULL, 0, 0) > 0)
+			{
+				TranslateMessage(&msg);
+				DispatchMessage(&msg);
+			}
+		}
+		else
+		{
+			MSG msg;
+			while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE) > 0)
+			{
+				TranslateMessage(&msg);
+				DispatchMessage(&msg);
+			}
 		}
 
-		return true;
+		return true;    
 	}
 
 	// Static linkage to lpfnWndProc - the hWnd is tagged with meta-info to get
@@ -73,7 +85,8 @@ namespace olc::host
 		
 
 		// Define WindowClass
-		WNDCLASS wc = { 0 };
+		WNDCLASSEX wc = { 0 };		
+		wc.cbSize = sizeof(WNDCLASSEX);
 		wc.hIcon = LoadIcon(NULL, IDI_APPLICATION);
 		wc.hCursor = LoadCursor(NULL, IDC_ARROW);
 		wc.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
@@ -84,7 +97,7 @@ namespace olc::host
 		wc.lpszMenuName = nullptr;
 		wc.hbrBackground = nullptr;
 		wc.lpszClassName = olcT("OLC_PIXEL_GAME_ENGINE3");
-		RegisterClass(&wc);
+		RegisterClassEx(&wc);
 
 		// Define window furniture
 		DWORD dwExStyle = WS_EX_APPWINDOW | WS_EX_WINDOWEDGE;
@@ -110,13 +123,20 @@ namespace olc::host
 		AdjustWindowRectEx(&rWndRect, dwStyle, FALSE, dwExStyle);
 		int width = rWndRect.right - rWndRect.left;
 		int height = rWndRect.bottom - rWndRect.top;
-		pWindow->SetSize(vWindowSize);
+		pWindow->SetWindowSize(vWindowSize);
 
 		// Create the actual OS window, return a handle
 		HWND hWnd = CreateWindowEx(dwExStyle, olcT("OLC_PIXEL_GAME_ENGINE3"), olcT(""), dwStyle,
 			vTopLeft.x, vTopLeft.y, width, height, NULL, NULL, GetModuleHandle(nullptr), this);
 
-		SetWindowPos(hWnd, NULL, vWinPos.x, vWinPos.y, width, height, SWP_SHOWWINDOW);
+		LONG_PTR lp = GetWindowLongPtr(hWnd, GWL_STYLE);
+		SetWindowLongPtr(hWnd, GWL_STYLE, lp | (WS_CAPTION | WS_SYSMENU | WS_POPUPWINDOW | WS_THICKFRAME));
+		lp = GetWindowLongPtr(hWnd, GWL_EXSTYLE);
+		SetWindowLongPtr(hWnd, GWL_EXSTYLE, lp | (WS_EX_WINDOWEDGE));
+
+		//SetWindowPos(hWnd, NULL, vWinPos.x, vWinPos.y, width, height, SWP_SHOWWINDOW);
+		//ShowWindow(hWnd, 1);
+		//UpdateWindow(hWnd);
 
 		// Now... awkwardly, the above has already fired off some window messages
 		// and they arent necessarily in a consistent order. Whereas one might 
@@ -130,7 +150,7 @@ namespace olc::host
 		mapUID2HWND.insert_or_assign(pWindow->GetUID(), hWnd);
 		mapHWND2PTR.insert_or_assign(hWnd, pWindow);
 
-		pWindow->ConnecToHost(this);
+	
 
 
 		//DragAcceptFiles(olc_hWnd, true);
@@ -138,12 +158,18 @@ namespace olc::host
 		return true;
 	}
 
+	bool Host_Windows_WinAPI::CloseWindowFrame(olc::Window* pWindow)
+	{
+		DestroyWindow((HWND)GetHostWindowDescriptor(pWindow).front());
+		return false;
+	}
+
 	bool Host_Windows_WinAPI::UpdateWindowFrameTitle(olc::Window* pWindow)
 	{
 #ifdef UNICODE
-		SetWindowText(mapUID2HWND.at(pWindow->GetUID()), ConvertS2W(pWindow->GetTitle()).c_str());
+		SetWindowText(mapUID2HWND.at(pWindow->GetUID()), ConvertS2W(pWindow->GetWindowTitle()).c_str());
 #else
-		SetWindowText(mapUID2HWND.at(pWindow->GetUID()), sTitle.c_str());
+		SetWindowText(mapUID2HWND.at(pWindow->GetUID()), pWindow->GetWindowTitle().c_str());
 #endif
 		return true;
 	}
@@ -166,7 +192,7 @@ namespace olc::host
 	LRESULT Host_Windows_WinAPI::OnWindowEvent(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 	{
 		if (!mapHWND2PTR.contains(hWnd))
-			return false;
+			return DefWindowProc(hWnd, uMsg, wParam, lParam);;
 
 		// Get target olc::Window
 		const auto& window = mapHWND2PTR.at(hWnd);
@@ -185,19 +211,22 @@ namespace olc::host
 				int16_t iy = *(int16_t*)&y;
 				// Tell window new mouse location
 				window->olc_OnMouseMove(olc::vi2d{ ix, iy });
-				return 0;
+				break;
 			}
-			break;
 		
 
 			//		case WM_MOVE:       vWinPos = olc::vi2d(lParam & 0xFFFF, (lParam >> 16) & 0xFFFF);  ptrPGE->olc_UpdateWindowPos(lParam & 0xFFFF, (lParam >> 16) & 0xFFFF);	return 0;
 		case WM_SIZE:
 			{				
 				window->olc_OnWindowSize(olc::vi2d(lParam & 0xFFFF, (lParam >> 16) & 0xFFFF));
-				return 0;
+				break;
 			}
-			break;
-			//		case WM_MOUSEWHEEL:	ptrPGE->olc_UpdateMouseWheel(GET_WHEEL_DELTA_WPARAM(wParam));           return 0;
+
+		case WM_MOUSEWHEEL:
+			{
+				window->olc_OnMouseWheel(GET_WHEEL_DELTA_WPARAM(wParam));
+				break;
+			}
 			//		case WM_MOUSELEAVE: ptrPGE->olc_UpdateMouseFocus(false);                                    return 0;
 			//		case WM_SETFOCUS:	ptrPGE->olc_UpdateKeyFocus(true);                                       return 0;
 			//		case WM_KILLFOCUS:	ptrPGE->olc_UpdateKeyFocus(false);                                      return 0;
@@ -208,32 +237,32 @@ namespace olc::host
 		case WM_LBUTTONDOWN:
 			{
 				window->olc_OnMouseButton(0, true);
-				return 0;
+				break;
 			}
 		case WM_LBUTTONUP:
 			{
 				window->olc_OnMouseButton(0, false);
-				return 0;
+				break;
 			}
 		case WM_RBUTTONDOWN:
 			{
 				window->olc_OnMouseButton(1, true);
-				return 0;
+				break;
 			}
 		case WM_RBUTTONUP:
 			{
 				window->olc_OnMouseButton(1, false);
-				return 0;
+				break;
 			}
 		case WM_MBUTTONDOWN:
 			{
 				window->olc_OnMouseButton(2, true);
-				return 0;
+				break;
 			}
 		case WM_MBUTTONUP:
 			{
 				window->olc_OnMouseButton(2, false);
-				return 0;
+				break;
 			}
 			//		case WM_DROPFILES:
 			//		{
@@ -273,12 +302,19 @@ namespace olc::host
 			//		break;
 			//			
 			//			
-			//		case WM_CLOSE:		ptrPGE->olc_Terminate();                                                return 0;
+		case WM_CLOSE:
+			{
+				window->olc_OnWindowClose();
+				break;
+				//return DefWindowProc(hWnd, uMsg, wParam, lParam);
+			}
 		case WM_DESTROY:	
 			PostQuitMessage(0); 
 			DestroyWindow(hWnd);
 
 		}
+
+
 		return DefWindowProc(hWnd, uMsg, wParam, lParam);
 	}
 

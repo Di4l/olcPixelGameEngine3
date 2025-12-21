@@ -80,11 +80,22 @@
 #endif
 
 
-#define OLC_MOUSE_BUTTONS 3
+#define OLC_MULTIWINDOW_NO 1
+#define OLC_MULTIWINDOW_YES 2
+
+#if !defined(OLC_MULTIWINDOW)
+	#define OLC_MULTIWINDOW OLC_MULTIWINDOW_NO
+#endif
+
+
+#define OLC_MOUSE_BUTTONS 5
 
 #define OLC_GPU_MAX_VERTICES 8192
 #define OLC_GPU_ERRORCHECK 0
 
 #define LICENCE_DEFAULT "OneLoneCoder.com - Pixel Game Engine 3 - "
+
+// De-Noise in MSVC (C++20)
+#pragma warning(disable:4820) // Disable Padding Warnings
 
 //! END CONFIGURATION

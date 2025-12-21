@@ -1,4 +1,4 @@
-#define OLC_PGE_APPLICATION
+#define OLC_PGE3_APPLICATION
 #include "olcPixelGameEngine3.h"
 
 class Example : public olc::PixelGameEngine
@@ -32,35 +32,35 @@ public:
 
 
 		draw.SetTarget(imTest);
-		draw.FillRect({ 0,0 }, imTest.Size(), olc::Colour::BLUE);
+		draw.FilledRect({ 0,0 }, imTest.Size(), olc::Colour::BLUE);
 
-		draw.AffineRotate(fAngle, { 32.0f, 32.0f });
+		draw.WorldRotate(fAngle, { 32.0f, 32.0f });
 
 		draw.Rect({ 5,5 }, { 10,10 }, olc::Colour::YELLOW);
 		draw.Line({ 0,0 }, { 20, 20 });
 
 
-		draw.SetTarget(imgPrimary);
-		draw.AffineReset();
+		draw.SetTarget(GetDefaultImage());
+		draw.WorldReset();
 
-		draw.FillRect({ 0,0 }, imgPrimary.Size(), olc::Colour::VERY_DARK_MAGENTA);
+		draw.FilledRect({ 0,0 }, GetDefaultImage().Size(), olc::Colour::VERY_DARK_MAGENTA);
 
-		draw.Line({ 0,0 }, imgPrimary.Size() - 1, olc::Colour::RED);
-		draw.Line(olc::vf2d(imgPrimary.Size().x - 1, 0), olc::vf2d(0, imgPrimary.Size().y - 1), olc::Colour::GREEN);
+		draw.Line({ 0,0 }, GetDefaultImage().Size() - 1, olc::Colour::RED);
+		draw.Line(olc::vf2d(GetDefaultImage().Size().x - 1, 0), olc::vf2d(0, GetDefaultImage().Size().y - 1), olc::Colour::GREEN);
 
 		if (mouse.GetButton(0).bHeld)
 			draw.Line({ 0,0 }, mouse.GetPosition(), olc::Colour::TANGERINE);
 
-		draw.AffineRotate(fAngle * 0.2f, imgPrimary.Size() * 0.5f);
-		draw.Rect({ 0,0 }, imgPrimary.Size());
-		draw.Image(imTest, { 10, 10 }, { 64, 64 });
-		draw.Image(imTest, { 100, 10 }, { 64, 64 });
-		draw.Image(imTest, { 10, 100 }, { 64, 64 });
-		draw.Image(sprite1, { 100, 100 }, { 64, 64 });
+		draw.WorldRotate(fAngle * 0.2f, GetDefaultImage().Size() * 0.5f);
+		draw.Rect({ 0,0 }, GetDefaultImage().Size());
+		draw.Image(imTest, { 10, 10 });				   
+		draw.Image(imTest, { 100, 10 });
+		draw.Image(imTest, { 10, 100 });
+		draw.Image(sprite1, { 100, 100 }, {0.1f, 0.1f});
 
 		olc::Pixel p = draw.GetPixel(imTest, { 8,5 });
 
-		draw.FillRect({ 200,200 }, { 10,10 }, p);
+		draw.FilledRect({ 200,200 }, { 10,10 }, p);
 		return true;
 	}
 };

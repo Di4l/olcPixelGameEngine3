@@ -20,9 +20,13 @@ namespace olc
 		{
 		public: // Device Stuff
 			// Constructs a GPU Device interface
-			bool CreateDevice(std::vector<void*> params, const RendererConfig& cfg) override;
+			bool CreateDevice(std::vector<void*> os_win_id, const RendererConfig& cfg) override;
 			// Destroys a GPU device interface
 			bool DestroyDevice() override;
+			// If applicable, relocate the rendering context
+			bool RetargetDevice(std::vector<void*> os_win_id) override;
+			// Prepare an OS rendering target
+			bool PrepareWindowTarget(std::vector<void*> os_win_id) override;
 
 
 		public: // Texture Resource Stuff
@@ -54,11 +58,11 @@ namespace olc
 			// Configures defaults prior to drawing
 			virtual bool DisplayPrepare() override;
 			// Displays the final output
-			virtual bool DisplayDraw(bool bVerticalSyncNow) override;
+			virtual bool DisplayDraw(std::vector<void*> os_win_id, bool bVerticalSyncNow) override;
 
 		
 		protected: // These may need some thinking about re multiple window
-			olc::apis::opengl::glDeviceContext_t glDeviceContext = 0;
+			//olc::apis::opengl::glDeviceContext_t glDeviceContext = 0;
 			olc::apis::opengl::glRenderContext_t glRenderContext = 0;
 
 			Shader_GLSL33 shaderDefault;
@@ -67,6 +71,9 @@ namespace olc
 			uint32_t nDefaultFBO = 0;
 			olc::Image imgBlank;
 			olc::vf2d vTargetSize;
+
+			uint32_t nCurrentTextureTarget = 0;
+			uint32_t nCurrentTextureSource = 0;
 
 		};
 	}

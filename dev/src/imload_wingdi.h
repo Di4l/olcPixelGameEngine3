@@ -26,13 +26,13 @@
 #endif
 
 // In Code::Blocks
-#if !defined(_WIN32_WINNT)
-	#ifdef HAVE_MSMF
-		#define _WIN32_WINNT 0x0600 // Windows Vista
-	#else
-		#define _WIN32_WINNT 0x0500 // Windows 2000
-	#endif
-#endif
+//#if !defined(_WIN32_WINNT)
+//	#ifdef HAVE_MSMF
+//		#define _WIN32_WINNT 0x0600 // Windows Vista
+//	#else
+//		#define _WIN32_WINNT 0x0500 // Windows 2000
+//	#endif
+//#endif
 
 // Embrace MSVC superiority
 #pragma comment(lib, "gdiplus.lib")

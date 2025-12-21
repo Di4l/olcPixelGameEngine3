@@ -13,6 +13,11 @@ namespace olc::hw
         return position;
     }
 
+    int32_t Mouse::GetWheel() const
+    {
+        return wheel;
+    }
+
     void Mouse::SetPosition(const olc::vf2d& pos)
     {
         position_in = pos;
@@ -21,6 +26,11 @@ namespace olc::hw
     void Mouse::SetButton(const int nButton, bool state)
     {        
         buttons_new[nButton] = state;            
+    }
+
+    void Mouse::SetWheel(const int32_t w)
+    {
+        wheel_in = w;
     }
 
     void Mouse::UpdateState()
@@ -46,6 +56,8 @@ namespace olc::hw
         }
 
         position = position_in;
+        wheel = wheel_in;
+        wheel_in = 0;
     }
 }
 //! END IMPLEMENTATION

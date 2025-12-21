@@ -52,7 +52,7 @@ namespace olc::apis::opengl
 		return bLoaded;
 	}
 
-	bool gl::CheckError(const std::source_location loc)
+	bool gl::CheckError([[maybe_unused]] const std::source_location  loc)
 	{
 #if OLC_GPU_ERRORCHECK == 1
 		GLenum err;
@@ -192,6 +192,12 @@ namespace olc::apis::opengl
 	void gl::glGetTexImage(GLenum target, GLint level, GLenum format, GLenum type, void* pixels)
 	{
 		::glGetTexImage(target, level, format, type, pixels);
+		CheckError();
+	}
+
+	void gl::glHint(GLenum target, GLenum mode)
+	{
+		::glHint(target, mode);
 		CheckError();
 	}
 

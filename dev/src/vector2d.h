@@ -95,6 +95,12 @@ namespace olc
 			return v_2d(std::floor(x), std::floor(y));
 		}
 
+		// Rounds both components accurately
+		inline constexpr v_2d round() const
+		{
+			return v_2d(std::round(x), std::round(y));
+		}
+
 		// Rounds both components up
 		inline constexpr v_2d ceil() const
 		{
@@ -111,6 +117,12 @@ namespace olc
 		inline constexpr v_2d min(const v_2d& v) const
 		{
 			return v_2d(std::min(x, v.x), std::min(y, v.y));
+		}
+
+		// Returns 'element-wise' abs of this vector
+		inline constexpr v_2d abs() const
+		{
+			return v_2d(std::abs(x), std::abs(y));
 		}
 
 		// Calculates scalar dot product between this and another vector

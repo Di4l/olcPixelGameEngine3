@@ -14,7 +14,6 @@
 #include "config.h"
 #include "pixel.h"
 #include "vector2d.h"
-#include "gpu_iface.h"
 #include "draw2d.h"
 #include "hw_mouse.h"
 //! END CUSTOMHEADER
@@ -39,6 +38,11 @@ namespace olc
 		class Renderer;
 	}
 
+	namespace imload
+	{
+		class ImageLoader;
+	}
+
 	namespace hw
 	{
 		class Mouse;
@@ -52,27 +56,22 @@ namespace olc
 	public:
 		Window();
 		virtual ~Window();
+										
+		void LinkToHost(olc::host::Host* host);
 
-		void ConnecToHost(olc::host::Host* host);
+	
 
-	public:
-		// Return true if window is to continue
-		virtual bool OnUserCreate();
-		// Return true if window is to continue
-		virtual bool OnUserUpdate(float fElapsedTime);
-		// Return true if window is to close
-		virtual bool OnUserDestroy();
-
-	private:
+	private: // These are called externally from the host
 		// Set Mouse Device State
-		bool olc_OnMouseButton(const uint8_t nButton, const bool bPressed);
-		bool olc_OnMouseMove(const olc::vi2d& vMousePos);
-		bool olc_OnMouseWheel(const int32_t nScroll);
-		bool olc_OnMouseFocus(const bool bHasFocus);
+		virtual bool olc_OnMouseButton(const uint8_t nButton, const bool bPressed);
+		virtual bool olc_OnMouseMove(const olc::vi2d& vMousePos);
+		virtual bool olc_OnMouseWheel(const int32_t nScroll);
+		virtual bool olc_OnMouseFocus(const bool bHasFocus);
 		
 		// Set Window State
-		bool olc_OnWindowPosition(const olc::vi2d& vWindowPos);
-		bool olc_OnWindowSize(const olc::vi2d& vWindowSize);
+		virtual bool olc_OnWindowPosition(const olc::vi2d& vWindowPos);
+		virtual bool olc_OnWindowSize(const olc::vi2d& vWindowSize);
+		virtual bool olc_OnWindowClose();
 
 		// Set Keyboard State
 
@@ -80,25 +79,22 @@ namespace olc
 
 	public:
 		bool olc_ShouldRemove() const;
-		bool olc_WindowUpdate(const float fElapsedTime, olc::gpu::Renderer* const gpu);
+		
 
 	public:
 		size_t GetUID() const;
 
-		const olc::vi2d& GetSize() const;
-		bool SetSize(const olc::vi2d& vSize);
+		const olc::vi2d& GetWindowSize() const;
+		bool SetWindowSize(const olc::vi2d& vSize);
 
-		const olc::vi2d& GetPosition() const;
-		bool SetPosition(const olc::vi2d& vPosition);
+		const olc::vi2d& GetWindowPosition() const;
+		bool SetWindowPosition(const olc::vi2d& vPosition);
 
-		const std::string& GetTitle() const;
-		bool SetTitle(const std::string& sTitle);
-
-
-	protected:
-		virtual bool olc_PrimaryWindowInit();
+		const std::string& GetWindowTitle() const;
+		bool SetWindowTitle(const std::string& sTitle);
 
 	protected:
+		bool bRequestToClose = false;
 		bool bShouldRemove = false;
 
 	protected:
@@ -107,17 +103,12 @@ namespace olc
 		olc::vi2d vWindowSize;
 		std::string sFrameTitle;
 	
-	private:
-		olc::vi2d volatile_vMousePos;
-		
+	protected:
 		olc::host::Host* pHost = nullptr;
-		//olc::gpu::Renderer* pRenderer = nullptr;
 
 	protected:
-		olc::Draw2D draw;
-		olc::Image imgPrimary;
-
 		olc::hw::Mouse mouse;
+
 	};
 }
 #define PGE_WINDOW_DECLARED 1
