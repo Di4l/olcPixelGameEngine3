@@ -241,6 +241,25 @@ namespace olc
 			olc::Image* const image,
 			const olc::Pixel tint = olc::Colour::WHITE);
 
+
+		public: // Precision drawing functions via software rasteriser
+			// Draws a single pixel wide line of fixed colour
+			void swLine(
+				const olc::vf2d& p1,
+				const olc::vf2d& p2,
+				const olc::Pixel col = olc::Colour::WHITE);
+
+			// Draws a single pixel wide line with a gradient		
+			void swLine(
+				const olc::vf2d& p1,
+				const olc::vf2d& p2,
+				const olc::Pixel c1,
+				const olc::Pixel c2);
+		
+
+
+
+
 		protected:
 			// Checks residency of image resource, and brings it to cpu RAM for r/w
 			void PrepareTargetForSW();
