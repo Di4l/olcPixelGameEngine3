@@ -606,6 +606,12 @@ namespace olc
 			return v_2d(std::min(x, v.x), std::min(y, v.y));
 		}
 
+		// Returns 'element-wise' abs of this vector
+		inline constexpr v_2d abs() const
+		{
+			return v_2d(std::abs(x), std::abs(y));
+		}
+
 		// Calculates scalar dot product between this and another vector
 		inline constexpr auto dot(const v_2d& rhs) const
 		{
@@ -1899,6 +1905,37 @@ namespace olc
 			const std::vector<olc::vf2d>& vTexCoords,
 			olc::Image* const image,
 			const olc::Pixel tint = olc::Colour::WHITE);
+
+
+		public: // Precision drawing functions via software rasteriser
+			// Draws a single pixel wide line of fixed colour
+			void swLine(
+				const olc::vf2d& p1,
+				const olc::vf2d& p2,
+				const olc::Pixel col = olc::Colour::WHITE);
+
+			// Draws a single pixel wide line with a gradient		
+			void swLine(
+				const olc::vf2d& p1,
+				const olc::vf2d& p2,
+				const olc::Pixel c1,
+				const olc::Pixel c2);
+
+
+
+			// Software rasteriser helper functions
+
+			// Clips a line to a rectangular region, returns true if line is visible
+			bool swClipLine(
+				olc::vf2d& v0,
+				olc::vf2d& v1,
+				const olc::vf2d& vMin,
+				const olc::vf2d& vMax);
+
+		
+
+
+
 
 		protected:
 			// Checks residency of image resource, and brings it to cpu RAM for r/w
@@ -3610,7 +3647,7 @@ namespace olc::gpu
 				else if(drawtype == 0) // 2D Polygon																																		  
 				{																																			  
 					float p = 1.0 / aPos.z; 																												  
-					gl_Position = p * vec4(vec2(2.0 * ((floor(aPos.xy) ) * invtarget) - 1.0), 0.0, 1.0);	  
+					gl_Position = p * vec4(vec2(2.0 * ((floor(aPos.xy)) * invtarget) - 1.0), 0.0, 1.0);	  
 					oTex = p * vec2(aTex.x, aTex.y);																										  
 				} 
 				
@@ -4200,7 +4237,17 @@ void Draw2D::PrepareImageForHW(olc::Image& image)
 		if (&image == pTarget)
 		{
 			// If this image is also the current target, ensure renderer is updated
-			SetTarget(image);
+			//SetTarget(image);
+
+			// Store the target image
+			pTarget = &image;
+
+			// Reset Affine transform to unity
+			WorldReset();
+
+			// Configure default render target
+			pRenderer->AssignTextureTarget(0, pTarget->GetGPUID());
+			pRenderer->SetViewport({ 0,0 }, pTarget->Size());
 		}
 
 		// Image is now GPU bound
@@ -4277,7 +4324,7 @@ GPUTask olc::Draw2D::TaskDrawPolygon(GPUTask::Structure structure, const std::ve
 {
 	GPUTask task;
 	task.structure = structure;
-	task.bWireframe = false;
+	task.bWireframe = true;
 	for (size_t i = 0; i < vPoints.size(); i++)
 		task.vertexBuffer.push_back({ vPoints[i].x, vPoints[i].y, 1.0f, 1.0f, vColours[i], 0, 0, 0,0, 0, 0, 0, 0});
 	//task.mvpMatrix = transformCombined.m
@@ -4289,7 +4336,7 @@ GPUTask olc::Draw2D::TaskDrawPolygon(GPUTask::Structure structure, const std::ve
 {	
 	GPUTask task;
 	task.structure = structure;
-	task.bWireframe = false;
+	task.bWireframe = true;
 	for (const auto& v : vPoints)
 		task.vertexBuffer.push_back({ v.x+0.0f, v.y+0.0f, 1.0f, 1.0f, colour, 0, 0, 0,0, 0, 0, 0, 0 });
 	task.tint = tint;
@@ -4337,75 +4384,30 @@ GPUTask olc::Draw2D::TaskTexturedPolygon(GPUTask::Structure structure, const std
 	return task;
 }
 
+
+
 const GPUTask& Draw2D::Line(const olc::vf2d& p1, const olc::vf2d& p2, const olc::Pixel col)
 {
 	PrepareTargetForHW();
-	/*return vecGPUTasks.emplace_back(
+	return vecGPUTasks.emplace_back(
 		TaskDrawPolygon(
 			GPUTask::Structure::Line,
 			transformAffine.forward<float>({p1, p2}),
 			col,
 			olc::Colour::WHITE
-		));*/
-
-		// get image target pixel size in screen space
-	//olc::vf2d tsize = transformAffine.inverse<float>({ 2.75f, 2.75f }) - transformAffine.inverse<float>({ 0.0f, 0.0f });
-
-	olc::vf2d tsize = { 0.5f, 0.5f }; // 40.0f / olc::vf2d(pTarget->Size());
-
-	auto tP1 = transformAffine.forward<float>(p1);
-	auto tP2 = transformAffine.forward<float>(p2);
-
-	olc::vf2d vSlope = (tP2 - tP1).norm().perp() * tsize;
-
-
-	return vecGPUTasks.emplace_back(
-		TaskDrawPolygon(
-			GPUTask::Structure::Fan,
-			/*transformAffine.forward<float>({
-				p1 - vSlope,
-				p1 + vSlope,
-				p2 + vSlope,
-				p2 - vSlope,
-				})*/
-			{ tP1 - vSlope, tP1 + vSlope, tP2 + vSlope, tP2 - vSlope},
-			{ col, col, col, col },
-			olc::Colour::WHITE
-			));
+		));
 }
 
 const GPUTask& Draw2D::Line(const olc::vf2d& p1, const olc::vf2d& p2, const olc::Pixel c1, const olc::Pixel c2)
 {
 	PrepareTargetForHW();
-	/*return vecGPUTasks.emplace_back(
+	return vecGPUTasks.emplace_back(
 		TaskDrawPolygon(
 			GPUTask::Structure::Line,
 			transformAffine.forward<float>({ p1, p2 }),
 			{ c1, c2 },
 			olc::Colour::WHITE
-		));*/
-
-		// get image target pixel size in screen space
-	//olc::vf2d tsize = transformAffine.inverse<float>({ 1.0f, 1.0f }) - transformAffine.inverse<float>({ 0.0f, 0.0f });
-
-	olc::vf2d tsize = 1.0f / olc::vf2d(pTarget->Size());
-	olc::vf2d vSlope = (p2 - p1).norm().perp();
-
-	// Draw a thin polygon rectangle to represent line
-	return vecGPUTasks.emplace_back(
-		TaskDrawPolygon(
-			GPUTask::Structure::Fan,
-			transformAffine.forward<float>({ 
-				olc::vf2d( p1.x - tsize.x * vSlope.x, p1.y - tsize.y * vSlope.y),
-				olc::vf2d( p2.x + tsize.x * vSlope.x, p1.y - tsize.y * vSlope.y),
-				olc::vf2d( p2.x + tsize.x * vSlope.x, p2.y + tsize.y * vSlope.y),
-				olc::vf2d( p1.x - tsize.x * vSlope.x, p2.y + tsize.y * vSlope.y),
-				}),
-			{ c1, c2, c2, c1 },
-			olc::Colour::WHITE
-			));
-		
-
+		));		
 }
 
 const GPUTask& olc::Draw2D::Rect(const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel col)
@@ -4420,7 +4422,7 @@ const GPUTask& olc::Draw2D::Rect(const olc::vf2d& pos, const olc::vf2d& size, co
 	}
 
 	PrepareTargetForHW();
-	/*return vecGPUTasks.emplace_back(
+	return vecGPUTasks.emplace_back(
 		TaskDrawPolygon(
 			GPUTask::Structure::Fan,
 			transformAffine.forward<float>({ 
@@ -4431,31 +4433,7 @@ const GPUTask& olc::Draw2D::Rect(const olc::vf2d& pos, const olc::vf2d& size, co
 				}),
 			col,
 			olc::Colour::WHITE
-		));*/
-
-
-		// Draw a strip of triangles to represent the outer boundary of a rectangle
-		/*return vecGPUTasks.emplace_back(
-			TaskDrawPolygon(
-				GPUTask::Structure::Fan,
-				transformAffine.forward<float>({ 
-					olc::vf2d( pos.x - 0.5f, pos.y - 0.5f ),
-					olc::vf2d( pos.x + size.x + 0.5f, pos.y - 0.5f ),
-					olc::vf2d( pos.x + size.x + 0.5f, pos.y + 0.5f ),
-					olc::vf2d( pos.x + size.x + 0.5f, pos.y + size.y + 0.5f ),
-					olc::vf2d( pos.x - 0.5f, pos.y + size.y + 0.5f ),
-					olc::vf2d( pos.x - 0.5f, pos.y - 0.5f ),
-					}),
-				{ col, col, col, col, col, col },
-				olc::Colour::WHITE
-				));*/
-		
-		Line({ pos.x, pos.y }, { pos.x + size.x, pos.y }, col);
-		Line({ pos.x + size.x, pos.y }, { pos.x + size.x, pos.y + size.y }, col);
-		Line({ pos.x + size.x, pos.y + size.y }, { pos.x, pos.y + size.y }, col);
-		return Line({ pos.x, pos.y + size.y }, { pos.x, pos.y }, col);
-
-
+		));
 }
 
 
