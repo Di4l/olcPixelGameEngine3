@@ -190,7 +190,7 @@
 #define OLC_MOUSE_BUTTONS 5
 
 #define OLC_GPU_MAX_VERTICES 8192
-#define OLC_GPU_ERRORCHECK 1
+#define OLC_GPU_ERRORCHECK 0
 
 #define LICENCE_DEFAULT "OneLoneCoder.com - Pixel Game Engine 3 - "
 
@@ -582,6 +582,12 @@ namespace olc
 			return v_2d(std::floor(x), std::floor(y));
 		}
 
+		// Rounds both components accurately
+		inline constexpr v_2d round() const
+		{
+			return v_2d(std::round(x), std::round(y));
+		}
+
 		// Rounds both components up
 		inline constexpr v_2d ceil() const
 		{
@@ -598,6 +604,12 @@ namespace olc
 		inline constexpr v_2d min(const v_2d& v) const
 		{
 			return v_2d(std::min(x, v.x), std::min(y, v.y));
+		}
+
+		// Returns 'element-wise' abs of this vector
+		inline constexpr v_2d abs() const
+		{
+			return v_2d(std::abs(x), std::abs(y));
 		}
 
 		// Calculates scalar dot product between this and another vector
@@ -1091,12 +1103,26 @@ namespace olc
 			return m_mForward * v;
 		}
 
+		template<typename Q>
+		inline constexpr auto forwardRound(const olc::v_2d<Q>& v) const
+		{
+			return (m_mForward * v).round();
+		}
+
 		// Transform a vector of v_2d by this transform
 		template<typename Q>
 		inline constexpr auto forward(const std::vector<olc::v_2d<Q>>& v) const
 		{
 			std::vector<olc::v_2d<Q>> o(v.size());
 			std::transform(v.begin(), v.end(), o.begin(), [this](const olc::v_2d<Q>& i) {return m_mForward * i; });
+			return o;
+		}
+
+		template<typename Q>
+		inline constexpr auto forwardRound(const std::vector<olc::v_2d<Q>>& v) const
+		{
+			std::vector<olc::v_2d<Q>> o(v.size());
+			std::transform(v.begin(), v.end(), o.begin(), [this](const olc::v_2d<Q>& i) {return (m_mForward * i).round(); });
 			return o;
 		}
 
@@ -1879,6 +1905,37 @@ namespace olc
 			const std::vector<olc::vf2d>& vTexCoords,
 			olc::Image* const image,
 			const olc::Pixel tint = olc::Colour::WHITE);
+
+
+		public: // Precision drawing functions via software rasteriser
+			// Draws a single pixel wide line of fixed colour
+			void swLine(
+				const olc::vf2d& p1,
+				const olc::vf2d& p2,
+				const olc::Pixel col = olc::Colour::WHITE);
+
+			// Draws a single pixel wide line with a gradient		
+			void swLine(
+				const olc::vf2d& p1,
+				const olc::vf2d& p2,
+				const olc::Pixel c1,
+				const olc::Pixel c2);
+
+
+
+			// Software rasteriser helper functions
+
+			// Clips a line to a rectangular region, returns true if line is visible
+			bool swClipLine(
+				olc::vf2d& v0,
+				olc::vf2d& v1,
+				const olc::vf2d& vMin,
+				const olc::vf2d& vMax);
+
+		
+
+
+
 
 		protected:
 			// Checks residency of image resource, and brings it to cpu RAM for r/w
@@ -3819,6 +3876,7 @@ namespace olc::gpu
 		gl.glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 #endif
 
+		std::cout << "Created Texture ID: " << id << " Size: " << vSize.x << "x" << vSize.y << "\n";
 		return id;
 	}
 
@@ -3854,13 +3912,15 @@ namespace olc::gpu
 		// unbind the framebuffer to avoid sampling from a texture that's being written to.
 		if (texid == nCurrentTextureTarget && texid != 0)
 		{
+#if defined(OLC_GPU_ERRORCHECK) && OLC_GPU_ERRORCHECK == 1
 			std::cout << "Warning ATS: Requested source is currently attached as target (" << texid << ") - unbinding FBO\n";
+#endif
 			gl.glBindFramebuffer(36160U, 0);
 			nCurrentTextureTarget = 0;
 		}
 
-		if (nCurrentTextureSource == texid)
-			return true;
+		//if (nCurrentTextureSource == texid)
+		//	return true;
 
 		gl.glActiveTexture(0x84C0 + slot); // GL_TEXTURE0
 		gl.glBindTexture(GL_TEXTURE_2D, texid);
@@ -3878,13 +3938,17 @@ namespace olc::gpu
 		// attached to the FBO (undefined behavior).
 		if (texid != 0 && texid == nCurrentTextureSource)
 		{
+#if defined(OLC_GPU_ERRORCHECK) && OLC_GPU_ERRORCHECK == 1
 			std::cout << "Warning ATT: Requested target is currently bound as source (" << texid << ") - unbinding texture units\n";
+#endif
 			// Unbind from a reasonable number of texture units (0..7) used by this renderer
 			for (int i = 0; i < 8; ++i)
 			{
 				gl.glActiveTexture(0x84C0 + i);
 				gl.glBindTexture(GL_TEXTURE_2D, 0);
 			}
+			// Reset to texture unit 0
+			gl.glActiveTexture(0x84C0);
 			nCurrentTextureSource = 0;
 		}
 
@@ -3897,6 +3961,9 @@ namespace olc::gpu
 		
 		// Bind FBO
 		gl.glBindFramebuffer(36160U, nDefaultFBO);
+
+		//gl.glEnable(GL_BLEND);
+		//gl.glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 		// Allocate target buffers - pick the single attachment corresponding to 'slot'
 		std::array<GLenum, 8> attachments =
 		{ { 36064U, 36065U, 36066U, 36067U, 36068U, 36069U, 36070U, 36071U } };
@@ -3904,6 +3971,9 @@ namespace olc::gpu
 		gl.glDrawBuffers(1, &draw);
 		// Bind buffers to texture
 		gl.glFramebufferTexture2D(36160U, 36064U + slot, GL_TEXTURE_2D, texid, 0);
+
+		//glReadBuffer(36064U + slot);  // GL_COLOR_ATTACHMENT0 + slot
+		
 
 		nCurrentTextureTarget = texid;
 		
@@ -3990,6 +4060,9 @@ namespace olc::gpu
 				//if (task.bDepth)
 				//	gl.glEnable(GL_DEPTH_TEST);
 
+				gl.glEnable(GL_BLEND);
+				//gl.glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+				gl.glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 				// Draw the thing!
 				if (task.bWireframe)
 				{
@@ -4161,6 +4234,22 @@ void Draw2D::PrepareImageForHW(olc::Image& image)
 		// Image resource is primed for CPU operations, send it to GPU
 		pRenderer->WriteTexture(image.GetGPUID(), image);
 
+		if (&image == pTarget)
+		{
+			// If this image is also the current target, ensure renderer is updated
+			//SetTarget(image);
+
+			// Store the target image
+			pTarget = &image;
+
+			// Reset Affine transform to unity
+			WorldReset();
+
+			// Configure default render target
+			pRenderer->AssignTextureTarget(0, pTarget->GetGPUID());
+			pRenderer->SetViewport({ 0,0 }, pTarget->Size());
+		}
+
 		// Image is now GPU bound
 		image.BindGPU();
 	}
@@ -4295,6 +4384,8 @@ GPUTask olc::Draw2D::TaskTexturedPolygon(GPUTask::Structure structure, const std
 	return task;
 }
 
+
+
 const GPUTask& Draw2D::Line(const olc::vf2d& p1, const olc::vf2d& p2, const olc::Pixel col)
 {
 	PrepareTargetForHW();
@@ -4316,7 +4407,7 @@ const GPUTask& Draw2D::Line(const olc::vf2d& p1, const olc::vf2d& p2, const olc:
 			transformAffine.forward<float>({ p1, p2 }),
 			{ c1, c2 },
 			olc::Colour::WHITE
-		));
+		));		
 }
 
 const GPUTask& olc::Draw2D::Rect(const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel col)
@@ -4343,7 +4434,6 @@ const GPUTask& olc::Draw2D::Rect(const olc::vf2d& pos, const olc::vf2d& size, co
 			col,
 			olc::Colour::WHITE
 		));
-
 }
 
 
@@ -4471,17 +4561,10 @@ const GPUTask& olc::Draw2D::Image(olc::ImageRegion image, const olc::vf2d& pos, 
 
 	olc::vf2d size = image.regionsize * scale;
 
-	auto quantisedPositions = transformAffine.forward<float>({ { pos.x, pos.y }, { pos.x + size.x, pos.y }, { pos.x + size.x, pos.y + size.y }, { pos.x, pos.y + size.y } });
-	std::transform(quantisedPositions.begin(), quantisedPositions.end(), quantisedPositions.begin(),
-		[](const olc::vf2d& v) {
-			return olc::vf2d(std::round(v.x), std::round(v.y));
-		});	
-
 	return vecGPUTasks.emplace_back(
 		TaskTexturedPolygon(
 			GPUTask::Structure::Fan,
-			//transformAffine.forward<float>({ { pos.x, pos.y }, { pos.x + size.x, pos.y }, { pos.x + size.x, pos.y + size.y }, { pos.x, pos.y + size.y } }),
-			quantisedPositions,
+			transformAffine.forwardRound<float>({ { pos.x, pos.y }, { pos.x + size.x, pos.y }, { pos.x + size.x, pos.y + size.y }, { pos.x, pos.y + size.y } }),
 			{ tint, tint, tint, tint },
 			// Tex coords are clockwise
 			{ image.coords[0], image.coords[1], image.coords[2], image.coords[3]},
@@ -5081,8 +5164,8 @@ namespace olc
 	olc::ImageRegion Image::region(const olc::vf2d& vTL, const olc::vf2d& vTR, const olc::vf2d& vBL, const olc::vf2d& vBR) 
 	{
 		auto i = 1.0f / this->Size();
-		return olc::ImageRegion(*this, vTL * i, vTR * i, vBL * i, vBR * i );
-		//return olc::ImageRegion(*this, (vTL + olc::vf2d{0.5f, 0.5f}) * i, (vTR + olc::vf2d{ -0.5f, 0.5f })* i, (vBL + olc::vf2d{ 0.5f, -0.5f })* i, (vBR + olc::vf2d{ -0.5f, -0.5f })* i);
+		//return olc::ImageRegion(*this, vTL * i, vTR * i, vBL * i, vBR * i );
+		return olc::ImageRegion(*this, (vTL + olc::vf2d{0.005f, 0.005f}) * i, (vTR + olc::vf2d{ -0.005f, 0.005f })* i, (vBL + olc::vf2d{ 0.005f, -0.005f })* i, (vBR + olc::vf2d{ -0.005f, -0.005f })* i);
 	}
 
 	void Image::BindGPU()

@@ -90,6 +90,15 @@ namespace olc
 			const olc::vf2d& size, 
 			const olc::Pixel col = olc::Colour::WHITE);
 
+		// Draws a multiple colour rectangle, with linear colour interpolation
+		const GPUTask& Rect(
+			const olc::vf2d& pos,
+			const olc::vf2d& size,
+			const olc::Pixel colTL,
+			const olc::Pixel colTR,
+			const olc::Pixel colBL,
+			const olc::Pixel colBR);
+
 		// Draws a filled, single colour rectangle
 		const GPUTask& FilledRect(
 			const olc::vf2d& pos, 
@@ -240,6 +249,52 @@ namespace olc
 			const std::vector<olc::vf2d>& vTexCoords,
 			olc::Image* const image,
 			const olc::Pixel tint = olc::Colour::WHITE);
+
+
+		public: // Precision drawing functions via software rasteriser
+			// Draws a single pixel wide line of fixed colour
+			void swLine(
+				const olc::vf2d& p1,
+				const olc::vf2d& p2,
+				const olc::Pixel col = olc::Colour::WHITE);
+
+			// Draws a single pixel wide line with a gradient		
+			void swLine(
+				const olc::vf2d& p1,
+				const olc::vf2d& p2,
+				const olc::Pixel c1,
+				const olc::Pixel c2);
+
+			// Draws a rectangle outline
+			void swRect(
+				const olc::vf2d& pos,
+				const olc::vf2d& size,
+				const olc::Pixel col = olc::Colour::WHITE);
+
+			// Draws a multiple colour rectangle, with linear colour interpolation
+			void swRect(
+				const olc::vf2d& pos,
+				const olc::vf2d& size,
+				const olc::Pixel colTL,
+				const olc::Pixel colTR,
+				const olc::Pixel colBL,
+				const olc::Pixel colBR);
+
+
+
+			// Software rasteriser helper functions
+
+			// Clips a line to a rectangular region, returns true if line is visible
+			bool swClipLine(
+				olc::vf2d& v0,
+				olc::vf2d& v1,
+				const olc::vf2d& vMin,
+				const olc::vf2d& vMax);
+
+		
+
+
+
 
 		protected:
 			// Checks residency of image resource, and brings it to cpu RAM for r/w
