@@ -280,6 +280,10 @@ public:
 
 		draw.swLine({ 100,100 }, vMouse, olc::Colour::BLACK, olc::Colour::YELLOW);
 
+
+		draw.swFilledTriangle({ 30,30 }, { 250,50 }, vMouse, olc::Colour::RED, olc::Colour::GREEN, olc::Colour::BLUE);
+		draw.swTriangle({ 30,30 }, { 250,50 }, vMouse, olc::Colour::BLACK);
+
 		draw.Rect({ 8,8, }, { 20,20 }, olc::Colour::RED, olc::Colour::GREEN, olc::Colour::BLUE, olc::Colour::WHITE);
 		draw.swRect({ 7,7, }, { 22,22 }, olc::Colour::RED, olc::Colour::GREEN, olc::Colour::BLUE, olc::Colour::WHITE);
 	
@@ -414,6 +418,9 @@ int main()
 	olc::PGEConfig cfg;
 	cfg.vPixelSize = { 1,1 };
 	cfg.vScreenSize = { 1024, 960 };
+
+	cfg.vPixelSize = { 4,4 };
+	cfg.vScreenSize = { 256, 240 };
 	//cfg.bVSync = true;
 
 	//if (demo.Construct({ 1280, 960 }, { 1, 1 }, cfg))

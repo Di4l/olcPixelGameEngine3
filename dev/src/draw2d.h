@@ -280,9 +280,56 @@ namespace olc
 				const olc::Pixel colBL,
 				const olc::Pixel colBR);
 
+			// Draws a filled, single colour rectangle
+			void swFilledRect(
+				const olc::vf2d& pos,
+				const olc::vf2d& size,
+				const olc::Pixel col = olc::Colour::WHITE);
+
+			// Draws a filled, multiple colour rectangle, with linear colour interpolation
+			void swFilledRect(
+				const olc::vf2d& pos,
+				const olc::vf2d& size,
+				const olc::Pixel colTL,
+				const olc::Pixel colTR,
+				const olc::Pixel colBL,
+				const olc::Pixel colBR);
+
+			// Draws a triangle outline
+			void swTriangle(
+				const olc::vf2d& p1,
+				const olc::vf2d& p2,
+				const olc::vf2d& p3,
+				const olc::Pixel col = olc::Colour::WHITE);
+
+			// Draws a multiple colour triangle, with linear colour interpolation
+			void swTriangle(
+				const olc::vf2d& p1,
+				const olc::vf2d& p2,
+				const olc::vf2d& p3,
+				const olc::Pixel c1,
+				const olc::Pixel c2,
+				const olc::Pixel c3);
+
+			// Draws a filled, single colour triangle
+			void swFilledTriangle(
+				const olc::vf2d& p1,
+				const olc::vf2d& p2,
+				const olc::vf2d& p3,
+				const olc::Pixel col = olc::Colour::WHITE);
+
+			// Draws a filled, multiple colour triangle, with linear colour interpolation
+			void swFilledTriangle(
+				const olc::vf2d& p1,
+				const olc::vf2d& p2,
+				const olc::vf2d& p3,
+				const olc::Pixel c1,
+				const olc::Pixel c2,
+				const olc::Pixel c3);
 
 
-			// Software rasteriser helper functions
+
+		protected: // Software rasteriser helper functions
 
 			// Clips a line to a rectangular region, returns true if line is visible
 			bool swClipLine(
@@ -290,6 +337,29 @@ namespace olc
 				olc::vf2d& v1,
 				const olc::vf2d& vMin,
 				const olc::vf2d& vMax);
+
+			/* bool swClipTriangle(
+				olc::vf2d& v1,
+				olc::vf2d& v2,
+				olc::vf2d& v3,
+				const olc::vf2d& vMin,
+				const olc::vf2d& vMax);*/
+
+			// Rasterises a shaded triangle in integer space
+			void swRasterShadedTriangle(
+				const olc::vi2d& v1,
+				const olc::vi2d& v2,
+				const olc::vi2d& v3,
+				const olc::Pixel c1,
+				const olc::Pixel c2,
+				const olc::Pixel c3);
+
+			// Rasterises a shaded line in integer space
+			void swRasterShadedLine(
+				const olc::vi2d& v1,
+				const olc::vi2d& v2,
+				const olc::Pixel c1,
+				const olc::Pixel c2);
 
 		
 

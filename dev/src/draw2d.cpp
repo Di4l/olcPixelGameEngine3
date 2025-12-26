@@ -99,11 +99,11 @@ void Draw2D::PrepareImageForHW(olc::Image& image)
 			pTarget = &image;
 
 			// Reset Affine transform to unity
-			WorldReset();
+			//WorldReset();
 
 			// Configure default render target
 			pRenderer->AssignTextureTarget(0, pTarget->GetGPUID());
-			pRenderer->SetViewport({ 0,0 }, pTarget->Size());
+			//pRenderer->SetViewport({ 0,0 }, pTarget->Size());
 		}
 
 		// Image is now GPU bound
