@@ -4945,8 +4945,6 @@ void olc::Draw2D::swRasterShadedTriangle(const olc::vi2d& v1, const olc::vi2d& v
 	{
 		int32_t nMin = std::numeric_limits<int32_t>::max();
 		int32_t nMax = std::numeric_limits<int32_t>::min();
-		int32_t nMinEdgeID = 0;
-		int32_t nMaxEdgeID = 0;
 		float fBaryMin[3];
 		float fBaryMax[3];
 	};
@@ -4956,7 +4954,7 @@ void olc::Draw2D::swRasterShadedTriangle(const olc::vi2d& v1, const olc::vi2d& v
 
 	auto scanEdge = [&](int x0, int y0, int x1, int y1, int vertexIndex1, int vertexIndex2)
 		{
-			if (y0 == y1) return; // Horizontal edge, skip
+			if (y0 == y1) return;
 
 			// Ensure y0 < y1
 			bool swapped = false;
@@ -4976,18 +4974,14 @@ void olc::Draw2D::swRasterShadedTriangle(const olc::vi2d& v1, const olc::vi2d& v
 				int idx = y - nMinY;
 				if (idx >= 0 && idx < vScanlines.size())
 				{
-					int ix = (int)std::floor(x);
+					int ix = (int)std::round(x);
 
-					// Compute interpolation parameter along edge (0 at start, 1 at end)
+					// interpolation along edge 
 					float t = (y - y0) / float(dy);
-
-					// Barycentric coordinates: edge goes from vertex1 to vertex2
-					// At t=0: we're at vertex1, at t=1: we're at vertex2
 					float bary[3] = { 0.0f, 0.0f, 0.0f };
 
 					if (swapped)
 					{
-						// Edge was reversed, so flip interpolation
 						bary[vertexIndex1] = t;
 						bary[vertexIndex2] = 1.0f - t;
 					}
@@ -5017,19 +5011,9 @@ void olc::Draw2D::swRasterShadedTriangle(const olc::vi2d& v1, const olc::vi2d& v
 		};
 
 	// Rasterise triangle edges into scanline buffer
-	// Edge v1->v2: vertex indices 0 and 1
 	scanEdge(v1.x, v1.y, v2.x, v2.y, 0, 1);
-	// Edge v1->v3: vertex indices 0 and 2
 	scanEdge(v1.x, v1.y, v3.x, v3.y, 0, 2);
-	// Edge v2->v3: vertex indices 1 and 2
 	scanEdge(v2.x, v2.y, v3.x, v3.y, 1, 2);
-
-	//// Rasterise triangle edges into scanline buffer
-	//scanEdge(v1.x, v1.y, v2.x, v2.y, 0, 1);
-	//scanEdge(v1.x, v1.y, v3.x, v3.y, 0, 2);
-	//scanEdge(v2.x, v2.y, v3.x, v3.y, 1, 2);
-
-
 
 	PrepareTargetForSW();
 
@@ -5217,8 +5201,8 @@ void olc::Draw2D::swRasterShadedLine(const olc::vi2d& v1, const olc::vi2d& v2, c
 		return;
 
 	// Move to integer space
-	olc::vi2d ip1 = clipped_p1.floor();
-	olc::vi2d ip2 = clipped_p2.floor();
+	olc::vi2d ip1 = v1;// clipped_p1;// .floor();
+	olc::vi2d ip2 = v2;// clipped_p2;// .floor();
 	olc::vi2d pixel;
 
 	// Calculate deltas
@@ -5255,7 +5239,7 @@ void olc::Draw2D::swRasterShadedLine(const olc::vi2d& v1, const olc::vi2d& v2, c
 		olc::Pixel col = olc::PixelLerp(c1, c2, t);
 
 		// Plot pixel
-		Plot((int)std::floor(x), (int)std::floor(y), col);
+		Plot((int)std::round(x), (int)std::round(y), col);
 
 		// Step to next pixel
 		x += xStep;
@@ -5263,151 +5247,148 @@ void olc::Draw2D::swRasterShadedLine(const olc::vi2d& v1, const olc::vi2d& v2, c
 		t += colorStep;
 	}
 
+
+
 	return;
 
 
 
+	//// Gradients
+	//olc::vi2d diff1 = ip2 - ip1;
+
+	//// Colour interpolation variables
+	//float fColourT = 0.0f;
+	//float fColourStep = 1.0f / float(std::max(std::abs(diff1.x), std::abs(diff1.y)));
+
+	//// Quick draw straight lines
+	//if (diff1.x == 0) // Line is vertical
+	//{
+	//	if (ip2.y < ip1.y)
+	//	{
+	//		std::swap(ip1.y, ip2.y);
+	//		fColourStep *= -1.0f;
+	//		fColourT = 1.0f;
+	//	}
+
+	//	for (pixel.y = ip1.y; pixel.y <= ip2.y; pixel.y++)
+	//	{
+	//		if (rol())
+	//			Plot(ip1.x, pixel.y, olc::PixelLerp(c1, c2, fColourT));
+
+	//		fColourT += fColourStep;
+	//	}
+
+	//	// Early exit
+	//	return;
+	//}
+
+	//if (diff1.y == 0) // Line is horizontal
+	//{
+	//	if (ip2.x < ip1.x)
+	//	{
+	//		std::swap(ip1.x, ip2.x);
+	//		fColourStep *= -1.0f;
+	//		fColourT = 1.0f;
+	//	}
 
 
+	//	for (pixel.x = ip1.x; pixel.x <= ip2.x; pixel.x++)
+	//	{
+	//		if (rol())
+	//			Plot(pixel.x, ip1.y, olc::PixelLerp(c1, c2, fColourT));
 
+	//		fColourT += fColourStep;
+	//	}
 
+	//	// Early exit
+	//	return;
+	//}
 
-	// Gradients
-	olc::vi2d diff1 = ip2 - ip1;
+	//// Line is sloped
+	//olc::vi2d diff2 = diff1.abs();
 
-	// Colour interpolation variables
-	float fColourT = 0.0f;
-	float fColourStep = 1.0f / float(std::max(std::abs(diff1.x), std::abs(diff1.y)));
+	//// Apply Bresenham algorithm
+	//olc::vi2d p = { diff2.y - diff2.x * 2, diff2.x - diff2.y * 2 };
+	//olc::vi2d end = { 0,0 };
 
-	// Quick draw straight lines
-	if (diff1.x == 0) // Line is vertical
-	{
-		if (ip2.y < ip1.y)
-		{
-			std::swap(ip1.y, ip2.y);
-			fColourStep *= -1.0f;
-			fColourT = 1.0f;
-		}
+	//if (diff2.y <= diff2.x) // Propoagate in x-direction
+	//{
+	//	if (diff1.x >= 0)
+	//	{
+	//		pixel = ip1;
+	//		end = ip2;
+	//	}
+	//	else
+	//	{
+	//		pixel = ip2;
+	//		end = ip1;
+	//		fColourStep *= -1.0f;
+	//		fColourT = 1.0f;
+	//	}
 
-		for (pixel.y = ip1.y; pixel.y <= ip2.y; pixel.y++)
-		{
-			if (rol())
-				Plot(ip1.x, pixel.y, olc::PixelLerp(c1, c2, fColourT));
+	//	if (rol())
+	//		Plot(pixel.x, pixel.y, olc::PixelLerp(c1, c2, fColourT));
 
-			fColourT += fColourStep;
-		}
+	//	for (int i = 0; pixel.x < end.x; i++)
+	//	{
+	//		pixel.x = pixel.x + 1;
+	//		fColourT += fColourStep;
 
-		// Early exit
-		return;
-	}
+	//		if (p.x < 0)
+	//			p.x = p.x + 2 * diff2.y;
+	//		else
+	//		{
+	//			if ((diff1.x < 0 && diff1.y < 0) || (diff1.x > 0 && diff1.y > 0))
+	//				pixel.y = pixel.y + 1;
+	//			else
+	//				pixel.y = pixel.y - 1;
 
-	if (diff1.y == 0) // Line is horizontal
-	{
-		if (ip2.x < ip1.x)
-		{
-			std::swap(ip1.x, ip2.x);
-			fColourStep *= -1.0f;
-			fColourT = 1.0f;
-		}
+	//			p.x = p.x + 2 * (diff2.y - diff2.x);
+	//		}
 
+	//		if (rol())
+	//			Plot(pixel.x, pixel.y, olc::PixelLerp(c1, c2, fColourT));
+	//	}
+	//}
+	//else
+	//{
+	//	if (diff1.y >= 0) // Propogate in y-direction
+	//	{
+	//		pixel = ip1;
+	//		end = ip2;
+	//	}
+	//	else
+	//	{
+	//		pixel = ip2;
+	//		end = ip1;
+	//		fColourStep *= -1.0f;
+	//		fColourT = 1.0f;
+	//	}
 
-		for (pixel.x = ip1.x; pixel.x <= ip2.x; pixel.x++)
-		{
-			if (rol())
-				Plot(pixel.x, ip1.y, olc::PixelLerp(c1, c2, fColourT));
+	//	if (rol())
+	//		Plot(pixel.x, pixel.y, olc::PixelLerp(c1, c2, fColourT));
 
-			fColourT += fColourStep;
-		}
+	//	for (int i = 0; pixel.y < end.y; i++)
+	//	{
+	//		pixel.y = pixel.y + 1;
+	//		fColourT += fColourStep;
 
-		// Early exit
-		return;
-	}
+	//		if (p.y <= 0)
+	//			p.y = p.y + 2 * diff2.x;
+	//		else
+	//		{
+	//			if ((diff1.x < 0 && diff1.y < 0) || (diff1.x > 0 && diff1.y > 0))
+	//				pixel.x = pixel.x + 1;
+	//			else
+	//				pixel.x = pixel.x - 1;
 
-	// Line is sloped
-	olc::vi2d diff2 = diff1.abs();
+	//			p.y = p.y + 2 * (diff2.x - diff2.y);
+	//		}
 
-	// Apply Bresenham algorithm
-	olc::vi2d p = { diff2.y - diff2.x * 2, diff2.x - diff2.y * 2 };
-	olc::vi2d end = { 0,0 };
-
-	if (diff2.y <= diff2.x) // Propoagate in x-direction
-	{
-		if (diff1.x >= 0)
-		{
-			pixel = ip1;
-			end = ip2;
-		}
-		else
-		{
-			pixel = ip2;
-			end = ip1;
-			fColourStep *= -1.0f;
-			fColourT = 1.0f;
-		}
-
-		if (rol())
-			Plot(pixel.x, pixel.y, olc::PixelLerp(c1, c2, fColourT));
-
-		for (int i = 0; pixel.x < end.x; i++)
-		{
-			pixel.x = pixel.x + 1;
-			fColourT += fColourStep;
-
-			if (p.x < 0)
-				p.x = p.x + 2 * diff2.y;
-			else
-			{
-				if ((diff1.x < 0 && diff1.y < 0) || (diff1.x > 0 && diff1.y > 0))
-					pixel.y = pixel.y + 1;
-				else
-					pixel.y = pixel.y - 1;
-
-				p.x = p.x + 2 * (diff2.y - diff2.x);
-			}
-
-			if (rol())
-				Plot(pixel.x, pixel.y, olc::PixelLerp(c1, c2, fColourT));
-		}
-	}
-	else
-	{
-		if (diff1.y >= 0) // Propogate in y-direction
-		{
-			pixel = ip1;
-			end = ip2;
-		}
-		else
-		{
-			pixel = ip2;
-			end = ip1;
-			fColourStep *= -1.0f;
-			fColourT = 1.0f;
-		}
-
-		if (rol())
-			Plot(pixel.x, pixel.y, olc::PixelLerp(c1, c2, fColourT));
-
-		for (int i = 0; pixel.y < end.y; i++)
-		{
-			pixel.y = pixel.y + 1;
-			fColourT += fColourStep;
-
-			if (p.y <= 0)
-				p.y = p.y + 2 * diff2.x;
-			else
-			{
-				if ((diff1.x < 0 && diff1.y < 0) || (diff1.x > 0 && diff1.y > 0))
-					pixel.x = pixel.x + 1;
-				else
-					pixel.x = pixel.x - 1;
-
-				p.y = p.y + 2 * (diff2.x - diff2.y);
-			}
-
-			if (rol())
-				Plot(pixel.x, pixel.y, olc::PixelLerp(c1, c2, fColourT));
-		}
-	}
+	//		if (rol())
+	//			Plot(pixel.x, pixel.y, olc::PixelLerp(c1, c2, fColourT));
+	//	}
+	//}
 }
 
 

@@ -53,6 +53,9 @@ void Draw2D::PrepareTargetForSW()
 
 		// Image is now CPU bound
 		pTarget->BindCPU();
+
+		// Create a scanline buffer the height of this target
+		vScanlines.resize(pTarget->Size().y, {});
 	}
 }
 

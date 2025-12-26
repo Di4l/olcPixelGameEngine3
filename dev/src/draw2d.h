@@ -327,6 +327,19 @@ namespace olc
 				const olc::Pixel c2,
 				const olc::Pixel c3);
 
+			// Rasterises a textured triangle in integer space
+			void swTexturedTriangle(
+				const olc::vf2d& p1,
+				const olc::vf2d& p2,
+				const olc::vf2d& p3,
+				const olc::Pixel c1,
+				const olc::Pixel c2,
+				const olc::Pixel c3,
+				const olc::vf2d& t1,
+				const olc::vf2d& t2,
+				const olc::vf2d& t3,
+				olc::Image& texture);
+
 
 
 		protected: // Software rasteriser helper functions
@@ -353,6 +366,19 @@ namespace olc
 				const olc::Pixel c1,
 				const olc::Pixel c2,
 				const olc::Pixel c3);
+
+			// Rasterises a textured triangle in integer space
+			void swRasterTexturedTriangle(
+				const olc::vi2d& v1,
+				const olc::vi2d& v2,
+				const olc::vi2d& v3,
+				const olc::Pixel c1,
+				const olc::Pixel c2,
+				const olc::Pixel c3,
+				const olc::vf2d& t1,
+				const olc::vf2d& t2,
+				const olc::vf2d& t3,
+				olc::Image& texture);
 
 			// Rasterises a shaded line in integer space
 			void swRasterShadedLine(
@@ -382,6 +408,17 @@ namespace olc
 			olc::tf2d transformAffine;
 
 			std::vector<olc::GPUTask> vecGPUTasks;
+
+		protected: // SW Rasteriser Helpers
+			struct Scanline
+			{
+				int32_t nMin = std::numeric_limits<int32_t>::max();
+				int32_t nMax = std::numeric_limits<int32_t>::min();
+				float fBaryMin[3];
+				float fBaryMax[3];
+			};
+
+			std::vector<Scanline> vScanlines;
 	
 	};
 }
