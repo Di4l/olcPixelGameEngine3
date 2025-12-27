@@ -325,6 +325,7 @@ void olc::Draw2D::swRasterTexturedTriangle(const olc::vi2d& v1, const olc::vi2d&
 {
 	// We are writing to the target image, so make sure its memory resident (and up to date)
 	PrepareTargetForSW();
+	PrepareImageForSW(texture);
 
 	auto [y_min, y_max] = swBaryFillTriangle(v1, v2, v3);
 
