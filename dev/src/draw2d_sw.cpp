@@ -107,8 +107,6 @@ void olc::Draw2D::swFilledTriangle(const olc::vf2d& p1, const olc::vf2d& p2, con
 void olc::Draw2D::swFilledTriangle(const olc::vf2d& p1, const olc::vf2d& p2, const olc::vf2d& p3, const olc::Pixel c1, const olc::Pixel c2, const olc::Pixel c3)
 {
 	const auto vTransformedPoints = transformAffine.forward<float>({ p1, p2, p3 });
-	std::cout << "Fil: " << vTransformedPoints[0].str() + " " + vTransformedPoints[1].str() + " " + vTransformedPoints[2].str() + "\n";
-	
 	swRasterShadedTriangle(
 		vTransformedPoints[0],
 		vTransformedPoints[1],
@@ -119,7 +117,6 @@ void olc::Draw2D::swFilledTriangle(const olc::vf2d& p1, const olc::vf2d& p2, con
 void olc::Draw2D::swTexturedTriangle(const olc::vf2d& p1, const olc::vf2d& p2, const olc::vf2d& p3, const olc::Pixel c1, const olc::Pixel c2, const olc::Pixel c3, const olc::vf2d& t1, const olc::vf2d& t2, const olc::vf2d& t3, olc::Image& texture)
 {
 	const auto vTransformedPoints = transformAffine.forward<float>({ p1, p2, p3 });
-	std::cout << "Tex: " << vTransformedPoints[0].str() + " " + vTransformedPoints[1].str() + " " + vTransformedPoints[2].str() + "\n";	
 	swRasterTexturedTriangle(
 		vTransformedPoints[0],
 		vTransformedPoints[1],
@@ -288,119 +285,6 @@ void olc::Draw2D::swRasterShadedTriangle(const olc::vi2d& v1, const olc::vi2d& v
 
 
 	return;
-
-
-
-
-	
-
-	//olc::vi2d p1 = v1;
-	//olc::vi2d p2 = v2;
-	//olc::vi2d p3 = v3;
-	//olc::Pixel vColour[3] = { c1, c2, c3 };
-
-	//if (p2.y < p1.y) { std::swap(p1.y, p2.y); std::swap(p1.x, p2.x); std::swap(vColour[0], vColour[1]); }
-	//if (p3.y < p1.y) { std::swap(p1.y, p3.y); std::swap(p1.x, p3.x); std::swap(vColour[0], vColour[2]); }
-	//if (p3.y < p2.y) { std::swap(p2.y, p3.y); std::swap(p2.x, p3.x); std::swap(vColour[1], vColour[2]); }
-
-	//olc::vi2d dPos1 = p2 - p1;
-	//int dcr1 = vColour[1].r - vColour[0].r;
-	//int dcg1 = vColour[1].g - vColour[0].g;
-	//int dcb1 = vColour[1].b - vColour[0].b;
-	//int dca1 = vColour[1].a - vColour[0].a;
-
-	//olc::vi2d dPos2 = p3 - p1;
-	//int dcr2 = vColour[2].r - vColour[0].r;
-	//int dcg2 = vColour[2].g - vColour[0].g;
-	//int dcb2 = vColour[2].b - vColour[0].b;
-	//int dca2 = vColour[2].a - vColour[0].a;
-
-	//float dax_step = 0, dbx_step = 0, dcr1_step = 0, dcr2_step = 0, dcg1_step = 0, dcg2_step = 0, dcb1_step = 0, dcb2_step = 0, dca1_step = 0, dca2_step = 0;
-	//olc::vf2d vTex1Step, vTex2Step;
-
-	//if (dPos1.y)
-	//{
-	//	dax_step = dPos1.x / (float)abs(dPos1.y);
-	//	dcr1_step = dcr1 / (float)abs(dPos1.y);
-	//	dcg1_step = dcg1 / (float)abs(dPos1.y);
-	//	dcb1_step = dcb1 / (float)abs(dPos1.y);
-	//	dca1_step = dca1 / (float)abs(dPos1.y);
-	//}
-
-	//if (dPos2.y)
-	//{
-	//	dbx_step = dPos2.x / (float)abs(dPos2.y);
-	//	dcr2_step = dcr2 / (float)abs(dPos2.y);
-	//	dcg2_step = dcg2 / (float)abs(dPos2.y);
-	//	dcb2_step = dcb2 / (float)abs(dPos2.y);
-	//	dca2_step = dca2 / (float)abs(dPos2.y);
-	//}
-
-	//olc::vi2d vStart;
-	//olc::vi2d vEnd;
-	//int vStartIdx;
-
-	//for (int pass = 0; pass < 2; pass++)
-	//{
-	//	if (pass == 0)
-	//	{
-	//		vStart = p1; vEnd = p2;	vStartIdx = 0;
-	//	}
-	//	else
-	//	{
-	//		dPos1 = p3 - p2;
-	//		dcr1 = vColour[2].r - vColour[1].r;
-	//		dcg1 = vColour[2].g - vColour[1].g;
-	//		dcb1 = vColour[2].b - vColour[1].b;
-	//		dca1 = vColour[2].a - vColour[1].a;
-	//		dcr1_step = 0; dcg1_step = 0; dcb1_step = 0; dca1_step = 0;
-
-	//		if (dPos2.y) dbx_step = dPos2.x / (float)abs(dPos2.y);
-	//		if (dPos1.y)
-	//		{
-	//			dax_step = dPos1.x / (float)abs(dPos1.y);
-	//			dcr1_step = dcr1 / (float)abs(dPos1.y);
-	//			dcg1_step = dcg1 / (float)abs(dPos1.y);
-	//			dcb1_step = dcb1 / (float)abs(dPos1.y);
-	//			dca1_step = dca1 / (float)abs(dPos1.y);
-	//		}
-
-	//		vStart = p2; vEnd = p3; vStartIdx = 1;
-	//	}
-
-	//	if (dPos1.y)
-	//	{
-	//		for (int i = vStart.y; i <= vEnd.y; i++)
-	//		{
-	//			int ax = int(std::round(vStart.x + (float)(i - vStart.y) * dax_step));
-	//			int bx = int(std::round(p1.x + (float)(i - p1.y) * dbx_step));
-
-	//
-	//			olc::Pixel col_s(vColour[vStartIdx].r + uint8_t((float)(i - vStart.y) * dcr1_step), vColour[vStartIdx].g + uint8_t((float)(i - vStart.y) * dcg1_step),
-	//				vColour[vStartIdx].b + uint8_t((float)(i - vStart.y) * dcb1_step), vColour[vStartIdx].a + uint8_t((float)(i - vStart.y) * dca1_step));
-
-	//			olc::Pixel col_e(vColour[0].r + uint8_t((float)(i - p1.y) * dcr2_step), vColour[0].g + uint8_t((float)(i - p1.y) * dcg2_step),
-	//				vColour[0].b + uint8_t((float)(i - p1.y) * dcb2_step), vColour[0].a + uint8_t((float)(i - p1.y) * dca2_step));
-
-	//			if (ax > bx) 
-	//			{ 					
-	//				bx = int(std::round(vStart.x + (float)(i - vStart.y) * dax_step));
-	//				ax = int(std::round(p1.x + (float)(i - p1.y) * dbx_step));
-	//				std::swap(col_s, col_e); 
-	//			}
-
-	//			float tstep = 1.0f / ((float)(bx - ax));
-	//			float t = 0.0f;
-
-	//			for (int j = ax; j <= bx; j++)
-	//			{
-	//				olc::Pixel pixel = PixelLerp(col_s, col_e, t);
-	//				Plot(j, i, pixel);
-	//				t += tstep;
-	//			}
-	//		}
-	//	}
-	//}
 }
 
 void olc::Draw2D::swRasterTexturedTriangle(const olc::vi2d& v1, const olc::vi2d& v2, const olc::vi2d& v3, const olc::Pixel c1, const olc::Pixel c2, const olc::Pixel c3, const olc::vf2d& t1, const olc::vf2d& t2, const olc::vf2d& t3, olc::Image& texture)
@@ -414,7 +298,7 @@ void olc::Draw2D::swRasterTexturedTriangle(const olc::vi2d& v1, const olc::vi2d&
 		return; // Degenerate triangle
 
 	PrepareTargetForSW();
-	//PrepareImageForSW(texture);
+	PrepareImageForSW(texture);
 
 
 
@@ -616,145 +500,6 @@ void olc::Draw2D::swRasterShadedLine(const olc::vi2d& v1, const olc::vi2d& v2, c
 
 
 	return;
-
-
-
-	//// Gradients
-	//olc::vi2d diff1 = ip2 - ip1;
-
-	//// Colour interpolation variables
-	//float fColourT = 0.0f;
-	//float fColourStep = 1.0f / float(std::max(std::abs(diff1.x), std::abs(diff1.y)));
-
-	//// Quick draw straight lines
-	//if (diff1.x == 0) // Line is vertical
-	//{
-	//	if (ip2.y < ip1.y)
-	//	{
-	//		std::swap(ip1.y, ip2.y);
-	//		fColourStep *= -1.0f;
-	//		fColourT = 1.0f;
-	//	}
-
-	//	for (pixel.y = ip1.y; pixel.y <= ip2.y; pixel.y++)
-	//	{
-	//		if (rol())
-	//			Plot(ip1.x, pixel.y, olc::PixelLerp(c1, c2, fColourT));
-
-	//		fColourT += fColourStep;
-	//	}
-
-	//	// Early exit
-	//	return;
-	//}
-
-	//if (diff1.y == 0) // Line is horizontal
-	//{
-	//	if (ip2.x < ip1.x)
-	//	{
-	//		std::swap(ip1.x, ip2.x);
-	//		fColourStep *= -1.0f;
-	//		fColourT = 1.0f;
-	//	}
-
-
-	//	for (pixel.x = ip1.x; pixel.x <= ip2.x; pixel.x++)
-	//	{
-	//		if (rol())
-	//			Plot(pixel.x, ip1.y, olc::PixelLerp(c1, c2, fColourT));
-
-	//		fColourT += fColourStep;
-	//	}
-
-	//	// Early exit
-	//	return;
-	//}
-
-	//// Line is sloped
-	//olc::vi2d diff2 = diff1.abs();
-
-	//// Apply Bresenham algorithm
-	//olc::vi2d p = { diff2.y - diff2.x * 2, diff2.x - diff2.y * 2 };
-	//olc::vi2d end = { 0,0 };
-
-	//if (diff2.y <= diff2.x) // Propoagate in x-direction
-	//{
-	//	if (diff1.x >= 0)
-	//	{
-	//		pixel = ip1;
-	//		end = ip2;
-	//	}
-	//	else
-	//	{
-	//		pixel = ip2;
-	//		end = ip1;
-	//		fColourStep *= -1.0f;
-	//		fColourT = 1.0f;
-	//	}
-
-	//	if (rol())
-	//		Plot(pixel.x, pixel.y, olc::PixelLerp(c1, c2, fColourT));
-
-	//	for (int i = 0; pixel.x < end.x; i++)
-	//	{
-	//		pixel.x = pixel.x + 1;
-	//		fColourT += fColourStep;
-
-	//		if (p.x < 0)
-	//			p.x = p.x + 2 * diff2.y;
-	//		else
-	//		{
-	//			if ((diff1.x < 0 && diff1.y < 0) || (diff1.x > 0 && diff1.y > 0))
-	//				pixel.y = pixel.y + 1;
-	//			else
-	//				pixel.y = pixel.y - 1;
-
-	//			p.x = p.x + 2 * (diff2.y - diff2.x);
-	//		}
-
-	//		if (rol())
-	//			Plot(pixel.x, pixel.y, olc::PixelLerp(c1, c2, fColourT));
-	//	}
-	//}
-	//else
-	//{
-	//	if (diff1.y >= 0) // Propogate in y-direction
-	//	{
-	//		pixel = ip1;
-	//		end = ip2;
-	//	}
-	//	else
-	//	{
-	//		pixel = ip2;
-	//		end = ip1;
-	//		fColourStep *= -1.0f;
-	//		fColourT = 1.0f;
-	//	}
-
-	//	if (rol())
-	//		Plot(pixel.x, pixel.y, olc::PixelLerp(c1, c2, fColourT));
-
-	//	for (int i = 0; pixel.y < end.y; i++)
-	//	{
-	//		pixel.y = pixel.y + 1;
-	//		fColourT += fColourStep;
-
-	//		if (p.y <= 0)
-	//			p.y = p.y + 2 * diff2.x;
-	//		else
-	//		{
-	//			if ((diff1.x < 0 && diff1.y < 0) || (diff1.x > 0 && diff1.y > 0))
-	//				pixel.x = pixel.x + 1;
-	//			else
-	//				pixel.x = pixel.x - 1;
-
-	//			p.y = p.y + 2 * (diff2.x - diff2.y);
-	//		}
-
-	//		if (rol())
-	//			Plot(pixel.x, pixel.y, olc::PixelLerp(c1, c2, fColourT));
-	//	}
-	//}
 }
 
 

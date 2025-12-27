@@ -351,6 +351,8 @@ namespace olc
 				const olc::vf2d& vMin,
 				const olc::vf2d& vMax);
 
+
+
 			/* bool swClipTriangle(
 				olc::vf2d& v1,
 				olc::vf2d& v2,

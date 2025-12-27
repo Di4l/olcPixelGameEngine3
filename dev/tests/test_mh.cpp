@@ -300,7 +300,7 @@ public:
 		//}
 
 
-		std::cout << "Mouse Fil: " << vMouse << "\n";
+		//std::cout << "Mouse Fil: " << vMouse << "\n";
 		draw.swFilledTriangle({ 30,30 }, { 250,50 }, vMouse, olc::Colour::RED, olc::Colour::GREEN, olc::Colour::BLUE);
 		//std::cout << "Mouse Fil: " << vMouse << "\n";
 		draw.swFilledTriangle({ 30,30 }, { 250,50 }, vMouse, olc::Colour::WHITE);
