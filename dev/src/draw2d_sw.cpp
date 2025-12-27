@@ -159,113 +159,148 @@ bool olc::Draw2D::swClipLine(olc::vf2d& p1, olc::vf2d& p2, const olc::vf2d& vMin
 	return true;
 }
 
-void olc::Draw2D::swRasterShadedTriangle(const olc::vi2d& v1, const olc::vi2d& v2, const olc::vi2d& v3, const olc::Pixel c1, const olc::Pixel c2, const olc::Pixel c3)
+std::pair<int, int> olc::Draw2D::swBaryFillTriangle(const olc::vi2d& v1, const olc::vi2d& v2, const olc::vi2d& v3)
 {
-	// Get Height of triangle in whole pixels
+	// Get height of triangle in whole pixels
 	int32_t nMinY = std::min({ v1.y, v2.y, v3.y });
-	int32_t nHeight = std::max({ v1.y, v2.y, v3.y }) - nMinY;
+	int32_t nMaxY = std::max({ v1.y, v2.y, v3.y });
+	int32_t nHeight = nMaxY - nMinY;
 
-	// Maybe... unless we want 1 pixel high triangles (we do)
 	if (nHeight <= 0)
-		return; // Degenerate triangle
+		return { 0, 0 }; // Degenerate triangle
 
-	PrepareTargetForSW();
+	// Scanline buffer is already allocated to be the max vertical size
+	// of the draw target. Obviously it only represents visible scanlines
+	// that are to be filled for the current triangle.
 
-	// Zero out scanline buffer
-	size_t max_lines = std::min(size_t(nHeight), vScanlines.size());
-	for (size_t i = 0; i < max_lines; i++)
+	// Get visible height of triangle
+	int32_t y_min = std::max(0, nMinY);
+	int32_t y_max = std::min(nMaxY, pTarget->Size().y);
+
+	// Zero out scanline buffer (by resetting min and max values)
+	for (int32_t y = y_min; y < y_max; y++)
 	{
-		vScanlines[i].nMin = std::numeric_limits<int32_t>::max();
-		vScanlines[i].nMax = std::numeric_limits<int32_t>::min();
+		vScanlines[y].nMin = std::numeric_limits<int32_t>::max();
+		vScanlines[y].nMax = std::numeric_limits<int32_t>::min();
 	}
 
-	auto scanEdge = [&](int x0, int y0, int x1, int y1, int vertexIndex1, int vertexIndex2)
+	// This function scans an edge of the triangle, updating
+	// the scanline buffer with min/max extents and barycentric coords.
+	// It returns the number of scanlines updated.
+	auto scanEdge = [&](olc::vi2d p0, olc::vi2d p1, int id1, int id2) -> size_t
 		{
-			if (y0 == y1) return;
+			if (p0.y == p1.y)
+				return 0;
 
-			// Ensure y0 < y1
+			// Ensure p0.y < p1.y
 			bool swapped = false;
-			if (y0 > y1)
+			if (p0.y > p1.y)
 			{
-				std::swap(x0, x1);
-				std::swap(y0, y1);
+				std::swap(p0, p1);
 				swapped = true;
 			}
 
-			int dy = y1 - y0;
-			float dx_step = (x1 - x0) / float(dy);
+			// Cache edge step deltas
+			int dy = p1.y - p0.y;
+			float dx_step = (p1.x - p0.x) / float(dy);
 			float dy_step = 1.0f / float(dy);
-			float x = x0;
+			float x = p0.x;
 
-			for (int y = y0; y <= y1; y++)
+			// Rasterise edge - if pixel lies on visible scanline then
+			// update the scanline bounds and barycentric coords
+			size_t nScanline = 0;
+			for (int y = p0.y; y <= p1.y; y++)
 			{
-				int idx = y - nMinY;
-				if (idx >= 0 && idx < vScanlines.size())
+				// If this pixel row is visible
+				if (y >= 0 && y < vScanlines.size())
 				{
-					int ix = (int)std::round(x);
+					int ix = int(std::round(x));
 
 					// interpolation along edge 
-					float t = (y - y0) * dy_step;
-					float bary[3] = { 0.0f, 0.0f, 0.0f };
+					// Note: We may need to do this differently when clipping
+					float t = (y - p0.y) * dy_step;
 
+					std::array<float, 3> bary = { 0.0f, 0.0f, 0.0f };
+
+					// Set barycentric coords depending on edge direction
 					if (swapped)
 					{
-						bary[vertexIndex1] = t;
-						bary[vertexIndex2] = 1.0f - t;
+						bary[id1] = t;
+						bary[id2] = 1.0f - t;
 					}
 					else
 					{
-						bary[vertexIndex1] = 1.0f - t;
-						bary[vertexIndex2] = t;
+						bary[id1] = 1.0f - t;
+						bary[id2] = t;
 					}
 
+					// Update scanline extents and barycentric coords
+					if (ix < vScanlines[y].nMin)
+					{
+						vScanlines[y].nMin = ix;
+						vScanlines[y].fBaryMin = bary;
+					}
 
-					if (ix < vScanlines[idx].nMin)
+					if (ix > vScanlines[y].nMax)
 					{
-						vScanlines[idx].nMin = ix;
-						vScanlines[idx].fBaryMin[0] = bary[0];
-						vScanlines[idx].fBaryMin[1] = bary[1];
-						vScanlines[idx].fBaryMin[2] = bary[2];
+						vScanlines[y].nMax = ix;
+						vScanlines[y].fBaryMax = bary;
 					}
-					if (ix > vScanlines[idx].nMax)
-					{
-						vScanlines[idx].nMax = ix;
-						vScanlines[idx].fBaryMax[0] = bary[0];
-						vScanlines[idx].fBaryMax[1] = bary[1];
-						vScanlines[idx].fBaryMax[2] = bary[2];
-					}
+
+					nScanline++;
 				}
+
 				x += dx_step;
 			}
+
+			return nScanline;
 		};
 
 	// Rasterise triangle edges into scanline buffer
-	scanEdge(v1.x, v1.y, v2.x, v2.y, 0, 1);
-	scanEdge(v1.x, v1.y, v3.x, v3.y, 0, 2);
-	scanEdge(v2.x, v2.y, v3.x, v3.y, 1, 2);
+	scanEdge(v1, v2, 0, 1);
+	scanEdge(v1, v3, 0, 2);
+	scanEdge(v2, v3, 1, 2);
 
-	// Lambda to draw a pixel at integer location
-	auto Plot = [&](int32_t x, int32_t y, const olc::Pixel& p)
-		{
-			if (x >= 0 && x < pTarget->Size().x && y >= 0 && y < pTarget->Size().y)
-				pTarget->Pixel({ x, y }) = p;
-		};
+	return { y_min, y_max };
+}
+
+void olc::Draw2D::swRasterShadedTriangle(const olc::vi2d& v1, const olc::vi2d& v2, const olc::vi2d& v3, const olc::Pixel c1, const olc::Pixel c2, const olc::Pixel c3)
+{
+	// We are writing to the target image, so make sure its memory resident (and up to date)
+	PrepareTargetForSW();
+
+	auto [y_min, y_max] = swBaryFillTriangle(v1, v2, v3);
 
 	// Now draw the scanlines
-	int32_t y = nMinY;	
-	for(size_t s = 0; s< max_lines; s++)
+	for (int32_t y = y_min; y < y_max; y++)
 	{
-		const auto& scanline = vScanlines[s];
+		const auto& scanline = vScanlines[y];
 
 		int32_t xStart = scanline.nMin;
 		int32_t xEnd = scanline.nMax;
 
+		int32_t x_min = std::max(0, xStart);
+		int32_t x_max = std::min(xEnd, pTarget->Size().x);
+
 		float fSpan = float(xEnd - xStart);
 		float fSpanStep = fSpan > 0.0f ? 1.0f / fSpan : 0.0f;
+
+		float b0_step = fSpanStep * (scanline.fBaryMax[0] - scanline.fBaryMin[0]);
+		float b1_step = fSpanStep * (scanline.fBaryMax[1] - scanline.fBaryMin[1]);
+		float b2_step = fSpanStep * (scanline.fBaryMax[2] - scanline.fBaryMin[2]);
+
 		float b0 = scanline.fBaryMin[0];
 		float b1 = scanline.fBaryMin[1];
 		float b2 = scanline.fBaryMin[2];
-		for (int32_t x = xStart; x <= xEnd; x++)
+
+		if (xStart < 0)
+		{
+			b0 = scanline.fBaryMin[0] + (-xStart * b0_step);
+			b1 = scanline.fBaryMin[1] + (-xStart * b1_step);
+			b2 = scanline.fBaryMin[2] + (-xStart * b2_step);
+		}
+
+		for (int32_t x = x_min; x < x_max; x++)
 		{
 			olc::Pixel col = olc::Pixel(
 				uint8_t(c1.r * b0 + c2.r * b1 + c3.r * b2),
@@ -273,14 +308,13 @@ void olc::Draw2D::swRasterShadedTriangle(const olc::vi2d& v1, const olc::vi2d& v
 				uint8_t(c1.b * b0 + c2.b * b1 + c3.b * b2),
 				uint8_t(c1.a * b0 + c2.a * b1 + c3.a * b2));
 
-			Plot(x, y, col);
+			// In theory, target (x,y) is always valid here due to clipping above
+			pTarget->Pixel({ x, y }) = col;
 
-			b0 += fSpanStep * (scanline.fBaryMax[0] - scanline.fBaryMin[0]);
-			b1 += fSpanStep * (scanline.fBaryMax[1] - scanline.fBaryMin[1]);
-			b2 += fSpanStep * (scanline.fBaryMax[2] - scanline.fBaryMin[2]);
+			b0 += b0_step;
+			b1 += b1_step;
+			b2 += b2_step;
 		}
-
-		y++;
 	}
 
 
@@ -289,116 +323,41 @@ void olc::Draw2D::swRasterShadedTriangle(const olc::vi2d& v1, const olc::vi2d& v
 
 void olc::Draw2D::swRasterTexturedTriangle(const olc::vi2d& v1, const olc::vi2d& v2, const olc::vi2d& v3, const olc::Pixel c1, const olc::Pixel c2, const olc::Pixel c3, const olc::vf2d& t1, const olc::vf2d& t2, const olc::vf2d& t3, olc::Image& texture)
 {
-	// Get Height of triangle in whole pixels
-	int32_t nMinY = std::min({ v1.y, v2.y, v3.y });
-	int32_t nHeight = std::max({ v1.y, v2.y, v3.y }) - nMinY;
-
-	// Maybe... unless we want 1 pixel high triangles (we do)
-	if (nHeight <= 0)
-		return; // Degenerate triangle
-
+	// We are writing to the target image, so make sure its memory resident (and up to date)
 	PrepareTargetForSW();
-	PrepareImageForSW(texture);
 
-
-
-	// Zero out scanline buffer
-	size_t max_lines = std::min(size_t(nHeight), vScanlines.size());
-	for (size_t i = 0; i < max_lines; i++)
-	{
-		vScanlines[i].nMin = std::numeric_limits<int32_t>::max();
-		vScanlines[i].nMax = std::numeric_limits<int32_t>::min();
-	}
-
-	auto scanEdge = [&](int x0, int y0, int x1, int y1, int vertexIndex1, int vertexIndex2)
-		{
-			if (y0 == y1) return;
-
-			// Ensure y0 < y1
-			bool swapped = false;
-			if (y0 > y1)
-			{
-				std::swap(x0, x1);
-				std::swap(y0, y1);
-				swapped = true;
-			}
-
-			int dy = y1 - y0;
-			float dx_step = (x1 - x0) / float(dy);
-			float dy_step = 1.0f / float(dy);
-			float x = x0;
-
-			for (int y = y0; y <= y1; y++)
-			{
-				int idx = y - nMinY;
-				if (idx >= 0 && idx < vScanlines.size())
-				{
-					int ix = (int)std::round(x);
-
-					// interpolation along edge 
-					float t = (y - y0) * dy_step;
-					float bary[3] = { 0.0f, 0.0f, 0.0f };
-
-					if (swapped)
-					{
-						bary[vertexIndex1] = t;
-						bary[vertexIndex2] = 1.0f - t;
-					}
-					else
-					{
-						bary[vertexIndex1] = 1.0f - t;
-						bary[vertexIndex2] = t;
-					}
-
-
-					if (ix < vScanlines[idx].nMin)
-					{
-						vScanlines[idx].nMin = ix;
-						vScanlines[idx].fBaryMin[0] = bary[0];
-						vScanlines[idx].fBaryMin[1] = bary[1];
-						vScanlines[idx].fBaryMin[2] = bary[2];
-					}
-					if (ix > vScanlines[idx].nMax)
-					{
-						vScanlines[idx].nMax = ix;
-						vScanlines[idx].fBaryMax[0] = bary[0];
-						vScanlines[idx].fBaryMax[1] = bary[1];
-						vScanlines[idx].fBaryMax[2] = bary[2];
-					}
-				}
-				x += dx_step;
-			}
-		};
-
-	// Rasterise triangle edges into scanline buffer
-	scanEdge(v1.x, v1.y, v2.x, v2.y, 0, 1);
-	scanEdge(v1.x, v1.y, v3.x, v3.y, 0, 2);
-	scanEdge(v2.x, v2.y, v3.x, v3.y, 1, 2);
-
-
-
-	// Lambda to draw a pixel at integer location
-	auto Plot = [&](int32_t x, int32_t y, const olc::Pixel& p)
-		{
-			if (x >= 0 && x < pTarget->Size().x && y >= 0 && y < pTarget->Size().y)
-				pTarget->Pixel({ x, y }) = p;
-		};
+	auto [y_min, y_max] = swBaryFillTriangle(v1, v2, v3);
 
 	// Now draw the scanlines
-	int32_t y = nMinY;
-	for (size_t s = 0; s < max_lines; s++)
+	for (int32_t y = y_min; y < y_max; y++)
 	{
-		const auto& scanline = vScanlines[s];
+		const auto& scanline = vScanlines[y];
 
 		int32_t xStart = scanline.nMin;
 		int32_t xEnd = scanline.nMax;
 
+		int32_t x_min = std::max(0, xStart);
+		int32_t x_max = std::min(xEnd, pTarget->Size().x);
+
 		float fSpan = float(xEnd - xStart);
 		float fSpanStep = fSpan > 0.0f ? 1.0f / fSpan : 0.0f;
+		
+		float b0_step = fSpanStep * (scanline.fBaryMax[0] - scanline.fBaryMin[0]);
+		float b1_step = fSpanStep * (scanline.fBaryMax[1] - scanline.fBaryMin[1]);
+		float b2_step = fSpanStep * (scanline.fBaryMax[2] - scanline.fBaryMin[2]);
+
 		float b0 = scanline.fBaryMin[0];
 		float b1 = scanline.fBaryMin[1];
 		float b2 = scanline.fBaryMin[2];
-		for (int32_t x = xStart; x <= xEnd; x++)
+
+		if(xStart < 0)
+		{
+			b0 = scanline.fBaryMin[0] + (-xStart * b0_step);
+			b1 = scanline.fBaryMin[1] + (-xStart * b1_step);
+			b2 = scanline.fBaryMin[2] + (-xStart * b2_step);
+		}
+
+		for (int32_t x = x_min; x < x_max; x++)
 		{
 			olc::Pixel col = olc::Pixel(
 				uint8_t(c1.r * b0 + c2.r * b1 + c3.r * b2),
@@ -410,15 +369,16 @@ void olc::Draw2D::swRasterTexturedTriangle(const olc::vi2d& v1, const olc::vi2d&
 				b0 * t1.x + b1 * t2.x + b2 * t3.x,
 				b0 * t1.y + b1 * t2.y + b2 * t3.y);
 
-			Plot(x, y, col.blend(texture.Sample(uv)));
+			
+			// In theory, target (x,y) is always valid here due to clipping above
+			pTarget->Pixel({ x, y }) = col.blend(texture.Sample(uv));
 	
-			b0 += fSpanStep * (scanline.fBaryMax[0] - scanline.fBaryMin[0]);
-			b1 += fSpanStep * (scanline.fBaryMax[1] - scanline.fBaryMin[1]);
-			b2 += fSpanStep * (scanline.fBaryMax[2] - scanline.fBaryMin[2]);
+			b0 += b0_step;
+			b1 += b1_step;
+			b2 += b2_step;
 		}
-
-		y++;
 	}
+
 	return;
 }
 

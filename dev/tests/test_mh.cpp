@@ -171,7 +171,7 @@ public:
 			fAngle += 0.2f * fElapsedTime;
 		}
 
-			draw.WorldRotate(fAngle, imLowRes.Size() / 2.0f);
+		draw.WorldRotate(fAngle, { 0,0 });// imLowRes.Size() / 2.0f);
 		if (mouse.GetButton(2).bPressed)
 		{
 			auto w = std::make_shared<SecondWindow>();
@@ -286,18 +286,18 @@ public:
 	//	draw.Rect({ 8,8, }, { 20,20 }, olc::Colour::RED, olc::Colour::GREEN, olc::Colour::BLUE, olc::Colour::WHITE);
 	//	draw.swRect({ 7,7, }, { 22,22 }, olc::Colour::RED, olc::Colour::GREEN, olc::Colour::BLUE, olc::Colour::WHITE);
 
-		//for (int i = 0; i < 500; i++)
-		//{
-		//	// Draw random triangle
-		//	draw.swFilledTriangle(
-		//		{ float(rand() % GetDefaultImage().Size().x), float(rand() % GetDefaultImage().Size().y) },
-		//		{ float(rand() % GetDefaultImage().Size().x), float(rand() % GetDefaultImage().Size().y) },
-		//		{ float(rand() % GetDefaultImage().Size().x), float(rand() % GetDefaultImage().Size().y) },
-		//		olc::Pixel(rand() % 256, rand() % 256, rand() % 256),
-		//		olc::Pixel(rand() % 256, rand() % 256, rand() % 256),
-		//		olc::Pixel(rand() % 256, rand() % 256, rand() % 256)
-		//	);
-		//}
+		for (int i = 0; i < 100; i++)
+		{
+			// Draw random triangle
+			draw.swTexturedTriangle(
+				{ float(rand() % GetDefaultImage().Size().x), float(rand() % GetDefaultImage().Size().y) },
+				{ float(rand() % GetDefaultImage().Size().x), float(rand() % GetDefaultImage().Size().y) },
+				{ float(rand() % GetDefaultImage().Size().x), float(rand() % GetDefaultImage().Size().y) },
+				olc::Pixel(rand() % 256, rand() % 256, rand() % 256),
+				olc::Pixel(rand() % 256, rand() % 256, rand() % 256),
+				olc::Pixel(rand() % 256, rand() % 256, rand() % 256), { 0,0 }, { 0,1 }, { 1, 1 }, imLogo
+			);
+		}
 
 
 		//std::cout << "Mouse Fil: " << vMouse << "\n";
@@ -305,7 +305,7 @@ public:
 		//std::cout << "Mouse Fil: " << vMouse << "\n";
 		draw.swFilledTriangle({ 30,30 }, { 250,50 }, vMouse, olc::Colour::WHITE);
 		//std::cout << "Mouse Tex: " << vMouse << "\n";
-		draw.swTexturedTriangle({ 30,30 }, { 250,50 }, vMouse, olc::Colour::RED, olc::Colour::GREEN, olc::Colour::BLUE, { 0,0 }, { 0,1 }, { 1, 1 }, imLogo);
+		//draw.swTexturedTriangle({ 30,30 }, { 250,50 }, vMouse, olc::Colour::RED, olc::Colour::GREEN, olc::Colour::BLUE, { 0,0 }, { 0,1 }, { 1, 1 }, imLogo);
 
 		draw.swTriangle({ 30,30 }, { 250,50 }, vMouse, olc::Colour::BLACK);
 		

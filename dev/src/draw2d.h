@@ -416,11 +416,19 @@ namespace olc
 			{
 				int32_t nMin = std::numeric_limits<int32_t>::max();
 				int32_t nMax = std::numeric_limits<int32_t>::min();
-				float fBaryMin[3];
-				float fBaryMax[3];
+				std::array<float, 3> fBaryMin;
+				std::array<float, 3> fBaryMax;
 			};
 
 			std::vector<Scanline> vScanlines;
+
+
+			// Fills scanline buffer with visible triangle extents and barycentric coordinates.
+			// Returns vertical, visible extents of triangle scanlines
+			std::pair<int, int> swBaryFillTriangle(
+				const olc::vi2d& v1,
+				const olc::vi2d& v2,
+				const olc::vi2d& v3);
 	
 	};
 }
