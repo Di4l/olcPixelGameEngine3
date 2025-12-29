@@ -201,6 +201,12 @@ namespace olc::apis::opengl
 		CheckError();
 	}
 
+	void gl::glPolygonMode(GLenum face, GLenum mode)
+	{
+		::glPolygonMode(face, mode);
+		CheckError();
+	}
+
 	GLuint gl::glCreateShader(GLenum type)
 	{
 		return _glCreateShader(type);

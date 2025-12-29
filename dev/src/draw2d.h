@@ -60,7 +60,8 @@ namespace olc
 		// Plot a single pixel
 		void Pixel(
 			const olc::vf2d& pos, 
-			const olc::Pixel col = olc::Colour::WHITE);
+			const olc::Pixel col = olc::Colour::WHITE,
+			const olc::Pixel tint = olc::Colour::WHITE);
 
 		// Read a pixel from an image (guarantees fresh)
 		olc::Pixel GetPixel(
@@ -75,20 +76,23 @@ namespace olc
 		const GPUTask& Line(
 			const olc::vf2d& p1, 
 			const olc::vf2d& p2, 
-			const olc::Pixel col = olc::Colour::WHITE);
+			const olc::Pixel col = olc::Colour::WHITE,
+			const olc::Pixel tint = olc::Colour::WHITE);
 
 		// Draws a single pixel wide line with a gradient		
 		const GPUTask& Line(
 			const olc::vf2d& p1, 
 			const olc::vf2d& p2, 
 			const olc::Pixel c1, 
-			const olc::Pixel c2);
+			const olc::Pixel c2,
+			const olc::Pixel tint = olc::Colour::WHITE);
 
 		// Draws a rectangle outline
 		const GPUTask& Rect(
 			const olc::vf2d& pos, 
 			const olc::vf2d& size, 
-			const olc::Pixel col = olc::Colour::WHITE);
+			const olc::Pixel col = olc::Colour::WHITE,
+			const olc::Pixel tint = olc::Colour::WHITE);
 
 		// Draws a multiple colour rectangle, with linear colour interpolation
 		const GPUTask& Rect(
@@ -97,13 +101,15 @@ namespace olc
 			const olc::Pixel colTL,
 			const olc::Pixel colTR,
 			const olc::Pixel colBL,
-			const olc::Pixel colBR);
+			const olc::Pixel colBR,
+			const olc::Pixel tint = olc::Colour::WHITE);
 
 		// Draws a filled, single colour rectangle
 		const GPUTask& FilledRect(
 			const olc::vf2d& pos, 
 			const olc::vf2d& size, 
-			const olc::Pixel col = olc::Colour::WHITE);
+			const olc::Pixel col = olc::Colour::WHITE,
+			const olc::Pixel tint = olc::Colour::WHITE);
 
 		// Draws a filled, multiple colour rectangle, with linear colour interpolation
 		const GPUTask& FilledRect(
@@ -112,7 +118,8 @@ namespace olc
 			const olc::Pixel colTL, 
 			const olc::Pixel colTR, 
 			const olc::Pixel colBL, 
-			const olc::Pixel colBR);
+			const olc::Pixel colBR,
+			const olc::Pixel tint = olc::Colour::WHITE);
 		
 		
 		//TexturedRect
@@ -133,12 +140,13 @@ namespace olc
 		//ShadedRoundRect
 		//TexturedRoundRect
 
-		// Draws a triangle outline
+		// Draws a triangle outline with a single colour
 		const GPUTask& Triangle(
 			const olc::vf2d& p1,
 			const olc::vf2d& p2,
 			const olc::vf2d& p3,
-			const olc::Pixel col = olc::Colour::WHITE);
+			const olc::Pixel col = olc::Colour::WHITE,
+			const olc::Pixel tint = olc::Colour::WHITE);
 
 		// Draws a multiple colour triangle outline
 		const GPUTask& Triangle(
@@ -147,14 +155,16 @@ namespace olc
 			const olc::vf2d& p3,
 			const olc::Pixel c1,
 			const olc::Pixel c2,
-			const olc::Pixel c3);
+			const olc::Pixel c3,
+			const olc::Pixel tint = olc::Colour::WHITE);
 
 		// Draws a filled, single colour triangle
 		const GPUTask& FilledTriangle(
 			const olc::vf2d& p1,
 			const olc::vf2d& p2,
 			const olc::vf2d& p3,
-			const olc::Pixel col = olc::Colour::WHITE);
+			const olc::Pixel col = olc::Colour::WHITE,
+			const olc::Pixel tint = olc::Colour::WHITE);
 
 		// Draws a filled, multiple colour triangle
 		const GPUTask& FilledTriangle(
@@ -163,7 +173,8 @@ namespace olc
 			const olc::vf2d& p3,
 			const olc::Pixel c1,
 			const olc::Pixel c2,
-			const olc::Pixel c3);
+			const olc::Pixel c3,
+			const olc::Pixel tint = olc::Colour::WHITE);
 
 		// Draws a textured triangle, with per vertex colouring
 		const GPUTask& TexturedTriangle(
@@ -179,14 +190,55 @@ namespace olc
 			olc::Image& texture,
 			const olc::Pixel tint = olc::Colour::WHITE);
 
-		//FilledTriangle
-		//ShadedTriangle
-		//TexturedTriangle
+		// Draws a polygon outline with a single colour
+		const GPUTask& Polygon(
+			const std::vector<olc::vf2d>& vecPoints,
+			const olc::Pixel col = olc::Colour::WHITE,
+			const olc::Pixel tint = olc::Colour::WHITE);
 
-		//Polygon
-		//FilledPolygon
-		//ShadedPolygon
-		//TexturedPolygon
+		// Draws a polygon outline with multiple colours
+		const GPUTask& Polygon(
+			const std::vector<olc::vf2d>& vecPoints,
+			const std::vector<olc::Pixel>& vecColours,
+			const olc::Pixel tint = olc::Colour::WHITE);
+
+		// Draws a polygon outline with a single colour
+		const GPUTask& Polygon(
+			const olc::Structure structure,
+			const std::vector<olc::vf2d>& vecPoints,
+			const olc::Pixel col = olc::Colour::WHITE, 
+			const olc::Pixel tint = olc::Colour::WHITE);
+
+		// Draws a polygon outline with multiple colours
+		const GPUTask& Polygon(
+			const olc::Structure structure,
+			const std::vector<olc::vf2d>& vecPoints,
+			const std::vector<olc::Pixel>& vecColours,
+			const olc::Pixel tint = olc::Colour::WHITE);
+
+		// Draws a filled polygon with a single colour
+		const GPUTask& FilledPolygon(
+			const olc::Structure structure,
+			const std::vector<olc::vf2d>& vecPoints,
+			const olc::Pixel col = olc::Colour::WHITE,
+			const olc::Pixel tint = olc::Colour::WHITE);
+
+		// Draws a filled polygon with multiple colours
+		const GPUTask& FilledPolygon(
+			const olc::Structure structure,
+			const std::vector<olc::vf2d>& vecPoints,
+			const std::vector<olc::Pixel>& vecColours,
+			const olc::Pixel tint = olc::Colour::WHITE);
+
+		// Draws a textured polygon with per vertex colouring
+		const GPUTask& TexturedPolygon(
+			const olc::Structure structure,
+			const std::vector<olc::vf2d>& vecPoints,
+			const std::vector<olc::Pixel>& vecColours,
+			const std::vector<olc::vf2d>& vecTexCoords,
+			olc::Image& texture,
+			const olc::Pixel tint = olc::Colour::WHITE);
+
 
 	public: // Text Drawing Functions
 		// Draws a string at specified location in monospace font
@@ -261,31 +313,31 @@ namespace olc
 			const olc::Pixel tint = olc::Colour::WHITE);
 		
 		GPUTask TaskDrawPolygon(
-			GPUTask::Structure structure,
+			olc::Structure structure,
 			const std::vector<olc::vf2d>& vPoints,
 			const std::vector<olc::Pixel>& vColours,
 			const olc::Pixel tint = olc::Colour::WHITE);
 
 		GPUTask TaskDrawPolygon(
-			GPUTask::Structure structure,
+			olc::Structure structure,
 			const std::vector<olc::vf2d>& vPoints,
 			const olc::Pixel colour,
 			const olc::Pixel tint = olc::Colour::WHITE);
 
 		GPUTask TaskFillPolygon(
-			GPUTask::Structure structure,
+			olc::Structure structure,
 			const std::vector<olc::vf2d>& vPoints,
 			const std::vector<olc::Pixel>& vColours,
 			const olc::Pixel tint = olc::Colour::WHITE);
 
 		GPUTask TaskFillPolygon(
-			GPUTask::Structure structure,
+			olc::Structure structure,
 			const std::vector<olc::vf2d>& vPoints,
 			const olc::Pixel colour,
 			const olc::Pixel tint = olc::Colour::WHITE);
 
 		GPUTask TaskTexturedPolygon(
-			GPUTask::Structure structure,
+			olc::Structure structure,
 			const std::vector<olc::vf2d>& vPoints,
 			const std::vector<olc::Pixel>& vColours,
 			const std::vector<olc::vf2d>& vTexCoords,
@@ -293,7 +345,7 @@ namespace olc
 			const olc::Pixel tint = olc::Colour::WHITE);
 
 		GPUTask TaskTexturedPolygon(
-			GPUTask::Structure structure,
+			olc::Structure structure,
 			const std::vector<olc::vf2d>& vPoints,
 			const std::vector<olc::vf2d>& vZWs,
 			const std::vector<olc::Pixel>& vColours,

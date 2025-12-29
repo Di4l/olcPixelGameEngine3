@@ -598,34 +598,64 @@ namespace olc::gpu
 				gl.glEnable(GL_BLEND);
 				//gl.glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 				gl.glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
-				// Draw the thing!
-				if (task.bWireframe)
-				{
-					// Shader: Configure Rendering Mode
-					gl.glUniform1i(shaderDefault.GetUniform("drawtype"), 1);
-					gl.glDrawArrays(GL_LINE_LOOP, 0, (GLsizei)task.vertexBuffer.size());
-				}
-				else
-				{
-					// Shader: Configure Rendering Mode
-					if (task.structure == GPUTask::Structure::Point)
-						gl.glUniform1i(shaderDefault.GetUniform("drawtype"), 1);
-					else if(task.structure == GPUTask::Structure::Line)
-						gl.glUniform1i(shaderDefault.GetUniform("drawtype"), 1);
-					else
-						gl.glUniform1i(shaderDefault.GetUniform("drawtype"), 0);
 
-					if (task.structure == GPUTask::Structure::Fan)
-						gl.glDrawArrays(GL_TRIANGLE_FAN, 0, (GLsizei)task.vertexBuffer.size());
-					else if (task.structure == GPUTask::Structure::Strip)
-						gl.glDrawArrays(GL_TRIANGLE_STRIP, 0, (GLsizei)task.vertexBuffer.size());
-					else if (task.structure == GPUTask::Structure::List)
-						gl.glDrawArrays(GL_TRIANGLES, 0, (GLsizei)task.vertexBuffer.size());
-					else if (task.structure == GPUTask::Structure::Line)
-						gl.glDrawArrays(GL_LINES, 0, (GLsizei)task.vertexBuffer.size());
-					else if (task.structure == GPUTask::Structure::Point)
-						gl.glDrawArrays(GL_POINTS, 0, (GLsizei)task.vertexBuffer.size());
-				}
+				if (task.bWireframe)
+					gl.glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+
+				if (task.structure == olc::Structure::Point)
+					gl.glUniform1i(shaderDefault.GetUniform("drawtype"), 1);
+				else if (task.structure == olc::Structure::Line)
+					gl.glUniform1i(shaderDefault.GetUniform("drawtype"), 1);
+				else
+					gl.glUniform1i(shaderDefault.GetUniform("drawtype"), 0);
+
+				if (task.structure == olc::Structure::Fan)
+					gl.glDrawArrays(GL_TRIANGLE_FAN, 0, (GLsizei)task.vertexBuffer.size());
+				else if (task.structure == olc::Structure::Strip)
+					gl.glDrawArrays(GL_TRIANGLE_STRIP, 0, (GLsizei)task.vertexBuffer.size());
+				else if (task.structure == olc::Structure::List)
+					gl.glDrawArrays(GL_TRIANGLES, 0, (GLsizei)task.vertexBuffer.size());
+				else if (task.structure == olc::Structure::Line)
+					gl.glDrawArrays(GL_LINE_STRIP, 0, (GLsizei)task.vertexBuffer.size());
+				else if (task.structure == olc::Structure::Point)
+					gl.glDrawArrays(GL_POINTS, 0, (GLsizei)task.vertexBuffer.size());
+
+
+				if (task.bWireframe)
+					gl.glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+
+				//// Draw the thing!
+				//if (task.bWireframe)
+				//{
+				//	// Shader: Configure Rendering Mode
+				//	gl.glUniform1i(shaderDefault.GetUniform("drawtype"), 1);
+				//	gl.glDrawArrays(GL_LINE_LOOP, 0, (GLsizei)task.vertexBuffer.size());
+				//}
+				//else
+				//{
+				//	// Shader: Configure Rendering Mode
+				//	if (task.structure == olc::Structure::Point)
+				//		gl.glUniform1i(shaderDefault.GetUniform("drawtype"), 1);
+				//	else if(task.structure == olc::Structure::Line)
+				//		gl.glUniform1i(shaderDefault.GetUniform("drawtype"), 1);
+				//	else
+				//		gl.glUniform1i(shaderDefault.GetUniform("drawtype"), 0);
+
+				//	if (task.structure == olc::Structure::Fan)
+				//		gl.glDrawArrays(GL_TRIANGLE_FAN, 0, (GLsizei)task.vertexBuffer.size());
+				//	else if (task.structure == olc::Structure::Strip)
+				//	{
+				//		gl.glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+				//		gl.glDrawArrays(GL_TRIANGLE_STRIP, 0, (GLsizei)task.vertexBuffer.size());
+				//		gl.glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+				//	}
+				//	else if (task.structure == olc::Structure::List)
+				//		gl.glDrawArrays(GL_TRIANGLES, 0, (GLsizei)task.vertexBuffer.size());
+				//	else if (task.structure == olc::Structure::Line)
+				//		gl.glDrawArrays(GL_LINES, 0, (GLsizei)task.vertexBuffer.size());
+				//	else if (task.structure == olc::Structure::Point)
+				//		gl.glDrawArrays(GL_POINTS, 0, (GLsizei)task.vertexBuffer.size());
+				//}
 
 				if (task.bDepth)
 					gl.glDisable(GL_DEPTH_TEST);
