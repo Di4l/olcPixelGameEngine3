@@ -96,6 +96,10 @@ public:
 	olc::Image imBlend;
 	olc::Image imTempBuffer;
 
+	std::vector<olc::vi2d> vecTestPoints;
+	olc::vf2d vTestPointSize = { 6,6 };
+	int nSelectedPoint = -1;
+
 public:
 	bool OnUserCreate() override
 	{
@@ -130,13 +134,117 @@ public:
 		};
 
 		
-		
+		vecTestPoints = {
+			{ 32,  16},
+			{ 96, 112},
+			{ 112, 100},
+			{  16,  96 }
+		};
 
 		return true;
 	}
 
 	bool OnUserUpdate(float fElapsedTime) override
 	{
+
+		if (mouse.GetButton(1).bHeld)
+		{
+			fAngle += 0.5f * fElapsedTime;
+		}
+
+		
+
+		// SW Rastering test
+		draw.SetTarget(imTempBuffer);
+		draw.Clear(olc::Colour::TANGERINE);
+		draw.WorldRotate(fAngle, { 64.0f, 64.0f });// imLowRes.Size() / 2.0f);
+
+
+		draw.FilledTriangle(vecTestPoints[0] - olc::vi2d{64, 48}, vecTestPoints[1] - olc::vi2d{ 64, 48 }, vecTestPoints[2] - olc::vi2d{ 64, 48 },
+			olc::Colour::RED,
+			olc::Colour::GREEN,
+			olc::Colour::BLUE);
+
+		draw.FilledTriangle(vecTestPoints[0] - olc::vi2d{ 64, 48 }, vecTestPoints[2] - olc::vi2d{ 64, 48 }, vecTestPoints[3] - olc::vi2d{ 64, 48 },
+			olc::Colour::RED,
+			olc::Colour::BLUE,
+			olc::Colour::YELLOW);
+
+		
+
+		draw.Triangle(vecTestPoints[0] - olc::vi2d{ 64, 48 }, vecTestPoints[1] - olc::vi2d{ 64, 48 }, vecTestPoints[2] - olc::vi2d{ 64, 48 },
+			olc::Colour::BLACK);
+
+		draw.Triangle(vecTestPoints[0] - olc::vi2d{ 64, 48 }, vecTestPoints[2] - olc::vi2d{ 64, 48 }, vecTestPoints[3] - olc::vi2d{ 64, 48 },
+			olc::Colour::BLACK);
+
+		olc::vf2d vScaledSize = olc::vf2d{ 8, 8 } / draw.GetWorldTransform().scale();
+		draw.FilledRect(olc::vf2d{ 64.0f, 64.0f } - vScaledSize * 0.5, vScaledSize, olc::Pixel(255, 255, 0, 25));
+		draw.Rect(olc::vf2d{ 64.0f, 64.0f } - vScaledSize * 0.5, vScaledSize, olc::Colour::BLACK);
+
+
+
+	/*	draw.TexturedTriangle(
+			vecTestPoints[0] - olc::vi2d{ 64, 48 }, vecTestPoints[1] - olc::vi2d{ 64, 48 }, vecTestPoints[2] - olc::vi2d{ 64, 48 },
+			olc::Colour::RED,
+			olc::Colour::GREEN,
+			olc::Colour::BLUE,
+			{ 0.0f, 0.0f }, { 0.0f, 1.0f }, { 1.0f, 0.0f },
+			imLogo);*/
+
+
+		draw.SetTarget(GetDefaultImage());
+		draw.Clear(olc::Colour::CYAN);
+
+		draw.Triangle(vecTestPoints[0], vecTestPoints[1], vecTestPoints[2],
+			olc::Colour::RED,
+			olc::Colour::GREEN,
+			olc::Colour::BLUE);
+
+		draw.Triangle(vecTestPoints[0], vecTestPoints[2], vecTestPoints[3],
+			olc::Colour::RED,
+			olc::Colour::BLUE,
+			olc::Colour::YELLOW);
+
+		draw.Image(imTempBuffer, { 64, 48 });
+		//draw.Triangle(vecTestPoints[0], vecTestPoints[1], vecTestPoints[2], olc::Colour::BLACK);
+
+		// Draw 3 triangle points
+		for (int i = 0; i < vecTestPoints.size(); i++)
+		{
+			draw.Rect(vecTestPoints[i] - (vTestPointSize * 0.5f), vTestPointSize, olc::Colour::MAGENTA);
+		}
+
+		
+
+		// Handle mouse
+		if (mouse.GetButton(0).bPressed)
+		{
+			nSelectedPoint = -1;
+			for (int i = 0; i < vecTestPoints.size(); i++)
+			{
+				if ((mouse.GetPosition() - vecTestPoints[i]).mag2() < 9)
+				{
+					nSelectedPoint = i;
+				}
+			}
+		}
+
+		if (nSelectedPoint != -1 && mouse.GetButton(0).bHeld)
+		{
+			vecTestPoints[nSelectedPoint] = mouse.GetPosition().round();
+		}
+
+		if (mouse.GetButton(0).bReleased)
+		{
+			nSelectedPoint = -1;
+		}
+
+		draw.String({ 10, 10 }, mouse.GetPosition().str(), olc::Colour::BLACK);
+
+		return true;
+
+
 		//draw.SetTarget(imTemp);
 		//draw.Clear(olc::Colour::BLANK);
 		//draw.FilledRect({ 20,5 }, { 6, 54 }, olc::Colour::GREEN);
@@ -307,7 +415,7 @@ public:
 		//std::cout << "Mouse Tex: " << vMouse << "\n";
 		draw.swTexturedTriangle({ 30,30 }, { 250,50 }, vMouse, olc::Colour::RED, olc::Colour::GREEN, olc::Colour::BLUE, { 0,0 }, { 0,1 }, { 1, 1 }, imHighResSprite);
 
-		draw.swTriangle({ 30,30 }, { 250,50 }, vMouse, olc::Colour::BLACK);
+		draw.swTriangle({ 30,30 }, { 250,50 }, vMouse, olc::Colour::RED, olc::Colour::GREEN, olc::Colour::BLUE);
 		
 
 		//draw.Rect(vMouse, { 100,100 });

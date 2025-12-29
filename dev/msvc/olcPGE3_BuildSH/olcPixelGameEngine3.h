@@ -1810,7 +1810,52 @@ namespace olc
 		//ShadedRoundRect
 		//TexturedRoundRect
 
-		//Triangle
+		// Draws a triangle outline
+		const GPUTask& Triangle(
+			const olc::vf2d& p1,
+			const olc::vf2d& p2,
+			const olc::vf2d& p3,
+			const olc::Pixel col = olc::Colour::WHITE);
+
+		// Draws a multiple colour triangle outline
+		const GPUTask& Triangle(
+			const olc::vf2d& p1,
+			const olc::vf2d& p2,
+			const olc::vf2d& p3,
+			const olc::Pixel c1,
+			const olc::Pixel c2,
+			const olc::Pixel c3);
+
+		// Draws a filled, single colour triangle
+		const GPUTask& FilledTriangle(
+			const olc::vf2d& p1,
+			const olc::vf2d& p2,
+			const olc::vf2d& p3,
+			const olc::Pixel col = olc::Colour::WHITE);
+
+		// Draws a filled, multiple colour triangle
+		const GPUTask& FilledTriangle(
+			const olc::vf2d& p1,
+			const olc::vf2d& p2,
+			const olc::vf2d& p3,
+			const olc::Pixel c1,
+			const olc::Pixel c2,
+			const olc::Pixel c3);
+
+		// Draws a textured triangle, with per vertex colouring
+		const GPUTask& TexturedTriangle(
+			const olc::vf2d& p1,
+			const olc::vf2d& p2,
+			const olc::vf2d& p3,
+			const olc::Pixel c1,
+			const olc::Pixel c2,
+			const olc::Pixel c3,
+			const olc::vf2d& t1,
+			const olc::vf2d& t2,
+			const olc::vf2d& t3,
+			olc::Image& texture,
+			const olc::Pixel tint = olc::Colour::WHITE);
+
 		//FilledTriangle
 		//ShadedTriangle
 		//TexturedTriangle
@@ -1837,6 +1882,7 @@ namespace olc
 			const olc::vf2d& scale = { 1.0f, 1.0f },
 			olc::Font& font = olc::fontClassicPGE);
 
+		// Returns the bounding box size of a string in pixels
 		olc::vf2d GetTextSize(
 			const std::string& text,
 			const bool bProportional = false,
@@ -1886,6 +1932,11 @@ namespace olc
 
 
 	public: // GPU Task Creator Functions (not normally called by user)
+		GPUTask TaskDrawLine(
+			const std::vector<olc::vf2d>& vPoints,
+			const std::vector<olc::Pixel>& vColours,
+			const olc::Pixel tint = olc::Colour::WHITE);
+		
 		GPUTask TaskDrawPolygon(
 			GPUTask::Structure structure,
 			const std::vector<olc::vf2d>& vPoints,
@@ -2028,7 +2079,15 @@ namespace olc
 				const olc::vf2d& vMin,
 				const olc::vf2d& vMax);
 
-
+			// Clips a line to a rectangular region, returns true if line is visible.
+			// The returned weights correspond to distance along the line from v0 to v1
+			bool swClipWeightedLine(
+				olc::vf2d& v0,
+				olc::vf2d& v1,
+				const olc::vf2d& vMin,
+				const olc::vf2d& vMax,
+				float& w0,
+				float& w1);
 
 			/* bool swClipTriangle(
 				olc::vf2d& v1,
@@ -2036,6 +2095,13 @@ namespace olc
 				olc::vf2d& v3,
 				const olc::vf2d& vMin,
 				const olc::vf2d& vMax);*/
+				
+			// Rasterises a shaded line in integer space
+			void swRasterShadedLine(
+				const olc::vi2d& v1,
+				const olc::vi2d& v2,
+				const olc::Pixel c1,
+				const olc::Pixel c2);
 
 			// Rasterises a shaded triangle in integer space
 			void swRasterShadedTriangle(
@@ -2059,12 +2125,7 @@ namespace olc
 				const olc::vf2d& t3,
 				olc::Image& texture);
 
-			// Rasterises a shaded line in integer space
-			void swRasterShadedLine(
-				const olc::vi2d& v1,
-				const olc::vi2d& v2,
-				const olc::Pixel c1,
-				const olc::Pixel c2);
+
 
 		
 
@@ -2343,7 +2404,7 @@ namespace olc
 		bool bFullScreen = false;
 		// Allow full screen as an option with ALT-ENTER
 		bool bFullScreenable = true;
-		// Allow teh window to be resized by user
+		// Allow the window to be resized by user
 		bool bResizeable = true;
 		// Synchronise rendering with monitor
 		bool bVSync = false;
@@ -2357,6 +2418,7 @@ namespace olc
 		bool bAllowChildWindows = true;
 	};
 
+	// A PGE Window is a window with drawing and input capabilities a la olc::PixelGameEngine
 	class PGEWindow : public Window
 	{
 	public:
@@ -2391,8 +2453,11 @@ namespace olc
 
 
 	public:
+		// Returns the image that represents the primary drawing surface
 		olc::Image& GetDefaultImage();
 		olc::Draw2D& GetDraw();
+
+		// Input devices are handled by a regular olc::Window, but for convenience...
 		olc::hw::Mouse& GetMouse();
 		
 
@@ -2412,6 +2477,7 @@ namespace olc
 		olc::imload::ImageLoader* pImageLoader = nullptr;
 	};
 
+	// The olc::PixelGameEngine3 core, manages the main window, child windows, engine loop, timing and devices
 	class PixelGameEngine : public PGEWindow
 	{
 	public:
@@ -2419,19 +2485,19 @@ namespace olc
 		virtual ~PixelGameEngine();
 
 	public:
+		// Construct the PGE main engine window with traditional parameters
 		bool Construct(const olc::vi2d& vScreenSize, const olc::vi2d& vPixelSize, bool bFullScreen = false);
+		// Construct the PGE main engine window with verbose configuration structure
 		bool Construct(const PGEConfig& cfg = PGEConfig{});
-
-	public:
+		
+		// Start the PGE main engine loop (on its own thread)
 		bool Start();
 
 	public: // Child Windows
 		bool AddChildWindow(std::shared_ptr<olc::PGEWindow> window, const olc::vi2d& vScreenSize, const olc::vi2d& vPixelSize);
 
 	private:
-		void EngineThread();
-
-	private:
+		// Window Management
 		std::deque<std::shared_ptr<PGEWindow>> deqChildWindows;
 
 		// Frame Timing & Overall Clocking
@@ -2441,11 +2507,16 @@ namespace olc
 		std::chrono::duration<float> durationFrameCount{ 0 };
 		size_t frameCount = 0;
 
+		// PGE Configuration
 		PGEConfig config;
 
+		// Core Thread
 		std::thread coreThread;
 		std::atomic<bool> coreActive;
+		void EngineThread();
 
+		// These interfaces are created dynamically by the PGE core
+		// after the environment is understood (or specified by config)
 		std::unique_ptr<olc::gpu::Renderer> gpu;
 		std::unique_ptr<olc::host::Host> host;
 		std::unique_ptr<olc::imload::ImageLoader> imageloader;
@@ -3793,14 +3864,14 @@ namespace olc::gpu
 				else if(drawtype == 1) // 2D Line																																		  
 				{																																			  
 					float p = 1.0 / aPos.z; 																												  
-					gl_Position = p * vec4(vec2(2.0 * ((floor(aPos.xy) + 0.5) * invtarget) - 1.0), 0.0, 1.0);	  
+					gl_Position = p * vec4(vec2(2.0 * (floor(aPos.xy) + 0.5) * invtarget - 1.0), 0.0, 1.0);	  
 					oTex = aTex;																										  
 				} 			  
 			
 				else if(drawtype == 0) // 2D Polygon																																		  
 				{																																			  
 					float p = 1.0 / aPos.z; 																												  
-					gl_Position = p * vec4(vec2(2.0 * ((floor(aPos.xy)) * invtarget) - 1.0), 0.0, 1.0);	  
+					gl_Position = p * vec4(vec2(2.0 * (aPos.xy + 0.25) * invtarget - 1.0), 0.0, 1.0);	 
 					oTex = p * vec2(aTex.x, aTex.y);																										  
 				} 
 				
@@ -4226,7 +4297,12 @@ namespace olc::gpu
 				else
 				{
 					// Shader: Configure Rendering Mode
-					gl.glUniform1i(shaderDefault.GetUniform("drawtype"), 0);
+					if (task.structure == GPUTask::Structure::Point)
+						gl.glUniform1i(shaderDefault.GetUniform("drawtype"), 1);
+					else if(task.structure == GPUTask::Structure::Line)
+						gl.glUniform1i(shaderDefault.GetUniform("drawtype"), 1);
+					else
+						gl.glUniform1i(shaderDefault.GetUniform("drawtype"), 0);
 
 					if (task.structure == GPUTask::Structure::Fan)
 						gl.glDrawArrays(GL_TRIANGLE_FAN, 0, (GLsizei)task.vertexBuffer.size());
@@ -4476,6 +4552,18 @@ void olc::Draw2D::Clear(const olc::Pixel& col)
 	pRenderer->ClearViewport(col, true, true);
 }
 
+GPUTask olc::Draw2D::TaskDrawLine(const std::vector<olc::vf2d>& vPoints, const std::vector<olc::Pixel>& vColours, const olc::Pixel tint)
+{
+	GPUTask task;
+	task.structure = GPUTask::Structure::Line;
+	for (size_t i = 0; i < vPoints.size() - 1; i++)
+	{
+		task.vertexBuffer.push_back({ vPoints[i].x, vPoints[i].y, 1.0f, 1.0f, vColours[i], 0, 0, 0,0, 0, 0, 0, 0 });
+		task.vertexBuffer.push_back({ vPoints[i + 1].x, vPoints[i + 1].y, 1.0f, 1.0f, vColours[i + 1], 0, 0, 0,0, 0, 0, 0, 0 });
+	}
+	return task;
+}
+
 GPUTask olc::Draw2D::TaskDrawPolygon(GPUTask::Structure structure, const std::vector<olc::vf2d>& vPoints, const std::vector<olc::Pixel>& vColours, const olc::Pixel tint)
 {
 	GPUTask task;
@@ -4545,13 +4633,22 @@ GPUTask olc::Draw2D::TaskTexturedPolygon(GPUTask::Structure structure, const std
 const GPUTask& Draw2D::Line(const olc::vf2d& p1, const olc::vf2d& p2, const olc::Pixel col)
 {
 	PrepareTargetForHW();
+	
+	
 	return vecGPUTasks.emplace_back(
-		TaskDrawPolygon(
-			GPUTask::Structure::Line,
-			transformAffine.forward<float>({p1, p2}),
-			col,
-			olc::Colour::WHITE
+		TaskDrawLine(
+			transformAffine.forwardRound<float>({ p1, p2 }),			
+			{ col,col }
+			
 		));
+	
+	//return vecGPUTasks.emplace_back(
+	//	TaskDrawPolygon(
+	//		GPUTask::Structure::Line,
+	//		transformAffine.forward<float>({p1, p2}),
+	//		col,
+	//		olc::Colour::WHITE
+	//	));
 }
 
 const GPUTask& Draw2D::Line(const olc::vf2d& p1, const olc::vf2d& p2, const olc::Pixel c1, const olc::Pixel c2)
@@ -4560,7 +4657,7 @@ const GPUTask& Draw2D::Line(const olc::vf2d& p1, const olc::vf2d& p2, const olc:
 	return vecGPUTasks.emplace_back(
 		TaskDrawPolygon(
 			GPUTask::Structure::Line,
-			transformAffine.forward<float>({ p1, p2 }),
+			transformAffine.forwardRound<float>({ p1, p2 }),
 			{ c1, c2 },
 			olc::Colour::WHITE
 		));		
@@ -4578,7 +4675,9 @@ const GPUTask& olc::Draw2D::Rect(const olc::vf2d& pos, const olc::vf2d& size, co
 	}
 
 	PrepareTargetForHW();
-	return vecGPUTasks.emplace_back(
+
+
+	/*return vecGPUTasks.emplace_back(
 		TaskDrawPolygon(
 			GPUTask::Structure::Fan,
 			transformAffine.forward<float>({ 
@@ -4589,7 +4688,26 @@ const GPUTask& olc::Draw2D::Rect(const olc::vf2d& pos, const olc::vf2d& size, co
 				}),
 			col,
 			olc::Colour::WHITE
+		));*/
+
+	return vecGPUTasks.emplace_back(
+		TaskDrawLine(
+			transformAffine.forwardRound<float>({
+				olc::vf2d(pos.x, pos.y),
+				olc::vf2d(pos.x + size.x, pos.y),
+				olc::vf2d(pos.x + size.x, pos.y + size.y),
+				olc::vf2d(pos.x, pos.y + size.y),
+				olc::vf2d(pos.x, pos.y)
+				}),
+			{ col, col,  col,  col,  col }
 		));
+
+	Line(olc::vf2d(pos.x, pos.y), olc::vf2d(pos.x + size.x, pos.y), col);/*
+	Line(olc::vf2d(pos.x + size.x, pos.y), olc::vf2d(pos.x + size.x, pos.y + size.y), col);
+	Line(olc::vf2d(pos.x + size.x, pos.y + size.y), olc::vf2d(pos.x, pos.y + size.y), col);
+	return Line(olc::vf2d(pos.x, pos.y), olc::vf2d(pos.x, pos.y + size.y), col);*/
+
+	
 }
 
 const GPUTask& olc::Draw2D::Rect(const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel colTL, const olc::Pixel colTR, const olc::Pixel colBL, const olc::Pixel colBR)
@@ -4598,7 +4716,7 @@ const GPUTask& olc::Draw2D::Rect(const olc::vf2d& pos, const olc::vf2d& size, co
 	return vecGPUTasks.emplace_back(
 		TaskDrawPolygon(
 			GPUTask::Structure::Fan,
-			transformAffine.forward<float>({
+			transformAffine.forwardRound<float>({
 				olc::vf2d(pos.x + 0.0f, pos.y + 0.0f),
 				olc::vf2d(pos.x + size.x + 0.0f, pos.y + 0.0f),
 				olc::vf2d(pos.x + size.x + 0.0f, pos.y + size.y + 0.0f),
@@ -4616,7 +4734,7 @@ const GPUTask& olc::Draw2D::FilledRect(const olc::vf2d& pos, const olc::vf2d& si
 	return vecGPUTasks.emplace_back(
 		TaskFillPolygon(
 			GPUTask::Structure::Fan,
-			transformAffine.forward<float>({ { pos.x, pos.y }, { pos.x + size.x, pos.y }, { pos.x + size.x, pos.y + size.y }, { pos.x, pos.y + size.y } }),
+			transformAffine.forwardRound<float>({ { pos.x, pos.y }, { pos.x + size.x, pos.y }, { pos.x + size.x, pos.y + size.y }, { pos.x, pos.y + size.y } }),
 
 			col,
 			olc::Colour::WHITE
@@ -4629,9 +4747,58 @@ const GPUTask& olc::Draw2D::FilledRect(const olc::vf2d& pos, const olc::vf2d& si
 	return vecGPUTasks.emplace_back(
 		TaskFillPolygon(
 			GPUTask::Structure::Fan,
-			transformAffine.forward<float>({ { pos.x, pos.y }, { pos.x + size.x, pos.y }, { pos.x + size.x, pos.y + size.y }, { pos.x, pos.y + size.y } }),
+			transformAffine.forwardRound<float>({ { pos.x, pos.y }, { pos.x + size.x, pos.y }, { pos.x + size.x, pos.y + size.y }, { pos.x, pos.y + size.y } }),
 			{ colTL, colTR, colBR, colBL },
 			olc::Colour::WHITE
+		));
+}
+
+const GPUTask& olc::Draw2D::Triangle(const olc::vf2d& p1, const olc::vf2d& p2, const olc::vf2d& p3, const olc::Pixel col)
+{
+	return Triangle(p1, p2, p3, col, col, col);
+}
+
+const GPUTask& olc::Draw2D::Triangle(const olc::vf2d& p1, const olc::vf2d& p2, const olc::vf2d& p3, const olc::Pixel c1, const olc::Pixel c2, const olc::Pixel c3)
+{
+	PrepareTargetForHW();
+	return vecGPUTasks.emplace_back(
+		TaskDrawPolygon(
+			GPUTask::Structure::Fan,
+			transformAffine.forwardRound<float>({ p1, p2, p3 }),
+			{ c1, c2, c3 },
+			olc::Colour::WHITE
+		));
+}
+
+const GPUTask& olc::Draw2D::FilledTriangle(const olc::vf2d& p1, const olc::vf2d& p2, const olc::vf2d& p3, const olc::Pixel col)
+{
+	return FilledTriangle(p1, p2, p3, col, col, col);
+}
+
+const GPUTask& olc::Draw2D::FilledTriangle(const olc::vf2d& p1, const olc::vf2d& p2, const olc::vf2d& p3, const olc::Pixel c1, const olc::Pixel c2, const olc::Pixel c3)
+{
+	return vecGPUTasks.emplace_back(
+		TaskFillPolygon(
+			GPUTask::Structure::Fan,
+			transformAffine.forwardRound<float>({ p1, p2, p3 }),
+			{ c1, c2, c3 },
+			olc::Colour::WHITE
+		));
+}
+
+const GPUTask& olc::Draw2D::TexturedTriangle(const olc::vf2d& p1, const olc::vf2d& p2, const olc::vf2d& p3, const olc::Pixel c1, const olc::Pixel c2, const olc::Pixel c3, const olc::vf2d& t1, const olc::vf2d& t2, const olc::vf2d& t3, olc::Image& texture, const olc::Pixel tint)
+{
+	PrepareTargetForHW();
+	PrepareImageForHW(texture);
+
+	return vecGPUTasks.emplace_back(
+		TaskTexturedPolygon(
+			GPUTask::Structure::Fan,
+			transformAffine.forwardRound<float>({ p1, p2, p3 }),
+			{ c1, c2, c3 },
+			{ t1, t2, t3 },
+			&texture,
+			tint
 		));
 }
 
@@ -5005,6 +5172,66 @@ bool olc::Draw2D::swClipLine(olc::vf2d& p1, olc::vf2d& p2, const olc::vf2d& vMin
 	return true;
 }
 
+bool olc::Draw2D::swClipWeightedLine(olc::vf2d& v0, olc::vf2d& v1, const olc::vf2d& vMin, const olc::vf2d& vMax, float& w0, float& w1)
+{
+	// Liang-Barsky line clipping algorithm adapted for weighted lines
+	// https://en.wikipedia.org/wiki/Liang%E2%80%93Barsky_algorithm
+	
+	olc::vf2d diff = v1 - v0;
+
+	float p[4] = { -diff.x, diff.x, -diff.y, diff.y };
+
+	float q[4] = 
+	{
+		v0.x - vMin.x,
+		vMax.x - v0.x, 
+		v0.y - vMin.y, 
+		vMax.y - v0.y 
+	};
+	
+	// Weights are ideal to start, we'll contact them as we clip
+	w0 = 0.0f;	
+	w1 = 1.0f;
+
+	for (int i = 0; i < 4; i++)
+	{
+		if (p[i] == 0.0f)
+		{
+			if (q[i] < 0.0f)
+				return false; // Line is parallel and outside the clipping boundary
+		}
+		else
+		{
+			float t = float(q[i]) / float(p[i]);
+			if (p[i] < 0.0f)
+			{
+				if (t > w1)
+					return false; // Line is outside the clipping boundary
+				else if (t > w0)
+					w0 = t;
+			}
+			else
+			{
+				if (t < w0)
+					return false; // Line is outside the clipping boundary
+				else if (t < w1)
+					w1 = t; 
+			}
+		}
+	}
+
+	if (w1 < w0)
+		return false; // Line is outside the clipping boundary
+
+	// Return new line segment ends
+	olc::vf2d v = v0;
+	v0 = v + (diff * w0);
+	v1 = v + (diff * w1);
+
+	// Line has visible pixels inside clipping boundary
+	return true;
+}
+
 std::pair<int, int> olc::Draw2D::swBaryFillTriangle(const olc::vi2d& v1, const olc::vi2d& v2, const olc::vi2d& v3)
 {
 	// Get height of triangle in whole pixels
@@ -5253,12 +5480,16 @@ void olc::Draw2D::swRasterShadedLine(const olc::vi2d& v1, const olc::vi2d& v2, c
 	olc::vf2d clipped_p2 = v2;
 
 	// If line is completely outside bounds, exit
-	if (!swClipLine(clipped_p1, clipped_p2, { 0,0 }, pTarget->Size()))
+	//if (!swClipLine(clipped_p1, clipped_p2, { 0,0 }, pTarget->Size()))
+		//return;
+
+	float w0=0, w1=1;
+	if (!swClipWeightedLine(clipped_p1, clipped_p2, { 0,0 }, pTarget->Size(), w0, w1))
 		return;
 
 	// Move to integer space
-	olc::vi2d ip1 = v1; // clipped_p1.round();// .floor();
-	olc::vi2d ip2 = v2; // clipped_p2.round();// .floor();
+	olc::vi2d ip1 =  clipped_p1;
+	olc::vi2d ip2 =  clipped_p2;
 	olc::vi2d pixel;
 
 	// Calculate deltas
@@ -5281,18 +5512,22 @@ void olc::Draw2D::swRasterShadedLine(const olc::vi2d& v1, const olc::vi2d& v2, c
 	// Calculate step increments
 	float xStep = float(dx) / float(steps);
 	float yStep = float(dy) / float(steps);
-	float colorStep = 1.0f / float(steps);
+	float colorStep = 1.0f / float(steps) * (w1 - w0);
+
+	olc::Pixel cStart = olc::PixelLerp(c1, c2, w0);
+	olc::Pixel cEnd = olc::PixelLerp(c1, c2, w1);	
 
 	// Starting position and color interpolation parameter
-	float x = ip1.x;
-	float y = ip1.y;
+	float x =  ip1.x;
+	float y =  ip1.y;
 	float t = 0.0f;
 
 	// Draw line pixel by pixel
 	for (int i = 0; i <= steps; i++)
 	{
 		// Interpolate color
-		olc::Pixel col = olc::PixelLerp(c1, c2, t);
+		//olc::Pixel col = olc::PixelLerp(c1, c2, t);
+		olc::Pixel col = olc::PixelLerp(cStart, cEnd, t);
 
 		// Plot pixel
 		if(rol())

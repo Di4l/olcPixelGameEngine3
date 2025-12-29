@@ -152,14 +152,14 @@ namespace olc::gpu
 				else if(drawtype == 1) // 2D Line																																		  
 				{																																			  
 					float p = 1.0 / aPos.z; 																												  
-					gl_Position = p * vec4(vec2(2.0 * ((floor(aPos.xy) + 0.5) * invtarget) - 1.0), 0.0, 1.0);	  
+					gl_Position = p * vec4(vec2(2.0 * (floor(aPos.xy) + 0.5) * invtarget - 1.0), 0.0, 1.0);	  
 					oTex = aTex;																										  
 				} 			  
 			
 				else if(drawtype == 0) // 2D Polygon																																		  
 				{																																			  
 					float p = 1.0 / aPos.z; 																												  
-					gl_Position = p * vec4(vec2(2.0 * ((floor(aPos.xy)) * invtarget) - 1.0), 0.0, 1.0);	  
+					gl_Position = p * vec4(vec2(2.0 * (aPos.xy + 0.25) * invtarget - 1.0), 0.0, 1.0);	 
 					oTex = p * vec2(aTex.x, aTex.y);																										  
 				} 
 				
@@ -608,7 +608,12 @@ namespace olc::gpu
 				else
 				{
 					// Shader: Configure Rendering Mode
-					gl.glUniform1i(shaderDefault.GetUniform("drawtype"), 0);
+					if (task.structure == GPUTask::Structure::Point)
+						gl.glUniform1i(shaderDefault.GetUniform("drawtype"), 1);
+					else if(task.structure == GPUTask::Structure::Line)
+						gl.glUniform1i(shaderDefault.GetUniform("drawtype"), 1);
+					else
+						gl.glUniform1i(shaderDefault.GetUniform("drawtype"), 0);
 
 					if (task.structure == GPUTask::Structure::Fan)
 						gl.glDrawArrays(GL_TRIANGLE_FAN, 0, (GLsizei)task.vertexBuffer.size());
