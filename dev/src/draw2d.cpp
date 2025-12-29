@@ -157,7 +157,7 @@ olc::vf2d olc::Draw2D::ScreenToWorld(const olc::vf2d& v) const
 void Draw2D::Pixel(const olc::vf2d& pos, const olc::Pixel col)
 {
 	// Check if in bounds
-	olc::vf2d tpos = transformAffine.forward(pos);
+	olc::vf2d tpos = transformAffine.forwardRound(pos);
 	if (tpos.x >= 0 && tpos.y >= 0 && tpos.x < pTarget->Size().x && tpos.y < pTarget->Size().y)
 	{
 		PrepareTargetForSW();
@@ -188,6 +188,7 @@ GPUTask olc::Draw2D::TaskDrawLine(const std::vector<olc::vf2d>& vPoints, const s
 		task.vertexBuffer.push_back({ vPoints[i].x, vPoints[i].y, 1.0f, 1.0f, vColours[i], 0, 0, 0,0, 0, 0, 0, 0 });
 		task.vertexBuffer.push_back({ vPoints[i + 1].x, vPoints[i + 1].y, 1.0f, 1.0f, vColours[i + 1], 0, 0, 0,0, 0, 0, 0, 0 });
 	}
+	task.tint = tint;
 	return task;
 }
 
@@ -198,7 +199,6 @@ GPUTask olc::Draw2D::TaskDrawPolygon(GPUTask::Structure structure, const std::ve
 	task.bWireframe = true;
 	for (size_t i = 0; i < vPoints.size(); i++)
 		task.vertexBuffer.push_back({ vPoints[i].x, vPoints[i].y, 1.0f, 1.0f, vColours[i], 0, 0, 0,0, 0, 0, 0, 0});
-	//task.mvpMatrix = transformCombined.m
 	task.tint = tint;
 	return task;
 }
@@ -241,7 +241,6 @@ GPUTask olc::Draw2D::TaskTexturedPolygon(GPUTask::Structure structure, const std
 		task.vertexBuffer.push_back({ vPoints[i].x, vPoints[i].y, 1.0f, 1.0f, vColours[i], vTexCoords[i].x, vTexCoords[i].y, 0, 0, 0, 0, 0, 0});
 	task.pImage = image;
 	task.tint = tint;
-	//task.mvpMatrix = transformCombined.m4x4();
 	return task;
 }
 
@@ -261,26 +260,17 @@ const GPUTask& Draw2D::Line(const olc::vf2d& p1, const olc::vf2d& p2, const olc:
 {
 	PrepareTargetForHW();
 	
-	
 	return vecGPUTasks.emplace_back(
 		TaskDrawLine(
 			transformAffine.forwardRound<float>({ p1, p2 }),			
 			{ col,col }
-			
 		));
-	
-	//return vecGPUTasks.emplace_back(
-	//	TaskDrawPolygon(
-	//		GPUTask::Structure::Line,
-	//		transformAffine.forward<float>({p1, p2}),
-	//		col,
-	//		olc::Colour::WHITE
-	//	));
 }
 
 const GPUTask& Draw2D::Line(const olc::vf2d& p1, const olc::vf2d& p2, const olc::Pixel c1, const olc::Pixel c2)
 {
 	PrepareTargetForHW();
+
 	return vecGPUTasks.emplace_back(
 		TaskDrawPolygon(
 			GPUTask::Structure::Line,
@@ -295,27 +285,7 @@ const GPUTask& olc::Draw2D::Rect(const olc::vf2d& pos, const olc::vf2d& size, co
 	// Right a big, hearty, F&^% you to OpenGL's Diamond Exit Strategy. It makes line drawing
 	// with OpenGL a smidge unreliable
 
-	// Check if its axis aligned
-	if (std::abs(transformAffine.rotate()) < 0.0001f)
-	{
-		// SW Raster the line
-	}
-
 	PrepareTargetForHW();
-
-
-	/*return vecGPUTasks.emplace_back(
-		TaskDrawPolygon(
-			GPUTask::Structure::Fan,
-			transformAffine.forward<float>({ 
-				olc::vf2d( pos.x + 0.0f, pos.y + 0.0f ),
-				olc::vf2d( pos.x + size.x +0.0f, pos.y + 0.0f ),
-				olc::vf2d( pos.x + size.x + 0.0f, pos.y + size.y + 0.0f ),
-				olc::vf2d( pos.x + 0.0f, pos.y + size.y + 0.0f ),
-				}),
-			col,
-			olc::Colour::WHITE
-		));*/
 
 	return vecGPUTasks.emplace_back(
 		TaskDrawLine(
@@ -328,18 +298,12 @@ const GPUTask& olc::Draw2D::Rect(const olc::vf2d& pos, const olc::vf2d& size, co
 				}),
 			{ col, col,  col,  col,  col }
 		));
-
-	Line(olc::vf2d(pos.x, pos.y), olc::vf2d(pos.x + size.x, pos.y), col);/*
-	Line(olc::vf2d(pos.x + size.x, pos.y), olc::vf2d(pos.x + size.x, pos.y + size.y), col);
-	Line(olc::vf2d(pos.x + size.x, pos.y + size.y), olc::vf2d(pos.x, pos.y + size.y), col);
-	return Line(olc::vf2d(pos.x, pos.y), olc::vf2d(pos.x, pos.y + size.y), col);*/
-
-	
 }
 
 const GPUTask& olc::Draw2D::Rect(const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel colTL, const olc::Pixel colTR, const olc::Pixel colBL, const olc::Pixel colBR)
 {
 	PrepareTargetForHW();
+
 	return vecGPUTasks.emplace_back(
 		TaskDrawPolygon(
 			GPUTask::Structure::Fan,
@@ -358,11 +322,15 @@ const GPUTask& olc::Draw2D::Rect(const olc::vf2d& pos, const olc::vf2d& size, co
 const GPUTask& olc::Draw2D::FilledRect(const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel col)
 {
 	PrepareTargetForHW();
+
 	return vecGPUTasks.emplace_back(
 		TaskFillPolygon(
 			GPUTask::Structure::Fan,
-			transformAffine.forwardRound<float>({ { pos.x, pos.y }, { pos.x + size.x, pos.y }, { pos.x + size.x, pos.y + size.y }, { pos.x, pos.y + size.y } }),
-
+			transformAffine.forwardRound<float>({ 
+				{ pos.x, pos.y }, 
+				{ pos.x + size.x, pos.y }, 
+				{ pos.x + size.x, pos.y + size.y },
+				{ pos.x, pos.y + size.y } }),
 			col,
 			olc::Colour::WHITE
 		));
@@ -388,6 +356,7 @@ const GPUTask& olc::Draw2D::Triangle(const olc::vf2d& p1, const olc::vf2d& p2, c
 const GPUTask& olc::Draw2D::Triangle(const olc::vf2d& p1, const olc::vf2d& p2, const olc::vf2d& p3, const olc::Pixel c1, const olc::Pixel c2, const olc::Pixel c3)
 {
 	PrepareTargetForHW();
+
 	return vecGPUTasks.emplace_back(
 		TaskDrawPolygon(
 			GPUTask::Structure::Fan,
@@ -404,6 +373,8 @@ const GPUTask& olc::Draw2D::FilledTriangle(const olc::vf2d& p1, const olc::vf2d&
 
 const GPUTask& olc::Draw2D::FilledTriangle(const olc::vf2d& p1, const olc::vf2d& p2, const olc::vf2d& p3, const olc::Pixel c1, const olc::Pixel c2, const olc::Pixel c3)
 {
+	PrepareTargetForHW();
+
 	return vecGPUTasks.emplace_back(
 		TaskFillPolygon(
 			GPUTask::Structure::Fan,
@@ -560,7 +531,7 @@ const GPUTask& olc::Draw2D::ImageRotated(olc::ImageRegion image, const olc::vf2d
 	return vecGPUTasks.emplace_back(
 		TaskTexturedPolygon(
 			GPUTask::Structure::Fan,
-			transformAffine.forward<float>(vPoints),
+			transformAffine.forwardRound<float>(vPoints),
 			{ tint, tint, tint, tint},
 			{ image.coords[0], image.coords[1], image.coords[2], image.coords[3] },
 			&image.image
@@ -602,7 +573,7 @@ const GPUTask& olc::Draw2D::ImageQuad(olc::ImageRegion image, const olc::vf2d& v
 		return vecGPUTasks.emplace_back(
 			TaskTexturedPolygon(
 				GPUTask::Structure::Fan,
-				transformAffine.forward<float>({ vTL, vTR, vBR, vBL }),
+				transformAffine.forwardRound<float>({ vTL, vTR, vBR, vBL }),
 				{ {q[0], 1.0f}, {q[1], 1.0f}, {q[2], 1.0f}, {q[3], 1.0f} },
 				{ tint, tint, tint, tint},
 				{ image.coords[0] * q[0], image.coords[1] * q[1], image.coords[2] * q[2], image.coords[3] * q[3] },
@@ -614,7 +585,7 @@ const GPUTask& olc::Draw2D::ImageQuad(olc::ImageRegion image, const olc::vf2d& v
 	return vecGPUTasks.emplace_back(
 		TaskTexturedPolygon(
 			GPUTask::Structure::Fan,
-			transformAffine.forward<float>({ vTL, vTR, vBR, vBL }),
+			transformAffine.forwardRound<float>({ vTL, vTR, vBR, vBL }),
 			{ tint, tint, tint, tint },
 			{ image.coords[0], image.coords[1], image.coords[2], image.coords[3] },
 			&image.image
@@ -637,7 +608,7 @@ const GPUTask& olc::Draw2D::ImageRect(olc::ImageRegion image, const olc::vf2d& p
 	return vecGPUTasks.emplace_back(
 		TaskTexturedPolygon(
 			GPUTask::Structure::Fan,
-			transformAffine.forward<float>({ { pos.x, pos.y }, { pos.x + size.x, pos.y }, { pos.x + size.x, pos.y + size.y }, { pos.x, pos.y + size.y } }),
+			transformAffine.forwardRound<float>({ { pos.x, pos.y }, { pos.x + size.x, pos.y }, { pos.x + size.x, pos.y + size.y }, { pos.x, pos.y + size.y } }),
 			{ tint, tint, tint, tint },
 			// Tex coords are clockwise
 			{ image.coords[3], image.coords[2], image.coords[1], image.coords[0] },

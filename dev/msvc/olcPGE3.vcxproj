@@ -176,6 +176,18 @@
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="..\src\api_macos.h">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClInclude>
+    <ClInclude Include="..\src\api_macos_wrapper.hpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClInclude>
     <ClInclude Include="..\src\api_opengl.h" />
     <ClInclude Include="..\src\config.h" />
     <ClInclude Include="..\src\core.h" />
@@ -184,6 +196,12 @@
     <ClInclude Include="..\src\gputask.h" />
     <ClInclude Include="..\src\gpu_iface.h" />
     <ClInclude Include="..\src\gpu_opengl33.h" />
+    <ClInclude Include="..\src\host_apple_macos.h">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClInclude>
     <ClInclude Include="..\src\host_iface.h" />
     <ClInclude Include="..\src\host_lin_wayland.h" />
     <ClInclude Include="..\src\host_lin_x11.h" />
@@ -195,6 +213,12 @@
     <ClInclude Include="..\src\hw_touch.h" />
     <ClInclude Include="..\src\image.h" />
     <ClInclude Include="..\src\imload_iface.h" />
+    <ClInclude Include="..\src\imload_macos.h">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClInclude>
     <ClInclude Include="..\src\imload_wingdi.h" />
     <ClInclude Include="..\src\matrix3d.h" />
     <ClInclude Include="..\src\olcpge3.h" />
@@ -206,6 +230,12 @@
     <ClInclude Include="..\src\window.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\src\api_macos.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
     <ClCompile Include="..\src\api_opengl.cpp" />
     <ClCompile Include="..\src\core.cpp" />
     <ClCompile Include="..\src\draw2d.cpp" />
@@ -213,9 +243,21 @@
     <ClCompile Include="..\src\font.cpp" />
     <ClCompile Include="..\src\gpu_iface.cpp" />
     <ClCompile Include="..\src\gpu_opengl33.cpp" />
+    <ClCompile Include="..\src\host_apple_macos.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
     <ClCompile Include="..\src\host_win_winapi.cpp" />
     <ClCompile Include="..\src\hw_mouse.cpp" />
     <ClCompile Include="..\src\image.cpp" />
+    <ClCompile Include="..\src\imload_macos.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
     <ClCompile Include="..\src\imload_wingdi.cpp" />
     <ClCompile Include="..\src\window.cpp" />
     <ClCompile Include="..\tests\test_main.cpp">

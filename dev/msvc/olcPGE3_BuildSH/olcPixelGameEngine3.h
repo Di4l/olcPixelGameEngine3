@@ -4087,7 +4087,6 @@ namespace olc
 
 #define PGE_IMAGELOADER_WINGDI_DECLARED 1
 #endif
-//#endif
 #endif
 
 #if OLC_IMAGELOADER == OLC_IMAGELOADER_MACOS
@@ -8001,7 +8000,7 @@ olc::vf2d olc::Draw2D::ScreenToWorld(const olc::vf2d& v) const
 void Draw2D::Pixel(const olc::vf2d& pos, const olc::Pixel col)
 {
 	// Check if in bounds
-	olc::vf2d tpos = transformAffine.forward(pos);
+	olc::vf2d tpos = transformAffine.forwardRound(pos);
 	if (tpos.x >= 0 && tpos.y >= 0 && tpos.x < pTarget->Size().x && tpos.y < pTarget->Size().y)
 	{
 		PrepareTargetForSW();
