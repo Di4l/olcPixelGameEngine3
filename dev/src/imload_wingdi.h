@@ -42,9 +42,11 @@
 #include <gdiplusinit.h>
 #include <shlwapi.h>
 #undef _WINSOCKAPI_
+#endif
 //! END WINAPI_CONFIG
 
 //! START DECLARATION
+#if OLC_HOST == OLC_HOST_WINDOWS
 #if !defined(PGE_IMAGELOADER_WINGDI_DECLARED)
 namespace olc
 {
