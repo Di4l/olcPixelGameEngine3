@@ -53,6 +53,9 @@ void Draw2D::PrepareTargetForSW()
 
 		// Image is now CPU bound
 		pTarget->BindCPU();
+
+		// Create a scanline buffer the height of this target
+		vScanlines.resize(pTarget->Size().y, {});
 	}
 }
 
@@ -99,11 +102,11 @@ void Draw2D::PrepareImageForHW(olc::Image& image)
 			pTarget = &image;
 
 			// Reset Affine transform to unity
-			WorldReset();
+			//WorldReset();
 
 			// Configure default render target
 			pRenderer->AssignTextureTarget(0, pTarget->GetGPUID());
-			pRenderer->SetViewport({ 0,0 }, pTarget->Size());
+			//pRenderer->SetViewport({ 0,0 }, pTarget->Size());
 		}
 
 		// Image is now GPU bound
