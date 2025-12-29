@@ -26,6 +26,7 @@
 		46E85E092E3924FB00B74FA3 /* core.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 460495DD2E300E000047E223 /* core.cpp */; };
 		46E85E0A2E39252200B74FA3 /* window.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 460495F22E300E000047E223 /* window.cpp */; };
 		46E85E0B2E39252B00B74FA3 /* gpu_opengl33.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 460495E12E300E000047E223 /* gpu_opengl33.cpp */; };
+		46FB045A2F02F7DF00BFA86D /* draw2d_sw.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 46FB04592F02F7DF00BFA86D /* draw2d_sw.cpp */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -88,6 +89,7 @@
 		46E85DF82E39135B00B74FA3 /* OpenGL.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = OpenGL.framework; path = System/Library/Frameworks/OpenGL.framework; sourceTree = SDKROOT; };
 		46E85DFA2E39136800B74FA3 /* QuartzCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QuartzCore.framework; path = System/Library/Frameworks/QuartzCore.framework; sourceTree = SDKROOT; };
 		46E85DFC2E39137100B74FA3 /* Metal.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Metal.framework; path = System/Library/Frameworks/Metal.framework; sourceTree = SDKROOT; };
+		46FB04592F02F7DF00BFA86D /* draw2d_sw.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = draw2d_sw.cpp; sourceTree = "<group>"; };
 		8998CE202E057F4E007DDD96 /* olcPGE3 */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = olcPGE3; sourceTree = BUILT_PRODUCTS_DIR; };
 		8998CE2B2E057F85007DDD96 /* test_vector2d.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = test_vector2d.cpp; sourceTree = "<group>"; };
 		8998CE2C2E057F85007DDD96 /* CMakeLists.txt */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = CMakeLists.txt; sourceTree = "<group>"; };
@@ -164,6 +166,7 @@
 		8998CE322E057F92007DDD96 /* src */ = {
 			isa = PBXGroup;
 			children = (
+				46FB04592F02F7DF00BFA86D /* draw2d_sw.cpp */,
 				467318B82EEC213700714D4C /* font.h */,
 				467318B92EEC213700714D4C /* font.cpp */,
 				46964CE52EE5C23300B7BCF1 /* api_macos.h */,
@@ -272,6 +275,7 @@
 				462680D12E6C3C4500799C36 /* gpu_iface.cpp in Sources */,
 				462680A42E69D03800799C36 /* image.cpp in Sources */,
 				46E85E0B2E39252B00B74FA3 /* gpu_opengl33.cpp in Sources */,
+				46FB045A2F02F7DF00BFA86D /* draw2d_sw.cpp in Sources */,
 				462680A32E69CDED00799C36 /* draw2d.cpp in Sources */,
 				46E85E0A2E39252200B74FA3 /* window.cpp in Sources */,
 				46E85E092E3924FB00B74FA3 /* core.cpp in Sources */,
