@@ -133,7 +133,52 @@ namespace olc
 		//ShadedRoundRect
 		//TexturedRoundRect
 
-		//Triangle
+		// Draws a triangle outline
+		const GPUTask& Triangle(
+			const olc::vf2d& p1,
+			const olc::vf2d& p2,
+			const olc::vf2d& p3,
+			const olc::Pixel col = olc::Colour::WHITE);
+
+		// Draws a multiple colour triangle outline
+		const GPUTask& Triangle(
+			const olc::vf2d& p1,
+			const olc::vf2d& p2,
+			const olc::vf2d& p3,
+			const olc::Pixel c1,
+			const olc::Pixel c2,
+			const olc::Pixel c3);
+
+		// Draws a filled, single colour triangle
+		const GPUTask& FilledTriangle(
+			const olc::vf2d& p1,
+			const olc::vf2d& p2,
+			const olc::vf2d& p3,
+			const olc::Pixel col = olc::Colour::WHITE);
+
+		// Draws a filled, multiple colour triangle
+		const GPUTask& FilledTriangle(
+			const olc::vf2d& p1,
+			const olc::vf2d& p2,
+			const olc::vf2d& p3,
+			const olc::Pixel c1,
+			const olc::Pixel c2,
+			const olc::Pixel c3);
+
+		// Draws a textured triangle, with per vertex colouring
+		const GPUTask& TexturedTriangle(
+			const olc::vf2d& p1,
+			const olc::vf2d& p2,
+			const olc::vf2d& p3,
+			const olc::Pixel c1,
+			const olc::Pixel c2,
+			const olc::Pixel c3,
+			const olc::vf2d& t1,
+			const olc::vf2d& t2,
+			const olc::vf2d& t3,
+			olc::Image& texture,
+			const olc::Pixel tint = olc::Colour::WHITE);
+
 		//FilledTriangle
 		//ShadedTriangle
 		//TexturedTriangle
@@ -210,6 +255,11 @@ namespace olc
 
 
 	public: // GPU Task Creator Functions (not normally called by user)
+		GPUTask TaskDrawLine(
+			const std::vector<olc::vf2d>& vPoints,
+			const std::vector<olc::Pixel>& vColours,
+			const olc::Pixel tint = olc::Colour::WHITE);
+		
 		GPUTask TaskDrawPolygon(
 			GPUTask::Structure structure,
 			const std::vector<olc::vf2d>& vPoints,

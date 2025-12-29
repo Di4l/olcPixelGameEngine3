@@ -164,7 +164,7 @@ bool olc::Draw2D::swClipWeightedLine(olc::vf2d& v0, olc::vf2d& v1, const olc::vf
 	// Liang-Barsky line clipping algorithm adapted for weighted lines
 	// https://en.wikipedia.org/wiki/Liang%E2%80%93Barsky_algorithm
 	
-	olc::vf2d diff = v1 - v0;	
+	olc::vf2d diff = v1 - v0;
 
 	float p[4] = { -diff.x, diff.x, -diff.y, diff.y };
 
@@ -189,7 +189,7 @@ bool olc::Draw2D::swClipWeightedLine(olc::vf2d& v0, olc::vf2d& v1, const olc::vf
 		}
 		else
 		{
-			float t = q[i] / p[i];
+			float t = float(q[i]) / float(p[i]);
 			if (p[i] < 0.0f)
 			{
 				if (t > w1)
@@ -211,8 +211,9 @@ bool olc::Draw2D::swClipWeightedLine(olc::vf2d& v0, olc::vf2d& v1, const olc::vf
 		return false; // Line is outside the clipping boundary
 
 	// Return new line segment ends
-	v0 = v0 + diff * w0;
-	v1 = v1 + diff * w1;
+	olc::vf2d v = v0;
+	v0 = v + (diff * w0);
+	v1 = v + (diff * w1);
 
 	// Line has visible pixels inside clipping boundary
 	return true;
@@ -467,15 +468,15 @@ void olc::Draw2D::swRasterShadedLine(const olc::vi2d& v1, const olc::vi2d& v2, c
 
 	// If line is completely outside bounds, exit
 	//if (!swClipLine(clipped_p1, clipped_p2, { 0,0 }, pTarget->Size()))
-//		return;
+		//return;
 
-	float w0, w1;
+	float w0=0, w1=1;
 	if (!swClipWeightedLine(clipped_p1, clipped_p2, { 0,0 }, pTarget->Size(), w0, w1))
 		return;
 
 	// Move to integer space
-	olc::vi2d ip1 =  clipped_p1.round();// .floor();
-	olc::vi2d ip2 =  clipped_p2.round();// .floor();
+	olc::vi2d ip1 =  clipped_p1;
+	olc::vi2d ip2 =  clipped_p2;
 	olc::vi2d pixel;
 
 	// Calculate deltas
@@ -498,18 +499,22 @@ void olc::Draw2D::swRasterShadedLine(const olc::vi2d& v1, const olc::vi2d& v2, c
 	// Calculate step increments
 	float xStep = float(dx) / float(steps);
 	float yStep = float(dy) / float(steps);
-	float colorStep = 1.0f / float(steps);
+	float colorStep = 1.0f / float(steps) * (w1 - w0);
+
+	olc::Pixel cStart = olc::PixelLerp(c1, c2, w0);
+	olc::Pixel cEnd = olc::PixelLerp(c1, c2, w1);	
 
 	// Starting position and color interpolation parameter
-	float x = ip1.x;
-	float y = ip1.y;
+	float x =  ip1.x;
+	float y =  ip1.y;
 	float t = 0.0f;
 
 	// Draw line pixel by pixel
 	for (int i = 0; i <= steps; i++)
 	{
 		// Interpolate color
-		olc::Pixel col = olc::PixelLerp(c1, c2, t);
+		//olc::Pixel col = olc::PixelLerp(c1, c2, t);
+		olc::Pixel col = olc::PixelLerp(cStart, cEnd, t);
 
 		// Plot pixel
 		if(rol())
