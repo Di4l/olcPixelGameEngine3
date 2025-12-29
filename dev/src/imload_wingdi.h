@@ -1,6 +1,5 @@
 #pragma once
 
-#if OLC_HOST == OLC_HOST_WINDOWS
 //! START CUSTOMHEADER
 #include "imload_iface.h"
 //! END CUSTOMHEADER
@@ -76,7 +75,6 @@ namespace olc
 }
 
 #define PGE_IMAGELOADER_WINGDI_DECLARED 1
-#endif
 #endif
 //! END DECLARATION
 
