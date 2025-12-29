@@ -305,7 +305,7 @@ public:
 		//std::cout << "Mouse Fil: " << vMouse << "\n";
 		draw.swFilledTriangle({ 30,30 }, { 250,50 }, vMouse, olc::Colour::WHITE);
 		//std::cout << "Mouse Tex: " << vMouse << "\n";
-		//draw.swTexturedTriangle({ 30,30 }, { 250,50 }, vMouse, olc::Colour::RED, olc::Colour::GREEN, olc::Colour::BLUE, { 0,0 }, { 0,1 }, { 1, 1 }, imLogo);
+		draw.swTexturedTriangle({ 30,30 }, { 250,50 }, vMouse, olc::Colour::RED, olc::Colour::GREEN, olc::Colour::BLUE, { 0,0 }, { 0,1 }, { 1, 1 }, imHighResSprite);
 
 		draw.swTriangle({ 30,30 }, { 250,50 }, vMouse, olc::Colour::BLACK);
 		

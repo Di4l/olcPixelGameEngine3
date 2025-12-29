@@ -268,6 +268,16 @@ namespace olc
 			: n(col)
 		{ }
 
+		// Multiplicatively Blends two colours
+		inline constexpr Pixel blend(const Pixel& p) const
+		{
+			uint8_t nR = uint8_t(std::clamp((int(r) * int(p.r)) >> 8, 0, 255));
+			uint8_t nG = uint8_t(std::clamp((int(g) * int(p.g)) >> 8, 0, 255));
+			uint8_t nB = uint8_t(std::clamp((int(b) * int(p.b)) >> 8, 0, 255));
+			uint8_t nA = uint8_t(std::clamp((int(a) * int(p.a)) >> 8, 0, 255));
+			return Pixel(nR, nG, nB, nA);
+		}
+
 		// Chromatically inverts pixel
 		inline constexpr Pixel inv() const
 		{
@@ -1321,6 +1331,8 @@ namespace olc
 		// Get underlying vector of pixels
 		std::vector<olc::Pixel>& GetPixels();
 
+		olc::Pixel Sample(const olc::vf2d& uv);
+
 		void Resize(const olc::vi2d& size);
 		
 		bool BoundToGPU() const;
@@ -1992,6 +2004,19 @@ namespace olc
 				const olc::Pixel c2,
 				const olc::Pixel c3);
 
+			// Rasterises a textured triangle in integer space
+			void swTexturedTriangle(
+				const olc::vf2d& p1,
+				const olc::vf2d& p2,
+				const olc::vf2d& p3,
+				const olc::Pixel c1,
+				const olc::Pixel c2,
+				const olc::Pixel c3,
+				const olc::vf2d& t1,
+				const olc::vf2d& t2,
+				const olc::vf2d& t3,
+				olc::Image& texture);
+
 
 
 		protected: // Software rasteriser helper functions
@@ -2002,6 +2027,8 @@ namespace olc
 				olc::vf2d& v1,
 				const olc::vf2d& vMin,
 				const olc::vf2d& vMax);
+
+
 
 			/* bool swClipTriangle(
 				olc::vf2d& v1,
@@ -2018,6 +2045,19 @@ namespace olc
 				const olc::Pixel c1,
 				const olc::Pixel c2,
 				const olc::Pixel c3);
+
+			// Rasterises a textured triangle in integer space
+			void swRasterTexturedTriangle(
+				const olc::vi2d& v1,
+				const olc::vi2d& v2,
+				const olc::vi2d& v3,
+				const olc::Pixel c1,
+				const olc::Pixel c2,
+				const olc::Pixel c3,
+				const olc::vf2d& t1,
+				const olc::vf2d& t2,
+				const olc::vf2d& t3,
+				olc::Image& texture);
 
 			// Rasterises a shaded line in integer space
 			void swRasterShadedLine(
@@ -2047,6 +2087,25 @@ namespace olc
 			olc::tf2d transformAffine;
 
 			std::vector<olc::GPUTask> vecGPUTasks;
+
+		protected: // SW Rasteriser Helpers
+			struct Scanline
+			{
+				int32_t nMin = std::numeric_limits<int32_t>::max();
+				int32_t nMax = std::numeric_limits<int32_t>::min();
+				std::array<float, 3> fBaryMin;
+				std::array<float, 3> fBaryMax;
+			};
+
+			std::vector<Scanline> vScanlines;
+
+
+			// Fills scanline buffer with visible triangle extents and barycentric coordinates.
+			// Returns vertical, visible extents of triangle scanlines
+			std::pair<int, int> swBaryFillTriangle(
+				const olc::vi2d& v1,
+				const olc::vi2d& v2,
+				const olc::vi2d& v3);
 	
 	};
 }
@@ -4291,6 +4350,9 @@ void Draw2D::PrepareTargetForSW()
 
 		// Image is now CPU bound
 		pTarget->BindCPU();
+
+		// Create a scanline buffer the height of this target
+		vScanlines.resize(pTarget->Size().y, {});
 	}
 }
 
@@ -4898,6 +4960,18 @@ void olc::Draw2D::swFilledTriangle(const olc::vf2d& p1, const olc::vf2d& p2, con
 		c1, c2, c3);
 }
 
+void olc::Draw2D::swTexturedTriangle(const olc::vf2d& p1, const olc::vf2d& p2, const olc::vf2d& p3, const olc::Pixel c1, const olc::Pixel c2, const olc::Pixel c3, const olc::vf2d& t1, const olc::vf2d& t2, const olc::vf2d& t3, olc::Image& texture)
+{
+	const auto vTransformedPoints = transformAffine.forward<float>({ p1, p2, p3 });
+	swRasterTexturedTriangle(
+		vTransformedPoints[0],
+		vTransformedPoints[1],
+		vTransformedPoints[2],
+		c1, c2, c3, 
+		t1, t2, t3, 
+		texture);
+}
+
 bool olc::Draw2D::swClipLine(olc::vf2d& p1, olc::vf2d& p2, const olc::vf2d& vMin, const olc::vf2d& vMax)
 {
 	// https://en.wikipedia.org/wiki/Cohen%E2%80%93Sutherland_algorithm
@@ -4931,246 +5005,228 @@ bool olc::Draw2D::swClipLine(olc::vf2d& p1, olc::vf2d& p2, const olc::vf2d& vMin
 	return true;
 }
 
-void olc::Draw2D::swRasterShadedTriangle(const olc::vi2d& v1, const olc::vi2d& v2, const olc::vi2d& v3, const olc::Pixel c1, const olc::Pixel c2, const olc::Pixel c3)
+std::pair<int, int> olc::Draw2D::swBaryFillTriangle(const olc::vi2d& v1, const olc::vi2d& v2, const olc::vi2d& v3)
 {
-	// Get Height of triangle in whole pixels
+	// Get height of triangle in whole pixels
 	int32_t nMinY = std::min({ v1.y, v2.y, v3.y });
-	int32_t nHeight = std::max({ v1.y, v2.y, v3.y }) - nMinY;
+	int32_t nMaxY = std::max({ v1.y, v2.y, v3.y });
+	int32_t nHeight = nMaxY - nMinY;
 
-	// Maybe... unless we want 1 pixel high triangles (we do)
 	if (nHeight <= 0)
-		return; // Degenerate triangle
+		return { 0, 0 }; // Degenerate triangle
 
-	struct Scanline
+	// Scanline buffer is already allocated to be the max vertical size
+	// of the draw target. Obviously it only represents visible scanlines
+	// that are to be filled for the current triangle.
+
+	// Get visible height of triangle
+	int32_t y_min = std::max(0, nMinY);
+	int32_t y_max = std::min(nMaxY, pTarget->Size().y);
+
+	// Zero out scanline buffer (by resetting min and max values)
+	for (int32_t y = y_min; y < y_max; y++)
 	{
-		int32_t nMin = std::numeric_limits<int32_t>::max();
-		int32_t nMax = std::numeric_limits<int32_t>::min();
-		float fBaryMin[3];
-		float fBaryMax[3];
-	};
+		vScanlines[y].nMin = std::numeric_limits<int32_t>::max();
+		vScanlines[y].nMax = std::numeric_limits<int32_t>::min();
+	}
 
-	// Allocate buffer to store scanline data
-	std::vector<Scanline> vScanlines(nHeight+1);
-
-	auto scanEdge = [&](int x0, int y0, int x1, int y1, int vertexIndex1, int vertexIndex2)
+	// This function scans an edge of the triangle, updating
+	// the scanline buffer with min/max extents and barycentric coords.
+	// It returns the number of scanlines updated.
+	auto scanEdge = [&](olc::vi2d p0, olc::vi2d p1, int id1, int id2) -> size_t
 		{
-			if (y0 == y1) return;
+			if (p0.y == p1.y)
+				return 0;
 
-			// Ensure y0 < y1
+			// Ensure p0.y < p1.y
 			bool swapped = false;
-			if (y0 > y1)
+			if (p0.y > p1.y)
 			{
-				std::swap(x0, x1);
-				std::swap(y0, y1);
+				std::swap(p0, p1);
 				swapped = true;
 			}
 
-			int dy = y1 - y0;
-			float dx_step = (x1 - x0) / float(dy);
-			float x = x0;
+			// Cache edge step deltas
+			int dy = p1.y - p0.y;
+			float dx_step = (p1.x - p0.x) / float(dy);
+			float dy_step = 1.0f / float(dy);
+			float x = p0.x;
 
-			for (int y = y0; y <= y1; y++)
+			// Rasterise edge - if pixel lies on visible scanline then
+			// update the scanline bounds and barycentric coords
+			size_t nScanline = 0;
+			for (int y = p0.y; y <= p1.y; y++)
 			{
-				int idx = y - nMinY;
-				if (idx >= 0 && idx < vScanlines.size())
+				// If this pixel row is visible
+				if (y >= 0 && y < vScanlines.size())
 				{
-					int ix = (int)std::round(x);
+					int ix = int(std::round(x));
 
 					// interpolation along edge 
-					float t = (y - y0) / float(dy);
-					float bary[3] = { 0.0f, 0.0f, 0.0f };
+					// Note: We may need to do this differently when clipping
+					float t = (y - p0.y) * dy_step;
 
+					std::array<float, 3> bary = { 0.0f, 0.0f, 0.0f };
+
+					// Set barycentric coords depending on edge direction
 					if (swapped)
 					{
-						bary[vertexIndex1] = t;
-						bary[vertexIndex2] = 1.0f - t;
+						bary[id1] = t;
+						bary[id2] = 1.0f - t;
 					}
 					else
 					{
-						bary[vertexIndex1] = 1.0f - t;
-						bary[vertexIndex2] = t;
+						bary[id1] = 1.0f - t;
+						bary[id2] = t;
 					}
 
-					if (ix < vScanlines[idx].nMin)
+					// Update scanline extents and barycentric coords
+					if (ix < vScanlines[y].nMin)
 					{
-						vScanlines[idx].nMin = ix;
-						vScanlines[idx].fBaryMin[0] = bary[0];
-						vScanlines[idx].fBaryMin[1] = bary[1];
-						vScanlines[idx].fBaryMin[2] = bary[2];
+						vScanlines[y].nMin = ix;
+						vScanlines[y].fBaryMin = bary;
 					}
-					if (ix > vScanlines[idx].nMax)
+
+					if (ix > vScanlines[y].nMax)
 					{
-						vScanlines[idx].nMax = ix;
-						vScanlines[idx].fBaryMax[0] = bary[0];
-						vScanlines[idx].fBaryMax[1] = bary[1];
-						vScanlines[idx].fBaryMax[2] = bary[2];
+						vScanlines[y].nMax = ix;
+						vScanlines[y].fBaryMax = bary;
 					}
+
+					nScanline++;
 				}
+
 				x += dx_step;
 			}
+
+			return nScanline;
 		};
 
 	// Rasterise triangle edges into scanline buffer
-	scanEdge(v1.x, v1.y, v2.x, v2.y, 0, 1);
-	scanEdge(v1.x, v1.y, v3.x, v3.y, 0, 2);
-	scanEdge(v2.x, v2.y, v3.x, v3.y, 1, 2);
+	scanEdge(v1, v2, 0, 1);
+	scanEdge(v1, v3, 0, 2);
+	scanEdge(v2, v3, 1, 2);
 
+	return { y_min, y_max };
+}
+
+void olc::Draw2D::swRasterShadedTriangle(const olc::vi2d& v1, const olc::vi2d& v2, const olc::vi2d& v3, const olc::Pixel c1, const olc::Pixel c2, const olc::Pixel c3)
+{
+	// We are writing to the target image, so make sure its memory resident (and up to date)
 	PrepareTargetForSW();
 
-	// Lambda to draw a pixel at integer location
-	auto Plot = [&](int32_t x, int32_t y, const olc::Pixel& p)
-		{
-			if (x >= 0 && x < pTarget->Size().x && y >= 0 && y < pTarget->Size().y)
-				pTarget->Pixel({ x, y }) = p;
-		};
+	auto [y_min, y_max] = swBaryFillTriangle(v1, v2, v3);
 
 	// Now draw the scanlines
-	int32_t y = nMinY;
-	for (const auto& scanline : vScanlines)
+	for (int32_t y = y_min; y < y_max; y++)
 	{
+		const auto& scanline = vScanlines[y];
+
 		int32_t xStart = scanline.nMin;
 		int32_t xEnd = scanline.nMax;
 
+		int32_t x_min = std::max(0, xStart);
+		int32_t x_max = std::min(xEnd, pTarget->Size().x);
+
 		float fSpan = float(xEnd - xStart);
 		float fSpanStep = fSpan > 0.0f ? 1.0f / fSpan : 0.0f;
-		float t0 = scanline.fBaryMin[0];
-		float t1 = scanline.fBaryMin[1];
-		float t2 = scanline.fBaryMin[2];
-		for (int32_t x = xStart; x <= xEnd; x++)
+
+		float b0_step = fSpanStep * (scanline.fBaryMax[0] - scanline.fBaryMin[0]);
+		float b1_step = fSpanStep * (scanline.fBaryMax[1] - scanline.fBaryMin[1]);
+		float b2_step = fSpanStep * (scanline.fBaryMax[2] - scanline.fBaryMin[2]);
+
+		float b0 = scanline.fBaryMin[0];
+		float b1 = scanline.fBaryMin[1];
+		float b2 = scanline.fBaryMin[2];
+
+		if (xStart < 0)
 		{
-			olc::Pixel col = olc::Pixel(
-				uint8_t(c1.r * t0 + c2.r * t1 + c3.r * t2),
-				uint8_t(c1.g * t0 + c2.g * t1 + c3.g * t2),
-				uint8_t(c1.b * t0 + c2.b * t1 + c3.b * t2),
-				255);
-
-			//col = olc::PixelF(scanline.fBaryMin[0], 0, 0);
-
-			Plot(x, y, col);
-
-			t0 += fSpanStep * (scanline.fBaryMax[0] - scanline.fBaryMin[0]);
-			t1 += fSpanStep * (scanline.fBaryMax[1] - scanline.fBaryMin[1]);
-			t2 += fSpanStep * (scanline.fBaryMax[2] - scanline.fBaryMin[2]);
+			b0 = scanline.fBaryMin[0] + (-xStart * b0_step);
+			b1 = scanline.fBaryMin[1] + (-xStart * b1_step);
+			b2 = scanline.fBaryMin[2] + (-xStart * b2_step);
 		}
 
-		y++;
+		for (int32_t x = x_min; x < x_max; x++)
+		{
+			olc::Pixel col = olc::Pixel(
+				uint8_t(c1.r * b0 + c2.r * b1 + c3.r * b2),
+				uint8_t(c1.g * b0 + c2.g * b1 + c3.g * b2),
+				uint8_t(c1.b * b0 + c2.b * b1 + c3.b * b2),
+				uint8_t(c1.a * b0 + c2.a * b1 + c3.a * b2));
+
+			// In theory, target (x,y) is always valid here due to clipping above
+			pTarget->Pixel({ x, y }) = col;
+
+			b0 += b0_step;
+			b1 += b1_step;
+			b2 += b2_step;
+		}
 	}
 
 
 	return;
+}
 
+void olc::Draw2D::swRasterTexturedTriangle(const olc::vi2d& v1, const olc::vi2d& v2, const olc::vi2d& v3, const olc::Pixel c1, const olc::Pixel c2, const olc::Pixel c3, const olc::vf2d& t1, const olc::vf2d& t2, const olc::vf2d& t3, olc::Image& texture)
+{
+	// We are writing to the target image, so make sure its memory resident (and up to date)
+	PrepareTargetForSW();
+	PrepareImageForSW(texture);
 
+	auto [y_min, y_max] = swBaryFillTriangle(v1, v2, v3);
 
+	// Now draw the scanlines
+	for (int32_t y = y_min; y < y_max; y++)
+	{
+		const auto& scanline = vScanlines[y];
 
+		int32_t xStart = scanline.nMin;
+		int32_t xEnd = scanline.nMax;
+
+		int32_t x_min = std::max(0, xStart);
+		int32_t x_max = std::min(xEnd, pTarget->Size().x);
+
+		float fSpan = float(xEnd - xStart);
+		float fSpanStep = fSpan > 0.0f ? 1.0f / fSpan : 0.0f;
+		
+		float b0_step = fSpanStep * (scanline.fBaryMax[0] - scanline.fBaryMin[0]);
+		float b1_step = fSpanStep * (scanline.fBaryMax[1] - scanline.fBaryMin[1]);
+		float b2_step = fSpanStep * (scanline.fBaryMax[2] - scanline.fBaryMin[2]);
+
+		float b0 = scanline.fBaryMin[0];
+		float b1 = scanline.fBaryMin[1];
+		float b2 = scanline.fBaryMin[2];
+
+		if(xStart < 0)
+		{
+			b0 = scanline.fBaryMin[0] + (-xStart * b0_step);
+			b1 = scanline.fBaryMin[1] + (-xStart * b1_step);
+			b2 = scanline.fBaryMin[2] + (-xStart * b2_step);
+		}
+
+		for (int32_t x = x_min; x < x_max; x++)
+		{
+			olc::Pixel col = olc::Pixel(
+				uint8_t(c1.r * b0 + c2.r * b1 + c3.r * b2),
+				uint8_t(c1.g * b0 + c2.g * b1 + c3.g * b2),
+				uint8_t(c1.b * b0 + c2.b * b1 + c3.b * b2),
+				uint8_t(c1.a * b0 + c2.a * b1 + c3.a * b2));
+
+			olc::vf2d uv = olc::vf2d(
+				b0 * t1.x + b1 * t2.x + b2 * t3.x,
+				b0 * t1.y + b1 * t2.y + b2 * t3.y);
+
+			
+			// In theory, target (x,y) is always valid here due to clipping above
+			pTarget->Pixel({ x, y }) = col.blend(texture.Sample(uv));
 	
-
-	olc::vi2d p1 = v1;
-	olc::vi2d p2 = v2;
-	olc::vi2d p3 = v3;
-	olc::Pixel vColour[3] = { c1, c2, c3 };
-
-	if (p2.y < p1.y) { std::swap(p1.y, p2.y); std::swap(p1.x, p2.x); std::swap(vColour[0], vColour[1]); }
-	if (p3.y < p1.y) { std::swap(p1.y, p3.y); std::swap(p1.x, p3.x); std::swap(vColour[0], vColour[2]); }
-	if (p3.y < p2.y) { std::swap(p2.y, p3.y); std::swap(p2.x, p3.x); std::swap(vColour[1], vColour[2]); }
-
-	olc::vi2d dPos1 = p2 - p1;
-	int dcr1 = vColour[1].r - vColour[0].r;
-	int dcg1 = vColour[1].g - vColour[0].g;
-	int dcb1 = vColour[1].b - vColour[0].b;
-	int dca1 = vColour[1].a - vColour[0].a;
-
-	olc::vi2d dPos2 = p3 - p1;
-	int dcr2 = vColour[2].r - vColour[0].r;
-	int dcg2 = vColour[2].g - vColour[0].g;
-	int dcb2 = vColour[2].b - vColour[0].b;
-	int dca2 = vColour[2].a - vColour[0].a;
-
-	float dax_step = 0, dbx_step = 0, dcr1_step = 0, dcr2_step = 0, dcg1_step = 0, dcg2_step = 0, dcb1_step = 0, dcb2_step = 0, dca1_step = 0, dca2_step = 0;
-	olc::vf2d vTex1Step, vTex2Step;
-
-	if (dPos1.y)
-	{
-		dax_step = dPos1.x / (float)abs(dPos1.y);
-		dcr1_step = dcr1 / (float)abs(dPos1.y);
-		dcg1_step = dcg1 / (float)abs(dPos1.y);
-		dcb1_step = dcb1 / (float)abs(dPos1.y);
-		dca1_step = dca1 / (float)abs(dPos1.y);
-	}
-
-	if (dPos2.y)
-	{
-		dbx_step = dPos2.x / (float)abs(dPos2.y);
-		dcr2_step = dcr2 / (float)abs(dPos2.y);
-		dcg2_step = dcg2 / (float)abs(dPos2.y);
-		dcb2_step = dcb2 / (float)abs(dPos2.y);
-		dca2_step = dca2 / (float)abs(dPos2.y);
-	}
-
-	olc::vi2d vStart;
-	olc::vi2d vEnd;
-	int vStartIdx;
-
-	for (int pass = 0; pass < 2; pass++)
-	{
-		if (pass == 0)
-		{
-			vStart = p1; vEnd = p2;	vStartIdx = 0;
-		}
-		else
-		{
-			dPos1 = p3 - p2;
-			dcr1 = vColour[2].r - vColour[1].r;
-			dcg1 = vColour[2].g - vColour[1].g;
-			dcb1 = vColour[2].b - vColour[1].b;
-			dca1 = vColour[2].a - vColour[1].a;
-			dcr1_step = 0; dcg1_step = 0; dcb1_step = 0; dca1_step = 0;
-
-			if (dPos2.y) dbx_step = dPos2.x / (float)abs(dPos2.y);
-			if (dPos1.y)
-			{
-				dax_step = dPos1.x / (float)abs(dPos1.y);
-				dcr1_step = dcr1 / (float)abs(dPos1.y);
-				dcg1_step = dcg1 / (float)abs(dPos1.y);
-				dcb1_step = dcb1 / (float)abs(dPos1.y);
-				dca1_step = dca1 / (float)abs(dPos1.y);
-			}
-
-			vStart = p2; vEnd = p3; vStartIdx = 1;
-		}
-
-		if (dPos1.y)
-		{
-			for (int i = vStart.y; i <= vEnd.y; i++)
-			{
-				int ax = int(std::round(vStart.x + (float)(i - vStart.y) * dax_step));
-				int bx = int(std::round(p1.x + (float)(i - p1.y) * dbx_step));
-
-	
-				olc::Pixel col_s(vColour[vStartIdx].r + uint8_t((float)(i - vStart.y) * dcr1_step), vColour[vStartIdx].g + uint8_t((float)(i - vStart.y) * dcg1_step),
-					vColour[vStartIdx].b + uint8_t((float)(i - vStart.y) * dcb1_step), vColour[vStartIdx].a + uint8_t((float)(i - vStart.y) * dca1_step));
-
-				olc::Pixel col_e(vColour[0].r + uint8_t((float)(i - p1.y) * dcr2_step), vColour[0].g + uint8_t((float)(i - p1.y) * dcg2_step),
-					vColour[0].b + uint8_t((float)(i - p1.y) * dcb2_step), vColour[0].a + uint8_t((float)(i - p1.y) * dca2_step));
-
-				if (ax > bx) 
-				{ 					
-					bx = int(std::round(vStart.x + (float)(i - vStart.y) * dax_step));
-					ax = int(std::round(p1.x + (float)(i - p1.y) * dbx_step));
-					std::swap(col_s, col_e); 
-				}
-
-				float tstep = 1.0f / ((float)(bx - ax));
-				float t = 0.0f;
-
-				for (int j = ax; j <= bx; j++)
-				{
-					olc::Pixel pixel = PixelLerp(col_s, col_e, t);
-					Plot(j, i, pixel);
-					t += tstep;
-				}
-			}
+			b0 += b0_step;
+			b1 += b1_step;
+			b2 += b2_step;
 		}
 	}
+
+	return;
 }
 
 void olc::Draw2D::swRasterShadedLine(const olc::vi2d& v1, const olc::vi2d& v2, const olc::Pixel c1, const olc::Pixel c2)
@@ -5201,8 +5257,8 @@ void olc::Draw2D::swRasterShadedLine(const olc::vi2d& v1, const olc::vi2d& v2, c
 		return;
 
 	// Move to integer space
-	olc::vi2d ip1 = v1;// clipped_p1;// .floor();
-	olc::vi2d ip2 = v2;// clipped_p2;// .floor();
+	olc::vi2d ip1 = v1; // clipped_p1.round();// .floor();
+	olc::vi2d ip2 = v2; // clipped_p2.round();// .floor();
 	olc::vi2d pixel;
 
 	// Calculate deltas
@@ -5239,7 +5295,8 @@ void olc::Draw2D::swRasterShadedLine(const olc::vi2d& v1, const olc::vi2d& v2, c
 		olc::Pixel col = olc::PixelLerp(c1, c2, t);
 
 		// Plot pixel
-		Plot((int)std::round(x), (int)std::round(y), col);
+		if(rol())
+			Plot((int)std::round(x), (int)std::round(y), col);
 
 		// Step to next pixel
 		x += xStep;
@@ -5250,145 +5307,6 @@ void olc::Draw2D::swRasterShadedLine(const olc::vi2d& v1, const olc::vi2d& v2, c
 
 
 	return;
-
-
-
-	//// Gradients
-	//olc::vi2d diff1 = ip2 - ip1;
-
-	//// Colour interpolation variables
-	//float fColourT = 0.0f;
-	//float fColourStep = 1.0f / float(std::max(std::abs(diff1.x), std::abs(diff1.y)));
-
-	//// Quick draw straight lines
-	//if (diff1.x == 0) // Line is vertical
-	//{
-	//	if (ip2.y < ip1.y)
-	//	{
-	//		std::swap(ip1.y, ip2.y);
-	//		fColourStep *= -1.0f;
-	//		fColourT = 1.0f;
-	//	}
-
-	//	for (pixel.y = ip1.y; pixel.y <= ip2.y; pixel.y++)
-	//	{
-	//		if (rol())
-	//			Plot(ip1.x, pixel.y, olc::PixelLerp(c1, c2, fColourT));
-
-	//		fColourT += fColourStep;
-	//	}
-
-	//	// Early exit
-	//	return;
-	//}
-
-	//if (diff1.y == 0) // Line is horizontal
-	//{
-	//	if (ip2.x < ip1.x)
-	//	{
-	//		std::swap(ip1.x, ip2.x);
-	//		fColourStep *= -1.0f;
-	//		fColourT = 1.0f;
-	//	}
-
-
-	//	for (pixel.x = ip1.x; pixel.x <= ip2.x; pixel.x++)
-	//	{
-	//		if (rol())
-	//			Plot(pixel.x, ip1.y, olc::PixelLerp(c1, c2, fColourT));
-
-	//		fColourT += fColourStep;
-	//	}
-
-	//	// Early exit
-	//	return;
-	//}
-
-	//// Line is sloped
-	//olc::vi2d diff2 = diff1.abs();
-
-	//// Apply Bresenham algorithm
-	//olc::vi2d p = { diff2.y - diff2.x * 2, diff2.x - diff2.y * 2 };
-	//olc::vi2d end = { 0,0 };
-
-	//if (diff2.y <= diff2.x) // Propoagate in x-direction
-	//{
-	//	if (diff1.x >= 0)
-	//	{
-	//		pixel = ip1;
-	//		end = ip2;
-	//	}
-	//	else
-	//	{
-	//		pixel = ip2;
-	//		end = ip1;
-	//		fColourStep *= -1.0f;
-	//		fColourT = 1.0f;
-	//	}
-
-	//	if (rol())
-	//		Plot(pixel.x, pixel.y, olc::PixelLerp(c1, c2, fColourT));
-
-	//	for (int i = 0; pixel.x < end.x; i++)
-	//	{
-	//		pixel.x = pixel.x + 1;
-	//		fColourT += fColourStep;
-
-	//		if (p.x < 0)
-	//			p.x = p.x + 2 * diff2.y;
-	//		else
-	//		{
-	//			if ((diff1.x < 0 && diff1.y < 0) || (diff1.x > 0 && diff1.y > 0))
-	//				pixel.y = pixel.y + 1;
-	//			else
-	//				pixel.y = pixel.y - 1;
-
-	//			p.x = p.x + 2 * (diff2.y - diff2.x);
-	//		}
-
-	//		if (rol())
-	//			Plot(pixel.x, pixel.y, olc::PixelLerp(c1, c2, fColourT));
-	//	}
-	//}
-	//else
-	//{
-	//	if (diff1.y >= 0) // Propogate in y-direction
-	//	{
-	//		pixel = ip1;
-	//		end = ip2;
-	//	}
-	//	else
-	//	{
-	//		pixel = ip2;
-	//		end = ip1;
-	//		fColourStep *= -1.0f;
-	//		fColourT = 1.0f;
-	//	}
-
-	//	if (rol())
-	//		Plot(pixel.x, pixel.y, olc::PixelLerp(c1, c2, fColourT));
-
-	//	for (int i = 0; pixel.y < end.y; i++)
-	//	{
-	//		pixel.y = pixel.y + 1;
-	//		fColourT += fColourStep;
-
-	//		if (p.y <= 0)
-	//			p.y = p.y + 2 * diff2.x;
-	//		else
-	//		{
-	//			if ((diff1.x < 0 && diff1.y < 0) || (diff1.x > 0 && diff1.y > 0))
-	//				pixel.x = pixel.x + 1;
-	//			else
-	//				pixel.x = pixel.x - 1;
-
-	//			p.y = p.y + 2 * (diff2.x - diff2.y);
-	//		}
-
-	//		if (rol())
-	//			Plot(pixel.x, pixel.y, olc::PixelLerp(c1, c2, fColourT));
-	//	}
-	//}
 }
 
 
@@ -5852,6 +5770,13 @@ namespace olc
 	std::vector<olc::Pixel>& Image::GetPixels()
 	{
 		return pixels;
+	}
+
+	olc::Pixel Image::Sample(const olc::vf2d& uv)
+	{
+		return Pixel({ 
+			int(std::round(uv.x * dimensions.x)) % dimensions.x, 
+			int(std::round(uv.y * dimensions.y)) % dimensions.y });
 	}
 
 	void Image::Resize(const olc::vi2d& size)

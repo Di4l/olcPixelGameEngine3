@@ -159,6 +159,65 @@ bool olc::Draw2D::swClipLine(olc::vf2d& p1, olc::vf2d& p2, const olc::vf2d& vMin
 	return true;
 }
 
+bool olc::Draw2D::swClipWeightedLine(olc::vf2d& v0, olc::vf2d& v1, const olc::vf2d& vMin, const olc::vf2d& vMax, float& w0, float& w1)
+{
+	// Liang-Barsky line clipping algorithm adapted for weighted lines
+	// https://en.wikipedia.org/wiki/Liang%E2%80%93Barsky_algorithm
+	
+	olc::vf2d diff = v1 - v0;	
+
+	float p[4] = { -diff.x, diff.x, -diff.y, diff.y };
+
+	float q[4] = 
+	{
+		v0.x - vMin.x,
+		vMax.x - v0.x, 
+		v0.y - vMin.y, 
+		vMax.y - v0.y 
+	};
+	
+	// Weights are ideal to start, we'll contact them as we clip
+	w0 = 0.0f;	
+	w1 = 1.0f;
+
+	for (int i = 0; i < 4; i++)
+	{
+		if (p[i] == 0.0f)
+		{
+			if (q[i] < 0.0f)
+				return false; // Line is parallel and outside the clipping boundary
+		}
+		else
+		{
+			float t = q[i] / p[i];
+			if (p[i] < 0.0f)
+			{
+				if (t > w1)
+					return false; // Line is outside the clipping boundary
+				else if (t > w0)
+					w0 = t;
+			}
+			else
+			{
+				if (t < w0)
+					return false; // Line is outside the clipping boundary
+				else if (t < w1)
+					w1 = t; 
+			}
+		}
+	}
+
+	if (w1 < w0)
+		return false; // Line is outside the clipping boundary
+
+	// Return new line segment ends
+	v0 = v0 + diff * w0;
+	v1 = v1 + diff * w1;
+
+	// Line has visible pixels inside clipping boundary
+	return true;
+}
+
 std::pair<int, int> olc::Draw2D::swBaryFillTriangle(const olc::vi2d& v1, const olc::vi2d& v2, const olc::vi2d& v3)
 {
 	// Get height of triangle in whole pixels
@@ -407,12 +466,16 @@ void olc::Draw2D::swRasterShadedLine(const olc::vi2d& v1, const olc::vi2d& v2, c
 	olc::vf2d clipped_p2 = v2;
 
 	// If line is completely outside bounds, exit
-	if (!swClipLine(clipped_p1, clipped_p2, { 0,0 }, pTarget->Size()))
+	//if (!swClipLine(clipped_p1, clipped_p2, { 0,0 }, pTarget->Size()))
+//		return;
+
+	float w0, w1;
+	if (!swClipWeightedLine(clipped_p1, clipped_p2, { 0,0 }, pTarget->Size(), w0, w1))
 		return;
 
 	// Move to integer space
-	olc::vi2d ip1 = v1; // clipped_p1.round();// .floor();
-	olc::vi2d ip2 = v2; // clipped_p2.round();// .floor();
+	olc::vi2d ip1 =  clipped_p1.round();// .floor();
+	olc::vi2d ip2 =  clipped_p2.round();// .floor();
 	olc::vi2d pixel;
 
 	// Calculate deltas

@@ -160,6 +160,7 @@ namespace olc
 			const olc::vf2d& scale = { 1.0f, 1.0f },
 			olc::Font& font = olc::fontClassicPGE);
 
+		// Returns the bounding box size of a string in pixels
 		olc::vf2d GetTextSize(
 			const std::string& text,
 			const bool bProportional = false,
@@ -351,7 +352,15 @@ namespace olc
 				const olc::vf2d& vMin,
 				const olc::vf2d& vMax);
 
-
+			// Clips a line to a rectangular region, returns true if line is visible.
+			// The returned weights correspond to distance along the line from v0 to v1
+			bool swClipWeightedLine(
+				olc::vf2d& v0,
+				olc::vf2d& v1,
+				const olc::vf2d& vMin,
+				const olc::vf2d& vMax,
+				float& w0,
+				float& w1);
 
 			/* bool swClipTriangle(
 				olc::vf2d& v1,
@@ -359,6 +368,13 @@ namespace olc
 				olc::vf2d& v3,
 				const olc::vf2d& vMin,
 				const olc::vf2d& vMax);*/
+				
+			// Rasterises a shaded line in integer space
+			void swRasterShadedLine(
+				const olc::vi2d& v1,
+				const olc::vi2d& v2,
+				const olc::Pixel c1,
+				const olc::Pixel c2);
 
 			// Rasterises a shaded triangle in integer space
 			void swRasterShadedTriangle(
@@ -382,12 +398,7 @@ namespace olc
 				const olc::vf2d& t3,
 				olc::Image& texture);
 
-			// Rasterises a shaded line in integer space
-			void swRasterShadedLine(
-				const olc::vi2d& v1,
-				const olc::vi2d& v2,
-				const olc::Pixel c1,
-				const olc::Pixel c2);
+
 
 		
 
