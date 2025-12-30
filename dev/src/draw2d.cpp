@@ -323,16 +323,16 @@ const GPUTask& olc::Draw2D::Rect(const olc::vf2d& pos, const olc::vf2d& size, co
 	PrepareTargetForHW();
 
 	return vecGPUTasks.emplace_back(
-		TaskDrawPolygon(
-			olc::Structure::Fan,
+		TaskDrawLine(
 			transformAffine.forwardRound<float>({
-				olc::vf2d(pos.x + 0.0f, pos.y + 0.0f),
-				olc::vf2d(pos.x + size.x + 0.0f, pos.y + 0.0f),
-				olc::vf2d(pos.x + size.x + 0.0f, pos.y + size.y + 0.0f),
-				olc::vf2d(pos.x + 0.0f, pos.y + size.y + 0.0f),
+				olc::vf2d(pos.x, pos.y),
+				olc::vf2d(pos.x + size.x, pos.y),
+				olc::vf2d(pos.x + size.x, pos.y + size.y),
+				olc::vf2d(pos.x, pos.y + size.y),
+				olc::vf2d(pos.x, pos.y)
 				}),
-				{ colTL, colTR, colBR, colBL },
-				tint
+			{ colTL, colTR,  colBR,  colBL,  colTL },
+			tint
 				));
 }
 
