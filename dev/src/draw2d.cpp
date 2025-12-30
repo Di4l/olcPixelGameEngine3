@@ -416,6 +416,74 @@ const GPUTask& olc::Draw2D::FilledCircle(const olc::vf2d& pos, const float& radi
 		));
 }
 
+const GPUTask& olc::Draw2D::Ellipse(const olc::vf2d& pos, const float& rx, const float& ry, const olc::Pixel col, const olc::Pixel tint, int32_t nFacets)
+{
+	PrepareTargetForHW();
+
+	std::vector<olc::vf2d> points;
+	for (int32_t i = 0; i <= nFacets; i++)
+	{
+		float theta = float(i) / float(nFacets) * 2.0f * 3.14159265358979323846f;
+		points.push_back({ pos.x + rx * cosf(theta), pos.y + ry * sinf(theta) });
+	}
+
+	return vecGPUTasks.emplace_back(
+		TaskDrawPolygon(
+			olc::Structure::Line,
+			transformAffine.forwardRound<float>(points),
+			std::vector<olc::Pixel>(points.size(), col),
+			tint
+		));
+}
+
+const GPUTask& olc::Draw2D::FilledEllipse(const olc::vf2d& pos, const float& rx, const float& ry, const olc::Pixel col, const olc::Pixel tint, int32_t nFacets)
+{
+	PrepareTargetForHW();
+	
+	std::vector<olc::vf2d> points;
+	points.push_back(pos);
+	for (int32_t i = 0; i <= nFacets; i++)
+	{
+		float theta = float(i) / float(nFacets) * 2.0f * 3.14159265358979323846f;
+		points.push_back({ pos.x + rx * cosf(theta), pos.y + ry * sinf(theta) });
+	}
+
+	return vecGPUTasks.emplace_back(
+		TaskFillPolygon(
+			olc::Structure::Fan,
+			transformAffine.forwardRound<float>(points),
+			std::vector<olc::Pixel>(points.size(), col),
+			tint
+		));
+}
+
+const GPUTask& olc::Draw2D::FilledEllipse(const olc::vf2d& pos, const float& rx, const float& ry, const olc::Pixel colInner, const olc::Pixel colOuter, const olc::Pixel tint, int32_t nFacets)
+{
+	PrepareTargetForHW();
+	
+	std::vector<olc::vf2d> points;
+	std::vector<olc::Pixel> colours;
+	points.push_back(pos);
+	colours.push_back(colInner);
+
+	for (int32_t i = 0; i <= nFacets; i++)
+	{
+		float theta = float(i) / float(nFacets) * 2.0f * 3.14159265358979323846f;
+		points.push_back({ pos.x + rx * cosf(theta), pos.y + ry * sinf(theta) });
+		colours.push_back(colOuter);
+	}
+
+	return vecGPUTasks.emplace_back(
+		TaskFillPolygon(
+			olc::Structure::Fan,
+			transformAffine.forwardRound<float>(points),
+			colours,
+			tint
+		));
+}
+
+
+
 const GPUTask& olc::Draw2D::Triangle(const olc::vf2d& p1, const olc::vf2d& p2, const olc::vf2d& p3, const olc::Pixel col, const olc::Pixel tint)
 {
 	return Triangle(p1, p2, p3, col, col, col, tint);

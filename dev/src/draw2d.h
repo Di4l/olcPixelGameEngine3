@@ -80,6 +80,10 @@ namespace olc
 		void Clear(const olc::Pixel& col);
 	
 	public: // Shape Drawing Functions
+
+
+		// === Lines ===
+
 		// Draws a single pixel wide line		
 		const GPUTask& Line(
 			const olc::vf2d& p1, 
@@ -94,6 +98,8 @@ namespace olc
 			const olc::Pixel c1, 
 			const olc::Pixel c2,
 			const olc::Pixel tint = olc::Colour::WHITE);
+
+		// === Rectangles ===
 
 		// Draws a rectangle outline
 		const GPUTask& Rect(
@@ -129,7 +135,7 @@ namespace olc
 			const olc::Pixel colBR,
 			const olc::Pixel tint = olc::Colour::WHITE);
 
-
+		// === Circles ===
 		
 		// Draws a circle outline with a single colour
 		const GPUTask& Circle(
@@ -156,21 +162,45 @@ namespace olc
 			const olc::Pixel tint = olc::Colour::WHITE,
 			int32_t nFacets = 32);
 
+		// === Ellipses ===
 
-		//Circle
-		//FilledCircle
-		//ShadedCircle
-		//TexturedCircle
+		// Draws an ellipse outline with a single colour
+		const GPUTask& Ellipse(
+			const olc::vf2d& pos,
+			const float& rx,
+			const float& ry,
+			const olc::Pixel col = olc::Colour::WHITE,
+			const olc::Pixel tint = olc::Colour::WHITE,
+			int32_t nFacets = 32);
 
-		//Ellipse
-		//FilledEllipse
-		//ShadedEllipse
-		//TexturedEllipse
+		// Draws a filled ellipse with a single colour
+		const GPUTask& FilledEllipse(
+			const olc::vf2d& pos,
+			const float& rx,
+			const float& ry,
+			const olc::Pixel col = olc::Colour::WHITE,
+			const olc::Pixel tint = olc::Colour::WHITE,
+			int32_t nFacets = 32);
+
+		// Draws a shaded ellipse with a radial gradient
+		const GPUTask& FilledEllipse(
+			const olc::vf2d& pos,
+			const float& rx,
+			const float& ry,
+			const olc::Pixel colInner,
+			const olc::Pixel colOuter,
+			const olc::Pixel tint = olc::Colour::WHITE,
+			int32_t nFacets = 32);
+
+
+
 
 		//RoundRect
 		//FilledRoundRect
 		//ShadedRoundRect
 		//TexturedRoundRect
+
+		// === Triangles ===
 
 		// Draws a triangle outline with a single colour
 		const GPUTask& Triangle(
@@ -221,6 +251,8 @@ namespace olc
 			const olc::vf2d& t3,
 			olc::Image& texture,
 			const olc::Pixel tint = olc::Colour::WHITE);
+
+		// === Polygons ===
 
 		// Draws a polygon outline with a single colour
 		const GPUTask& Polygon(

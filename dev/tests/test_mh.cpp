@@ -211,14 +211,18 @@ public:
 		//draw.Triangle(vecTestPoints[0] - olc::vi2d{ 64, 48 }, vecTestPoints[2] - olc::vi2d{ 64, 48 }, vecTestPoints[3] - olc::vi2d{ 64, 48 },
 		//	olc::Colour::BLACK);
 
-		olc::vf2d vScaledSize = olc::vf2d{ 8, 8 } / draw.GetWorldTransform().scale();
-		draw.FilledRect(olc::vf2d{ 64.0f, 64.0f } - vScaledSize * 0.5, vScaledSize, olc::Pixel(255, 255, 0, 25));
-		draw.Rect(olc::vf2d{ 64.0f, 64.0f } - vScaledSize * 0.5, vScaledSize, olc::Colour::BLACK);
+
+		draw.FilledEllipse(olc::vf2d{ 64.0f, 64.0f }, 30, 20, olc::Colour::RED, olc::Pixel(255, 0, 0, 0), olc::Colour::WHITE, 16);
+		draw.Ellipse(olc::vf2d{ 64.0f, 64.0f }, 30, 20, olc::Colour::BLACK, olc::Colour::WHITE, 16);
+
 
 		draw.FilledCircle(olc::vf2d{ 64.0f, 64.0f }, 15, olc::Colour::GREEN, olc::Pixel(0, 255, 0, 0), olc::Colour::WHITE, 16);
 		draw.Circle(olc::vf2d{ 64.0f, 64.0f }, 17, olc::Colour::BLACK, olc::Colour::WHITE, 16);
 
 
+		olc::vf2d vScaledSize = olc::vf2d{ 8, 8 } / draw.GetWorldTransform().scale();
+		draw.FilledRect(olc::vf2d{ 64.0f, 64.0f } - vScaledSize * 0.5, vScaledSize, olc::Pixel(255, 255, 0, 25));
+		draw.Rect(olc::vf2d{ 64.0f, 64.0f } - vScaledSize * 0.5, vScaledSize, olc::Colour::BLACK);
 
 	/*	draw.TexturedTriangle(
 			vecTestPoints[0] - olc::vi2d{ 64, 48 }, vecTestPoints[1] - olc::vi2d{ 64, 48 }, vecTestPoints[2] - olc::vi2d{ 64, 48 },
