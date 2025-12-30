@@ -482,6 +482,104 @@ const GPUTask& olc::Draw2D::FilledEllipse(const olc::vf2d& pos, const float& rx,
 		));
 }
 
+const GPUTask& olc::Draw2D::RoundedRect(const olc::vf2d& pos, const olc::vf2d& size, const float& radius, const olc::Pixel col, const olc::Pixel tint, int32_t nFacets)
+{
+	PrepareTargetForHW();
+
+	std::vector<olc::vf2d> points;
+
+	olc::vf2d adjustedPos = pos + olc::vf2d(radius, radius);
+	olc::vf2d adjustedSize = size - olc::vf2d(2.0f * radius, 2.0f * radius);
+
+	// Top Left
+	for (int32_t i = 0; i <= nFacets; i++)
+	{
+		float theta = (float(i) / float(nFacets)) * (0.5f * 3.14159265358979323846f) - (1.0f * 3.14159265358979323846f);
+		points.push_back({ adjustedPos.x + radius * cosf(theta), adjustedPos.y + radius * sinf(theta) });
+	}
+
+	// Top Right
+	for (int32_t i = 0; i <= nFacets; i++)
+	{
+		float theta = (float(i) / float(nFacets)) * (0.5f * 3.14159265358979323846f) - (0.5f * 3.14159265358979323846f);
+		points.push_back({ adjustedPos.x + adjustedSize.x + radius * cosf(theta), adjustedPos.y + radius * sinf(theta) });
+	}
+
+	// Bottom Right
+	for (int32_t i = 0; i <= nFacets; i++)
+	{
+		float theta = (float(i) / float(nFacets)) * (0.5f * 3.14159265358979323846f) + (0.0f * 3.14159265358979323846f);
+		points.push_back({ adjustedPos.x + adjustedSize.x + radius * cosf(theta), adjustedPos.y + adjustedSize.y + radius * sinf(theta) });
+	}
+
+	// Bottom Left
+	for (int32_t i = 0; i <= nFacets; i++)
+	{
+		float theta = (float(i) / float(nFacets)) * (0.5f * 3.14159265358979323846f) + (0.5f * 3.14159265358979323846f);
+		points.push_back({ adjustedPos.x + radius * cosf(theta), adjustedPos.y + adjustedSize.y + radius * sinf(theta) });
+	}
+
+	points.push_back({ adjustedPos.x - radius, adjustedPos.y});
+
+
+	return vecGPUTasks.emplace_back(
+		TaskDrawPolygon(
+			olc::Structure::Line,
+			transformAffine.forwardRound<float>(points),
+			std::vector<olc::Pixel>(points.size(), col),
+			tint
+		));
+}
+
+const GPUTask& olc::Draw2D::FilledRoundedRect(const olc::vf2d& pos, const olc::vf2d& size, const float& radius, const olc::Pixel col, const olc::Pixel tint, int32_t nFacets)
+{
+	PrepareTargetForHW();
+
+	std::vector<olc::vf2d> points;
+
+	olc::vf2d adjustedPos = pos + olc::vf2d(radius, radius);
+	olc::vf2d adjustedSize = size - olc::vf2d(2.0f * radius, 2.0f * radius);
+	
+	// Top Left
+	points.push_back({ adjustedPos.x, adjustedPos.y });
+	for (int32_t i = 0; i <= nFacets; i++)
+	{
+		float theta = (float(i) / float(nFacets)) * (0.5f * 3.14159265358979323846f) - (1.0f * 3.14159265358979323846f);
+		points.push_back({ adjustedPos.x + radius * cosf(theta), adjustedPos.y + radius * sinf(theta) });
+	}
+	
+	// Top Right
+	for (int32_t i = 0; i <= nFacets; i++)
+	{
+		float theta = (float(i) / float(nFacets)) * (0.5f * 3.14159265358979323846f) - (0.5f * 3.14159265358979323846f);
+		points.push_back({ adjustedPos.x + adjustedSize.x + radius * cosf(theta), adjustedPos.y + radius * sinf(theta) });
+	}
+	
+	// Bottom Right
+	for (int32_t i = 0; i <= nFacets; i++)
+	{
+		float theta = (float(i) / float(nFacets)) * (0.5f * 3.14159265358979323846f) + (0.0f * 3.14159265358979323846f);
+		points.push_back({ adjustedPos.x + adjustedSize.x + radius * cosf(theta), adjustedPos.y + adjustedSize.y + radius * sinf(theta) });
+	}
+	
+	// Bottom Left
+	for (int32_t i = 0; i <= nFacets; i++)
+	{
+		float theta = (float(i) / float(nFacets)) * (0.5f * 3.14159265358979323846f) + (0.5f * 3.14159265358979323846f);
+		points.push_back({ adjustedPos.x + radius * cosf(theta), adjustedPos.y + adjustedSize.y + radius * sinf(theta) });
+	}
+	
+	points.push_back({ adjustedPos.x - radius, adjustedPos.y });
+	
+	return vecGPUTasks.emplace_back(
+		TaskFillPolygon(
+			olc::Structure::Fan,
+			transformAffine.forwardRound<float>(points),
+			std::vector<olc::Pixel>(points.size(), col),
+			tint
+		));
+}
+
 
 
 const GPUTask& olc::Draw2D::Triangle(const olc::vf2d& p1, const olc::vf2d& p2, const olc::vf2d& p3, const olc::Pixel col, const olc::Pixel tint)

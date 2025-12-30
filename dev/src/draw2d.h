@@ -192,6 +192,26 @@ namespace olc
 			const olc::Pixel tint = olc::Colour::WHITE,
 			int32_t nFacets = 32);
 
+		// === Rounded Rectangles ===
+
+		// Draws a rounded rectangle outline with a single colour
+		const GPUTask& RoundedRect(
+			const olc::vf2d& pos,						// Top left of bounding rectangle
+			const olc::vf2d& size,						// Size of bounding rectangle
+			const float& radius,
+			const olc::Pixel col = olc::Colour::WHITE,
+			const olc::Pixel tint = olc::Colour::WHITE,
+			int32_t nFacets = 8);
+
+		// Draws a filled rounded rectangle with a single colour
+		const GPUTask& FilledRoundedRect(
+			const olc::vf2d& pos,						// Top left of bounding rectangle
+			const olc::vf2d& size,						// Size of bounding rectangle
+			const float& radius,
+			const olc::Pixel col = olc::Colour::WHITE,
+			const olc::Pixel tint = olc::Colour::WHITE,
+			int32_t nFacets = 8);
+
 
 
 

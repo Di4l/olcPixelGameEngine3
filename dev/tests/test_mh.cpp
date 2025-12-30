@@ -211,6 +211,9 @@ public:
 		//draw.Triangle(vecTestPoints[0] - olc::vi2d{ 64, 48 }, vecTestPoints[2] - olc::vi2d{ 64, 48 }, vecTestPoints[3] - olc::vi2d{ 64, 48 },
 		//	olc::Colour::BLACK);
 
+		draw.FilledRoundedRect(olc::vf2d{ 10.0f, 10.0f }, olc::vf2d{ 108.0f, 108.0f }, 10.0f, olc::Colour::BLUE, olc::Colour::WHITE, 8);
+		draw.RoundedRect(olc::vf2d{ 10.0f, 10.0f }, olc::vf2d{ 108.0f, 108.0f }, 10.0f, olc::Colour::WHITE, olc::Colour::WHITE, 8);
+
 
 		draw.FilledEllipse(olc::vf2d{ 64.0f, 64.0f }, 30, 20, olc::Colour::RED, olc::Pixel(255, 0, 0, 0), olc::Colour::WHITE, 16);
 		draw.Ellipse(olc::vf2d{ 64.0f, 64.0f }, 30, 20, olc::Colour::BLACK, olc::Colour::WHITE, 16);
