@@ -139,10 +139,10 @@ public:
 			{ 64, 16},
 			{ 16, 32},
 			{  64,  32 },
-			{16, 48},
+			/*{16, 48},
 			{64, 48},
 			{ 16, 64},
-			{64, 64 }
+			{64, 64 }*/
 		};
 
 		return true;
@@ -162,6 +162,8 @@ public:
 		draw.SetTarget(imTempBuffer);
 		draw.Clear(olc::Colour::TANGERINE);
 		draw.WorldRotate(fAngle, { 64.0f, 64.0f });// imLowRes.Size() / 2.0f);
+
+		draw.Rect({ 0,0 }, draw.GetTargetSize()-1, olc::Colour::BLACK);
 
 
 		/*draw.FilledTriangle(vecTestPoints[0] - olc::vi2d{64, 48}, vecTestPoints[1] - olc::vi2d{ 64, 48 }, vecTestPoints[2] - olc::vi2d{ 64, 48 },
@@ -193,16 +195,7 @@ public:
 		};
 
 
-		draw.FilledPolygon(
-			olc::Structure::Strip, 
-			vecOffsetPoints,
-			vecColours);
-
-		draw.Polygon(
-			olc::Structure::Strip,
-			vecOffsetPoints,
-			olc::Colour::BLACK
-			);
+		
 		
 
 		//draw.Triangle(vecTestPoints[0] - olc::vi2d{ 64, 48 }, vecTestPoints[1] - olc::vi2d{ 64, 48 }, vecTestPoints[2] - olc::vi2d{ 64, 48 },
@@ -226,6 +219,17 @@ public:
 		olc::vf2d vScaledSize = olc::vf2d{ 8, 8 } / draw.GetWorldTransform().scale();
 		draw.FilledRect(olc::vf2d{ 64.0f, 64.0f } - vScaledSize * 0.5, vScaledSize, olc::Pixel(255, 255, 0, 25));
 		draw.Rect(olc::vf2d{ 64.0f, 64.0f } - vScaledSize * 0.5, vScaledSize, olc::Colour::BLACK);
+
+		draw.FilledPolygon(
+			olc::Structure::Strip,
+			vecOffsetPoints,
+			vecColours);
+
+		draw.Polygon(
+			olc::Structure::Strip,
+			vecOffsetPoints,
+			olc::Colour::BLACK
+		);
 
 	/*	draw.TexturedTriangle(
 			vecTestPoints[0] - olc::vi2d{ 64, 48 }, vecTestPoints[1] - olc::vi2d{ 64, 48 }, vecTestPoints[2] - olc::vi2d{ 64, 48 },
@@ -256,6 +260,7 @@ public:
 
 
 		draw.Image(imTempBuffer, { 64, 48 });
+		draw.ImageQuad(imTempBuffer, vecTestPoints);
 		//draw.Triangle(vecTestPoints[0], vecTestPoints[1], vecTestPoints[2], olc::Colour::BLACK);
 
 
@@ -263,10 +268,10 @@ public:
 		// Draw 3 triangle points
 		for (int i = 0; i < vecTestPoints.size(); i++)
 		{
-			draw.Rect(vecTestPoints[i] - (vTestPointSize * 0.5f), vTestPointSize, olc::Colour::MAGENTA);
+			//draw.Rect(vecTestPoints[i] - (vTestPointSize * 0.5f), vTestPointSize, olc::Colour::MAGENTA);
 
-			draw.FilledCircle(vecTestPoints[i], 15, olc::Colour::GREEN, olc::Pixel(0,255,0,0), olc::Colour::WHITE, 16);
-			draw.Circle(vecTestPoints[i], 17, olc::Colour::BLACK, olc::Colour::WHITE, 16);
+			draw.FilledCircle(vecTestPoints[i],4, olc::Colour::GREEN, olc::Pixel(0,255,0,0), olc::Colour::WHITE, 16);
+			draw.Circle(vecTestPoints[i], 4, olc::Colour::BLACK, olc::Colour::WHITE, 16);
 		}
 
 		

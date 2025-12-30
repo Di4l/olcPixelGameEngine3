@@ -33,6 +33,16 @@ void Draw2D::SetTarget(olc::Image& image)
 	pRenderer->SetViewport({ 0,0 }, pTarget->Size());
 }
 
+olc::Image& olc::Draw2D::GetTarget()
+{
+	return *pTarget;
+}
+
+olc::vi2d olc::Draw2D::GetTargetSize()
+{
+	return pTarget->Size();
+}
+
 void olc::Draw2D::ProcessGPUTasks()
 {
 	for (const auto& task : vecGPUTasks)

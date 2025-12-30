@@ -41,10 +41,10 @@ namespace olc
 	public:
 		// Sets the drawing target of this drawing toolbox
 		void SetTarget(olc::Image& image);
-
-
-
-	
+		// Get the current drawing target
+		olc::Image& GetTarget();
+		// Get Size of drawing target (aka GetTarget()->Size())
+		olc::vi2d GetTargetSize();
 
 	public: // Affine Transformation (these affect all subsequent draw calls for this target)
 		// Reset world transform to identity
@@ -82,7 +82,7 @@ namespace olc
 	public: // Shape Drawing Functions
 
 
-		// === Lines ===
+// === Lines ===
 
 		// Draws a single pixel wide line		
 		const GPUTask& Line(
@@ -99,7 +99,7 @@ namespace olc
 			const olc::Pixel c2,
 			const olc::Pixel tint = olc::Colour::WHITE);
 
-		// === Rectangles ===
+// === Rectangles ===
 
 		// Draws a rectangle outline
 		const GPUTask& Rect(
@@ -135,7 +135,7 @@ namespace olc
 			const olc::Pixel colBR,
 			const olc::Pixel tint = olc::Colour::WHITE);
 
-		// === Circles ===
+// === Circles ===
 		
 		// Draws a circle outline with a single colour
 		const GPUTask& Circle(
@@ -162,7 +162,7 @@ namespace olc
 			const olc::Pixel tint = olc::Colour::WHITE,
 			int32_t nFacets = 32);
 
-		// === Ellipses ===
+// === Ellipses ===
 
 		// Draws an ellipse outline with a single colour
 		const GPUTask& Ellipse(
@@ -192,7 +192,7 @@ namespace olc
 			const olc::Pixel tint = olc::Colour::WHITE,
 			int32_t nFacets = 32);
 
-		// === Rounded Rectangles ===
+// === Rounded Rectangles ===
 
 		// Draws a rounded rectangle outline with a single colour
 		const GPUTask& RoundedRect(
@@ -213,14 +213,7 @@ namespace olc
 			int32_t nFacets = 8);
 
 
-
-
-		//RoundRect
-		//FilledRoundRect
-		//ShadedRoundRect
-		//TexturedRoundRect
-
-		// === Triangles ===
+// === Triangles ===
 
 		// Draws a triangle outline with a single colour
 		const GPUTask& Triangle(
@@ -272,7 +265,7 @@ namespace olc
 			olc::Image& texture,
 			const olc::Pixel tint = olc::Colour::WHITE);
 
-		// === Polygons ===
+// === Polygons ===
 
 		// Draws a polygon outline with a single colour
 		const GPUTask& Polygon(
