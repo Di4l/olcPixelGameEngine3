@@ -18,116 +18,82 @@
 #if !defined(PGE_GPUTASK_DECLARED)
 namespace olc
 {
+		
+	// Define super structure to be drawn
+	enum class Structure : uint8_t
+	{
+		// Vertex buffer is a series of points	
+		Point = 0,
+		// Vertex buffer is a series of line segments
+		Line,
+		// Vertex buffer is a fan of triangles
+		Fan,
+		// Vertex buffer is a strip of adjacent triangles
+		Strip,
+		// Vertex buffer is a series of discrete triangles
+		List
+	};
 	
-		// This is the default "packet" of work that is sent to 
-		// a GPU for drawing. Various drawing operations throughout
-		// PGE create GPUTasks which are stored and dispatched when
-		// appropriate. It's contents are purposefully abstract
-		// to ensure rendering tools do not need to be reliant
-		// upon PGE structures
-		struct GPUTask
+	// This is the default "packet" of work that is sent to 
+	// a GPU for drawing. Various drawing operations throughout
+	// PGE create GPUTasks which are stored and dispatched when
+	// appropriate. It's contents are purposefully abstract
+	// to ensure rendering tools do not need to be reliant
+	// upon PGE structures
+	struct GPUTask
+	{
+		enum class Task : uint8_t
 		{
-			enum class Task : uint8_t
-			{
-				DrawPolygon,
-				NullTask
-			} task = Task::DrawPolygon;
+			DrawPolygon,
+			NullTask
+		} task = Task::DrawPolygon;
 
-			struct Vertex 
-			{
-				float p[4];     // x, y, z, w
-				olc::Pixel c;	// 32-bit colour
-				float t0[2];
-				float t1[2];
-				float t2[2];
-				float t3[2];
-			};
-
-			// Simple vertex buffer
-			std::vector<Vertex> vertexBuffer;
-
-			// Model-View-Projection Matrix for shader
-			std::array<float, 16> mvpMatrix = { {
-				1, 0, 0, 0,
-				0, 1, 0, 0,
-				0, 0, 1, 0,
-				0, 0, 0, 1
-			} };
-
-			// Use depth components
-			bool bDepth = false;
-
-			// Use hardware wire drawing
-			bool bWireframe = false;
-
-			// Overall biasing colour (great for blends)
-			olc::Pixel tint = olc::Colour::WHITE;
-
-			olc::Image* pImage = nullptr;
-
-			// Define super structure to be drawn
-			enum class Structure : uint8_t
-			{
-				// Vertex buffer is a series of points	
-				Point = 0, 
-				// Vertex buffer is a series of line segments
-				Line,
-				// Vertex buffer is a fan of triangles
-				Fan,
-				// Vertex buffer is a strip of adjacent triangles
-				Strip,
-				// Vertex buffer is a series of discrete triangles
-				List				
-			} structure = Structure::Fan;
-
-			// Define if GPU should face cull based on winding order
-			enum class CullMode : uint8_t
-			{
-				// No
-				None = 0,
-				// Cull if vertices are listed in clockwise order
-				ClockWise,
-				// Cull if vertices are listed in anticlockwise order
-				CounterClockWise
-			} cullmode = CullMode::None;
+		struct Vertex 
+		{
+			float p[4];     // x, y, z, w
+			olc::Pixel c;	// 32-bit colour
+			float t0[2];
+			float t1[2];
+			float t2[2];
+			float t3[2];
 		};
 
+		// Simple vertex buffer
+		std::vector<Vertex> vertexBuffer;
 
+		// Model-View-Projection Matrix for shader
+		std::array<float, 16> mvpMatrix = { {
+			1, 0, 0, 0,
+			0, 1, 0, 0,
+			0, 0, 1, 0,
+			0, 0, 0, 1
+		} };
 
-		//// Construct a wireframe polygon
-		//GPUTask DrawPolygon2D(
-		//	const GPUTask::Structure format,
-		//	const olc::tf2d& transform,
-		//	const std::vector<olc::vf2d>& vPoints,
-		//	const std::vector<olc::Pixel>& vColours,
-		//	const olc::Pixel tint = olc::Colour::WHITE)
-		//{
-		//	GPUTask task;
-		//	task.structure = format;
-		//	task.bDepth = false;
-		//	task.tint = tint;
-		//	task.cullmode = GPUTask::CullMode::None;
-		//	task.bWireframe = true;
+		// Use depth components
+		bool bDepth = false;
 
-		//	const auto& m = transform.forward_matrix().m;
-		//	task.mvpMatrix = { {
-		//		m[0], m[1], m[2], 0.0f,
-		//		m[3], m[4], m[5], 0.0f,
-		//		m[6], m[7], m[8], 0.0f,
-		//		0.0f, 0.0f, 0.0f, 1.0f
-		//	} };
+		// Use hardware wire drawing
+		bool bWireframe = false;
 
-		//	// Pseudo-zip construct vertex buffer
-		//	size_t nFullVerts = std::min({ vPoints.size(), vColours.size() });
-		//	task.vertexBuffer.resize(nFullVerts);
-		//	for (size_t i = 0; i < nFullVerts; i++)
-		//	{
-		//		task.vertexBuffer[i] = { vPoints[i].x, vPoints[i].y, 0.0f, 1.0f, 0.0f, 0.0f, vColours[i] };
-		//	}
+		// Overall biasing colour (great for blends)
+		olc::Pixel tint = olc::Colour::WHITE;
 
-		//	return task;
-		//}
+		olc::Image* pImage = nullptr;
 
+		// Define super structure to be drawn
+		Structure structure = Structure::Fan;
+
+		// Define if GPU should face cull based on winding order
+		enum class CullMode : uint8_t
+		{
+			// No
+			None = 0,
+			// Cull if vertices are listed in clockwise order
+			ClockWise,
+			// Cull if vertices are listed in anticlockwise order
+			CounterClockWise
+		} cullmode = CullMode::None;
+	};
 }
 #define PGE_GPUTASK_DECLARED 1
 #endif

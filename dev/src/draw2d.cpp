@@ -33,6 +33,16 @@ void Draw2D::SetTarget(olc::Image& image)
 	pRenderer->SetViewport({ 0,0 }, pTarget->Size());
 }
 
+olc::Image& olc::Draw2D::GetTarget()
+{
+	return *pTarget;
+}
+
+olc::vi2d olc::Draw2D::GetTargetSize()
+{
+	return pTarget->Size();
+}
+
 void olc::Draw2D::ProcessGPUTasks()
 {
 	for (const auto& task : vecGPUTasks)
@@ -154,14 +164,14 @@ olc::vf2d olc::Draw2D::ScreenToWorld(const olc::vf2d& v) const
 	return transformAffine.inverse(v);
 }
 
-void Draw2D::Pixel(const olc::vf2d& pos, const olc::Pixel col)
+void Draw2D::Pixel(const olc::vf2d& pos, const olc::Pixel col, const olc::Pixel tint)
 {
 	// Check if in bounds
 	olc::vf2d tpos = transformAffine.forwardRound(pos);
 	if (tpos.x >= 0 && tpos.y >= 0 && tpos.x < pTarget->Size().x && tpos.y < pTarget->Size().y)
 	{
 		PrepareTargetForSW();
-		pTarget->Pixel(tpos) = col;
+		pTarget->Pixel(tpos) = col.blend(tint);
 	}
 
 	// otherwise do nothing
@@ -182,7 +192,7 @@ void olc::Draw2D::Clear(const olc::Pixel& col)
 GPUTask olc::Draw2D::TaskDrawLine(const std::vector<olc::vf2d>& vPoints, const std::vector<olc::Pixel>& vColours, const olc::Pixel tint)
 {
 	GPUTask task;
-	task.structure = GPUTask::Structure::Line;
+	task.structure = olc::Structure::Line;
 	for (size_t i = 0; i < vPoints.size() - 1; i++)
 	{
 		task.vertexBuffer.push_back({ vPoints[i].x, vPoints[i].y, 1.0f, 1.0f, vColours[i], 0, 0, 0,0, 0, 0, 0, 0 });
@@ -192,7 +202,7 @@ GPUTask olc::Draw2D::TaskDrawLine(const std::vector<olc::vf2d>& vPoints, const s
 	return task;
 }
 
-GPUTask olc::Draw2D::TaskDrawPolygon(GPUTask::Structure structure, const std::vector<olc::vf2d>& vPoints, const std::vector<olc::Pixel>& vColours, const olc::Pixel tint)
+GPUTask olc::Draw2D::TaskDrawPolygon(olc::Structure structure, const std::vector<olc::vf2d>& vPoints, const std::vector<olc::Pixel>& vColours, const olc::Pixel tint)
 {
 	GPUTask task;
 	task.structure = structure;
@@ -203,7 +213,7 @@ GPUTask olc::Draw2D::TaskDrawPolygon(GPUTask::Structure structure, const std::ve
 	return task;
 }
 
-GPUTask olc::Draw2D::TaskDrawPolygon(GPUTask::Structure structure, const std::vector<olc::vf2d>& vPoints, const olc::Pixel colour, const olc::Pixel tint)
+GPUTask olc::Draw2D::TaskDrawPolygon(olc::Structure structure, const std::vector<olc::vf2d>& vPoints, const olc::Pixel colour, const olc::Pixel tint)
 {	
 	GPUTask task;
 	task.structure = structure;
@@ -214,7 +224,7 @@ GPUTask olc::Draw2D::TaskDrawPolygon(GPUTask::Structure structure, const std::ve
 	return task;
 }
 
-GPUTask olc::Draw2D::TaskFillPolygon(GPUTask::Structure structure, const std::vector<olc::vf2d>& vPoints, const std::vector<olc::Pixel>& vColours, const olc::Pixel tint)
+GPUTask olc::Draw2D::TaskFillPolygon(olc::Structure structure, const std::vector<olc::vf2d>& vPoints, const std::vector<olc::Pixel>& vColours, const olc::Pixel tint)
 {
 	GPUTask task;
 	task.structure = structure;
@@ -224,7 +234,7 @@ GPUTask olc::Draw2D::TaskFillPolygon(GPUTask::Structure structure, const std::ve
 	return task;
 }
 
-GPUTask olc::Draw2D::TaskFillPolygon(GPUTask::Structure structure, const std::vector<olc::vf2d>& vPoints, const olc::Pixel colour, const olc::Pixel tint)
+GPUTask olc::Draw2D::TaskFillPolygon(olc::Structure structure, const std::vector<olc::vf2d>& vPoints, const olc::Pixel colour, const olc::Pixel tint)
 {
 	GPUTask task;
 	task.structure = structure;
@@ -234,7 +244,7 @@ GPUTask olc::Draw2D::TaskFillPolygon(GPUTask::Structure structure, const std::ve
 	return task;	
 }
 
-GPUTask olc::Draw2D::TaskTexturedPolygon(GPUTask::Structure structure, const std::vector<olc::vf2d>& vPoints, const std::vector<olc::Pixel>& vColours, const std::vector<olc::vf2d>& vTexCoords, olc::Image* const image, const olc::Pixel tint)
+GPUTask olc::Draw2D::TaskTexturedPolygon(olc::Structure structure, const std::vector<olc::vf2d>& vPoints, const std::vector<olc::Pixel>& vColours, const std::vector<olc::vf2d>& vTexCoords, olc::Image* const image, const olc::Pixel tint)
 {
 	GPUTask task;
 	for (size_t i = 0; i<vPoints.size(); i++)
@@ -244,7 +254,7 @@ GPUTask olc::Draw2D::TaskTexturedPolygon(GPUTask::Structure structure, const std
 	return task;
 }
 
-GPUTask olc::Draw2D::TaskTexturedPolygon(GPUTask::Structure structure, const std::vector<olc::vf2d>& vPoints, const std::vector<olc::vf2d>& vZWs, const std::vector<olc::Pixel>& vColours, const std::vector<olc::vf2d>& vTexCoords, olc::Image* const image, const olc::Pixel tint)
+GPUTask olc::Draw2D::TaskTexturedPolygon(olc::Structure structure, const std::vector<olc::vf2d>& vPoints, const std::vector<olc::vf2d>& vZWs, const std::vector<olc::Pixel>& vColours, const std::vector<olc::vf2d>& vTexCoords, olc::Image* const image, const olc::Pixel tint)
 {
 	GPUTask task;
 	for (size_t i = 0; i < vPoints.size(); i++)
@@ -256,31 +266,32 @@ GPUTask olc::Draw2D::TaskTexturedPolygon(GPUTask::Structure structure, const std
 
 
 
-const GPUTask& Draw2D::Line(const olc::vf2d& p1, const olc::vf2d& p2, const olc::Pixel col)
+const GPUTask& Draw2D::Line(const olc::vf2d& p1, const olc::vf2d& p2, const olc::Pixel col, const olc::Pixel tint)
 {
 	PrepareTargetForHW();
 	
 	return vecGPUTasks.emplace_back(
 		TaskDrawLine(
 			transformAffine.forwardRound<float>({ p1, p2 }),			
-			{ col,col }
+			{ col,col },
+			tint
 		));
 }
 
-const GPUTask& Draw2D::Line(const olc::vf2d& p1, const olc::vf2d& p2, const olc::Pixel c1, const olc::Pixel c2)
+const GPUTask& Draw2D::Line(const olc::vf2d& p1, const olc::vf2d& p2, const olc::Pixel c1, const olc::Pixel c2, const olc::Pixel tint)
 {
 	PrepareTargetForHW();
 
 	return vecGPUTasks.emplace_back(
 		TaskDrawPolygon(
-			GPUTask::Structure::Line,
+			olc::Structure::Line,
 			transformAffine.forwardRound<float>({ p1, p2 }),
 			{ c1, c2 },
-			olc::Colour::WHITE
+			tint
 		));		
 }
 
-const GPUTask& olc::Draw2D::Rect(const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel col)
+const GPUTask& olc::Draw2D::Rect(const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel col, const olc::Pixel tint)
 {
 	// Right a big, hearty, F&^% you to OpenGL's Diamond Exit Strategy. It makes line drawing
 	// with OpenGL a smidge unreliable
@@ -296,17 +307,18 @@ const GPUTask& olc::Draw2D::Rect(const olc::vf2d& pos, const olc::vf2d& size, co
 				olc::vf2d(pos.x, pos.y + size.y),
 				olc::vf2d(pos.x, pos.y)
 				}),
-			{ col, col,  col,  col,  col }
+			{ col, col,  col,  col,  col },
+			tint
 		));
 }
 
-const GPUTask& olc::Draw2D::Rect(const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel colTL, const olc::Pixel colTR, const olc::Pixel colBL, const olc::Pixel colBR)
+const GPUTask& olc::Draw2D::Rect(const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel colTL, const olc::Pixel colTR, const olc::Pixel colBL, const olc::Pixel colBR, const olc::Pixel tint)
 {
 	PrepareTargetForHW();
 
 	return vecGPUTasks.emplace_back(
 		TaskDrawPolygon(
-			GPUTask::Structure::Fan,
+			olc::Structure::Fan,
 			transformAffine.forwardRound<float>({
 				olc::vf2d(pos.x + 0.0f, pos.y + 0.0f),
 				olc::vf2d(pos.x + size.x + 0.0f, pos.y + 0.0f),
@@ -314,73 +326,305 @@ const GPUTask& olc::Draw2D::Rect(const olc::vf2d& pos, const olc::vf2d& size, co
 				olc::vf2d(pos.x + 0.0f, pos.y + size.y + 0.0f),
 				}),
 				{ colTL, colTR, colBR, colBL },
-				olc::Colour::WHITE
+				tint
 				));
 }
 
 
-const GPUTask& olc::Draw2D::FilledRect(const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel col)
+const GPUTask& olc::Draw2D::FilledRect(const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel col, const olc::Pixel tint)
 {
 	PrepareTargetForHW();
 
 	return vecGPUTasks.emplace_back(
 		TaskFillPolygon(
-			GPUTask::Structure::Fan,
+			olc::Structure::Fan,
 			transformAffine.forwardRound<float>({ 
 				{ pos.x, pos.y }, 
 				{ pos.x + size.x, pos.y }, 
 				{ pos.x + size.x, pos.y + size.y },
 				{ pos.x, pos.y + size.y } }),
 			col,
-			olc::Colour::WHITE
+			tint
 		));
 }
 
-const GPUTask& olc::Draw2D::FilledRect(const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel colTL, const olc::Pixel colTR, const olc::Pixel colBL, const olc::Pixel colBR)
+const GPUTask& olc::Draw2D::FilledRect(const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel colTL, const olc::Pixel colTR, const olc::Pixel colBL, const olc::Pixel colBR, const olc::Pixel tint)
 {
 	PrepareTargetForHW();
 	return vecGPUTasks.emplace_back(
 		TaskFillPolygon(
-			GPUTask::Structure::Fan,
+			olc::Structure::Fan,
 			transformAffine.forwardRound<float>({ { pos.x, pos.y }, { pos.x + size.x, pos.y }, { pos.x + size.x, pos.y + size.y }, { pos.x, pos.y + size.y } }),
 			{ colTL, colTR, colBR, colBL },
-			olc::Colour::WHITE
+			tint
 		));
 }
 
-const GPUTask& olc::Draw2D::Triangle(const olc::vf2d& p1, const olc::vf2d& p2, const olc::vf2d& p3, const olc::Pixel col)
+const GPUTask& olc::Draw2D::Circle(const olc::vf2d& pos, const float& radius, const olc::Pixel col, const olc::Pixel tint, int32_t nFacets)
 {
-	return Triangle(p1, p2, p3, col, col, col);
+	PrepareTargetForHW();
+	
+	std::vector<olc::vf2d> points;
+	for (int32_t i = 0; i <= nFacets; i++)
+	{
+		float theta = float(i) / float(nFacets) * 2.0f * 3.14159265358979323846f;
+		points.push_back({ pos.x + radius * cosf(theta), pos.y + radius * sinf(theta) });
+	}
+
+	return vecGPUTasks.emplace_back(
+		TaskDrawPolygon(
+			olc::Structure::Line,
+			transformAffine.forwardRound<float>(points),
+			std::vector<olc::Pixel>(points.size(), col),
+			tint
+		));
 }
 
-const GPUTask& olc::Draw2D::Triangle(const olc::vf2d& p1, const olc::vf2d& p2, const olc::vf2d& p3, const olc::Pixel c1, const olc::Pixel c2, const olc::Pixel c3)
+const GPUTask& olc::Draw2D::FilledCircle(const olc::vf2d& pos, const float& radius, const olc::Pixel col, const olc::Pixel tint, int32_t nFacets)
+{
+	PrepareTargetForHW();
+
+	std::vector<olc::vf2d> points;
+	points.push_back(pos);
+	for (int32_t i = 0; i <= nFacets; i++)
+	{
+		float theta = float(i) / float(nFacets) * 2.0f * 3.14159265358979323846f;
+		points.push_back({ pos.x + radius * cosf(theta), pos.y + radius * sinf(theta) });
+	}
+
+	return vecGPUTasks.emplace_back(
+		TaskFillPolygon(
+			olc::Structure::Fan,
+			transformAffine.forwardRound<float>(points),
+			std::vector<olc::Pixel>(points.size(), col),
+			tint
+		));
+}
+
+const GPUTask& olc::Draw2D::FilledCircle(const olc::vf2d& pos, const float& radius, const olc::Pixel colInner, const olc::Pixel colOuter, const olc::Pixel tint, int32_t nFacets)
+{
+	PrepareTargetForHW();
+
+	std::vector<olc::vf2d> points;
+	std::vector<olc::Pixel> colours;
+	points.push_back(pos);
+	colours.push_back(colInner);
+
+	for (int32_t i = 0; i <= nFacets; i++)
+	{
+		float theta = float(i) / float(nFacets) * 2.0f * 3.14159265358979323846f;
+		points.push_back({ pos.x + radius * cosf(theta), pos.y + radius * sinf(theta) });
+		colours.push_back(colOuter);
+	}
+	
+	return vecGPUTasks.emplace_back(
+		TaskFillPolygon(
+			olc::Structure::Fan,
+			transformAffine.forwardRound<float>(points),
+			colours,
+			tint
+		));
+}
+
+const GPUTask& olc::Draw2D::Ellipse(const olc::vf2d& pos, const float& rx, const float& ry, const olc::Pixel col, const olc::Pixel tint, int32_t nFacets)
+{
+	PrepareTargetForHW();
+
+	std::vector<olc::vf2d> points;
+	for (int32_t i = 0; i <= nFacets; i++)
+	{
+		float theta = float(i) / float(nFacets) * 2.0f * 3.14159265358979323846f;
+		points.push_back({ pos.x + rx * cosf(theta), pos.y + ry * sinf(theta) });
+	}
+
+	return vecGPUTasks.emplace_back(
+		TaskDrawPolygon(
+			olc::Structure::Line,
+			transformAffine.forwardRound<float>(points),
+			std::vector<olc::Pixel>(points.size(), col),
+			tint
+		));
+}
+
+const GPUTask& olc::Draw2D::FilledEllipse(const olc::vf2d& pos, const float& rx, const float& ry, const olc::Pixel col, const olc::Pixel tint, int32_t nFacets)
+{
+	PrepareTargetForHW();
+	
+	std::vector<olc::vf2d> points;
+	points.push_back(pos);
+	for (int32_t i = 0; i <= nFacets; i++)
+	{
+		float theta = float(i) / float(nFacets) * 2.0f * 3.14159265358979323846f;
+		points.push_back({ pos.x + rx * cosf(theta), pos.y + ry * sinf(theta) });
+	}
+
+	return vecGPUTasks.emplace_back(
+		TaskFillPolygon(
+			olc::Structure::Fan,
+			transformAffine.forwardRound<float>(points),
+			std::vector<olc::Pixel>(points.size(), col),
+			tint
+		));
+}
+
+const GPUTask& olc::Draw2D::FilledEllipse(const olc::vf2d& pos, const float& rx, const float& ry, const olc::Pixel colInner, const olc::Pixel colOuter, const olc::Pixel tint, int32_t nFacets)
+{
+	PrepareTargetForHW();
+	
+	std::vector<olc::vf2d> points;
+	std::vector<olc::Pixel> colours;
+	points.push_back(pos);
+	colours.push_back(colInner);
+
+	for (int32_t i = 0; i <= nFacets; i++)
+	{
+		float theta = float(i) / float(nFacets) * 2.0f * 3.14159265358979323846f;
+		points.push_back({ pos.x + rx * cosf(theta), pos.y + ry * sinf(theta) });
+		colours.push_back(colOuter);
+	}
+
+	return vecGPUTasks.emplace_back(
+		TaskFillPolygon(
+			olc::Structure::Fan,
+			transformAffine.forwardRound<float>(points),
+			colours,
+			tint
+		));
+}
+
+const GPUTask& olc::Draw2D::RoundedRect(const olc::vf2d& pos, const olc::vf2d& size, const float& radius, const olc::Pixel col, const olc::Pixel tint, int32_t nFacets)
+{
+	PrepareTargetForHW();
+
+	std::vector<olc::vf2d> points;
+
+	olc::vf2d adjustedPos = pos + olc::vf2d(radius, radius);
+	olc::vf2d adjustedSize = size - olc::vf2d(2.0f * radius, 2.0f * radius);
+
+	// Top Left
+	for (int32_t i = 0; i <= nFacets; i++)
+	{
+		float theta = (float(i) / float(nFacets)) * (0.5f * 3.14159265358979323846f) - (1.0f * 3.14159265358979323846f);
+		points.push_back({ adjustedPos.x + radius * cosf(theta), adjustedPos.y + radius * sinf(theta) });
+	}
+
+	// Top Right
+	for (int32_t i = 0; i <= nFacets; i++)
+	{
+		float theta = (float(i) / float(nFacets)) * (0.5f * 3.14159265358979323846f) - (0.5f * 3.14159265358979323846f);
+		points.push_back({ adjustedPos.x + adjustedSize.x + radius * cosf(theta), adjustedPos.y + radius * sinf(theta) });
+	}
+
+	// Bottom Right
+	for (int32_t i = 0; i <= nFacets; i++)
+	{
+		float theta = (float(i) / float(nFacets)) * (0.5f * 3.14159265358979323846f) + (0.0f * 3.14159265358979323846f);
+		points.push_back({ adjustedPos.x + adjustedSize.x + radius * cosf(theta), adjustedPos.y + adjustedSize.y + radius * sinf(theta) });
+	}
+
+	// Bottom Left
+	for (int32_t i = 0; i <= nFacets; i++)
+	{
+		float theta = (float(i) / float(nFacets)) * (0.5f * 3.14159265358979323846f) + (0.5f * 3.14159265358979323846f);
+		points.push_back({ adjustedPos.x + radius * cosf(theta), adjustedPos.y + adjustedSize.y + radius * sinf(theta) });
+	}
+
+	points.push_back({ adjustedPos.x - radius, adjustedPos.y});
+
+
+	return vecGPUTasks.emplace_back(
+		TaskDrawPolygon(
+			olc::Structure::Line,
+			transformAffine.forwardRound<float>(points),
+			std::vector<olc::Pixel>(points.size(), col),
+			tint
+		));
+}
+
+const GPUTask& olc::Draw2D::FilledRoundedRect(const olc::vf2d& pos, const olc::vf2d& size, const float& radius, const olc::Pixel col, const olc::Pixel tint, int32_t nFacets)
+{
+	PrepareTargetForHW();
+
+	std::vector<olc::vf2d> points;
+
+	olc::vf2d adjustedPos = pos + olc::vf2d(radius, radius);
+	olc::vf2d adjustedSize = size - olc::vf2d(2.0f * radius, 2.0f * radius);
+	
+	// Top Left
+	points.push_back({ adjustedPos.x, adjustedPos.y });
+	for (int32_t i = 0; i <= nFacets; i++)
+	{
+		float theta = (float(i) / float(nFacets)) * (0.5f * 3.14159265358979323846f) - (1.0f * 3.14159265358979323846f);
+		points.push_back({ adjustedPos.x + radius * cosf(theta), adjustedPos.y + radius * sinf(theta) });
+	}
+	
+	// Top Right
+	for (int32_t i = 0; i <= nFacets; i++)
+	{
+		float theta = (float(i) / float(nFacets)) * (0.5f * 3.14159265358979323846f) - (0.5f * 3.14159265358979323846f);
+		points.push_back({ adjustedPos.x + adjustedSize.x + radius * cosf(theta), adjustedPos.y + radius * sinf(theta) });
+	}
+	
+	// Bottom Right
+	for (int32_t i = 0; i <= nFacets; i++)
+	{
+		float theta = (float(i) / float(nFacets)) * (0.5f * 3.14159265358979323846f) + (0.0f * 3.14159265358979323846f);
+		points.push_back({ adjustedPos.x + adjustedSize.x + radius * cosf(theta), adjustedPos.y + adjustedSize.y + radius * sinf(theta) });
+	}
+	
+	// Bottom Left
+	for (int32_t i = 0; i <= nFacets; i++)
+	{
+		float theta = (float(i) / float(nFacets)) * (0.5f * 3.14159265358979323846f) + (0.5f * 3.14159265358979323846f);
+		points.push_back({ adjustedPos.x + radius * cosf(theta), adjustedPos.y + adjustedSize.y + radius * sinf(theta) });
+	}
+	
+	points.push_back({ adjustedPos.x - radius, adjustedPos.y });
+	
+	return vecGPUTasks.emplace_back(
+		TaskFillPolygon(
+			olc::Structure::Fan,
+			transformAffine.forwardRound<float>(points),
+			std::vector<olc::Pixel>(points.size(), col),
+			tint
+		));
+}
+
+
+
+const GPUTask& olc::Draw2D::Triangle(const olc::vf2d& p1, const olc::vf2d& p2, const olc::vf2d& p3, const olc::Pixel col, const olc::Pixel tint)
+{
+	return Triangle(p1, p2, p3, col, col, col, tint);
+}
+
+const GPUTask& olc::Draw2D::Triangle(const olc::vf2d& p1, const olc::vf2d& p2, const olc::vf2d& p3, const olc::Pixel c1, const olc::Pixel c2, const olc::Pixel c3, const olc::Pixel tint)
 {
 	PrepareTargetForHW();
 
 	return vecGPUTasks.emplace_back(
 		TaskDrawPolygon(
-			GPUTask::Structure::Fan,
+			olc::Structure::Fan,
 			transformAffine.forwardRound<float>({ p1, p2, p3 }),
 			{ c1, c2, c3 },
-			olc::Colour::WHITE
+			tint
 		));
 }
 
-const GPUTask& olc::Draw2D::FilledTriangle(const olc::vf2d& p1, const olc::vf2d& p2, const olc::vf2d& p3, const olc::Pixel col)
+const GPUTask& olc::Draw2D::FilledTriangle(const olc::vf2d& p1, const olc::vf2d& p2, const olc::vf2d& p3, const olc::Pixel col, const olc::Pixel tint)
 {
-	return FilledTriangle(p1, p2, p3, col, col, col);
+	return FilledTriangle(p1, p2, p3, col, col, col, tint);
 }
 
-const GPUTask& olc::Draw2D::FilledTriangle(const olc::vf2d& p1, const olc::vf2d& p2, const olc::vf2d& p3, const olc::Pixel c1, const olc::Pixel c2, const olc::Pixel c3)
+const GPUTask& olc::Draw2D::FilledTriangle(const olc::vf2d& p1, const olc::vf2d& p2, const olc::vf2d& p3, const olc::Pixel c1, const olc::Pixel c2, const olc::Pixel c3, const olc::Pixel tint)
 {
 	PrepareTargetForHW();
 
 	return vecGPUTasks.emplace_back(
 		TaskFillPolygon(
-			GPUTask::Structure::Fan,
+			olc::Structure::Fan,
 			transformAffine.forwardRound<float>({ p1, p2, p3 }),
 			{ c1, c2, c3 },
-			olc::Colour::WHITE
+			tint
 		));
 }
 
@@ -391,10 +635,72 @@ const GPUTask& olc::Draw2D::TexturedTriangle(const olc::vf2d& p1, const olc::vf2
 
 	return vecGPUTasks.emplace_back(
 		TaskTexturedPolygon(
-			GPUTask::Structure::Fan,
+			olc::Structure::Fan,
 			transformAffine.forwardRound<float>({ p1, p2, p3 }),
 			{ c1, c2, c3 },
 			{ t1, t2, t3 },
+			&texture,
+			tint
+		));
+}
+
+const GPUTask& olc::Draw2D::Polygon(const std::vector<olc::vf2d>& vecPoints, const olc::Pixel col, const olc::Pixel tint)
+{
+	return Polygon(olc::Structure::Line, vecPoints, std::vector<olc::Pixel>(vecPoints.size(), col), tint);
+}
+
+const GPUTask& olc::Draw2D::Polygon(const std::vector<olc::vf2d>& vecPoints, const std::vector<olc::Pixel>& vecColours, const olc::Pixel tint)
+{
+	return Polygon(olc::Structure::Line, vecPoints, vecColours, tint);
+}
+
+const GPUTask& olc::Draw2D::Polygon(const olc::Structure structure, const std::vector<olc::vf2d>& vecPoints, const olc::Pixel col, const olc::Pixel tint)
+{
+	return Polygon(structure, vecPoints, std::vector<olc::Pixel>(vecPoints.size(), col), tint);
+}
+
+const GPUTask& olc::Draw2D::Polygon(const olc::Structure structure, const std::vector<olc::vf2d>& vecPoints, const std::vector<olc::Pixel>& vecColours, const olc::Pixel tint)
+{
+	PrepareTargetForHW();
+
+	return vecGPUTasks.emplace_back(
+		TaskDrawPolygon(
+			structure,
+			transformAffine.forwardRound<float>(vecPoints),
+			vecColours,
+			tint
+		));
+}
+
+const GPUTask& olc::Draw2D::FilledPolygon(const olc::Structure structure, const std::vector<olc::vf2d>& vecPoints, const olc::Pixel col, const olc::Pixel tint)
+{
+	return FilledPolygon(structure, vecPoints, std::vector<olc::Pixel>(vecPoints.size(), col), tint);
+}
+
+const GPUTask& olc::Draw2D::FilledPolygon(const olc::Structure structure, const std::vector<olc::vf2d>& vecPoints, const std::vector<olc::Pixel>& vecColours, const olc::Pixel tint)
+{
+	PrepareTargetForHW();
+
+	return vecGPUTasks.emplace_back(
+		TaskFillPolygon(
+			structure,
+			transformAffine.forwardRound<float>(vecPoints),
+			vecColours,
+			tint
+		));
+}
+
+const GPUTask& olc::Draw2D::TexturedPolygon(const olc::Structure structure, const std::vector<olc::vf2d>& vecPoints, const std::vector<olc::Pixel>& vecColours, const std::vector<olc::vf2d>& vecTexCoords, olc::Image& texture, const olc::Pixel tint)
+{
+	PrepareTargetForHW();
+	PrepareImageForHW(texture);
+
+	return vecGPUTasks.emplace_back(
+		TaskTexturedPolygon(
+			structure,
+			transformAffine.forwardRound<float>(vecPoints),
+			vecColours,
+			vecTexCoords,
 			&texture,
 			tint
 		));
@@ -501,7 +807,7 @@ const GPUTask& olc::Draw2D::Image(olc::ImageRegion image, const olc::vf2d& pos, 
 
 	return vecGPUTasks.emplace_back(
 		TaskTexturedPolygon(
-			GPUTask::Structure::Fan,
+			olc::Structure::Fan,
 			transformAffine.forwardRound<float>({ { pos.x, pos.y }, { pos.x + size.x, pos.y }, { pos.x + size.x, pos.y + size.y }, { pos.x, pos.y + size.y } }),
 			{ tint, tint, tint, tint },
 			// Tex coords are clockwise
@@ -530,7 +836,7 @@ const GPUTask& olc::Draw2D::ImageRotated(olc::ImageRegion image, const olc::vf2d
 
 	return vecGPUTasks.emplace_back(
 		TaskTexturedPolygon(
-			GPUTask::Structure::Fan,
+			olc::Structure::Fan,
 			transformAffine.forwardRound<float>(vPoints),
 			{ tint, tint, tint, tint},
 			{ image.coords[0], image.coords[1], image.coords[2], image.coords[3] },
@@ -572,7 +878,7 @@ const GPUTask& olc::Draw2D::ImageQuad(olc::ImageRegion image, const olc::vf2d& v
 	
 		return vecGPUTasks.emplace_back(
 			TaskTexturedPolygon(
-				GPUTask::Structure::Fan,
+				olc::Structure::Fan,
 				transformAffine.forwardRound<float>({ vTL, vTR, vBR, vBL }),
 				{ {q[0], 1.0f}, {q[1], 1.0f}, {q[2], 1.0f}, {q[3], 1.0f} },
 				{ tint, tint, tint, tint},
@@ -584,7 +890,7 @@ const GPUTask& olc::Draw2D::ImageQuad(olc::ImageRegion image, const olc::vf2d& v
 	// Default is just return a textured quad
 	return vecGPUTasks.emplace_back(
 		TaskTexturedPolygon(
-			GPUTask::Structure::Fan,
+			olc::Structure::Fan,
 			transformAffine.forwardRound<float>({ vTL, vTR, vBR, vBL }),
 			{ tint, tint, tint, tint },
 			{ image.coords[0], image.coords[1], image.coords[2], image.coords[3] },
@@ -607,7 +913,7 @@ const GPUTask& olc::Draw2D::ImageRect(olc::ImageRegion image, const olc::vf2d& p
 
 	return vecGPUTasks.emplace_back(
 		TaskTexturedPolygon(
-			GPUTask::Structure::Fan,
+			olc::Structure::Fan,
 			transformAffine.forwardRound<float>({ { pos.x, pos.y }, { pos.x + size.x, pos.y }, { pos.x + size.x, pos.y + size.y }, { pos.x, pos.y + size.y } }),
 			{ tint, tint, tint, tint },
 			// Tex coords are clockwise
