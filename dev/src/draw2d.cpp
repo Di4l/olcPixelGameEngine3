@@ -278,7 +278,7 @@ const GPUTask& Draw2D::Line(const olc::vf2d& p1, const olc::vf2d& p2, const olc:
 		));
 }
 
-const GPUTask& Draw2D::Line(const olc::vf2d& p1, const olc::vf2d& p2, const olc::Pixel c1, const olc::Pixel c2, const olc::Pixel tint)
+const GPUTask& Draw2D::Line(const olc::vf2d& p1, const olc::Pixel c1, const olc::vf2d& p2, const olc::Pixel c2, const olc::Pixel tint)
 {
 	PrepareTargetForHW();
 

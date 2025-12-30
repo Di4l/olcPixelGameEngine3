@@ -19,7 +19,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="test_sh.cpp" />
+    <ClCompile Include="..\..\..\examples\olcPGE3_Lines.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="olcPixelGameEngine3.h" />

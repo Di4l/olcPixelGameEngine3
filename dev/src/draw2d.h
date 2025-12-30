@@ -94,8 +94,8 @@ namespace olc
 		// Draws a single pixel wide line with a gradient		
 		const GPUTask& Line(
 			const olc::vf2d& p1, 
-			const olc::vf2d& p2, 
 			const olc::Pixel c1, 
+			const olc::vf2d& p2, 
 			const olc::Pixel c2,
 			const olc::Pixel tint = olc::Colour::WHITE);
 
