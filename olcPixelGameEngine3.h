@@ -1501,7 +1501,9 @@ namespace olc
 		// Vertex buffer is a strip of adjacent triangles
 		Strip,
 		// Vertex buffer is a series of discrete triangles
-		List
+		List, 
+		// Vertex buffer is a series of line segments, that close to form a loop
+		LineLoop
 	};
 	
 	// This is the default "packet" of work that is sent to 
@@ -7865,6 +7867,8 @@ namespace olc::gpu
 					gl.glUniform1i(shaderDefault.GetUniform("drawtype"), 1);
 				else if (task.structure == olc::Structure::Line)
 					gl.glUniform1i(shaderDefault.GetUniform("drawtype"), 1);
+				else if (task.structure == olc::Structure::LineLoop)
+					gl.glUniform1i(shaderDefault.GetUniform("drawtype"), 1);
 				else
 					gl.glUniform1i(shaderDefault.GetUniform("drawtype"), 0);
 
@@ -7876,6 +7880,8 @@ namespace olc::gpu
 					gl.glDrawArrays(GL_TRIANGLES, 0, (GLsizei)task.vertexBuffer.size());
 				else if (task.structure == olc::Structure::Line)
 					gl.glDrawArrays(GL_LINE_STRIP, 0, (GLsizei)task.vertexBuffer.size());
+				else if (task.structure == olc::Structure::LineLoop)
+					gl.glDrawArrays(GL_LINE_LOOP, 0, (GLsizei)task.vertexBuffer.size());
 				else if (task.structure == olc::Structure::Point)
 					gl.glDrawArrays(GL_POINTS, 0, (GLsizei)task.vertexBuffer.size());
 
@@ -8631,12 +8637,12 @@ const GPUTask& olc::Draw2D::TexturedTriangle(const olc::vf2d& p1, const olc::vf2
 
 const GPUTask& olc::Draw2D::Polygon(const std::vector<olc::vf2d>& vecPoints, const olc::Pixel col, const olc::Pixel tint)
 {
-	return Polygon(olc::Structure::Line, vecPoints, std::vector<olc::Pixel>(vecPoints.size(), col), tint);
+	return Polygon(olc::Structure::LineLoop, vecPoints, std::vector<olc::Pixel>(vecPoints.size(), col), tint);
 }
 
 const GPUTask& olc::Draw2D::Polygon(const std::vector<olc::vf2d>& vecPoints, const std::vector<olc::Pixel>& vecColours, const olc::Pixel tint)
 {
-	return Polygon(olc::Structure::Line, vecPoints, vecColours, tint);
+	return Polygon(olc::Structure::LineLoop, vecPoints, vecColours, tint);
 }
 
 const GPUTask& olc::Draw2D::Polygon(const olc::Structure structure, const std::vector<olc::vf2d>& vecPoints, const olc::Pixel col, const olc::Pixel tint)

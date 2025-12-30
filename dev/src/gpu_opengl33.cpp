@@ -606,6 +606,8 @@ namespace olc::gpu
 					gl.glUniform1i(shaderDefault.GetUniform("drawtype"), 1);
 				else if (task.structure == olc::Structure::Line)
 					gl.glUniform1i(shaderDefault.GetUniform("drawtype"), 1);
+				else if (task.structure == olc::Structure::LineLoop)
+					gl.glUniform1i(shaderDefault.GetUniform("drawtype"), 1);
 				else
 					gl.glUniform1i(shaderDefault.GetUniform("drawtype"), 0);
 
@@ -617,6 +619,8 @@ namespace olc::gpu
 					gl.glDrawArrays(GL_TRIANGLES, 0, (GLsizei)task.vertexBuffer.size());
 				else if (task.structure == olc::Structure::Line)
 					gl.glDrawArrays(GL_LINE_STRIP, 0, (GLsizei)task.vertexBuffer.size());
+				else if (task.structure == olc::Structure::LineLoop)
+					gl.glDrawArrays(GL_LINE_LOOP, 0, (GLsizei)task.vertexBuffer.size());
 				else if (task.structure == olc::Structure::Point)
 					gl.glDrawArrays(GL_POINTS, 0, (GLsizei)task.vertexBuffer.size());
 
