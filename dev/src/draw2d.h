@@ -47,12 +47,20 @@ namespace olc
 	
 
 	public: // Affine Transformation (these affect all subsequent draw calls for this target)
+		// Reset world transform to identity
 		void WorldReset();
+		// Apply world scaling
 		void WorldScale(const olc::vf2d& vScale);
+		// Apply world translation
 		void WorldOffset(const olc::vf2d& vOffset);
+		// Apply world rotation
 		void WorldRotate(const float& fTheta, const olc::vf2d& vPoint = { 0,0 });
+		
+		// World transforms
 		void SetWorldTransform(const olc::tf2d& trans);
 		olc::tf2d& GetWorldTransform();
+
+		// Coordinate transforms
 		olc::vf2d WorldToScreen(const olc::vf2d& v) const;
 		olc::vf2d ScreenToWorld(const olc::vf2d& v) const;
 
@@ -120,9 +128,33 @@ namespace olc
 			const olc::Pixel colBL, 
 			const olc::Pixel colBR,
 			const olc::Pixel tint = olc::Colour::WHITE);
+
+
 		
-		
-		//TexturedRect
+		// Draws a circle outline with a single colour
+		const GPUTask& Circle(
+			const olc::vf2d& pos,
+			const float& radius,
+			const olc::Pixel col = olc::Colour::WHITE,
+			const olc::Pixel tint = olc::Colour::WHITE,
+			int32_t nFacets = 32);
+
+		// Draws a filled circle with a single colour
+		const GPUTask& FilledCircle(
+			const olc::vf2d& pos,
+			const float& radius,
+			const olc::Pixel col = olc::Colour::WHITE,
+			const olc::Pixel tint = olc::Colour::WHITE,
+			int32_t nFacets = 32);
+
+		// Draws a shaded circle with a radial gradient
+		const GPUTask& FilledCircle(
+			const olc::vf2d& pos,
+			const float& radius,
+			const olc::Pixel colInner,
+			const olc::Pixel colOuter,
+			const olc::Pixel tint = olc::Colour::WHITE,
+			int32_t nFacets = 32);
 
 
 		//Circle

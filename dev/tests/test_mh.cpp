@@ -215,6 +215,9 @@ public:
 		draw.FilledRect(olc::vf2d{ 64.0f, 64.0f } - vScaledSize * 0.5, vScaledSize, olc::Pixel(255, 255, 0, 25));
 		draw.Rect(olc::vf2d{ 64.0f, 64.0f } - vScaledSize * 0.5, vScaledSize, olc::Colour::BLACK);
 
+		draw.FilledCircle(olc::vf2d{ 64.0f, 64.0f }, 15, olc::Colour::GREEN, olc::Pixel(0, 255, 0, 0), olc::Colour::WHITE, 16);
+		draw.Circle(olc::vf2d{ 64.0f, 64.0f }, 17, olc::Colour::BLACK, olc::Colour::WHITE, 16);
+
 
 
 	/*	draw.TexturedTriangle(
@@ -254,6 +257,9 @@ public:
 		for (int i = 0; i < vecTestPoints.size(); i++)
 		{
 			draw.Rect(vecTestPoints[i] - (vTestPointSize * 0.5f), vTestPointSize, olc::Colour::MAGENTA);
+
+			draw.FilledCircle(vecTestPoints[i], 15, olc::Colour::GREEN, olc::Pixel(0,255,0,0), olc::Colour::WHITE, 16);
+			draw.Circle(vecTestPoints[i], 17, olc::Colour::BLACK, olc::Colour::WHITE, 16);
 		}
 
 		
