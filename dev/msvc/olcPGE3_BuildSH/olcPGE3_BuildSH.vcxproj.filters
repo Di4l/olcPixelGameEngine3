@@ -24,6 +24,12 @@
     <ClCompile Include="..\..\..\examples\olcPGE3_Rectangles.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\examples\olcPGE3_CirclesEllipses.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\examples\olcPGE3_Polygons.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="olcPixelGameEngine3.h">

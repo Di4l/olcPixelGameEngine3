@@ -652,12 +652,12 @@ const GPUTask& olc::Draw2D::TexturedTriangle(const olc::vf2d& p1, const olc::vf2
 
 const GPUTask& olc::Draw2D::Polygon(const std::vector<olc::vf2d>& vecPoints, const olc::Pixel col, const olc::Pixel tint)
 {
-	return Polygon(olc::Structure::Line, vecPoints, std::vector<olc::Pixel>(vecPoints.size(), col), tint);
+	return Polygon(olc::Structure::LineLoop, vecPoints, std::vector<olc::Pixel>(vecPoints.size(), col), tint);
 }
 
 const GPUTask& olc::Draw2D::Polygon(const std::vector<olc::vf2d>& vecPoints, const std::vector<olc::Pixel>& vecColours, const olc::Pixel tint)
 {
-	return Polygon(olc::Structure::Line, vecPoints, vecColours, tint);
+	return Polygon(olc::Structure::LineLoop, vecPoints, vecColours, tint);
 }
 
 const GPUTask& olc::Draw2D::Polygon(const olc::Structure structure, const std::vector<olc::vf2d>& vecPoints, const olc::Pixel col, const olc::Pixel tint)
