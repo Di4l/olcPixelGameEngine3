@@ -1736,6 +1736,10 @@ namespace olc
 			olc::Image& image, 
 			const olc::vf2d& pos);
 
+		// Read a pixel from target image (guarantees fresh)
+		olc::Pixel GetPixel(			
+			const olc::vf2d& pos);
+
 		// Clear entire draw target to specific colour
 		void Clear(const olc::Pixel& col);
 	
@@ -8156,6 +8160,12 @@ olc::Pixel olc::Draw2D::GetPixel(olc::Image& image, const olc::vf2d& pos)
 {
 	PrepareImageForSW(image);
 	return image.Pixel(pos);
+}
+
+olc::Pixel olc::Draw2D::GetPixel(const olc::vf2d& pos)
+{
+	PrepareImageForSW(GetTarget());
+	return GetTarget().Pixel(pos);
 }
 
 void olc::Draw2D::Clear(const olc::Pixel& col)

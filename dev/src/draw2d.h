@@ -76,6 +76,10 @@ namespace olc
 			olc::Image& image, 
 			const olc::vf2d& pos);
 
+		// Read a pixel from target image (guarantees fresh)
+		olc::Pixel GetPixel(			
+			const olc::vf2d& pos);
+
 		// Clear entire draw target to specific colour
 		void Clear(const olc::Pixel& col);
 	

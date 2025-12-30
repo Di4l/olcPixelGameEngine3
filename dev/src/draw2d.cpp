@@ -183,6 +183,12 @@ olc::Pixel olc::Draw2D::GetPixel(olc::Image& image, const olc::vf2d& pos)
 	return image.Pixel(pos);
 }
 
+olc::Pixel olc::Draw2D::GetPixel(const olc::vf2d& pos)
+{
+	PrepareImageForSW(GetTarget());
+	return GetTarget().Pixel(pos);
+}
+
 void olc::Draw2D::Clear(const olc::Pixel& col)
 {
 	//PrepareImageForHW(*pTarget);

@@ -18,6 +18,9 @@
     <ClCompile Include="..\..\..\examples\olcPGE3_Lines.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\examples\olcPGE3_Pixels.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="olcPixelGameEngine3.h">
