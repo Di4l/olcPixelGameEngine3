@@ -183,6 +183,12 @@ olc::Pixel olc::Draw2D::GetPixel(olc::Image& image, const olc::vf2d& pos)
 	return image.Pixel(pos);
 }
 
+olc::Pixel olc::Draw2D::GetPixel(const olc::vf2d& pos)
+{
+	PrepareImageForSW(GetTarget());
+	return GetTarget().Pixel(pos);
+}
+
 void olc::Draw2D::Clear(const olc::Pixel& col)
 {
 	//PrepareImageForHW(*pTarget);
@@ -278,7 +284,7 @@ const GPUTask& Draw2D::Line(const olc::vf2d& p1, const olc::vf2d& p2, const olc:
 		));
 }
 
-const GPUTask& Draw2D::Line(const olc::vf2d& p1, const olc::vf2d& p2, const olc::Pixel c1, const olc::Pixel c2, const olc::Pixel tint)
+const GPUTask& Draw2D::Line(const olc::vf2d& p1, const olc::Pixel c1, const olc::vf2d& p2, const olc::Pixel c2, const olc::Pixel tint)
 {
 	PrepareTargetForHW();
 
@@ -317,16 +323,16 @@ const GPUTask& olc::Draw2D::Rect(const olc::vf2d& pos, const olc::vf2d& size, co
 	PrepareTargetForHW();
 
 	return vecGPUTasks.emplace_back(
-		TaskDrawPolygon(
-			olc::Structure::Fan,
+		TaskDrawLine(
 			transformAffine.forwardRound<float>({
-				olc::vf2d(pos.x + 0.0f, pos.y + 0.0f),
-				olc::vf2d(pos.x + size.x + 0.0f, pos.y + 0.0f),
-				olc::vf2d(pos.x + size.x + 0.0f, pos.y + size.y + 0.0f),
-				olc::vf2d(pos.x + 0.0f, pos.y + size.y + 0.0f),
+				olc::vf2d(pos.x, pos.y),
+				olc::vf2d(pos.x + size.x, pos.y),
+				olc::vf2d(pos.x + size.x, pos.y + size.y),
+				olc::vf2d(pos.x, pos.y + size.y),
+				olc::vf2d(pos.x, pos.y)
 				}),
-				{ colTL, colTR, colBR, colBL },
-				tint
+			{ colTL, colTR,  colBR,  colBL,  colTL },
+			tint
 				));
 }
 

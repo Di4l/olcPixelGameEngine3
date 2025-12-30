@@ -540,8 +540,8 @@ namespace olc::gpu
 			case GPUTask::Task::DrawPolygon:
 			{
 				
-				gl.glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-				//gl.glBlendFunc(GL_DST_COLOR, GL_ONE_MINUS_SRC_ALPHA);
+				//gl.glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+				gl.glBlendFunc(GL_DST_COLOR, GL_ONE_MINUS_SRC_ALPHA);
 
 				if (task.pImage == nullptr)
 					AssignTextureSource(0, imgBlank.GetGPUID());
@@ -596,8 +596,8 @@ namespace olc::gpu
 				//	gl.glEnable(GL_DEPTH_TEST);
 
 				gl.glEnable(GL_BLEND);
-				//gl.glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-				gl.glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+				gl.glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+				//gl.glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 
 				if (task.bWireframe)
 					gl.glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);

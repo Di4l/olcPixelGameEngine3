@@ -76,6 +76,10 @@ namespace olc
 			olc::Image& image, 
 			const olc::vf2d& pos);
 
+		// Read a pixel from target image (guarantees fresh)
+		olc::Pixel GetPixel(			
+			const olc::vf2d& pos);
+
 		// Clear entire draw target to specific colour
 		void Clear(const olc::Pixel& col);
 	
@@ -94,8 +98,8 @@ namespace olc
 		// Draws a single pixel wide line with a gradient		
 		const GPUTask& Line(
 			const olc::vf2d& p1, 
-			const olc::vf2d& p2, 
 			const olc::Pixel c1, 
+			const olc::vf2d& p2, 
 			const olc::Pixel c2,
 			const olc::Pixel tint = olc::Colour::WHITE);
 
