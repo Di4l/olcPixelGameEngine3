@@ -345,6 +345,17 @@ namespace olc
 			const olc::vf2d& scale = { 1.0f, 1.0f },
 			olc::Font& font = olc::fontClassicPGE);
 
+	public:
+		GPUTask CreateImageBatch(olc::Image& image);
+		const GPUTask& Batch(const GPUTask& task);
+
+		const GPUTask& BatchImage(
+			GPUTask& task,
+			olc::ImageRegion image,
+			const olc::vf2d& pos,
+			const olc::vf2d& scale = { 1.0f, 1.0f },
+			const olc::Pixel tint = olc::Colour::WHITE);
+
 	public: // Image Drawing Functions		
 		// Draws a scaled image at specified location
 		const GPUTask& Image(

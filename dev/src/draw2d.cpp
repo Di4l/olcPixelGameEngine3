@@ -718,6 +718,8 @@ const GPUTask& olc::Draw2D::String(const olc::vf2d& pos, const std::string& text
 
 	olc::vf2d spos = { 0.0f, 0.0f };
 
+	auto task = CreateImageBatch(font.imgFont);
+
 	for (auto c : text)
 	{
 		const auto& glyph = font.glyphs[c];
@@ -733,12 +735,12 @@ const GPUTask& olc::Draw2D::String(const olc::vf2d& pos, const std::string& text
 		}
 		else
 		{
-			Draw2D::Image(font.glyphs[c].imgGlyph, pos + spos, scale, col);
+			BatchImage(task, font.glyphs[c].imgGlyph, pos + spos, scale, col);
 			spos.x += glyph.vMonoSize.x * scale.x;
 		}
 	}
 
-	return vecGPUTasks.emplace_back();
+	return Batch(task);
 }
 
 const GPUTask& olc::Draw2D::StringProp(const olc::vf2d& pos, const std::string& text, const olc::Pixel col, const olc::vf2d& scale, olc::Font& font)
@@ -746,6 +748,7 @@ const GPUTask& olc::Draw2D::StringProp(const olc::vf2d& pos, const std::string& 
 	PrepareTargetForHW();
 
 	olc::vf2d spos = { 0.0f, 0.0f };
+	auto task = CreateImageBatch(font.imgFont);
 
 	for (auto c : text)
 	{
@@ -762,12 +765,12 @@ const GPUTask& olc::Draw2D::StringProp(const olc::vf2d& pos, const std::string& 
 		}
 		else
 		{
-			Draw2D::Image(font.glyphs[c].imgGlyph, pos + spos, scale, col);
+			BatchImage(task, font.glyphs[c].imgGlyph, pos + spos, scale, col);
 			spos.x += glyph.vPropSize.x * scale.x;
 		}
 	}
 
-	return vecGPUTasks.emplace_back();
+	return Batch(task);
 }
 
 olc::vf2d olc::Draw2D::GetTextSize(const std::string& text, const bool bProportional, const olc::vf2d& scale, olc::Font& font)
@@ -802,6 +805,45 @@ olc::vf2d olc::Draw2D::GetTextSize(const std::string& text, const bool bProporti
 	return size;	
 }
 
+GPUTask olc::Draw2D::CreateImageBatch(olc::Image &image)
+{
+	PrepareImageForHW(image);
+	PrepareTargetForHW();
+
+	GPUTask task;
+	task.structure = olc::Structure::List;
+	task.pImage = &image;
+	return task;
+}
+
+const GPUTask& olc::Draw2D::Batch(const GPUTask& task)
+{
+	return vecGPUTasks.emplace_back(task);
+}
+
+const GPUTask& olc::Draw2D::BatchImage(GPUTask& task, olc::ImageRegion image, const olc::vf2d& pos, const olc::vf2d& scale, const olc::Pixel tint)
+{
+	// Add quad to existing task
+	// Ensure source image is up to date in VRAM
+	
+	olc::vf2d size = image.regionsize * scale;
+	olc::vf2d p0 = transformAffine.forward(olc::vf2d{ pos.x, pos.y });
+	olc::vf2d p1 = transformAffine.forward(olc::vf2d{ pos.x + size.x, pos.y });
+	olc::vf2d p2 = transformAffine.forward(olc::vf2d{ pos.x + size.x, pos.y + size.y });
+	olc::vf2d p3 = transformAffine.forward(olc::vf2d{ pos.x, pos.y + size.y });
+	task.vertexBuffer.push_back({ p0.x, p0.y, 1.0f, 1.0f, tint, image.coords[0].x, image.coords[0].y, 0, 0, 0, 0, 0, 0 });
+	task.vertexBuffer.push_back({ p1.x, p1.y, 1.0f, 1.0f, tint, image.coords[1].x, image.coords[1].y, 0, 0, 0, 0, 0, 0 });
+	task.vertexBuffer.push_back({ p2.x, p2.y, 1.0f, 1.0f, tint, image.coords[2].x, image.coords[2].y, 0, 0, 0, 0, 0, 0 });
+	task.vertexBuffer.push_back({ p0.x, p0.y, 1.0f, 1.0f, tint, image.coords[0].x, image.coords[0].y, 0, 0, 0, 0, 0, 0 });
+	task.vertexBuffer.push_back({ p2.x, p2.y, 1.0f, 1.0f, tint, image.coords[2].x, image.coords[2].y, 0, 0, 0, 0, 0, 0 });
+	task.vertexBuffer.push_back({ p3.x, p3.y, 1.0f, 1.0f, tint, image.coords[3].x, image.coords[3].y, 0, 0, 0, 0, 0, 0 });
+	
+	task.tint = tint;
+
+
+	return task;
+}
+
 const GPUTask& olc::Draw2D::Image(olc::ImageRegion image, const olc::vf2d& pos, const olc::vf2d& scale, const olc::Pixel tint)
 {
 	// Ensure source image is up to date in VRAM
@@ -814,12 +856,18 @@ const GPUTask& olc::Draw2D::Image(olc::ImageRegion image, const olc::vf2d& pos, 
 	return vecGPUTasks.emplace_back(
 		TaskTexturedPolygon(
 			olc::Structure::Fan,
-			transformAffine.forwardRound<float>({ { pos.x, pos.y }, { pos.x + size.x, pos.y }, { pos.x + size.x, pos.y + size.y }, { pos.x, pos.y + size.y } }),
+			transformAffine.forward<float>({ { pos.x, pos.y }, { pos.x + size.x, pos.y }, { pos.x + size.x, pos.y + size.y }, { pos.x, pos.y + size.y } }),
 			{ tint, tint, tint, tint },
 			// Tex coords are clockwise
-			{ image.coords[0], image.coords[1], image.coords[2], image.coords[3]},
+			{ 
+				image.coords[0],
+				image.coords[1],
+				image.coords[2],
+				image.coords[3],
+			},
 			&image.image
 		));
+
 }
 
 const GPUTask& olc::Draw2D::ImageRotated(olc::ImageRegion image, const olc::vf2d& pos, const float theta, const olc::vf2d& center, const olc::vf2d& scale, const olc::Pixel tint)

@@ -543,10 +543,14 @@ namespace olc::gpu
 				//gl.glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 				gl.glBlendFunc(GL_DST_COLOR, GL_ONE_MINUS_SRC_ALPHA);
 
+
 				if (task.pImage == nullptr)
 					AssignTextureSource(0, imgBlank.GetGPUID());
 				else
-					AssignTextureSource(0, task.pImage->GetGPUID());
+				{
+					if (nCurrentTextureSource != task.pImage->GetGPUID())
+						AssignTextureSource(0, task.pImage->GetGPUID());
+				}
 
 				// Bind generic vertex buffer
 				gl.glBindVertexArray(nDefaultVA);
