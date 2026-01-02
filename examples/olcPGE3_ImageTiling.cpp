@@ -156,7 +156,7 @@ public:
 
 		size_t nTileCount = 0;
 
-		auto task = draw.CreateBatch(imTiles);
+		auto task = draw.CreateImageBatch(imTiles);
 		// Draw visible tiles
 		for (int y = -vVisibleGridExtents.y; y < vVisibleGridExtents.y; y++)
 		{
@@ -179,13 +179,13 @@ public:
 				
 				//draw.Image(imTiles.region(vTileIndex * 16.0f, { 16, 16 }), vWorldPos);
 
-				draw.BatchedImage(task, imTiles.region(vTileIndex * 16.0f, { 16, 16 }), vWorldPos);
+				draw.BatchImage(task, imTiles.region(vTileIndex * 16.0f, { 16, 16 }), vWorldPos);
 
 				nTileCount++;
 			}
 		}
 
-		draw.DrawBatch(task);
+		draw.Batch(task);
 
 		draw.WorldReset();
 		draw.String({ 2,2 }, "Tiles: " + std::to_string(nTileCount), olc::Colour::WHITE);

@@ -2008,10 +2008,10 @@ namespace olc
 			olc::Font& font = olc::fontClassicPGE);
 
 	public:
-		GPUTask CreateBatch(olc::Image& image);
-		const GPUTask& DrawBatch(const GPUTask& task);
+		GPUTask CreateImageBatch(olc::Image& image);
+		const GPUTask& Batch(const GPUTask& task);
 
-		const GPUTask& BatchedImage(
+		const GPUTask& BatchImage(
 			GPUTask& task,
 			olc::ImageRegion image,
 			const olc::vf2d& pos,
@@ -8718,7 +8718,7 @@ const GPUTask& olc::Draw2D::String(const olc::vf2d& pos, const std::string& text
 
 	olc::vf2d spos = { 0.0f, 0.0f };
 
-	auto task = CreateBatch(font.imgFont);
+	auto task = CreateImageBatch(font.imgFont);
 
 	for (auto c : text)
 	{
@@ -8735,14 +8735,12 @@ const GPUTask& olc::Draw2D::String(const olc::vf2d& pos, const std::string& text
 		}
 		else
 		{
-			BatchedImage(task, font.glyphs[c].imgGlyph, pos + spos, scale, col);
-			//Draw2D::Image(font.glyphs[c].imgGlyph, pos + spos, scale, col);
+			BatchImage(task, font.glyphs[c].imgGlyph, pos + spos, scale, col);
 			spos.x += glyph.vMonoSize.x * scale.x;
 		}
 	}
 
-	return DrawBatch(task);
-	//return vecGPUTasks.emplace_back();
+	return Batch(task);
 }
 
 const GPUTask& olc::Draw2D::StringProp(const olc::vf2d& pos, const std::string& text, const olc::Pixel col, const olc::vf2d& scale, olc::Font& font)
@@ -8750,7 +8748,7 @@ const GPUTask& olc::Draw2D::StringProp(const olc::vf2d& pos, const std::string& 
 	PrepareTargetForHW();
 
 	olc::vf2d spos = { 0.0f, 0.0f };
-	auto task = CreateBatch(font.imgFont);
+	auto task = CreateImageBatch(font.imgFont);
 
 	for (auto c : text)
 	{
@@ -8767,14 +8765,12 @@ const GPUTask& olc::Draw2D::StringProp(const olc::vf2d& pos, const std::string& 
 		}
 		else
 		{
-			//Draw2D::Image(font.glyphs[c].imgGlyph, pos + spos, scale, col);
-			BatchedImage(task, font.glyphs[c].imgGlyph, pos + spos, scale, col);
+			BatchImage(task, font.glyphs[c].imgGlyph, pos + spos, scale, col);
 			spos.x += glyph.vPropSize.x * scale.x;
 		}
 	}
 
-	//return vecGPUTasks.emplace_back();
-	return DrawBatch(task);
+	return Batch(task);
 }
 
 olc::vf2d olc::Draw2D::GetTextSize(const std::string& text, const bool bProportional, const olc::vf2d& scale, olc::Font& font)
@@ -8809,7 +8805,7 @@ olc::vf2d olc::Draw2D::GetTextSize(const std::string& text, const bool bProporti
 	return size;	
 }
 
-GPUTask olc::Draw2D::CreateBatch(olc::Image &image)
+GPUTask olc::Draw2D::CreateImageBatch(olc::Image &image)
 {
 	PrepareImageForHW(image);
 	PrepareTargetForHW();
@@ -8820,12 +8816,12 @@ GPUTask olc::Draw2D::CreateBatch(olc::Image &image)
 	return task;
 }
 
-const GPUTask& olc::Draw2D::DrawBatch(const GPUTask& task)
+const GPUTask& olc::Draw2D::Batch(const GPUTask& task)
 {
 	return vecGPUTasks.emplace_back(task);
 }
 
-const GPUTask& olc::Draw2D::BatchedImage(GPUTask& task, olc::ImageRegion image, const olc::vf2d& pos, const olc::vf2d& scale, const olc::Pixel tint)
+const GPUTask& olc::Draw2D::BatchImage(GPUTask& task, olc::ImageRegion image, const olc::vf2d& pos, const olc::vf2d& scale, const olc::Pixel tint)
 {
 	// Add quad to existing task
 	// Ensure source image is up to date in VRAM
