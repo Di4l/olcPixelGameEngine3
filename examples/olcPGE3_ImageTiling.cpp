@@ -179,7 +179,7 @@ public:
 				
 				//draw.Image(imTiles.region(vTileIndex * 16.0f, { 16, 16 }), vWorldPos);
 
-				draw.BatchImage(task, imTiles.region(vTileIndex * 16.0f, { 16, 16 }), vWorldPos);
+				draw.Image(task, imTiles.region(vTileIndex * 16.0f, { 16, 16 }), vWorldPos);
 
 				nTileCount++;
 			}
