@@ -844,20 +844,22 @@ const GPUTask& olc::Draw2D::Batch(const olc::LineBatch& batch)
 const ImageBatch& olc::Draw2D::Image(ImageBatch& batch, olc::ImageRegion image, const olc::vf2d& pos, const olc::vf2d& scale, const olc::Pixel tint)
 {
 	// Add quad to existing task
-	// Ensure source image is up to date in VRAM
-	
 	olc::vf2d size = image.regionsize * scale;
+
 	olc::vf2d p0 = transformAffine.forward(olc::vf2d{ pos.x, pos.y });
 	olc::vf2d p1 = transformAffine.forward(olc::vf2d{ pos.x + size.x, pos.y });
 	olc::vf2d p2 = transformAffine.forward(olc::vf2d{ pos.x + size.x, pos.y + size.y });
 	olc::vf2d p3 = transformAffine.forward(olc::vf2d{ pos.x, pos.y + size.y });
+
 	batch.task.vertexBuffer.push_back({ p0.x, p0.y, 1.0f, 1.0f, tint, image.coords[0].x, image.coords[0].y, 0, 0, 0, 0, 0, 0 });
 	batch.task.vertexBuffer.push_back({ p1.x, p1.y, 1.0f, 1.0f, tint, image.coords[1].x, image.coords[1].y, 0, 0, 0, 0, 0, 0 });
 	batch.task.vertexBuffer.push_back({ p2.x, p2.y, 1.0f, 1.0f, tint, image.coords[2].x, image.coords[2].y, 0, 0, 0, 0, 0, 0 });
 	batch.task.vertexBuffer.push_back({ p0.x, p0.y, 1.0f, 1.0f, tint, image.coords[0].x, image.coords[0].y, 0, 0, 0, 0, 0, 0 });
 	batch.task.vertexBuffer.push_back({ p2.x, p2.y, 1.0f, 1.0f, tint, image.coords[2].x, image.coords[2].y, 0, 0, 0, 0, 0, 0 });
 	batch.task.vertexBuffer.push_back({ p3.x, p3.y, 1.0f, 1.0f, tint, image.coords[3].x, image.coords[3].y, 0, 0, 0, 0, 0, 0 });
+	
 	batch.task.tint = tint;
+
 	return batch;
 }
 
@@ -915,6 +917,38 @@ const GPUTask& olc::Draw2D::ImageRotated(olc::ImageRegion image, const olc::vf2d
 		));
 }
 
+const ImageBatch& olc::Draw2D::ImageRotated(olc::ImageBatch& batch, olc::ImageRegion image, const olc::vf2d& pos, const float theta, const olc::vf2d& center, const olc::vf2d& scale, const olc::Pixel tint)
+{
+	// Add quad to existing task
+	olc::vf2d size = image.regionsize * scale;
+
+	std::array<olc::vf2d, 4> vPoints;
+	vPoints[0] = (olc::vf2d(0.0f, 0.0f) - center) * scale;
+	vPoints[1] = (olc::vf2d(size.x, 0.0f) - center) * scale;
+	vPoints[2] = (size - center) * scale;
+	vPoints[3] = (olc::vf2d(0.0f, size.y) - center) * scale;
+
+	float c = cos(theta), s = sin(theta);
+	for (int i = 0; i < 4; i++)
+		vPoints[i] = pos + olc::vf2d(vPoints[i].x * c - vPoints[i].y * s, vPoints[i].x * s + vPoints[i].y * c);
+
+	olc::vf2d p0 = transformAffine.forward(vPoints[0]);
+	olc::vf2d p1 = transformAffine.forward(vPoints[1]);
+	olc::vf2d p2 = transformAffine.forward(vPoints[2]);
+	olc::vf2d p3 = transformAffine.forward(vPoints[3]);
+
+	batch.task.vertexBuffer.push_back({ p0.x, p0.y, 1.0f, 1.0f, tint, image.coords[0].x, image.coords[0].y, 0, 0, 0, 0, 0, 0 });
+	batch.task.vertexBuffer.push_back({ p1.x, p1.y, 1.0f, 1.0f, tint, image.coords[1].x, image.coords[1].y, 0, 0, 0, 0, 0, 0 });
+	batch.task.vertexBuffer.push_back({ p2.x, p2.y, 1.0f, 1.0f, tint, image.coords[2].x, image.coords[2].y, 0, 0, 0, 0, 0, 0 });
+	batch.task.vertexBuffer.push_back({ p0.x, p0.y, 1.0f, 1.0f, tint, image.coords[0].x, image.coords[0].y, 0, 0, 0, 0, 0, 0 });
+	batch.task.vertexBuffer.push_back({ p2.x, p2.y, 1.0f, 1.0f, tint, image.coords[2].x, image.coords[2].y, 0, 0, 0, 0, 0, 0 });
+	batch.task.vertexBuffer.push_back({ p3.x, p3.y, 1.0f, 1.0f, tint, image.coords[3].x, image.coords[3].y, 0, 0, 0, 0, 0, 0 });
+
+	batch.task.tint = tint;
+
+	return batch;
+}
+
 const GPUTask& olc::Draw2D::ImageQuad(olc::ImageRegion image, const olc::vf2d& vTL, const olc::vf2d& vTR, const olc::vf2d& vBR, const olc::vf2d& vBL, const olc::Pixel tint)
 {
 	// Ensure source image is up to date in VRAM
@@ -956,6 +990,7 @@ const GPUTask& olc::Draw2D::ImageQuad(olc::ImageRegion image, const olc::vf2d& v
 				{ image.coords[0] * q[0], image.coords[1] * q[1], image.coords[2] * q[2], image.coords[3] * q[3] },
 				&image.image
 			));		
+		
 	}
 
 	// Default is just return a textured quad
@@ -969,9 +1004,61 @@ const GPUTask& olc::Draw2D::ImageQuad(olc::ImageRegion image, const olc::vf2d& v
 		));
 }
 
+const ImageBatch& olc::Draw2D::ImageQuad(olc::ImageBatch& batch, olc::ImageRegion image, const olc::vf2d& vTL, const olc::vf2d& vTR, const olc::vf2d& vBR, const olc::vf2d& vBL, const olc::Pixel tint)
+{
+	float rd = ((vBR.x - vTL.x) * (vTR.y - vBL.y) - (vTR.x - vBL.x) * (vBR.y - vTL.y));
+	if (rd != 0)
+	{
+		rd = 1.0f / rd;
+		float rn = ((vTR.x - vBL.x) * (vTL.y - vBL.y) - (vTR.y - vBL.y) * (vTL.x - vBL.x)) * rd;
+		float sn = ((vBR.x - vTL.x) * (vTL.y - vBL.y) - (vBR.y - vTL.y) * (vTL.x - vBL.x)) * rd;
+
+		olc::vf2d center;
+		if (!(rn < 0.f || rn > 1.f || sn < 0.f || sn > 1.f))
+			center = vTL + rn * (vBR - vTL);
+
+		std::array<float, 4> d = { {
+			(vTL - center).mag(),
+			(vTR - center).mag(),
+			(vBR - center).mag(),
+			(vBL - center).mag(),
+		} };
+
+		std::array<float, 4> q = { {
+			d[0] == 0.0f ? 1.0f : (d[0] + d[2]) / d[2],
+			d[1] == 0.0f ? 1.0f : (d[1] + d[3]) / d[3],
+			d[2] == 0.0f ? 1.0f : (d[2] + d[0]) / d[0],
+			d[3] == 0.0f ? 1.0f : (d[3] + d[1]) / d[1],
+		} };
+
+		olc::vf2d p0 = transformAffine.forward(vTL);
+		olc::vf2d p1 = transformAffine.forward(vTR);
+		olc::vf2d p2 = transformAffine.forward(vBR);
+		olc::vf2d p3 = transformAffine.forward(vBL);
+
+		batch.task.vertexBuffer.push_back({ p0.x, p0.y, q[0], 1.0f, tint, q[0] * image.coords[0].x, q[0] * image.coords[0].y, 0, 0, 0, 0, 0, 0});
+		batch.task.vertexBuffer.push_back({ p1.x, p1.y, q[1], 1.0f, tint, q[1] * image.coords[1].x, q[1] * image.coords[1].y, 0, 0, 0, 0, 0, 0});
+		batch.task.vertexBuffer.push_back({ p2.x, p2.y, q[2], 1.0f, tint, q[2] * image.coords[2].x, q[2] * image.coords[2].y, 0, 0, 0, 0, 0, 0});
+		batch.task.vertexBuffer.push_back({ p0.x, p0.y, q[0], 1.0f, tint, q[0] * image.coords[0].x, q[0] * image.coords[0].y, 0, 0, 0, 0, 0, 0});
+		batch.task.vertexBuffer.push_back({ p2.x, p2.y, q[2], 1.0f, tint, q[2] * image.coords[2].x, q[2] * image.coords[2].y, 0, 0, 0, 0, 0, 0});
+		batch.task.vertexBuffer.push_back({ p3.x, p3.y, q[3], 1.0f, tint, q[3] * image.coords[3].x, q[3] * image.coords[3].y, 0, 0, 0, 0, 0, 0});
+
+		batch.task.tint = tint;
+		return batch;
+	}
+
+	// Default is just return a textured quad
+	return Draw2D::Image(batch, image, vTL, vBR - vTL, tint);
+}
+
 const GPUTask& olc::Draw2D::ImageQuad(olc::ImageRegion image, const std::vector<olc::vf2d>& vecPoints, const olc::Pixel tint)
 {
 	return ImageQuad(image, vecPoints[0], vecPoints[1], vecPoints[2], vecPoints[3], tint);
+}
+
+const ImageBatch& olc::Draw2D::ImageQuad(olc::ImageBatch& batch, olc::ImageRegion image, const std::vector<olc::vf2d>& vecPoints, const olc::Pixel tint)
+{
+	return ImageQuad(batch, image, vecPoints[0], vecPoints[1], vecPoints[2], vecPoints[3], tint);
 }
 
 
@@ -991,6 +1078,11 @@ const GPUTask& olc::Draw2D::ImageRect(olc::ImageRegion image, const olc::vf2d& p
 			{ image.coords[3], image.coords[2], image.coords[1], image.coords[0] },
 			&image.image
 		));
+}
+
+const ImageBatch& olc::Draw2D::ImageRect(olc::ImageBatch& batch, olc::ImageRegion image, const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel tint)
+{
+	// TODO: insert return statement here
 }
 
 //! END IMPLEMENTATION

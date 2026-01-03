@@ -1,7 +1,7 @@
 /*
 	olc::PixelGameEngine3 Example - Image Tiling
 
-	Shows a pannable & zoomable tiled image background
+	Shows a pannable & zoomable & rotatable tiled image background
 
 	Licenced under the OLC-3 License
 */
@@ -12,108 +12,44 @@
 #define OLC_PGE3_APPLICATION
 #include "../olcPixelGameEngine3.h"
 
+// NOTE! This is example is slightly more complicated because it also
+// does the following things:
+// 1) It implements a pannable, zoomable & rotating world using the
+//    olc::tf2d affine transform class built into PGE3
+// 2) It uses "draw batching" to speed up the rendering of many tiles
+//    by reducing the number of draw calls made to the graphics hardware
+// 3) It roughly draws tiles that are visible within the current rotated
+//    view, though this is highly approximate
+
+// EXPERIMENTS!
+// 1) Try changing the size of the constructed "screen" to see how it
+//    affects performance and tile sampling quality. For example:
+//    demo.Construct({ 1024, 960 }, { 1, 1 }))
+// 2) Remove the draw batching code to see how it affects performance
+//    by just using direct draw calls.
+
 // Example application demonstrating image tiling. This class
 // overrides the olc::PixelGameEngine base class by implementing
 // the OnUserCreate() and OnUserUpdate() functions
-class Example_Pixels : public olc::PixelGameEngine
+class Example_ImageTiling : public olc::PixelGameEngine
 {
 public:
-	Example_Pixels()
+	Example_ImageTiling()
 	{
 
 	}
 
 protected:
-	// We accumulate total time for some animation
-	float fTotalTime = 0.0f;
-	int x = 0;
-
+	// This is our tile atlas image, it contains 16 tiles arranged
+	// in a 4x4 grid, each tile is 16x16 pixels in size
 	olc::Image imTiles;
 
-	bool bPanning = false;
-	olc::vf2d vLastMouseScreenPos = { 0.0f, 0.0f };
-	olc::tf2d transform;
-
-	void HandlePanAndZoom()
-	{
-		if (mouse.GetButton(0).bPressed)
-		{
-			transform = olc::tf2d(); // Reset transform
-		}
-
-		if (mouse.GetButton(2).bPressed)
-		{
-			bPanning = true;
-			vLastMouseScreenPos = mouse.GetPosition();
-		}
-
-		if (mouse.GetButton(2).bReleased)
-		{
-			bPanning = false;
-		}
-
-		olc::vf2d vMousePos = mouse.GetPosition();
-
-		if (bPanning)
-		{
-			transform.translate((transform.translate() + olc::vf2d(vMousePos.x - vLastMouseScreenPos.x, vMousePos.y - vLastMouseScreenPos.y)).round());
-		}
-
-		if (mouse.GetWheel() != 0)
-		{
-			if (mouse.GetButton(1).bHeld)
-			{
-				// Rotate around mouse pos
-				auto posWorldBeforeRotate = transform.inverse(vLastMouseScreenPos);
-
-				if (mouse.GetWheel() > 0)
-					transform.rotate(transform.rotate() + 0.1f, posWorldBeforeRotate);
-				else
-					transform.rotate(transform.rotate() - 0.1f, posWorldBeforeRotate);
-
-				// Adjust translation to keep mouse position stable
-				auto posScreenAfterRotate = transform.forward(posWorldBeforeRotate);
-				auto posScreenDisplacement = vLastMouseScreenPos - posScreenAfterRotate;
-				transform.translate(transform.translate() + posScreenDisplacement);
-			}
-			else
-			{
-				// Zoom around mouse pos
-				auto posBeforeScale = transform.inverse(vLastMouseScreenPos);
-
-				if (mouse.GetWheel() > 0)
-					transform.scale(transform.scale() * 1.1f);
-				else
-					transform.scale(transform.scale() * 0.9f);
-
-				// Adjust translation to keep mouse position stable
-				auto posAfterScale = transform.forward(posBeforeScale);
-				auto posScreenDisplacement = vLastMouseScreenPos - posAfterScale;
-				transform.translate((transform.translate() + posScreenDisplacement).round());
-			}
-		}
-
-		draw.SetWorldTransform(transform);
-		vLastMouseScreenPos = vMousePos;
-	}
-
-
-	std::vector<olc::Pixel> vecPolygonColours;
 public:
 	// Called once at the start, so create things here
 	bool OnUserCreate() override
 	{
 		
-		CreateImageFromFile(imTiles, "H:/HumbleBundle/smario.png");
-
-		vecPolygonColours = {
-			olc::Colour::RED, olc::Colour::TANGERINE, olc::Colour::YELLOW, olc::Colour::GREEN,
-			olc::Colour::CYAN, olc::Colour::BLUE, olc::Colour::MAGENTA,	olc::Colour::WHITE,
-			olc::Colour::RED, olc::Colour::TANGERINE, olc::Colour::YELLOW, olc::Colour::GREEN,
-			olc::Colour::CYAN, olc::Colour::BLUE, olc::Colour::MAGENTA,	olc::Colour::WHITE,
-			olc::Colour::RED, olc::Colour::TANGERINE, olc::Colour::YELLOW, olc::Colour::GREEN,
-			olc::Colour::CYAN, olc::Colour::BLUE, olc::Colour::MAGENTA,	olc::Colour::WHITE,
-		};
+		CreateImageFromFile(imTiles, "./assets/tile_atlas_4x4_16x16.png");
 
 		return true;
 	}
@@ -124,30 +60,34 @@ public:
 		// Clear screen to dark blue
 		draw.Clear(olc::Colour::VERY_DARK_BLUE);
 
-
+		// See Below for implementation
 		HandlePanAndZoom();
 
+		// Work out roughly which tiles are visible on screen. Because
+		// the world can be rotated, this is only approximate but is
+		// important to reduce the number of tiles we attempt to draw.
 
-		// Get visible tile region
-		olc::vf2d vViewPos = draw.ScreenToWorld({ 0.0f, 0.0f });
-		olc::vf2d vViewSize = draw.ScreenToWorld(draw.GetTargetSize());
-
-		olc::vi2d vTileStart = (vViewPos / 16.0f).floor();
-		olc::vi2d vTileEnd = ((vViewSize) / 16.0f).ceil();
+		// Of course, without rotation, this is can be calculated exactly
+		// and would be a simple rectangle.
 
 		// Get four corners of screen in world space
 		olc::vf2d vTopLeft = draw.ScreenToWorld(olc::vf2d{ 0.0f, 0.0f });
 		olc::vf2d vBottomRight = draw.ScreenToWorld(draw.GetTargetSize());
 
-		// Work out radius of circle required to cover screen
+		// Work out radius of circle required to cover screen, i.e. passes
+		// through all four corners. This is in world space units. 1 unit 
+		// of world space is a 16x16 tile. These extents are in tiles and
+		// assume the origin of the world
 		float fScreenRadius = (vBottomRight - vTopLeft).mag() * 0.5f;
 		olc::vi2d vVisibleGridExtents = {
 			static_cast<int>(std::ceil(fScreenRadius / 16.0f)),
 			static_cast<int>(std::ceil(fScreenRadius / 16.0f))
 		};
 
+		// Find center of screen in world space
 		olc::vf2d vScreenCenter = draw.ScreenToWorld(draw.GetTargetSize() * 0.5f);
-		//vScreenCenter /= 16.0f;
+
+		// Snap center to nearest tile to avoid jitter/locking when panning
 		olc::vf2d vSnappedCenter = {
 				std::round(vScreenCenter.x / 16.0f) * 16.0f,
 				std::round(vScreenCenter.y / 16.0f) * 16.0f
@@ -156,174 +96,183 @@ public:
 
 		size_t nTileCount = 0;
 
-		auto task = draw.CreateImageBatch(imTiles);
+		// Create a draw batch to speed up rendering. We can do this because
+		// all tiles are from the same image source. This minimises the number
+		// of draw calls we make to the graphics hardware.
+		auto batch = draw.CreateImageBatch(imTiles);
+
 		// Draw visible tiles
 		for (int y = -vVisibleGridExtents.y; y < vVisibleGridExtents.y; y++)
 		{
 			for (int x = -vVisibleGridExtents.x; x < vVisibleGridExtents.x; x++)
 			{
+				// Tile position relative to origin
 				olc::vi2d vTilePos = olc::vi2d{ x, y };
+
+				// Translate tile position to world space
 				olc::vf2d vWorldPos = vSnappedCenter + (vTilePos * 16.0f);
 
 				// Only draw tiles that are actually visible, accounting for rotation
+				// This is highly approximate, but good enough for our needs and has
+				// on average 100% error XD
 				if ((vWorldPos - vScreenCenter).mag2() > (fScreenRadius + 16.0f) * (fScreenRadius + 16.0f))
 					continue;
 			
+				// Determine which tile to draw from tile atlas. We can't use rand()
+				// here because we want the same tiles to appear in the same place 
+				// every frame, so we use a simple manipulation based on tile position
+				// in world space.
 				long a = (vTilePos.x + int(vSnappedCenter.x / 16.0f));
 				long b = (vTilePos.y + int(vSnappedCenter.y / 16.0f));
-				long idx = ((b + 16) % 16);
-				long idy = ((a + 16) % 16);
-				olc::vi2d vTileIndex = { idy, idx }; // wrap around negative coords
 
-				//draw.FilledRect(vWorldPos, { 16.0f, 16.0f }, vecPolygonColours[id % vecPolygonColours.size()]);
-				
+				// Wrap tile indices to 0-3 range, including negative coords
+				long idx = ((b + 4) % 4);
+				long idy = ((a + 4) % 4);
+
+				// Tile index in tile atlas in tile units
+				olc::vi2d vTileIndex = { idy, idx };
+
+				// Extract tile from tile atlas using the region() function, specifying
+				// in pixels the top left corner of the tile and its size.
+				// Draw extracted tile at calculated world position. The applied affine
+				// transform will take care of rotation, scaling and translation
+				// We are drawing to a batch for speed.
+				draw.Image(batch, imTiles.region(vTileIndex * 16.0f, { 16, 16 }), vWorldPos);
+
+				// Experiment 2
+				// Uncomment below, and comment above to see individual draw calls instead of 
+				// batching. This will be much slower!
 				//draw.Image(imTiles.region(vTileIndex * 16.0f, { 16, 16 }), vWorldPos);
 
-				draw.Image(task, imTiles.region(vTileIndex * 16.0f, { 16, 16 }), vWorldPos);
-
+				// Count tiles drawn
 				nTileCount++;
 			}
 		}
 
-		draw.Batch(task);
+		// Finally, draw the batch to the screen
+		draw.Batch(batch);
 
+		// Reset the world transform to draw to the screen directly
 		draw.WorldReset();
+		// Display number of tiles drawn with a shadow
+		draw.String({ 3,3 }, "Tiles: " + std::to_string(nTileCount), olc::Colour::BLACK);
 		draw.String({ 2,2 }, "Tiles: " + std::to_string(nTileCount), olc::Colour::WHITE);
-
 		
-
-		std::string lorem = R"(
-		Lorem ipsum dolor sit amet consectetur adipiscing elit.Quisque faucibus ex sapien vitae pellentesque sem placerat.
-		In id cursus mi pretium tellus duis convallis.Tempus leo eu aenean sed diam urna tempor.Pulvinar vivamus fringilla 
-		lacus nec metus bibendum egestas.Iaculis massa nisl malesuada lacinia integer nunc posuere.Ut hendrerit semper vel 
-		class aptent taciti sociosqu.Ad litora torquent per conubia nostra inceptos himenaeos.
-		Lorem ipsum dolor sit amet consectetur adipiscing elit.Quisque faucibus ex sapien vitae pellentesque sem placerat.
-		In id cursus mi pretium tellus duis convallis.Tempus leo eu aenean sed diam urna tempor.Pulvinar vivamus fringilla
-		lacus nec metus bibendum egestas.Iaculis massa nisl malesuada lacinia integer nunc posuere.Ut hendrerit semper vel 
-		class aptent taciti sociosqu.Ad litora torquent per conubia nostra inceptos himenaeos.
-		Lorem ipsum dolor sit amet consectetur adipiscing elit.Quisque faucibus ex sapien vitae pellentesque sem placerat
-		In id cursus mi pretium tellus duis convallis.Tempus leo eu aenean sed diam urna tempor.Pulvinar vivamus fringilla 
-		lacus nec metus bibendum egestas.Iaculis massa nisl malesuada lacinia integer nunc posuere.Ut hendrerit semper vel 
-		class aptent taciti sociosqu.Ad litora torquent per conubia nostra inceptos himenaeos.
-		Lorem ipsum dolor sit amet consectetur adipiscing elit.Quisque faucibus ex sapien vitae pellentesque sem placerat
-		In id cursus mi pretium tellus duis convallis.Tempus leo eu aenean sed diam urna tempor.Pulvinar vivamus fringilla 
-		lacus nec metus bibendum egestas.Iaculis massa nisl malesuada lacinia integer nunc posuere.Ut hendrerit semper vel 
-		class aptent taciti sociosqu.Ad litora torquent per conubia nostra inceptos himenaeos.
-		Lorem ipsum dolor sit amet consectetur adipiscing elit.Quisque faucibus ex sapien vitae pellentesque sem placerat.
-		In id cursus mi pretium tellus duis convallis.Tempus leo eu aenean sed diam urna tempor.Pulvinar vivamus fringilla 
-		lacus nec metus bibendum egestas.Iaculis massa nisl malesuada lacinia integer nunc posuere.Ut hendrerit semper vel 
-		class aptent taciti sociosqu.Ad litora torquent per conubia nostra inceptos himenaeos.
-		Lorem ipsum dolor sit amet consectetur adipiscing elit.Quisque faucibus ex sapien vitae pellentesque sem placerat.
-		In id cursus mi pretium tellus duis convallis.Tempus leo eu aenean sed diam urna tempor.Pulvinar vivamus fringilla 
-		lacus nec metus bibendum egestas.Iaculis massa nisl malesuada lacinia integer nunc posuere.Ut hendrerit semper vel 
-		class aptent taciti sociosqu.Ad litora torquent per conubia nostra inceptos himenaeos.
-		Lorem ipsum dolor sit amet consectetur adipiscing elit.Quisque faucibus ex sapien vitae pellentesque sem placerat.
-		In id cursus mi pretium tellus duis convallis.Tempus leo eu aenean sed diam urna tempor.Pulvinar vivamus fringilla
-		lacus nec metus bibendum egestas.Iaculis massa nisl malesuada lacinia integer nunc posuere.Ut hendrerit semper vel 
-		class aptent taciti sociosqu.Ad litora torquent per conubia nostra inceptos himenaeos.
-		Lorem ipsum dolor sit amet consectetur adipiscing elit.Quisque faucibus ex sapien vitae pellentesque sem placerat
-		In id cursus mi pretium tellus duis convallis.Tempus leo eu aenean sed diam urna tempor.Pulvinar vivamus fringilla 
-		lacus nec metus bibendum egestas.Iaculis massa nisl malesuada lacinia integer nunc posuere.Ut hendrerit semper vel 
-		class aptent taciti sociosqu.Ad litora torquent per conubia nostra inceptos himenaeos.
-		Lorem ipsum dolor sit amet consectetur adipiscing elit.Quisque faucibus ex sapien vitae pellentesque sem placerat
-		In id cursus mi pretium tellus duis convallis.Tempus leo eu aenean sed diam urna tempor.Pulvinar vivamus fringilla 
-		lacus nec metus bibendum egestas.Iaculis massa nisl malesuada lacinia integer nunc posuere.Ut hendrerit semper vel 
-		class aptent taciti sociosqu.Ad litora torquent per conubia nostra inceptos himenaeos.
-		Lorem ipsum dolor sit amet consectetur adipiscing elit.Quisque faucibus ex sapien vitae pellentesque sem placerat.
-		In id cursus mi pretium tellus duis convallis.Tempus leo eu aenean sed diam urna tempor.Pulvinar vivamus fringilla 
-		lacus nec metus bibendum egestas.Iaculis massa nisl malesuada lacinia integer nunc posuere.Ut hendrerit semper vel 
-		class aptent taciti sociosqu.Ad litora torquent per conubia nostra inceptos himenaeos.
-		Lorem ipsum dolor sit amet consectetur adipiscing elit.Quisque faucibus ex sapien vitae pellentesque sem placerat.
-		In id cursus mi pretium tellus duis convallis.Tempus leo eu aenean sed diam urna tempor.Pulvinar vivamus fringilla 
-		lacus nec metus bibendum egestas.Iaculis massa nisl malesuada lacinia integer nunc posuere.Ut hendrerit semper vel 
-		class aptent taciti sociosqu.Ad litora torquent per conubia nostra inceptos himenaeos.
-		Lorem ipsum dolor sit amet consectetur adipiscing elit.Quisque faucibus ex sapien vitae pellentesque sem placerat.
-		In id cursus mi pretium tellus duis convallis.Tempus leo eu aenean sed diam urna tempor.Pulvinar vivamus fringilla
-		lacus nec metus bibendum egestas.Iaculis massa nisl malesuada lacinia integer nunc posuere.Ut hendrerit semper vel 
-		class aptent taciti sociosqu.Ad litora torquent per conubia nostra inceptos himenaeos.
-		Lorem ipsum dolor sit amet consectetur adipiscing elit.Quisque faucibus ex sapien vitae pellentesque sem placerat
-		In id cursus mi pretium tellus duis convallis.Tempus leo eu aenean sed diam urna tempor.Pulvinar vivamus fringilla 
-		lacus nec metus bibendum egestas.Iaculis massa nisl malesuada lacinia integer nunc posuere.Ut hendrerit semper vel 
-		class aptent taciti sociosqu.Ad litora torquent per conubia nostra inceptos himenaeos.
-		Lorem ipsum dolor sit amet consectetur adipiscing elit.Quisque faucibus ex sapien vitae pellentesque sem placerat
-		In id cursus mi pretium tellus duis convallis.Tempus leo eu aenean sed diam urna tempor.Pulvinar vivamus fringilla 
-		lacus nec metus bibendum egestas.Iaculis massa nisl malesuada lacinia integer nunc posuere.Ut hendrerit semper vel 
-		class aptent taciti sociosqu.Ad litora torquent per conubia nostra inceptos himenaeos.
-		Lorem ipsum dolor sit amet consectetur adipiscing elit.Quisque faucibus ex sapien vitae pellentesque sem placerat.
-		In id cursus mi pretium tellus duis convallis.Tempus leo eu aenean sed diam urna tempor.Pulvinar vivamus fringilla 
-		lacus nec metus bibendum egestas.Iaculis massa nisl malesuada lacinia integer nunc posuere.Ut hendrerit semper vel 
-		class aptent taciti sociosqu.Ad litora torquent per conubia nostra inceptos himenaeos.
-		Lorem ipsum dolor sit amet consectetur adipiscing elit.Quisque faucibus ex sapien vitae pellentesque sem placerat.
-		In id cursus mi pretium tellus duis convallis.Tempus leo eu aenean sed diam urna tempor.Pulvinar vivamus fringilla 
-		lacus nec metus bibendum egestas.Iaculis massa nisl malesuada lacinia integer nunc posuere.Ut hendrerit semper vel 
-		class aptent taciti sociosqu.Ad litora torquent per conubia nostra inceptos himenaeos.
-		Lorem ipsum dolor sit amet consectetur adipiscing elit.Quisque faucibus ex sapien vitae pellentesque sem placerat.
-		In id cursus mi pretium tellus duis convallis.Tempus leo eu aenean sed diam urna tempor.Pulvinar vivamus fringilla
-		lacus nec metus bibendum egestas.Iaculis massa nisl malesuada lacinia integer nunc posuere.Ut hendrerit semper vel 
-		class aptent taciti sociosqu.Ad litora torquent per conubia nostra inceptos himenaeos.
-		Lorem ipsum dolor sit amet consectetur adipiscing elit.Quisque faucibus ex sapien vitae pellentesque sem placerat
-		In id cursus mi pretium tellus duis convallis.Tempus leo eu aenean sed diam urna tempor.Pulvinar vivamus fringilla 
-		lacus nec metus bibendum egestas.Iaculis massa nisl malesuada lacinia integer nunc posuere.Ut hendrerit semper vel 
-		class aptent taciti sociosqu.Ad litora torquent per conubia nostra inceptos himenaeos.
-		Lorem ipsum dolor sit amet consectetur adipiscing elit.Quisque faucibus ex sapien vitae pellentesque sem placerat
-		In id cursus mi pretium tellus duis convallis.Tempus leo eu aenean sed diam urna tempor.Pulvinar vivamus fringilla 
-		lacus nec metus bibendum egestas.Iaculis massa nisl malesuada lacinia integer nunc posuere.Ut hendrerit semper vel 
-		class aptent taciti sociosqu.Ad litora torquent per conubia nostra inceptos himenaeos.
-		Lorem ipsum dolor sit amet consectetur adipiscing elit.Quisque faucibus ex sapien vitae pellentesque sem placerat.
-		In id cursus mi pretium tellus duis convallis.Tempus leo eu aenean sed diam urna tempor.Pulvinar vivamus fringilla 
-		lacus nec metus bibendum egestas.Iaculis massa nisl malesuada lacinia integer nunc posuere.Ut hendrerit semper vel 
-		class aptent taciti sociosqu.Ad litora torquent per conubia nostra inceptos himenaeos.
-		Lorem ipsum dolor sit amet consectetur adipiscing elit.Quisque faucibus ex sapien vitae pellentesque sem placerat.
-		In id cursus mi pretium tellus duis convallis.Tempus leo eu aenean sed diam urna tempor.Pulvinar vivamus fringilla 
-		lacus nec metus bibendum egestas.Iaculis massa nisl malesuada lacinia integer nunc posuere.Ut hendrerit semper vel 
-		class aptent taciti sociosqu.Ad litora torquent per conubia nostra inceptos himenaeos.
-		Lorem ipsum dolor sit amet consectetur adipiscing elit.Quisque faucibus ex sapien vitae pellentesque sem placerat.
-		In id cursus mi pretium tellus duis convallis.Tempus leo eu aenean sed diam urna tempor.Pulvinar vivamus fringilla
-		lacus nec metus bibendum egestas.Iaculis massa nisl malesuada lacinia integer nunc posuere.Ut hendrerit semper vel 
-		class aptent taciti sociosqu.Ad litora torquent per conubia nostra inceptos himenaeos.
-		Lorem ipsum dolor sit amet consectetur adipiscing elit.Quisque faucibus ex sapien vitae pellentesque sem placerat
-		In id cursus mi pretium tellus duis convallis.Tempus leo eu aenean sed diam urna tempor.Pulvinar vivamus fringilla 
-		lacus nec metus bibendum egestas.Iaculis massa nisl malesuada lacinia integer nunc posuere.Ut hendrerit semper vel 
-		class aptent taciti sociosqu.Ad litora torquent per conubia nostra inceptos himenaeos.
-		Lorem ipsum dolor sit amet consectetur adipiscing elit.Quisque faucibus ex sapien vitae pellentesque sem placerat
-		In id cursus mi pretium tellus duis convallis.Tempus leo eu aenean sed diam urna tempor.Pulvinar vivamus fringilla 
-		lacus nec metus bibendum egestas.Iaculis massa nisl malesuada lacinia integer nunc posuere.Ut hendrerit semper vel 
-		class aptent taciti sociosqu.Ad litora torquent per conubia nostra inceptos himenaeos.
-		Lorem ipsum dolor sit amet consectetur adipiscing elit.Quisque faucibus ex sapien vitae pellentesque sem placerat.
-		In id cursus mi pretium tellus duis convallis.Tempus leo eu aenean sed diam urna tempor.Pulvinar vivamus fringilla 
-		lacus nec metus bibendum egestas.Iaculis massa nisl malesuada lacinia integer nunc posuere.Ut hendrerit semper vel 
-		class aptent taciti sociosqu.Ad litora torquent per conubia nostra inceptos himenaeos.
-		)";
-
-		draw.StringProp({ 2.0f, 16.0f }, lorem, olc::Colour::BLACK, { 1.0f, 1.0f });
-		draw.StringProp({ 1.0f, 15.0f }, lorem, olc::Colour::WHITE, { 1.0f, 1.0f });
-
-		
-		/*if (mouse.GetButton(0).bHeld)
-		{
-			draw.Image(imTiles.region({ 0,176 }, { 16, 16 }), { 10,10 }, {10.0f, 10.0f});
-		}
-		else
-		{
-			draw.Image(imTiles.region({ 16,176 }, { 16, 16 }), { 10,10 }, { 10.0f, 10.0f });
-		}*/
-
-		//fTotalTime += fElapsedTime;
-		//if (fTotalTime > 0.1f)
-		//{
-		//	fTotalTime -= 0.1f;
-		//	x++;
-		//	if (x > 3) x = 0;
-
-		//}
-
-		//draw.Image(imTiles.region(olc::vf2d(6 + x, 15) * 16.0f, { 16, 32 }), { 10,10 }, { 5.0f, 5.0f });
-
-		//draw.Image(imTiles.region(olc::vf2d(6, 15) * 16.0f, { 48, 32 }), { 10,10 }, { 5.0f, 5.0f });
-
-
 		// Successful frame
 		return true;
+	}
+
+	
+	
+	// Panning & Zooming
+	// ~~~~~~~~~~~~~~~~~
+	// We use an olc::tf2d to keep track of the world. This is an "affine transform"
+	// which is used by PGE to convert between coordinates in the world of tiles and
+	// coordinates of the screen in pixels.
+
+	// We can map mouse gestures to changes in this transform to achieve panning and 
+	// zooming, and now in PGE3, rotation too!
+
+	// Panning is changing the translation component of the transform
+	//	- Hold down the mouse wheel and drag to pan
+	// Zooming is changing the scale component of the transform
+	//  - Use the mouse wheel to zoom in and out
+	// Rotation is changing the rotation component of the transform
+	//  - Hold down the right mouse button and use the mouse wheel to rotate
+
+	// The trick to all this is to ensure that the point under the mouse cursor
+	// remains "fixed" in world space as we manipulate the transform. This
+	// requires a little calculation before and after changing the transform
+	// components.
+
+	// We also reset the transform if the left mouse button is clicked.
+
+	// We need some state variables to help us out:
+	bool bPanning = false;
+	olc::vf2d vLastMouseScreenPos = { 0.0f, 0.0f };
+
+	// The "Affine Transform" representing the world
+	olc::tf2d transform;
+
+
+	// Function to handle panning and zooming
+	void HandlePanAndZoom()
+	{
+		// if left mouse button clicked, reset transform
+		if (mouse.GetButton(0).bPressed)
+		{
+			transform = olc::tf2d();
+		}
+
+		// Enter panning mode if middle mouse button pressed (and held)
+		if (mouse.GetButton(2).bPressed)
+		{
+			bPanning = true;
+			// Cache mouse position at start of drag, so we can create a
+			// mouse position delta
+			vLastMouseScreenPos = mouse.GetPosition();
+		}
+
+		// Exit panning mode if middle mouse button released
+		if (mouse.GetButton(2).bReleased)
+		{
+			bPanning = false;
+		}
+
+		// Get current mouse position
+		olc::vf2d vMousePos = mouse.GetPosition();
+
+		// If we are panning, update translation component of transform
+		if (bPanning)
+		{
+			// Update translation by the mouse delta. Note that we round the mouse
+			// to screen coordinates to avoid sub-pixel jittering. This is optional.
+			transform.translate((transform.translate() + 
+				olc::vf2d(vMousePos.x - vLastMouseScreenPos.x, vMousePos.y - vLastMouseScreenPos.y)).round());
+		}
+
+
+		// Handle zooming and rotation. This is a bit clumsy because we are
+		// using the mouse wheel for both. In a real application you would
+		// probably want to use keyboard modifiers to distinguish the two.
+		if (mouse.GetWheel() != 0)
+		{
+			// Cache the mouse position before transformation			
+			auto posWorldBeforeRotate = transform.inverse(vLastMouseScreenPos);
+
+			// If right mouse button held, we are rotating
+			if (mouse.GetButton(1).bHeld)
+			{				
+				// Adjust rotation depending on wheel direction
+				if (mouse.GetWheel() > 0)
+					transform.rotate(transform.rotate() + 0.1f, posWorldBeforeRotate);
+				else
+					transform.rotate(transform.rotate() - 0.1f, posWorldBeforeRotate);				
+			}
+			else
+			{
+				// Adjust scale depending on wheel direction
+				if (mouse.GetWheel() > 0)
+					transform.scale(transform.scale() * 1.1f);
+				else
+					transform.scale(transform.scale() * 0.9f);
+			}
+
+			// Get the new screen position of the point under the mouse
+			auto posScreenAfterRotate = transform.forward(posWorldBeforeRotate);
+
+			// Adjust translation to keep mouse position stable
+			auto posScreenDisplacement = vLastMouseScreenPos - posScreenAfterRotate;
+
+			// Apply adjustment
+			transform.translate(transform.translate() + posScreenDisplacement);
+		}
+
+		// Finally, apply the updated transform to the PGE draw system
+		draw.SetWorldTransform(transform);
+
+		// Cache last mouse position
+		vLastMouseScreenPos = vMousePos;
 	}
 };
 
@@ -332,12 +281,13 @@ public:
 int main()
 {
 	// Construct demo application
-	Example_Pixels demo;
+	Example_ImageTiling demo;
 
 	// Create "screen" of 256x240 "pixels"
 	// with a pixel size of 4x4 actual screen pixels
-	//if (demo.Construct({ 256, 240 }, { 4, 4 }))
-	if (demo.Construct({ 1024, 960 }, { 1, 1 }))
+	// Experiment 1 - Replace with {1024,960}, { 1, 1 } to see
+	// how it affects performance and tile sampling quality
+	if (demo.Construct({ 256, 240 }, { 4, 4 }))
 	{
 		// Start the application
 		demo.Start();

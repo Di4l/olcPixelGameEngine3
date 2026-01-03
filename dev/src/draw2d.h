@@ -380,6 +380,16 @@ namespace olc
 			const olc::vf2d& scale = { 1.0f, 1.0f },
 			const olc::Pixel tint = olc::Colour::WHITE);
 
+		// Draws an image rotated around a point at specified location into a batch
+		const ImageBatch& ImageRotated(
+			olc::ImageBatch& batch,
+			olc::ImageRegion image,
+			const olc::vf2d& pos,
+			const float theta,
+			const olc::vf2d& center = { 0.0f, 0.0f },
+			const olc::vf2d& scale = { 1.0f, 1.0f },
+			const olc::Pixel tint = olc::Colour::WHITE);
+
 		// Draws an image warped correctly to linearly fill a quadrilateral (formerly DrawWarped...)		
 		const GPUTask& ImageQuad(
 			olc::ImageRegion image, 
@@ -389,9 +399,26 @@ namespace olc
 			const olc::vf2d& vBL,
 			const olc::Pixel tint = olc::Colour::WHITE);
 
+		// Draws an image warped correctly to linearly fill a quadrilateral (formerly DrawWarped...) into a batch
+		const ImageBatch& ImageQuad(
+			olc::ImageBatch& batch,
+			olc::ImageRegion image,
+			const olc::vf2d& vTL,
+			const olc::vf2d& vTR,
+			const olc::vf2d& vBR,
+			const olc::vf2d& vBL,
+			const olc::Pixel tint = olc::Colour::WHITE);
+
 		// Draws an image warped correctly to linearly fill a quadrilateral (formerly DrawWarped...)
 		const GPUTask& ImageQuad(
 			olc::ImageRegion image, 
+			const std::vector<olc::vf2d>& vecPoints,
+			const olc::Pixel tint = olc::Colour::WHITE);
+
+		// Draws an image warped correctly to linearly fill a quadrilateral (formerly DrawWarped...) into a batch
+		const ImageBatch& ImageQuad(
+			olc::ImageBatch& batch,
+			olc::ImageRegion image,
 			const std::vector<olc::vf2d>& vecPoints,
 			const olc::Pixel tint = olc::Colour::WHITE);
 
@@ -399,6 +426,14 @@ namespace olc
 		const GPUTask& ImageRect(
 			olc::ImageRegion image, 
 			const olc::vf2d& pos, 
+			const olc::vf2d& size,
+			const olc::Pixel tint = olc::Colour::WHITE);
+
+		// Draws an image scaled to a specified rectangular area into a batch
+		const ImageBatch& ImageRect(
+			olc::ImageBatch& batch,
+			olc::ImageRegion image,
+			const olc::vf2d& pos,
 			const olc::vf2d& size,
 			const olc::Pixel tint = olc::Colour::WHITE);
 	
