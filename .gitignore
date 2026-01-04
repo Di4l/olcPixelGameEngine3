@@ -26,6 +26,18 @@
 *.a
 *.lib
 
+# macOS specific files
+.DS_Store
+.DS_Store?
+._*
+
+# IDE and Editor files
+.vscode/
+.vs_code/
+
+# Xcode
+xcuserdata/
+
 # Executables
 *.exe
 *.out

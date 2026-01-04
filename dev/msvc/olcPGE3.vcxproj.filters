@@ -16,6 +16,9 @@
     <Filter Include="Source Files\tests">
       <UniqueIdentifier>{7646c9a3-dfcd-4e94-a2d9-0178bb2e8f87}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Mac Specific">
+      <UniqueIdentifier>{fe268a15-2a5a-47fa-8398-970258db5b23}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\pixel.h">
@@ -102,6 +105,18 @@
     <ClInclude Include="..\src\font.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\imload_macos.h">
+      <Filter>Mac Specific</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\api_macos_wrapper.hpp">
+      <Filter>Mac Specific</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\api_macos.h">
+      <Filter>Mac Specific</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\host_apple_macos.h">
+      <Filter>Mac Specific</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\tests\test_main.cpp">
@@ -154,6 +169,15 @@
     </ClCompile>
     <ClCompile Include="..\src\draw2d_sw.cpp">
       <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\api_macos.cpp">
+      <Filter>Mac Specific</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\host_apple_macos.cpp">
+      <Filter>Mac Specific</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\imload_macos.cpp">
+      <Filter>Mac Specific</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

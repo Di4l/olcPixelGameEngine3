@@ -45,6 +45,7 @@
 //! END WINAPI_CONFIG
 
 //! START DECLARATION
+
 #if !defined(PGE_IMAGELOADER_WINGDI_DECLARED)
 namespace olc
 {

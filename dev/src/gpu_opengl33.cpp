@@ -93,6 +93,17 @@ namespace olc::gpu
 
 #endif
 
+#if OLC_HOST == OLC_HOST_MACOS
+        
+		// os_win_id[0] is the OLC OpenGL Device Context      
+        glRenderContext = (olc::apis::opengl::glRenderContext_t)os_win_id[0];
+        if (!glRenderContext) {
+            lastError = RendererError::FailedToCreateRenderContext;
+            return false;
+        }
+
+#endif
+
 		// Can't load OpenGL API until context is loaded
 		auto& gl = olc::apis::opengl::gl::Get();
 		if (!gl.HasLoaded())
@@ -141,14 +152,14 @@ namespace olc::gpu
 				else if(drawtype == 1) // 2D Line																																		  
 				{																																			  
 					float p = 1.0 / aPos.z; 																												  
-					gl_Position = p * vec4(vec2(2.0 * ((floor(aPos.xy) + 0.5) * invtarget) - 1.0), 0.0, 1.0);	  
+					gl_Position = p * vec4(vec2(2.0 * (floor(aPos.xy) + 0.5) * invtarget - 1.0), 0.0, 1.0);	  
 					oTex = aTex;																										  
 				} 			  
 			
 				else if(drawtype == 0) // 2D Polygon																																		  
 				{																																			  
 					float p = 1.0 / aPos.z; 																												  
-					gl_Position = p * vec4(vec2(2.0 * ((floor(aPos.xy)) * invtarget) - 1.0), 0.0, 1.0);	  
+					gl_Position = p * vec4(vec2(2.0 * (aPos.xy + 0.25) * invtarget - 1.0), 0.0, 1.0);	 
 					oTex = p * vec2(aTex.x, aTex.y);																										  
 				} 
 				
@@ -288,6 +299,9 @@ namespace olc::gpu
 #if OLC_HOST == OLC_HOST_WINDOWS
 		wglDeleteContext(glRenderContext);
 #endif
+#if OLC_HOST == OLC_HOST_MACOS
+        //TODO: Add MacOS destroy context code
+#endif
 		return false;
 	}
 
@@ -304,7 +318,16 @@ namespace olc::gpu
 		}
 		ReleaseDC((HWND)(os_win_id[0]), glDeviceContext);
 #endif
+#if OLC_HOST == OLC_HOST_MACOS
 
+		CGLContextObj cglContext = (CGLContextObj)glRenderContext;
+		if (!CGLSetCurrentContext(cglContext))
+		{
+			lastError = RendererError::FailedToSwitchRenderContext;
+			return false;
+		}
+#endif
+		
 		return true;
 	}
 
@@ -335,7 +358,16 @@ namespace olc::gpu
 		}
 		ReleaseDC((HWND)(os_win_id[0]), glDeviceContext);
 #endif
+#if OLC_HOST == OLC_HOST_MACOS
+        
+		// params[0] is the OLC OpenGL Device Context      
+        glRenderContext = (olc::apis::opengl::glRenderContext_t)os_win_id[0];
+        if (!glRenderContext) {
+            lastError = RendererError::FailedToCreateRenderContext;
+            return false;
+        }
 
+#endif
 		return true;
 	}
 
@@ -374,7 +406,9 @@ namespace olc::gpu
 		}
 
 #if OLC_HOST != OLC_HOST_EMSCRIPTEN
+#if OLC_HOST != OLC_HOST_MACOS
 		gl.glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+#endif
 #endif
 
 		std::cout << "Created Texture ID: " << id << " Size: " << vSize.x << "x" << vSize.y << "\n";
@@ -506,13 +540,17 @@ namespace olc::gpu
 			case GPUTask::Task::DrawPolygon:
 			{
 				
-				gl.glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-				//gl.glBlendFunc(GL_DST_COLOR, GL_ONE_MINUS_SRC_ALPHA);
+				//gl.glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+				gl.glBlendFunc(GL_DST_COLOR, GL_ONE_MINUS_SRC_ALPHA);
+
 
 				if (task.pImage == nullptr)
 					AssignTextureSource(0, imgBlank.GetGPUID());
 				else
-					AssignTextureSource(0, task.pImage->GetGPUID());
+				{
+					if (nCurrentTextureSource != task.pImage->GetGPUID())
+						AssignTextureSource(0, task.pImage->GetGPUID());
+				}
 
 				// Bind generic vertex buffer
 				gl.glBindVertexArray(nDefaultVA);
@@ -562,31 +600,70 @@ namespace olc::gpu
 				//	gl.glEnable(GL_DEPTH_TEST);
 
 				gl.glEnable(GL_BLEND);
-				//gl.glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-				gl.glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
-				// Draw the thing!
+				gl.glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+				//gl.glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+
 				if (task.bWireframe)
-				{
-					// Shader: Configure Rendering Mode
+					gl.glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+
+				if (task.structure == olc::Structure::Point)
 					gl.glUniform1i(shaderDefault.GetUniform("drawtype"), 1);
-					gl.glDrawArrays(GL_LINE_LOOP, 0, (GLsizei)task.vertexBuffer.size());
-				}
+				else if (task.structure == olc::Structure::Line)
+					gl.glUniform1i(shaderDefault.GetUniform("drawtype"), 1);
+				else if (task.structure == olc::Structure::LineLoop)
+					gl.glUniform1i(shaderDefault.GetUniform("drawtype"), 1);
 				else
-				{
-					// Shader: Configure Rendering Mode
 					gl.glUniform1i(shaderDefault.GetUniform("drawtype"), 0);
 
-					if (task.structure == GPUTask::Structure::Fan)
-						gl.glDrawArrays(GL_TRIANGLE_FAN, 0, (GLsizei)task.vertexBuffer.size());
-					else if (task.structure == GPUTask::Structure::Strip)
-						gl.glDrawArrays(GL_TRIANGLE_STRIP, 0, (GLsizei)task.vertexBuffer.size());
-					else if (task.structure == GPUTask::Structure::List)
-						gl.glDrawArrays(GL_TRIANGLES, 0, (GLsizei)task.vertexBuffer.size());
-					else if (task.structure == GPUTask::Structure::Line)
-						gl.glDrawArrays(GL_LINES, 0, (GLsizei)task.vertexBuffer.size());
-					else if (task.structure == GPUTask::Structure::Point)
-						gl.glDrawArrays(GL_POINTS, 0, (GLsizei)task.vertexBuffer.size());
-				}
+				if (task.structure == olc::Structure::Fan)
+					gl.glDrawArrays(GL_TRIANGLE_FAN, 0, (GLsizei)task.vertexBuffer.size());
+				else if (task.structure == olc::Structure::Strip)
+					gl.glDrawArrays(GL_TRIANGLE_STRIP, 0, (GLsizei)task.vertexBuffer.size());
+				else if (task.structure == olc::Structure::List)
+					gl.glDrawArrays(GL_TRIANGLES, 0, (GLsizei)task.vertexBuffer.size());
+				else if (task.structure == olc::Structure::Line)
+					gl.glDrawArrays(GL_LINE_STRIP, 0, (GLsizei)task.vertexBuffer.size());
+				else if (task.structure == olc::Structure::LineLoop)
+					gl.glDrawArrays(GL_LINE_LOOP, 0, (GLsizei)task.vertexBuffer.size());
+				else if (task.structure == olc::Structure::Point)
+					gl.glDrawArrays(GL_POINTS, 0, (GLsizei)task.vertexBuffer.size());
+
+
+				if (task.bWireframe)
+					gl.glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+
+				//// Draw the thing!
+				//if (task.bWireframe)
+				//{
+				//	// Shader: Configure Rendering Mode
+				//	gl.glUniform1i(shaderDefault.GetUniform("drawtype"), 1);
+				//	gl.glDrawArrays(GL_LINE_LOOP, 0, (GLsizei)task.vertexBuffer.size());
+				//}
+				//else
+				//{
+				//	// Shader: Configure Rendering Mode
+				//	if (task.structure == olc::Structure::Point)
+				//		gl.glUniform1i(shaderDefault.GetUniform("drawtype"), 1);
+				//	else if(task.structure == olc::Structure::Line)
+				//		gl.glUniform1i(shaderDefault.GetUniform("drawtype"), 1);
+				//	else
+				//		gl.glUniform1i(shaderDefault.GetUniform("drawtype"), 0);
+
+				//	if (task.structure == olc::Structure::Fan)
+				//		gl.glDrawArrays(GL_TRIANGLE_FAN, 0, (GLsizei)task.vertexBuffer.size());
+				//	else if (task.structure == olc::Structure::Strip)
+				//	{
+				//		gl.glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+				//		gl.glDrawArrays(GL_TRIANGLE_STRIP, 0, (GLsizei)task.vertexBuffer.size());
+				//		gl.glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+				//	}
+				//	else if (task.structure == olc::Structure::List)
+				//		gl.glDrawArrays(GL_TRIANGLES, 0, (GLsizei)task.vertexBuffer.size());
+				//	else if (task.structure == olc::Structure::Line)
+				//		gl.glDrawArrays(GL_LINES, 0, (GLsizei)task.vertexBuffer.size());
+				//	else if (task.structure == olc::Structure::Point)
+				//		gl.glDrawArrays(GL_POINTS, 0, (GLsizei)task.vertexBuffer.size());
+				//}
 
 				if (task.bDepth)
 					gl.glDisable(GL_DEPTH_TEST);
@@ -637,6 +714,12 @@ namespace olc::gpu
 		SwapBuffers(glDeviceContext);
 		ReleaseDC((HWND)(os_win_id[0]), glDeviceContext);
 #endif	
+
+#if OLC_HOST == OLC_HOST_MACOS
+        glFlushRenderAPPLE();
+        glSwapAPPLE();
+       
+#endif
 
 		return true;
 	}

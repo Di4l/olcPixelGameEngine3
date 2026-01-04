@@ -86,8 +86,8 @@ namespace olc
 	olc::ImageRegion Image::region(const olc::vf2d& vTL, const olc::vf2d& vTR, const olc::vf2d& vBL, const olc::vf2d& vBR) 
 	{
 		auto i = 1.0f / this->Size();
-		//return olc::ImageRegion(*this, vTL * i, vTR * i, vBL * i, vBR * i );
-		return olc::ImageRegion(*this, (vTL + olc::vf2d{0.005f, 0.005f}) * i, (vTR + olc::vf2d{ -0.005f, 0.005f })* i, (vBL + olc::vf2d{ 0.005f, -0.005f })* i, (vBR + olc::vf2d{ -0.005f, -0.005f })* i);
+		return olc::ImageRegion(*this, vTL * i, vTR * i, vBL * i, vBR * i );
+		//return olc::ImageRegion(*this, (vTL + olc::vf2d{0.005f, 0.005f}) * i, (vTR + olc::vf2d{ -0.005f, 0.005f })* i, (vBL + olc::vf2d{ 0.005f, -0.005f })* i, (vBR + olc::vf2d{ -0.005f, -0.005f })* i);
 	}
 
 	void Image::BindGPU()
