@@ -191,7 +191,7 @@ olc::Pixel olc::Draw2D::GetPixel(const olc::vf2d& pos)
 
 void olc::Draw2D::Clear(const olc::Pixel& col)
 {
-	//PrepareImageForHW(*pTarget);
+	PrepareTargetForHW();
 	pRenderer->ClearViewport(col, true, true);
 }
 
@@ -1082,7 +1082,7 @@ const GPUTask& olc::Draw2D::ImageRect(olc::ImageRegion image, const olc::vf2d& p
 
 const ImageBatch& olc::Draw2D::ImageRect(olc::ImageBatch& batch, olc::ImageRegion image, const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel tint)
 {
-	// TODO: insert return statement here
+	return batch;
 }
 
 //! END IMPLEMENTATION

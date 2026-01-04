@@ -2324,7 +2324,7 @@ namespace olc
 
 
 
-		protected:
+		public:
 			// Checks residency of image resource, and brings it to cpu RAM for r/w
 			void PrepareTargetForSW();
 			// Checks residency of image resource, and brings it to gpu VRAM for r/w
@@ -7459,7 +7459,12 @@ namespace olc::gpu
 
 			void main()
 			{
-				pixel = texture(sprTex, oTex) * oCol;
+				// Was just this
+				//pixel = texture(sprTex, oTex) * oCol;
+
+				// But to premultiply alpha correctly, we now do this:	
+				vec4 texColor = texture(sprTex, oTex) * oCol;
+				pixel = vec4(texColor.rgb * texColor.a, texColor.a);
 			}
 		)");
 
@@ -7876,7 +7881,7 @@ namespace olc::gpu
 			{
 				
 				//gl.glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-				gl.glBlendFunc(GL_DST_COLOR, GL_ONE_MINUS_SRC_ALPHA);
+				//gl.glBlendFunc(GL_DST_COLOR, GL_ONE_MINUS_SRC_ALPHA);
 
 
 				if (task.pImage == nullptr)
@@ -7935,8 +7940,8 @@ namespace olc::gpu
 				//	gl.glEnable(GL_DEPTH_TEST);
 
 				gl.glEnable(GL_BLEND);
-				gl.glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-				//gl.glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+				//gl.glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+				gl.glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 
 				if (task.bWireframe)
 					gl.glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
@@ -8254,7 +8259,7 @@ olc::Pixel olc::Draw2D::GetPixel(const olc::vf2d& pos)
 
 void olc::Draw2D::Clear(const olc::Pixel& col)
 {
-	//PrepareImageForHW(*pTarget);
+	PrepareTargetForHW();
 	pRenderer->ClearViewport(col, true, true);
 }
 
@@ -9145,7 +9150,7 @@ const GPUTask& olc::Draw2D::ImageRect(olc::ImageRegion image, const olc::vf2d& p
 
 const ImageBatch& olc::Draw2D::ImageRect(olc::ImageBatch& batch, olc::ImageRegion image, const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel tint)
 {
-	// TODO: insert return statement here
+	return batch;
 }
 
 
@@ -10528,6 +10533,22 @@ namespace olc::imload
 				Gdiplus::Color c;
 				bmp->GetPixel(x, y, &c);
 				image.Pixel(olc::vi2d(x, y)) = olc::Pixel(c.GetRed(), c.GetGreen(), c.GetBlue(), c.GetAlpha());
+			
+				//uint8_t a = c.GetAlpha();
+				//if (a > 0 && a < 255)
+				//{
+				//	// Un-premultiply
+				//	uint8_t r = (uint8_t)((c.GetRed() * 256) / a);
+				//	uint8_t g = (uint8_t)((c.GetGreen() * 256) / a);
+				//	uint8_t b = (uint8_t)((c.GetBlue() * 256) / a);
+				//	image.Pixel(olc::vi2d(x, y)) = olc::Pixel(r, g, b, a);
+				//}
+				//else
+				//{
+				//	image.Pixel(olc::vi2d(x, y)) = olc::Pixel(c.GetRed(), c.GetGreen(), c.GetBlue(), a);
+				//}
+			
+			
 			}
 
 		// All done
