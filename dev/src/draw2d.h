@@ -28,6 +28,14 @@ namespace olc
 		class Renderer;
 	}
 	
+	// These "opaque" structs are merely to help with
+	// type differentiation of various GPUTask types
+	// when batching. For example a batch of lines is
+	// different to a batch of filled rectangles, and 
+	// needs to be treated differently by the GPU.
+	struct ImageBatch { GPUTask task; };
+	struct FilledBatch { GPUTask task; };
+	struct LineBatch { GPUTask task; };
 
 	class Draw2D
 	{
@@ -345,20 +353,40 @@ namespace olc
 			const olc::vf2d& scale = { 1.0f, 1.0f },
 			olc::Font& font = olc::fontClassicPGE);
 
+	
+	
 	public: // Image Drawing Functions		
 		// Draws a scaled image at specified location
 		const GPUTask& Image(
 			olc::ImageRegion image, 
 			const olc::vf2d& pos, 
 			const olc::vf2d& scale = { 1.0f, 1.0f }, 
-			const olc::Pixel tint = olc::Colour::WHITE);						
-		
+			const olc::Pixel tint = olc::Colour::WHITE);
+
+		// Draws a scaled image at specified location into a batch
+		const ImageBatch& Image(
+			olc::ImageBatch& batch,
+			olc::ImageRegion image,
+			const olc::vf2d& pos,
+			const olc::vf2d& scale = { 1.0f, 1.0f },
+			const olc::Pixel tint = olc::Colour::WHITE);
+
 		// Draws an image rotated around a point at specified location
 		const GPUTask& ImageRotated(
 			olc::ImageRegion image, 
 			const olc::vf2d& pos, 
 			const float theta, 
 			const olc::vf2d& center = { 0.0f, 0.0f }, 
+			const olc::vf2d& scale = { 1.0f, 1.0f },
+			const olc::Pixel tint = olc::Colour::WHITE);
+
+		// Draws an image rotated around a point at specified location into a batch
+		const ImageBatch& ImageRotated(
+			olc::ImageBatch& batch,
+			olc::ImageRegion image,
+			const olc::vf2d& pos,
+			const float theta,
+			const olc::vf2d& center = { 0.0f, 0.0f },
 			const olc::vf2d& scale = { 1.0f, 1.0f },
 			const olc::Pixel tint = olc::Colour::WHITE);
 
@@ -371,9 +399,26 @@ namespace olc
 			const olc::vf2d& vBL,
 			const olc::Pixel tint = olc::Colour::WHITE);
 
+		// Draws an image warped correctly to linearly fill a quadrilateral (formerly DrawWarped...) into a batch
+		const ImageBatch& ImageQuad(
+			olc::ImageBatch& batch,
+			olc::ImageRegion image,
+			const olc::vf2d& vTL,
+			const olc::vf2d& vTR,
+			const olc::vf2d& vBR,
+			const olc::vf2d& vBL,
+			const olc::Pixel tint = olc::Colour::WHITE);
+
 		// Draws an image warped correctly to linearly fill a quadrilateral (formerly DrawWarped...)
 		const GPUTask& ImageQuad(
 			olc::ImageRegion image, 
+			const std::vector<olc::vf2d>& vecPoints,
+			const olc::Pixel tint = olc::Colour::WHITE);
+
+		// Draws an image warped correctly to linearly fill a quadrilateral (formerly DrawWarped...) into a batch
+		const ImageBatch& ImageQuad(
+			olc::ImageBatch& batch,
+			olc::ImageRegion image,
 			const std::vector<olc::vf2d>& vecPoints,
 			const olc::Pixel tint = olc::Colour::WHITE);
 
@@ -383,8 +428,37 @@ namespace olc
 			const olc::vf2d& pos, 
 			const olc::vf2d& size,
 			const olc::Pixel tint = olc::Colour::WHITE);
+
+		// Draws an image scaled to a specified rectangular area into a batch
+		const ImageBatch& ImageRect(
+			olc::ImageBatch& batch,
+			olc::ImageRegion image,
+			const olc::vf2d& pos,
+			const olc::vf2d& size,
+			const olc::Pixel tint = olc::Colour::WHITE);
 	
 
+	public:
+		// Create an image batch for efficient repeated drawing of
+		// the same source image
+		ImageBatch CreateImageBatch(olc::Image& image);
+
+		// Draws an image batch to the current target
+		const GPUTask& Batch(const olc::ImageBatch& batch);
+
+		// Create a filled shape batch for efficient repeated drawing 
+		// of primitive filled shapes
+		FilledBatch CreateFilledBatch();
+
+		// Draws a filled shape batch to the current target
+		const GPUTask& Batch(const olc::FilledBatch& batch);
+
+		// Create a line shape batch for efficient repeated drawing
+		// of primitive line shapes
+		LineBatch CreateLineBatch();
+
+		// Draws a line shape batch to the current target
+		const GPUTask& Batch(const olc::LineBatch& batch);
 
 
 	public: // GPU Task Creator Functions (not normally called by user)
