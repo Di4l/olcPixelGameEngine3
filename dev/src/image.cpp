@@ -87,7 +87,17 @@ namespace olc
 	{
 		auto i = 1.0f / this->Size();
 		return olc::ImageRegion(*this, vTL * i, vTR * i, vBL * i, vBR * i );
-		//return olc::ImageRegion(*this, (vTL + olc::vf2d{0.005f, 0.005f}) * i, (vTR + olc::vf2d{ -0.005f, 0.005f })* i, (vBL + olc::vf2d{ 0.005f, -0.005f })* i, (vBR + olc::vf2d{ -0.005f, -0.005f })* i);
+	}
+
+	olc::ImageRegion Image::flipV()
+	{
+		return region({ 0,0 }, this->Size()).flipV();
+	
+	}
+
+	olc::ImageRegion Image::flipH()
+	{
+		return region({ 0,0 }, this->Size()).flipH();
 	}
 
 	void Image::BindGPU()

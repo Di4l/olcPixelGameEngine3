@@ -64,7 +64,8 @@ namespace olc
 
 		olc::ImageRegion region(const olc::vf2d pos, const olc::vf2d& size);
 		olc::ImageRegion region(const olc::vf2d& vTL, const olc::vf2d& vTR, const olc::vf2d& vBL, const olc::vf2d& vBR);
-
+		olc::ImageRegion flipV();
+		olc::ImageRegion flipH();
 
 	public: // Make friendly private later
 		void BindGPU();
@@ -97,6 +98,20 @@ namespace olc
 		{
 			coords = { vTL, vTR, vBR, vBL };
 			regionsize = (vBR - vTL) * image.Size();
+		}
+
+		olc::ImageRegion& flipV()
+		{
+			std::swap(coords[0], coords[3]);
+			std::swap(coords[1], coords[2]);
+			return *this;
+		}
+
+		olc::ImageRegion& flipH()
+		{
+			std::swap(coords[0], coords[1]);
+			std::swap(coords[2], coords[3]);
+			return *this;
 		}
 
 		ImageRegion& operator=(ImageRegion& o)

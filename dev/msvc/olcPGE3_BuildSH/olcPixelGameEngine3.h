@@ -1357,7 +1357,8 @@ namespace olc
 
 		olc::ImageRegion region(const olc::vf2d pos, const olc::vf2d& size);
 		olc::ImageRegion region(const olc::vf2d& vTL, const olc::vf2d& vTR, const olc::vf2d& vBL, const olc::vf2d& vBR);
-
+		olc::ImageRegion flipV();
+		olc::ImageRegion flipH();
 
 	public: // Make friendly private later
 		void BindGPU();
@@ -1390,6 +1391,20 @@ namespace olc
 		{
 			coords = { vTL, vTR, vBR, vBL };
 			regionsize = (vBR - vTL) * image.Size();
+		}
+
+		olc::ImageRegion& flipV()
+		{
+			std::swap(coords[0], coords[3]);
+			std::swap(coords[1], coords[2]);
+			return *this;
+		}
+
+		olc::ImageRegion& flipH()
+		{
+			std::swap(coords[0], coords[1]);
+			std::swap(coords[2], coords[3]);
+			return *this;
 		}
 
 		ImageRegion& operator=(ImageRegion& o)
@@ -2324,7 +2339,7 @@ namespace olc
 
 
 
-		public:
+		protected:
 			// Checks residency of image resource, and brings it to cpu RAM for r/w
 			void PrepareTargetForSW();
 			// Checks residency of image resource, and brings it to gpu VRAM for r/w
@@ -9143,7 +9158,7 @@ const GPUTask& olc::Draw2D::ImageRect(olc::ImageRegion image, const olc::vf2d& p
 			transformAffine.forwardRound<float>({ { pos.x, pos.y }, { pos.x + size.x, pos.y }, { pos.x + size.x, pos.y + size.y }, { pos.x, pos.y + size.y } }),
 			{ tint, tint, tint, tint },
 			// Tex coords are clockwise
-			{ image.coords[3], image.coords[2], image.coords[1], image.coords[0] },
+			{ image.coords[0], image.coords[1], image.coords[2], image.coords[3] },
 			&image.image
 		));
 }
@@ -9748,7 +9763,7 @@ namespace olc
 		pRenderer->ClearViewport(olc::Colour::MAGENTA, true, true);
 		
 		draw.WorldReset();		
-		draw.ImageRect(GetDefaultImage(), { 0.0,0.0 }, GetWindowSize());
+		draw.ImageRect(GetDefaultImage().flipV(), {0.0,0.0}, GetWindowSize());
 		draw.ProcessGPUTasks();
 
 		// Update Window's primary surface
@@ -10186,7 +10201,17 @@ namespace olc
 	{
 		auto i = 1.0f / this->Size();
 		return olc::ImageRegion(*this, vTL * i, vTR * i, vBL * i, vBR * i );
-		//return olc::ImageRegion(*this, (vTL + olc::vf2d{0.005f, 0.005f}) * i, (vTR + olc::vf2d{ -0.005f, 0.005f })* i, (vBL + olc::vf2d{ 0.005f, -0.005f })* i, (vBR + olc::vf2d{ -0.005f, -0.005f })* i);
+	}
+
+	olc::ImageRegion Image::flipV()
+	{
+		return region({ 0,0 }, this->Size()).flipV();
+	
+	}
+
+	olc::ImageRegion Image::flipH()
+	{
+		return region({ 0,0 }, this->Size()).flipH();
 	}
 
 	void Image::BindGPU()
@@ -10533,22 +10558,6 @@ namespace olc::imload
 				Gdiplus::Color c;
 				bmp->GetPixel(x, y, &c);
 				image.Pixel(olc::vi2d(x, y)) = olc::Pixel(c.GetRed(), c.GetGreen(), c.GetBlue(), c.GetAlpha());
-			
-				//uint8_t a = c.GetAlpha();
-				//if (a > 0 && a < 255)
-				//{
-				//	// Un-premultiply
-				//	uint8_t r = (uint8_t)((c.GetRed() * 256) / a);
-				//	uint8_t g = (uint8_t)((c.GetGreen() * 256) / a);
-				//	uint8_t b = (uint8_t)((c.GetBlue() * 256) / a);
-				//	image.Pixel(olc::vi2d(x, y)) = olc::Pixel(r, g, b, a);
-				//}
-				//else
-				//{
-				//	image.Pixel(olc::vi2d(x, y)) = olc::Pixel(c.GetRed(), c.GetGreen(), c.GetBlue(), a);
-				//}
-			
-			
 			}
 
 		// All done

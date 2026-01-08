@@ -1075,7 +1075,7 @@ const GPUTask& olc::Draw2D::ImageRect(olc::ImageRegion image, const olc::vf2d& p
 			transformAffine.forwardRound<float>({ { pos.x, pos.y }, { pos.x + size.x, pos.y }, { pos.x + size.x, pos.y + size.y }, { pos.x, pos.y + size.y } }),
 			{ tint, tint, tint, tint },
 			// Tex coords are clockwise
-			{ image.coords[3], image.coords[2], image.coords[1], image.coords[0] },
+			{ image.coords[0], image.coords[1], image.coords[2], image.coords[3] },
 			&image.image
 		));
 }
