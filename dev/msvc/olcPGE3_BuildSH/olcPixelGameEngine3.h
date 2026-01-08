@@ -8818,7 +8818,7 @@ const GPUTask& olc::Draw2D::String(const olc::vf2d& pos, const std::string& text
 		}
 		else
 		{
-			Draw2D::Image(task, font.glyphs[c].imgGlyph, pos + spos, scale, col);
+			Draw2D::Image(task, font.glyphs[c].imgGlyph, pos + spos + olc::vf2d{ glyph.spacing * scale.x, 0.0f }, scale, col);
 			spos.x += glyph.vMonoSize.x * scale.x;
 		}
 	}
@@ -8876,10 +8876,11 @@ olc::vf2d olc::Draw2D::GetTextSize(const std::string& text, const bool bProporti
 		}
 		else
 		{
-			if(bProportional)
+			if (bProportional)
 				pos.x += glyph.vPropSize.x * scale.x;
 			else
 				pos.x += glyph.vMonoSize.x * scale.x;
+
 		}
 
 		size = size.max(pos);
@@ -10314,7 +10315,7 @@ namespace olc
 					fontClassicPGE.glyphs.push_back(FontGlyph{ fontClassicPGE.imgFont.region({0,0}, {8,8}) , 8.0f, {8.0f, 8.0f} });
 			}
 
-			fontClassicPGE.fLineHeight = 10.0f;
+			fontClassicPGE.fLineHeight = 8.0f;
 			fontClassicPGE.fTabWidth = 32.0f;
 		}
 	}

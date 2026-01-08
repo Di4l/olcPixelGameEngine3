@@ -86,7 +86,7 @@ namespace olc
 					fontClassicPGE.glyphs.push_back(FontGlyph{ fontClassicPGE.imgFont.region({0,0}, {8,8}) , 8.0f, {8.0f, 8.0f} });
 			}
 
-			fontClassicPGE.fLineHeight = 10.0f;
+			fontClassicPGE.fLineHeight = 8.0f;
 			fontClassicPGE.fTabWidth = 32.0f;
 		}
 	}
