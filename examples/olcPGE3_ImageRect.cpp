@@ -50,21 +50,21 @@ public:
 		// Image is 64x64 pixels
 
 		// Draw normal image at x2 size
-		draw.ImageRect(imgTest, { 4, 4 }, { 128, 128 });
+		draw.ImageRect(imgTest, { 4, 4 }, imgTest.Size() * 2);
 
 		// Flips are useful for sprite mirroring
 
 		// Draw flipped in x
-		draw.ImageRect(imgTest.flipH(), { 136, 4}, { 64, 64 });
+		draw.ImageRect(imgTest.flipH(), { 136, 4}, imgTest.Size());
 
 		// Draw flipped in x and y
-		draw.ImageRect(imgTest.flipH().flipV(), { 136, 136 }, { 64, 64 });
+		draw.ImageRect(imgTest.flipH().flipV(), { 136, 136 }, imgTest.Size());
 
 		// Draw an extracted region of the image (and flip that too :D)
 		draw.ImageRect(imgTest.region({ 20,20 }, { 16,16 }).flipV(), { 4, 136 }, { 64, 64 });
 
 		// Draw a half size, but tinted red version
-		draw.ImageRect(imgTest, { 72, 136 }, { 32, 32 }, olc::Colour::RED);
+		draw.ImageRect(imgTest, { 72, 136 }, imgTest.Size() / 2, olc::Colour::RED);
 
 
 		// Successful frame
