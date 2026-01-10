@@ -27,6 +27,12 @@ namespace olc
 			return uuid++;
 		}
 		#endif
+		#if OLC_HOST == OLC_HOST_LINUX_X11
+		inline size_t CreateUID()
+		{
+			return uuid++;
+		}
+		#endif
 		#if OLC_HOST == OLC_HOST_MACOS
 		// Clang compiler on MacOS requires constexpr to be removed
 		inline size_t CreateUID()

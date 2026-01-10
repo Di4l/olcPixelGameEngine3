@@ -29,6 +29,10 @@
     #define FRIENDLY_HOST Host_Apple_MacOS
 #endif
 
+#if OLC_HOST == OLC_HOST_LINUX_X11
+	#define FRIENDLY_HOST Host_Linux_X11
+#endif
+
 namespace olc
 {
 	namespace host
