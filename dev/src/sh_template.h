@@ -86,6 +86,8 @@
 
 //! GRAB config.h CONFIGURATION
 
+//! GRAB concepts.h DECLARATION
+
 //! GRAB pixel.h DECLARATION
 
 //! GRAB vector2d.h DECLARATION
