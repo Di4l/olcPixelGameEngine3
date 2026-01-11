@@ -82,6 +82,7 @@
 */
 
 
+#include <concepts>
 #include <cmath>
 #include <cstdint>
 #include <algorithm>
@@ -102,10 +103,10 @@
 #include <string_view>
 #include <functional>
 #include <type_traits>
-#include <concepts>
 #include <mutex>
 #include <stdexcept>
 #include <exception>
+#include <atomic>
 #include <sstream>
 #include <source_location>
 #include <filesystem>
@@ -185,10 +186,16 @@
 #define OLC_IMAGELOADER_NONE 1
 #define OLC_IMAGELOADER_WINGDI 2
 #define OLC_IMAGELOADER_MACOS 3
+#define OLC_IMAGELOADER_LIB_PNG 4
 
 #if OLC_HOST == OLC_HOST_MACOS
 	#undef OLC_IMAGELOADER
 	#define OLC_IMAGELOADER OLC_IMAGELOADER_MACOS
+#endif
+
+#if OLC_HOST == OLC_HOST_LINUX_X11
+	#undef OLC_IMAGELOADER
+	#define OLC_IMAGELOADER OLC_IMAGELOADER_LIB_PNG
 #endif
 
 #if !defined(OLC_IMAGELOADER)
@@ -213,6 +220,13 @@
 
 // De-Noise in MSVC (C++20)
 #pragma warning(disable:4820) // Disable Padding Warnings
+
+
+namespace olc
+{
+	template <typename T>
+	concept numeric = std::integral<T> || std::floating_point<T>;
+}
 
 
 #if !defined(PGE_PIXEL_DECLARED)
@@ -708,13 +722,13 @@ namespace olc
 	};
 
 	// Multiplication operator overloads between vectors and scalars, and vectors and vectors
-	template<class TL, class TR>
+	template<olc::numeric TL, class TR>
 	inline constexpr auto operator * (const TL& lhs, const v_2d<TR>& rhs)
 	{
 		return v_2d(lhs * rhs.x, lhs * rhs.y);
 	}
 
-	template<class TL, class TR>
+	template<class TL, olc::numeric TR>
 	inline constexpr auto operator * (const v_2d<TL>& lhs, const TR& rhs)
 	{
 		return v_2d(lhs.x * rhs, lhs.y * rhs);
@@ -726,7 +740,7 @@ namespace olc
 		return v_2d(lhs.x * rhs.x, lhs.y * rhs.y);
 	}
 
-	template<class TL, class TR>
+	template<class TL, olc::numeric TR>
 	inline constexpr auto operator *= (v_2d<TL>& lhs, const TR& rhs)
 	{
 		lhs = lhs * rhs;
@@ -734,13 +748,13 @@ namespace olc
 	}
 
 	// Division operator overloads between vectors and scalars, and vectors and vectors
-	template<class TL, class TR>
+	template<olc::numeric TL, class TR>
 	inline constexpr auto operator / (const TL& lhs, const v_2d<TR>& rhs)
 	{
 		return v_2d(lhs / rhs.x, lhs / rhs.y);
 	}
 
-	template<class TL, class TR>
+	template<class TL, olc::numeric TR>
 	inline constexpr auto operator / (const v_2d<TL>& lhs, const TR& rhs)
 	{
 		return v_2d(lhs.x / rhs, lhs.y / rhs);
@@ -752,7 +766,7 @@ namespace olc
 		return v_2d(lhs.x / rhs.x, lhs.y / rhs.y);
 	}
 
-	template<class TL, class TR>
+	template<class TL, olc::numeric TR>
 	inline constexpr auto operator /= (v_2d<TL>& lhs, const TR& rhs)
 	{
 		lhs = lhs / rhs;
@@ -767,13 +781,13 @@ namespace olc
 	}
 
 	// Addition operator overloads between vectors and scalars, and vectors and vectors
-	template<class TL, class TR>
+	template<olc::numeric TL, class TR>
 	inline constexpr auto operator + (const TL& lhs, const v_2d<TR>& rhs)
 	{
 		return v_2d(lhs + rhs.x, lhs + rhs.y);
 	}
 
-	template<class TL, class TR>
+	template<class TL, olc::numeric TR>
 	inline constexpr auto operator + (const v_2d<TL>& lhs, const TR& rhs)
 	{
 		return v_2d(lhs.x + rhs, lhs.y + rhs);
@@ -785,7 +799,7 @@ namespace olc
 		return v_2d(lhs.x + rhs.x, lhs.y + rhs.y);
 	}
 
-	template<class TL, class TR>
+	template<class TL, olc::numeric TR>
 	inline constexpr auto operator += (v_2d<TL>& lhs, const TR& rhs)
 	{
 		lhs = lhs + rhs;
@@ -807,13 +821,13 @@ namespace olc
 	}
 
 	// Subtraction operator overloads between vectors and scalars, and vectors and vectors
-	template<class TL, class TR>
+	template<olc::numeric TL, class TR>
 	inline constexpr auto operator - (const TL& lhs, const v_2d<TR>& rhs)
 	{
 		return v_2d(lhs - rhs.x, lhs - rhs.y);
 	}
 
-	template<class TL, class TR>
+	template<class TL, olc::numeric TR>
 	inline constexpr auto operator - (const v_2d<TL>& lhs, const TR& rhs)
 	{
 		return v_2d(lhs.x - rhs, lhs.y - rhs);
@@ -825,7 +839,7 @@ namespace olc
 		return v_2d(lhs.x - rhs.x, lhs.y - rhs.y);
 	}
 
-	template<class TL, class TR>
+	template<class TL, olc::numeric TR>
 	inline constexpr auto operator -= (v_2d<TL>& lhs, const TR& rhs)
 	{
 		lhs = lhs - rhs;
@@ -1598,7 +1612,7 @@ namespace olc
 
 		enum class RendererError
 		{
-			None,
+			NoError, //X11 defines a None macro, so this can't be named None
 			InvalidDCPixelFormat,
 			FailedToSetDCPixelFormat,
 			FailedToCreateRenderContext,
@@ -1690,7 +1704,7 @@ namespace olc
 
 		protected:
 			RendererConfig config;
-			RendererError lastError = RendererError::None;
+			RendererError lastError = RendererError::NoError;
 		};
 	}
 }
@@ -2449,6 +2463,10 @@ namespace olc
     #define FRIENDLY_HOST Host_Apple_MacOS
 #endif
 
+#if OLC_HOST == OLC_HOST_LINUX_X11
+	#define FRIENDLY_HOST Host_Linux_X11
+#endif
+
 namespace olc
 {
 	namespace host
@@ -2547,6 +2565,12 @@ namespace olc
 
 		#if OLC_HOST == OLC_HOST_WINDOWS
 		inline constexpr size_t CreateUID()
+		{
+			return uuid++;
+		}
+		#endif
+		#if OLC_HOST == OLC_HOST_LINUX_X11
+		inline size_t CreateUID()
 		{
 			return uuid++;
 		}
@@ -3896,6 +3920,50 @@ namespace olc
 
 #endif
 
+#if OLC_HOST == OLC_HOST_LINUX_X11
+
+#include <GL/gl.h>
+namespace X11
+{
+#include <X11/X.h>
+#include <X11/Xlib.h>
+#include <GL/glx.h>
+}
+
+namespace olc::host
+{
+    class Host_Linux_X11 : public olc::host::Host
+    {
+	private:
+		X11::Display* olc_Display = nullptr;
+		X11::Window					 olc_WindowRoot;
+		//X11::Window					 olc_Window;
+		X11::XVisualInfo* olc_VisualInfo;
+		X11::Colormap                olc_ColourMap;
+		X11::XSetWindowAttributes    olc_SetWindowAttribs;
+    public:
+        Host_Linux_X11();
+        bool StartSystemEventLoop(bool bBlockIfPossible = false) override;
+        bool AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen) override;
+        bool CloseWindowFrame(olc::Window* pWindow) override;
+        bool UpdateWindowFrameTitle(olc::Window* pWindow) override;
+
+        std::vector<void*> GetHostWindowDescriptor(olc::Window* pWindow) override;
+        
+        
+        bool ConnectHostResourceToRenderer() override;
+
+        // Wait for entire host desktop refresh (for smooooth vsync)
+        bool SyncWithDesktopComposite() override;
+    private:
+        std::unordered_map<size_t, X11::Window> mapUID2X11Window;
+        std::unordered_map<X11::Window, olc::Window*> mapX11Window2PTR;
+        std::atomic<bool> terminate {false};
+    };
+}
+
+#endif
+
 #if OLC_GPU == OLC_GPU_OPENGL33
 
 #if OLC_HOST == OLC_HOST_WINDOWS
@@ -3911,10 +3979,7 @@ namespace olc
 #if OLC_HOST == OLC_HOST_LINUX_X11 || OLC_HOST == OLC_HOST_LINUX_WAYLAND
 	#include <GL/gl.h>
 	#if OLC_HOST == OLC_HOST_LINUX_X11
-		namespace X11
-		{
-			#include <GL/glx.h>
-		}
+		#define OGL_LOAD(t) reinterpret_cast<t##_t*>(X11::glXGetProcAddress(reinterpret_cast<const GLubyte*>(#t)))
 	#endif
 #endif
 
@@ -3968,6 +4033,12 @@ namespace olc
         typedef void* glDeviceContext_t;
         typedef CGLContextObj glRenderContext_t;
         typedef void CALLSTYLE glShaderSource_t(GLuint shader, GLsizei count, const GLchar* const *string, const GLint *length);
+#endif
+
+#if OLC_HOST == OLC_HOST_LINUX_X11
+        typedef void CALLSTYLE glShaderSource_t(GLuint shader, GLsizei count, const GLchar** string, const GLint* length);
+		typedef X11::GLXContext glDeviceContext_t;
+		typedef X11::GLXContext glRenderContext_t;
 #endif
 
 		typedef GLuint CALLSTYLE glCreateShader_t(GLenum type);
@@ -4313,6 +4384,33 @@ namespace olc
 #endif
 #endif
 
+#if OLC_IMAGELOADER == OLC_IMAGELOADER_LIB_PNG
+#if !defined(PGE_IMAGELOADER_LIB_PNG_DECLARED)
+namespace olc::imload
+{
+    class ImageLoader_LibPNG : public ImageLoader
+    {	
+        // Create an image resource based on an image file asset on disk
+        bool CreateImageFromFile(olc::Image& image, const std::string& sFileName) override;
+
+        // Create an image resource based on an image file asset in memory
+        bool CreateImageFromMemory(olc::Image& image, const uint8_t* data, const size_t bytes) override;
+
+        // Create an image resource based on an image file asset in memory
+        bool CreateImageFromMemory(olc::Image& image, const std::vector<uint8_t>& data) override;
+
+        // Store an image as a file asset on disk
+        bool WriteImageToFile(const olc::Image& image, const std::string& sFileName) override;
+
+        // Store an image as a file asset in memory
+        bool WriteImageToMemoryFile(olc::Image& image, const std::vector<uint8_t>& data) override;
+
+    };
+}
+
+#define PGE_IMAGELOADER_LIB_PNG_DECLARED 1
+#endif
+#endif
 
 
 
@@ -6927,6 +7025,213 @@ extern "C" {
 
 
 #endif
+
+#if OLC_HOST == OLC_HOST_LINUX_X11
+namespace olc::host
+{
+    Host_Linux_X11::Host_Linux_X11()
+    {
+        using namespace X11;
+        XInitThreads();
+        olc_Display = XOpenDisplay(NULL);
+        olc_WindowRoot = DefaultRootWindow(olc_Display);
+    }
+
+    bool Host_Linux_X11::StartSystemEventLoop(bool bBlockIfPossible)
+    {
+        using namespace X11;
+
+        auto get_pge_window = [&](auto x11_window) -> olc::Window* {
+            auto itr = mapX11Window2PTR.find(x11_window);
+            if(itr != mapX11Window2PTR.end()) {
+                return itr->second;
+            }
+            return nullptr;
+        };
+
+        //std::unordered_map<X11::Window, olc::Window*> mapX11Window2PTR;
+
+        if(bBlockIfPossible) {
+			X11::XEvent xev;
+            while(!terminate){
+                while (XPending(olc_Display))
+                {
+                    XNextEvent(olc_Display, &xev);
+
+                    if (xev.type == Expose)
+                    {
+                        //auto* expose_event = reinterpret_cast<XExposeEvent*>(&xev);
+                        X11::XExposeEvent& e = xev.xexpose;
+                        if(auto* pge_window = get_pge_window(e.window); pge_window) {
+                            X11::XWindowAttributes gwa;
+                            X11::XGetWindowAttributes(e.display, e.window, &gwa);
+                            pge_window->olc_OnWindowSize(olc::vi2d{gwa.width, gwa.height});
+                        }
+                    }
+                    else if (xev.type == ConfigureNotify)
+                    {
+                        X11::XConfigureEvent& xce = xev.xconfigure;
+                        if(auto* pge_window = get_pge_window(xce.window); pge_window) {
+                            pge_window->olc_OnWindowSize(olc::vi2d{xce.width, xce.height});
+                        }
+                    }
+                    // else if (xev.type == KeyPress)
+                    // {
+                    // 	KeySym ks;
+
+                    // 	// DragonEye still loves numpads, but this is a better way
+                    // 	XLookupString(&xev.xkey, NULL, 0, &ks, NULL);
+
+                    // 	if (ks != NoSymbol)
+                    // 		ptrPGE->olc_UpdateKeyState(ks, true);
+                    // }
+                    // else if (xev.type == KeyRelease)
+                    // {
+                    // 	KeySym ks;
+                    // 	XLookupString(&xev.xkey, NULL, 0, &ks, NULL);
+
+                    // 	if (ks != NoSymbol)
+                    // 		ptrPGE->olc_UpdateKeyState(ks, false);
+                    // }
+                    else if (xev.type == ButtonPress)
+                    {
+                        if(auto* pge_window = get_pge_window(xev.xbutton.window); pge_window) {
+                            switch (xev.xbutton.button)
+                            {
+                            case 1:	pge_window->olc_OnMouseButton(0, true); break;
+                            case 2:	pge_window->olc_OnMouseButton(2, true); break;
+                            case 3:	pge_window->olc_OnMouseButton(1, true); break;
+                            case 4:	pge_window->olc_OnMouseWheel(120); break;
+                            case 5:	pge_window->olc_OnMouseWheel(-120); break;
+                            default: break;
+                            }
+                        
+                        }
+                    }
+                    else if (xev.type == ButtonRelease)
+                    {
+                        if(auto* pge_window = get_pge_window(xev.xbutton.window); pge_window) {
+                            switch (xev.xbutton.button)
+                            {
+                            case 1:	pge_window->olc_OnMouseButton(0, false); break;
+                            case 2:	pge_window->olc_OnMouseButton(2, false); break;
+                            case 3:	pge_window->olc_OnMouseButton(1, false); break;
+                            default: break;
+                            }               
+                        }
+                    }
+                    else if (xev.type == MotionNotify)
+                    {
+                        X11::XMotionEvent& xme = xev.xmotion;
+                        if(auto* pge_window = get_pge_window(xev.xbutton.window); pge_window) {
+                            pge_window->olc_OnMouseMove(olc::vi2d{xme.x, xme.y});
+                        
+                        }
+                    }
+                    // else if (xev.type == FocusIn)
+                    // {
+                    // 	ptrPGE->olc_UpdateKeyFocus(true);
+                    // }
+                    // else if (xev.type == FocusOut)
+                    // {
+                    // 	ptrPGE->olc_UpdateKeyFocus(false);
+                    // }
+                    else if (xev.type == ClientMessage)
+                    {
+                        X11::XClientMessageEvent& xcme = xev.xclient;
+                        if(auto* pge_window = get_pge_window(xcme.window); pge_window) {
+                            pge_window->olc_OnWindowClose();
+                            return false;
+                        }
+                    }
+                }
+            }
+        }
+        return true;
+    }
+
+    bool Host_Linux_X11::AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen)
+    {
+		// The user created olc::Window object is the SSoT for what a window
+		// should look like, so get that sort of thing from there
+		olc::vi2d vWinPos = vWindowPos;
+		olc::vi2d vWinSize = vWindowSize;
+
+        // Based on the display capabilities, configure the appearance of the window
+        // to do this namespacing, both x11 and glx have to be included in the x11 namespace
+        GLint olc_GLAttribs[] = { GLX_RGBA, GLX_DEPTH_SIZE, 24, GLX_DOUBLEBUFFER, None };
+        olc_VisualInfo = glXChooseVisual(olc_Display, 0, olc_GLAttribs);
+        olc_ColourMap = XCreateColormap(olc_Display, olc_WindowRoot, olc_VisualInfo->visual, AllocNone);
+        olc_SetWindowAttribs.colormap = olc_ColourMap;
+
+        // Register which events we are interested in receiving
+        olc_SetWindowAttribs.event_mask = ExposureMask | KeyPressMask | KeyReleaseMask |
+            ButtonPressMask | ButtonReleaseMask | PointerMotionMask | FocusChangeMask | StructureNotifyMask;
+
+        // Create the window
+        X11::Window olc_Window = XCreateWindow(olc_Display, olc_WindowRoot, vWindowPos.x, vWindowPos.y,
+            vWindowSize.x, vWindowSize.y,
+            0, olc_VisualInfo->depth, InputOutput, olc_VisualInfo->visual,
+            CWColormap | CWEventMask, &olc_SetWindowAttribs);
+
+            
+        X11::Atom wmDelete = XInternAtom(olc_Display, "WM_DELETE_WINDOW", true);
+        X11::XSetWMProtocols(olc_Display, olc_Window, &wmDelete, 1);
+        
+        XMapWindow(olc_Display, olc_Window);
+        XStoreName(olc_Display, olc_Window, "OneLoneCoder.com - Pixel Game Engine");
+            pWindow->SetWindowSize(vWindowSize);
+            
+        mapUID2X11Window.insert_or_assign(pWindow->GetUID(), olc_Window);
+		mapX11Window2PTR.insert_or_assign(olc_Window, pWindow);
+
+        return true;
+    }
+
+    bool Host_Linux_X11::CloseWindowFrame(olc::Window* pWindow)
+    {
+        const auto window_handle = mapUID2X11Window.find(pWindow->GetUID());
+        if (window_handle != mapUID2X11Window.end()) {
+            X11::XDestroyWindow(olc_Display, window_handle->second);
+            mapUID2X11Window.erase(window_handle);
+        }
+        return true;
+    }
+    
+    bool Host_Linux_X11::UpdateWindowFrameTitle(olc::Window* pWindow)
+    {
+        const auto window_handle = mapUID2X11Window.find(pWindow->GetUID());
+        if (window_handle != mapUID2X11Window.end()) {
+            X11::XStoreName(olc_Display, window_handle->second, pWindow->GetWindowTitle().c_str());
+        }
+        return true;
+    }
+
+    std::vector<void*> Host_Linux_X11::GetHostWindowDescriptor(olc::Window* pWindow)
+    {
+        const auto window_handle = mapUID2X11Window.find(pWindow->GetUID());
+        if (window_handle != mapUID2X11Window.end()) {
+            return {reinterpret_cast<void*>(window_handle->second),
+                reinterpret_cast<void*>(olc_Display)
+            };
+        }
+  		return {};
+    }
+    
+    
+    bool Host_Linux_X11::ConnectHostResourceToRenderer()
+    {
+        return true;
+    }
+
+    // Wait for entire host desktop refresh (for smooooth vsync)
+    bool Host_Linux_X11::SyncWithDesktopComposite()
+    {
+        return true;
+    }
+}
+#endif
+
 #define PGE_HOST_IMPLEMENTED 1
 #endif
 
@@ -7443,6 +7748,20 @@ namespace olc::gpu
 
 #endif
 
+#if OLC_HOST == OLC_HOST_LINUX_X11
+		const auto window_handle = reinterpret_cast<X11::Window>(os_win_id[0]);
+		auto* display = reinterpret_cast<X11::Display*>(os_win_id[1]);
+        GLint olc_GLAttribs[] = { GLX_RGBA, GLX_DEPTH_SIZE, 24, GLX_DOUBLEBUFFER, None };
+
+		X11::XVisualInfo* olc_VisualInfo = X11::glXChooseVisual(display, 0, olc_GLAttribs);
+		glRenderContext = X11::glXCreateContext(display, olc_VisualInfo, nullptr, GL_TRUE);
+		glXMakeCurrent(display, window_handle, glRenderContext);
+
+		X11::XWindowAttributes gwa;
+		X11::XGetWindowAttributes(display, window_handle, &gwa);
+		glViewport(0, 0, gwa.width, gwa.height);
+#endif
+
 #if OLC_HOST == OLC_HOST_MACOS
         
 		// os_win_id[0] is the OLC OpenGL Device Context      
@@ -7459,7 +7778,7 @@ namespace olc::gpu
 		if (!gl.HasLoaded())
 		{
 			std::cout << "Error: Could not Load OpenGL!\n";
-			lastError = RendererError::None;
+			lastError = RendererError::NoError;
 			return false;
 		}
 		
@@ -7643,7 +7962,7 @@ namespace olc::gpu
 		gl.glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
 		gl.glEnable(GL_BLEND);
 
-		lastError = RendererError::None;
+		lastError = RendererError::NoError;
 		return true;
 	}
 
@@ -7656,6 +7975,11 @@ namespace olc::gpu
 #endif
 #if OLC_HOST == OLC_HOST_MACOS
         //TODO: Add MacOS destroy context code
+#endif
+#if OLC_HOST == OLC_HOST_LINUX_X11
+		auto* display = X11::XOpenDisplay(nullptr);
+		X11::glXMakeCurrent(display, 0, NULL);
+		X11::glXDestroyContext(display, glRenderContext);
 #endif
 		return false;
 	}
@@ -7677,6 +8001,15 @@ namespace olc::gpu
 
 		CGLContextObj cglContext = (CGLContextObj)glRenderContext;
 		if (!CGLSetCurrentContext(cglContext))
+		{
+			lastError = RendererError::FailedToSwitchRenderContext;
+			return false;
+		}
+#endif
+#if OLC_HOST == OLC_HOST_LINUX_X11
+		const auto window = reinterpret_cast<X11::Window>(os_win_id[0]);
+		auto* display = reinterpret_cast<X11::Display*>(os_win_id[1]);
+		if(!X11::glXMakeCurrent(display, window, glRenderContext))
 		{
 			lastError = RendererError::FailedToSwitchRenderContext;
 			return false;
@@ -8074,6 +8407,12 @@ namespace olc::gpu
         glFlushRenderAPPLE();
         glSwapAPPLE();
        
+#endif
+
+#if OLC_HOST == OLC_HOST_LINUX_X11
+		const auto window_handle = reinterpret_cast<X11::Window>(os_win_id[0]);
+		auto* display = reinterpret_cast<X11::Display*>(os_win_id[1]);
+		X11::glXSwapBuffers(display, window_handle);
 #endif
 
 		return true;
@@ -9907,6 +10246,9 @@ namespace olc
 		#if OLC_HOST == OLC_HOST_MACOS
 		host = std::make_unique<olc::host::Host_Apple_MacOS>();
 		#endif
+		#if OLC_HOST == OLC_HOST_LINUX_X11
+		host = std::make_unique<olc::host::Host_Linux_X11>();
+		#endif
 #if OLC_MULTIWINDOW == OLC_MULTIWINDOW_NO
 		// Create OS window on this thread
 		host->AddWindowFrame(this, { 30,30 }, config.vPixelSize * config.vScreenSize, false);
@@ -9973,6 +10315,10 @@ namespace olc
 		imageloader = std::make_unique<olc::imload::ImageLoader_MacOS>();
 		#endif
 
+		#if OLC_HOST == OLC_HOST_LINUX_X11
+		imageloader = std::make_unique<olc::imload::ImageLoader_LibPNG>();
+		#endif
+
 		// Initialise GPU Interface	- This thread is the context
 		olc::gpu::RendererConfig cfgRenderer;
 		cfgRenderer.VerticalSync = config.bVSync;
@@ -9988,7 +10334,7 @@ namespace olc
 		// gives us completed gpu and host objects to pass to other windows as and
 		// when required
 		gpu->CreateDevice(host->GetHostWindowDescriptor(this), cfgRenderer);
-		if (gpu->GetLastError() != olc::gpu::RendererError::None)
+		if (gpu->GetLastError() != olc::gpu::RendererError::NoError)
 		{
 			const auto e = gpu->GetLastError(); // For debug visibility
 			std::cout << "Error: Could not create Renderer\n";
@@ -10660,6 +11006,117 @@ namespace olc::imload
     {
         return false;
     }
+}
+#endif
+#if OLC_IMAGELOADER == OLC_IMAGELOADER_LIB_PNG
+#include <png.h>
+
+namespace olc::imload
+{
+    // Create an image resource based on an image file asset on disk
+    bool ImageLoader_LibPNG::CreateImageFromFile(olc::Image& image, const std::string& sFileName)
+    {
+        ////////////////////////////////////////////////////////////////////////////
+        // Use libpng, Thanks to Guillaume Cottenceau
+        // https://gist.github.com/niw/5963798
+        // Also reading png from streams
+        // http://www.piko3d.net/tutorials/libpng-tutorial-loading-png-files-from-streams/
+        png_structp png;
+        png_infop info;
+
+        auto loadPNG = [&]()
+            {
+                png_read_info(png, info);
+                png_byte color_type;
+                png_byte bit_depth;
+                png_bytep* row_pointers;
+                image.Create(
+                    {
+                        static_cast<int>(png_get_image_width(png, info)),
+                        static_cast<int>(png_get_image_height(png, info))
+                    }
+                );
+
+                color_type = png_get_color_type(png, info);
+                bit_depth = png_get_bit_depth(png, info);
+                if (bit_depth == 16) png_set_strip_16(png);
+                if (color_type == PNG_COLOR_TYPE_PALETTE) png_set_palette_to_rgb(png);
+                if (color_type == PNG_COLOR_TYPE_GRAY && bit_depth < 8)	png_set_expand_gray_1_2_4_to_8(png);
+                if (png_get_valid(png, info, PNG_INFO_tRNS)) png_set_tRNS_to_alpha(png);
+                if (color_type == PNG_COLOR_TYPE_RGB || color_type == PNG_COLOR_TYPE_GRAY || color_type == PNG_COLOR_TYPE_PALETTE)
+                    png_set_filler(png, 0xFF, PNG_FILLER_AFTER);
+                if (color_type == PNG_COLOR_TYPE_GRAY || color_type == PNG_COLOR_TYPE_GRAY_ALPHA)
+                    png_set_gray_to_rgb(png);
+                png_read_update_info(png, info);
+                row_pointers = (png_bytep*)malloc(sizeof(png_bytep) * image.Size().y);
+                for (int y = 0; y < image.Size().y; y++) {
+                    row_pointers[y] = (png_byte*)malloc(png_get_rowbytes(png, info));
+                }
+                png_read_image(png, row_pointers);
+
+                // Iterate through image rows, converting into sprite format
+                for (int y = 0; y < image.Size().y; y++)
+                {
+                    png_bytep row = row_pointers[y];
+                    for (int x = 0; x < image.Size().x; x++)
+                    {
+                        png_bytep px = &(row[x * 4]);
+                        image.Pixel(olc::vi2d(x, y)) = olc::Pixel(px[0], px[1], px[2], px[3]);
+                    }
+                }
+
+                for (int y = 0; y < image.Size().y; y++) // Thanks maksym33
+                    free(row_pointers[y]);
+                free(row_pointers);
+                png_destroy_read_struct(&png, &info, nullptr);
+            };
+
+        png = png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+        if (!png)
+            return false;
+
+        info = png_create_info_struct(png);
+        if (!info)
+            return false;
+
+        if (setjmp(png_jmpbuf(png)))
+            return false;
+
+        {
+            FILE* f = fopen(sFileName.c_str(), "rb");
+            if (!f) return false;
+            png_init_io(png, f);
+            loadPNG();
+            fclose(f);
+        }
+
+        return true;
+    }
+    
+    // Create an image resource based on an image file asset in memory
+    bool ImageLoader_LibPNG::CreateImageFromMemory(olc::Image& image, const uint8_t* data, const size_t bytes)
+    {
+        return false;
+    }
+    
+    // Create an image resource based on an image file asset in memory
+    bool ImageLoader_LibPNG::CreateImageFromMemory(olc::Image& image, const std::vector<uint8_t>& data)
+    {
+        return false;
+    }
+    
+    // Store an image as a file asset on disk
+    bool ImageLoader_LibPNG::WriteImageToFile(const olc::Image& image, const std::string& sFileName) 
+    {
+        return false;
+    }
+    
+    // Store an image as a file asset in memory
+    bool ImageLoader_LibPNG::WriteImageToMemoryFile(olc::Image& image, const std::vector<uint8_t>& data)
+    {
+        return false;
+    }
+
 }
 #endif
 #define PGE_IMAGELOADER_IMPLEMENTED 1

@@ -28,6 +28,12 @@ add_custom_command(
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/dev/src
     DEPENDS ${sources}
     DEPENDS ${olcGimmeHead_BINARY_DIR}/gimme-head
-    )
+)
+
+add_custom_target(CopyHeader
+    COMMAND ${CMAKE_COMMAND} -E copy olcPixelGameEngine3.h ${CMAKE_CURRENT_SOURCE_DIR}/olcPixelGameEngine3.h
+    DEPENDS olcPixelGameEngine3.h
+)
 
 add_library(olcPixelGameEngine3 INTERFACE olcPixelGameEngine3.h)
+add_dependencies(olcPixelGameEngine3 CopyHeader)

@@ -86,6 +86,8 @@
 
 //! GRAB config.h CONFIGURATION
 
+//! GRAB concepts.h DECLARATION
+
 //! GRAB pixel.h DECLARATION
 
 //! GRAB vector2d.h DECLARATION
@@ -141,6 +143,12 @@
 //! GRAB host_apple_macos.h DECLARATION
 #endif
 
+#if OLC_HOST == OLC_HOST_LINUX_X11
+//! GRAB host_lin_x11.h X11_CONFIG
+
+//! GRAB host_lin_x11.h DECLARATION
+#endif
+
 #if OLC_GPU == OLC_GPU_OPENGL33
 //! GRAB api_opengl.h OPENGL_CONFIG
 
@@ -159,6 +167,9 @@
 //! GRAB imload_macos.h DECLARATION
 #endif
 
+#if OLC_IMAGELOADER == OLC_IMAGELOADER_LIB_PNG
+//! GRAB imload_lib_png.h DECLARATION
+#endif
 
 
 
@@ -176,6 +187,11 @@
 //! GRAB api_macos.cpp IMPLEMENTATION
 
 #endif
+
+#if OLC_HOST == OLC_HOST_LINUX_X11
+//! GRAB host_lin_x11.cpp IMPLEMENTATION
+#endif
+
 #define PGE_HOST_IMPLEMENTED 1
 #endif
 
@@ -225,6 +241,9 @@
 #endif
 #if OLC_IMAGELOADER == OLC_IMAGELOADER_MACOS
 //! GRAB imload_macos.cpp IMPLEMENTATION 
+#endif
+#if OLC_IMAGELOADER == OLC_IMAGELOADER_LIB_PNG
+//! GRAB imload_lib_png.cpp IMPLEMENTATION 
 #endif
 #define PGE_IMAGELOADER_IMPLEMENTED 1
 #endif

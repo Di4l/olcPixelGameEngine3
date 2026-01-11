@@ -28,10 +28,7 @@
 #if OLC_HOST == OLC_HOST_LINUX_X11 || OLC_HOST == OLC_HOST_LINUX_WAYLAND
 	#include <GL/gl.h>
 	#if OLC_HOST == OLC_HOST_LINUX_X11
-		namespace X11
-		{
-			#include <GL/glx.h>
-		}
+		#define OGL_LOAD(t) reinterpret_cast<t##_t*>(X11::glXGetProcAddress(reinterpret_cast<const GLubyte*>(#t)))
 	#endif
 #endif
 
@@ -87,6 +84,12 @@ namespace olc
         typedef void* glDeviceContext_t;
         typedef CGLContextObj glRenderContext_t;
         typedef void CALLSTYLE glShaderSource_t(GLuint shader, GLsizei count, const GLchar* const *string, const GLint *length);
+#endif
+
+#if OLC_HOST == OLC_HOST_LINUX_X11
+        typedef void CALLSTYLE glShaderSource_t(GLuint shader, GLsizei count, const GLchar** string, const GLint* length);
+		typedef X11::GLXContext glDeviceContext_t;
+		typedef X11::GLXContext glRenderContext_t;
 #endif
 
 		typedef GLuint CALLSTYLE glCreateShader_t(GLenum type);

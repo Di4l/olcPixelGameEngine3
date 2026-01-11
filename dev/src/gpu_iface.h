@@ -27,7 +27,7 @@ namespace olc
 
 		enum class RendererError
 		{
-			None,
+			NoError, //X11 defines a None macro, so this can't be named None
 			InvalidDCPixelFormat,
 			FailedToSetDCPixelFormat,
 			FailedToCreateRenderContext,
@@ -119,7 +119,7 @@ namespace olc
 
 		protected:
 			RendererConfig config;
-			RendererError lastError = RendererError::None;
+			RendererError lastError = RendererError::NoError;
 		};
 	}
 }

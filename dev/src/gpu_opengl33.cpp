@@ -93,6 +93,20 @@ namespace olc::gpu
 
 #endif
 
+#if OLC_HOST == OLC_HOST_LINUX_X11
+		const auto window_handle = reinterpret_cast<X11::Window>(os_win_id[0]);
+		auto* display = reinterpret_cast<X11::Display*>(os_win_id[1]);
+        GLint olc_GLAttribs[] = { GLX_RGBA, GLX_DEPTH_SIZE, 24, GLX_DOUBLEBUFFER, None };
+
+		X11::XVisualInfo* olc_VisualInfo = X11::glXChooseVisual(display, 0, olc_GLAttribs);
+		glRenderContext = X11::glXCreateContext(display, olc_VisualInfo, nullptr, GL_TRUE);
+		glXMakeCurrent(display, window_handle, glRenderContext);
+
+		X11::XWindowAttributes gwa;
+		X11::XGetWindowAttributes(display, window_handle, &gwa);
+		glViewport(0, 0, gwa.width, gwa.height);
+#endif
+
 #if OLC_HOST == OLC_HOST_MACOS
         
 		// os_win_id[0] is the OLC OpenGL Device Context      
@@ -109,7 +123,7 @@ namespace olc::gpu
 		if (!gl.HasLoaded())
 		{
 			std::cout << "Error: Could not Load OpenGL!\n";
-			lastError = RendererError::None;
+			lastError = RendererError::NoError;
 			return false;
 		}
 		
@@ -293,7 +307,7 @@ namespace olc::gpu
 		gl.glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
 		gl.glEnable(GL_BLEND);
 
-		lastError = RendererError::None;
+		lastError = RendererError::NoError;
 		return true;
 	}
 
@@ -306,6 +320,11 @@ namespace olc::gpu
 #endif
 #if OLC_HOST == OLC_HOST_MACOS
         //TODO: Add MacOS destroy context code
+#endif
+#if OLC_HOST == OLC_HOST_LINUX_X11
+		auto* display = X11::XOpenDisplay(nullptr);
+		X11::glXMakeCurrent(display, 0, NULL);
+		X11::glXDestroyContext(display, glRenderContext);
 #endif
 		return false;
 	}
@@ -327,6 +346,15 @@ namespace olc::gpu
 
 		CGLContextObj cglContext = (CGLContextObj)glRenderContext;
 		if (!CGLSetCurrentContext(cglContext))
+		{
+			lastError = RendererError::FailedToSwitchRenderContext;
+			return false;
+		}
+#endif
+#if OLC_HOST == OLC_HOST_LINUX_X11
+		const auto window = reinterpret_cast<X11::Window>(os_win_id[0]);
+		auto* display = reinterpret_cast<X11::Display*>(os_win_id[1]);
+		if(!X11::glXMakeCurrent(display, window, glRenderContext))
 		{
 			lastError = RendererError::FailedToSwitchRenderContext;
 			return false;
@@ -724,6 +752,12 @@ namespace olc::gpu
         glFlushRenderAPPLE();
         glSwapAPPLE();
        
+#endif
+
+#if OLC_HOST == OLC_HOST_LINUX_X11
+		const auto window_handle = reinterpret_cast<X11::Window>(os_win_id[0]);
+		auto* display = reinterpret_cast<X11::Display*>(os_win_id[1]);
+		X11::glXSwapBuffers(display, window_handle);
 #endif
 
 		return true;
