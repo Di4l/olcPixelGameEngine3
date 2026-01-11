@@ -26,14 +26,14 @@ namespace olc
 		Point = 0,
 		// Vertex buffer is a series of line segments
 		Line,
+		// Vertex buffer is a series of line segments, that close to form a loop
+		LineLoop,
 		// Vertex buffer is a fan of triangles
 		Fan,
 		// Vertex buffer is a strip of adjacent triangles
 		Strip,
 		// Vertex buffer is a series of discrete triangles
 		List, 
-		// Vertex buffer is a series of line segments, that close to form a loop
-		LineLoop
 	};
 	
 	// This is the default "packet" of work that is sent to 

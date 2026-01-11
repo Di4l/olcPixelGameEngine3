@@ -13,6 +13,11 @@
 #include "imload_macos.h"
 #endif
 
+#if OLC_HOST == OLC_HOST_LINUX_X11
+#include "host_lin_x11.h"
+#include "imload_lib_png.h"
+#endif
+
 //! START IMPLEMENTATION
 namespace olc
 {
@@ -77,7 +82,7 @@ namespace olc
 		pRenderer->ClearViewport(olc::Colour::MAGENTA, true, true);
 		
 		draw.WorldReset();		
-		draw.ImageRect(GetDefaultImage(), { 0.0,0.0 }, GetWindowSize());
+		draw.ImageRect(GetDefaultImage().flipV(), {0.0,0.0}, GetWindowSize());
 		draw.ProcessGPUTasks();
 
 		// Update Window's primary surface
@@ -220,6 +225,9 @@ namespace olc
 		#if OLC_HOST == OLC_HOST_MACOS
 		host = std::make_unique<olc::host::Host_Apple_MacOS>();
 		#endif
+		#if OLC_HOST == OLC_HOST_LINUX_X11
+		host = std::make_unique<olc::host::Host_Linux_X11>();
+		#endif
 #if OLC_MULTIWINDOW == OLC_MULTIWINDOW_NO
 		// Create OS window on this thread
 		host->AddWindowFrame(this, { 30,30 }, config.vPixelSize * config.vScreenSize, false);
@@ -286,6 +294,10 @@ namespace olc
 		imageloader = std::make_unique<olc::imload::ImageLoader_MacOS>();
 		#endif
 
+		#if OLC_HOST == OLC_HOST_LINUX_X11
+		imageloader = std::make_unique<olc::imload::ImageLoader_LibPNG>();
+		#endif
+
 		// Initialise GPU Interface	- This thread is the context
 		olc::gpu::RendererConfig cfgRenderer;
 		cfgRenderer.VerticalSync = config.bVSync;
@@ -301,7 +313,7 @@ namespace olc
 		// gives us completed gpu and host objects to pass to other windows as and
 		// when required
 		gpu->CreateDevice(host->GetHostWindowDescriptor(this), cfgRenderer);
-		if (gpu->GetLastError() != olc::gpu::RendererError::None)
+		if (gpu->GetLastError() != olc::gpu::RendererError::NoError)
 		{
 			const auto e = gpu->GetLastError(); // For debug visibility
 			std::cout << "Error: Could not create Renderer\n";

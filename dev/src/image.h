@@ -62,9 +62,11 @@ namespace olc
 		bool BoundToGPU() const;
 		bool BoundToCPU() const;
 
+	public:
 		olc::ImageRegion region(const olc::vf2d pos, const olc::vf2d& size);
 		olc::ImageRegion region(const olc::vf2d& vTL, const olc::vf2d& vTR, const olc::vf2d& vBL, const olc::vf2d& vBR);
-
+		olc::ImageRegion flipV();
+		olc::ImageRegion flipH();
 
 	public: // Make friendly private later
 		void BindGPU();
@@ -81,8 +83,18 @@ namespace olc
 
 	struct ImageRegion
 	{
-		olc::Image& image;		
+		// Reference to source image, it is wrapped so that 
+		// 1) it is syntactically clear to use
+		// 2) it cannot be null
+		// 3) it allows ImageRegion to be copyable
+		std::reference_wrapper<olc::Image> image;	
+
+		// Size of region in pixels. We store this so we can
+		// transform teh region appropriately later
 		olc::vf2d regionsize;
+
+		// Texture coordinates in normalised space, unioned
+		// for convenient access with direct accessors
 		union
 		{
 			std::array<olc::vf2d, 4> coords;
@@ -92,16 +104,30 @@ namespace olc
 			olc::vf2d bl;
 		};
 
+		// Construct region from image and coordinates. By default
+		// the entire image is the region. This allows ImageRegion
+		// to be invisibly constructed from an Image reference.
 		ImageRegion(olc::Image& i, const olc::vf2d& vTL = { 0,0 }, const olc::vf2d& vTR = { 1,0 }, const olc::vf2d& vBL = { 0,1 }, const olc::vf2d& vBR = { 1,1 })
 			: image(i)
 		{
 			coords = { vTL, vTR, vBR, vBL };
-			regionsize = (vBR - vTL) * image.Size();
+			regionsize = (vBR - vTL) * image.get().Size();
 		}
 
-		ImageRegion& operator=(ImageRegion& o)
+		// Flip texture coordinates vertically
+		olc::ImageRegion& flipV()
 		{
-            return *this; // TODO: Johnngy63 implement properly if needed temp code to get Macos to compile
+			std::swap(coords[0], coords[3]);
+			std::swap(coords[1], coords[2]);
+			return *this;
+		}
+
+		// Flip texture coordinates horizontally
+		olc::ImageRegion& flipH()
+		{
+			std::swap(coords[0], coords[1]);
+			std::swap(coords[2], coords[3]);
+			return *this;
 		}
 	};
 

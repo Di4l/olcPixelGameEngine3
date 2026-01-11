@@ -123,11 +123,16 @@ namespace olc::host
 		AdjustWindowRectEx(&rWndRect, dwStyle, FALSE, dwExStyle);
 		int width = rWndRect.right - rWndRect.left;
 		int height = rWndRect.bottom - rWndRect.top;
-		pWindow->SetWindowSize(vWindowSize);
 
 		// Create the actual OS window, return a handle
 		HWND hWnd = CreateWindowEx(dwExStyle, olcT("OLC_PIXEL_GAME_ENGINE3"), olcT(""), dwStyle,
 			vTopLeft.x, vTopLeft.y, width, height, NULL, NULL, GetModuleHandle(nullptr), this);
+
+		// Update window size to match actual client area given. In situations where the window
+		// is clamped to the desktop, the client area may be smaller than requested.
+		RECT rClient;
+		GetClientRect(hWnd, &rClient);
+		pWindow->SetWindowSize({ rClient.right - rClient.left, rClient.bottom - rClient.top });
 
 		LONG_PTR lp = GetWindowLongPtr(hWnd, GWL_STYLE);
 		SetWindowLongPtr(hWnd, GWL_STYLE, lp | (WS_CAPTION | WS_SYSMENU | WS_POPUPWINDOW | WS_THICKFRAME));

@@ -191,7 +191,7 @@ olc::Pixel olc::Draw2D::GetPixel(const olc::vf2d& pos)
 
 void olc::Draw2D::Clear(const olc::Pixel& col)
 {
-	//PrepareImageForHW(*pTarget);
+	PrepareTargetForHW();
 	pRenderer->ClearViewport(col, true, true);
 }
 
@@ -735,7 +735,7 @@ const GPUTask& olc::Draw2D::String(const olc::vf2d& pos, const std::string& text
 		}
 		else
 		{
-			Draw2D::Image(task, font.glyphs[c].imgGlyph, pos + spos, scale, col);
+			Draw2D::Image(task, font.glyphs[c].imgGlyph, pos + spos + olc::vf2d{ glyph.spacing * scale.x, 0.0f }, scale, col);
 			spos.x += glyph.vMonoSize.x * scale.x;
 		}
 	}
@@ -793,10 +793,11 @@ olc::vf2d olc::Draw2D::GetTextSize(const std::string& text, const bool bProporti
 		}
 		else
 		{
-			if(bProportional)
+			if (bProportional)
 				pos.x += glyph.vPropSize.x * scale.x;
 			else
 				pos.x += glyph.vMonoSize.x * scale.x;
+
 		}
 
 		size = size.max(pos);
@@ -884,7 +885,7 @@ const GPUTask& olc::Draw2D::Image(olc::ImageRegion image, const olc::vf2d& pos, 
 				image.coords[2],
 				image.coords[3],
 			},
-			&image.image
+			&image.image.get()
 		));
 
 }
@@ -913,7 +914,7 @@ const GPUTask& olc::Draw2D::ImageRotated(olc::ImageRegion image, const olc::vf2d
 			transformAffine.forward<float>(vPoints),
 			{ tint, tint, tint, tint},
 			{ image.coords[0], image.coords[1], image.coords[2], image.coords[3] },
-			&image.image
+			&image.image.get()
 		));
 }
 
@@ -988,7 +989,7 @@ const GPUTask& olc::Draw2D::ImageQuad(olc::ImageRegion image, const olc::vf2d& v
 				{ {q[0], 1.0f}, {q[1], 1.0f}, {q[2], 1.0f}, {q[3], 1.0f} },
 				{ tint, tint, tint, tint},
 				{ image.coords[0] * q[0], image.coords[1] * q[1], image.coords[2] * q[2], image.coords[3] * q[3] },
-				&image.image
+				&image.image.get()
 			));		
 		
 	}
@@ -1000,7 +1001,7 @@ const GPUTask& olc::Draw2D::ImageQuad(olc::ImageRegion image, const olc::vf2d& v
 			transformAffine.forwardRound<float>({ vTL, vTR, vBR, vBL }),
 			{ tint, tint, tint, tint },
 			{ image.coords[0], image.coords[1], image.coords[2], image.coords[3] },
-			&image.image
+			&image.image.get()
 		));
 }
 
@@ -1075,14 +1076,14 @@ const GPUTask& olc::Draw2D::ImageRect(olc::ImageRegion image, const olc::vf2d& p
 			transformAffine.forwardRound<float>({ { pos.x, pos.y }, { pos.x + size.x, pos.y }, { pos.x + size.x, pos.y + size.y }, { pos.x, pos.y + size.y } }),
 			{ tint, tint, tint, tint },
 			// Tex coords are clockwise
-			{ image.coords[3], image.coords[2], image.coords[1], image.coords[0] },
-			&image.image
+			{ image.coords[0], image.coords[1], image.coords[2], image.coords[3] },
+			&image.image.get()
 		));
 }
 
 const ImageBatch& olc::Draw2D::ImageRect(olc::ImageBatch& batch, olc::ImageRegion image, const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel tint)
 {
-	// TODO: insert return statement here
+	return batch;
 }
 
 //! END IMPLEMENTATION

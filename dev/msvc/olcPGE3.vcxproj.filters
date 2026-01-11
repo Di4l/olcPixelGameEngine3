@@ -19,6 +19,9 @@
     <Filter Include="Mac Specific">
       <UniqueIdentifier>{fe268a15-2a5a-47fa-8398-970258db5b23}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Linux X11 Specific">
+      <UniqueIdentifier>{eb9dbdc6-d27a-41e8-b44f-9dac7bf9c652}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\pixel.h">
@@ -37,9 +40,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\src\host_lin_wayland.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\host_lin_x11.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\src\host_web_emscripten.h">
@@ -117,6 +117,15 @@
     <ClInclude Include="..\src\host_apple_macos.h">
       <Filter>Mac Specific</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\host_lin_x11.h">
+      <Filter>Linux X11 Specific</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\imload_lib_png.h">
+      <Filter>Linux X11 Specific</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\concepts.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\tests\test_main.cpp">
@@ -158,9 +167,6 @@
     <ClCompile Include="..\src\gpu_iface.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\imload_wingdi.cpp">
-      <Filter>Header Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\hw_mouse.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -178,6 +184,15 @@
     </ClCompile>
     <ClCompile Include="..\src\imload_macos.cpp">
       <Filter>Mac Specific</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\host_lin_x11.cpp">
+      <Filter>Linux X11 Specific</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\imload_wingdi.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\imload_lib_png.cpp">
+      <Filter>Linux X11 Specific</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>
