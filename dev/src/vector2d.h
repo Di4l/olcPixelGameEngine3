@@ -2,6 +2,7 @@
 
 //! START STDHEADER GLOBAL
 #include <cmath>
+#include <concepts>
 #include <cstdint>
 #include <string>
 #include <array>
@@ -194,13 +195,13 @@ namespace olc
 	};
 
 	// Multiplication operator overloads between vectors and scalars, and vectors and vectors
-	template<class TL, class TR>
+	template<olc::numeric TL, class TR>
 	inline constexpr auto operator * (const TL& lhs, const v_2d<TR>& rhs)
 	{
 		return v_2d(lhs * rhs.x, lhs * rhs.y);
 	}
 
-	template<class TL, class TR>
+	template<class TL, olc::numeric TR>
 	inline constexpr auto operator * (const v_2d<TL>& lhs, const TR& rhs)
 	{
 		return v_2d(lhs.x * rhs, lhs.y * rhs);
@@ -212,7 +213,7 @@ namespace olc
 		return v_2d(lhs.x * rhs.x, lhs.y * rhs.y);
 	}
 
-	template<class TL, class TR>
+	template<class TL, olc::numeric TR>
 	inline constexpr auto operator *= (v_2d<TL>& lhs, const TR& rhs)
 	{
 		lhs = lhs * rhs;
@@ -220,13 +221,13 @@ namespace olc
 	}
 
 	// Division operator overloads between vectors and scalars, and vectors and vectors
-	template<class TL, class TR>
+	template<olc::numeric TL, class TR>
 	inline constexpr auto operator / (const TL& lhs, const v_2d<TR>& rhs)
 	{
 		return v_2d(lhs / rhs.x, lhs / rhs.y);
 	}
 
-	template<class TL, class TR>
+	template<class TL, olc::numeric TR>
 	inline constexpr auto operator / (const v_2d<TL>& lhs, const TR& rhs)
 	{
 		return v_2d(lhs.x / rhs, lhs.y / rhs);
@@ -238,7 +239,7 @@ namespace olc
 		return v_2d(lhs.x / rhs.x, lhs.y / rhs.y);
 	}
 
-	template<class TL, class TR>
+	template<class TL, olc::numeric TR>
 	inline constexpr auto operator /= (v_2d<TL>& lhs, const TR& rhs)
 	{
 		lhs = lhs / rhs;
@@ -253,13 +254,13 @@ namespace olc
 	}
 
 	// Addition operator overloads between vectors and scalars, and vectors and vectors
-	template<class TL, class TR>
+	template<olc::numeric TL, class TR>
 	inline constexpr auto operator + (const TL& lhs, const v_2d<TR>& rhs)
 	{
 		return v_2d(lhs + rhs.x, lhs + rhs.y);
 	}
 
-	template<class TL, class TR>
+	template<class TL, olc::numeric TR>
 	inline constexpr auto operator + (const v_2d<TL>& lhs, const TR& rhs)
 	{
 		return v_2d(lhs.x + rhs, lhs.y + rhs);
@@ -271,7 +272,7 @@ namespace olc
 		return v_2d(lhs.x + rhs.x, lhs.y + rhs.y);
 	}
 
-	template<class TL, class TR>
+	template<class TL, olc::numeric TR>
 	inline constexpr auto operator += (v_2d<TL>& lhs, const TR& rhs)
 	{
 		lhs = lhs + rhs;
@@ -293,13 +294,13 @@ namespace olc
 	}
 
 	// Subtraction operator overloads between vectors and scalars, and vectors and vectors
-	template<class TL, class TR>
+	template<olc::numeric TL, class TR>
 	inline constexpr auto operator - (const TL& lhs, const v_2d<TR>& rhs)
 	{
 		return v_2d(lhs - rhs.x, lhs - rhs.y);
 	}
 
-	template<class TL, class TR>
+	template<class TL, olc::numeric TR>
 	inline constexpr auto operator - (const v_2d<TL>& lhs, const TR& rhs)
 	{
 		return v_2d(lhs.x - rhs, lhs.y - rhs);
@@ -311,7 +312,7 @@ namespace olc
 		return v_2d(lhs.x - rhs.x, lhs.y - rhs.y);
 	}
 
-	template<class TL, class TR>
+	template<class TL, olc::numeric TR>
 	inline constexpr auto operator -= (v_2d<TL>& lhs, const TR& rhs)
 	{
 		lhs = lhs - rhs;
