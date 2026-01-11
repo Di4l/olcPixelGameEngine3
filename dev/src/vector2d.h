@@ -10,6 +10,7 @@
 
 //! START CUSTOMHEADER
 #include "config.h"
+#include "concepts.h"
 //! END CUSTOMHEADER
 
 //! START DECLARATION
