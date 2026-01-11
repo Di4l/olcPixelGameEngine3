@@ -1369,6 +1369,7 @@ namespace olc
 		bool BoundToGPU() const;
 		bool BoundToCPU() const;
 
+	public:
 		olc::ImageRegion region(const olc::vf2d pos, const olc::vf2d& size);
 		olc::ImageRegion region(const olc::vf2d& vTL, const olc::vf2d& vTR, const olc::vf2d& vBL, const olc::vf2d& vBR);
 		olc::ImageRegion flipV();
@@ -1389,8 +1390,18 @@ namespace olc
 
 	struct ImageRegion
 	{
-		olc::Image& image;		
+		// Reference to source image, it is wrapped so that 
+		// 1) it is syntactically clear to use
+		// 2) it cannot be null
+		// 3) it allows ImageRegion to be copyable
+		std::reference_wrapper<olc::Image> image;	
+
+		// Size of region in pixels. We store this so we can
+		// transform teh region appropriately later
 		olc::vf2d regionsize;
+
+		// Texture coordinates in normalised space, unioned
+		// for convenient access with direct accessors
 		union
 		{
 			std::array<olc::vf2d, 4> coords;
@@ -1400,13 +1411,17 @@ namespace olc
 			olc::vf2d bl;
 		};
 
+		// Construct region from image and coordinates. By default
+		// the entire image is the region. This allows ImageRegion
+		// to be invisibly constructed from an Image reference.
 		ImageRegion(olc::Image& i, const olc::vf2d& vTL = { 0,0 }, const olc::vf2d& vTR = { 1,0 }, const olc::vf2d& vBL = { 0,1 }, const olc::vf2d& vBR = { 1,1 })
 			: image(i)
 		{
 			coords = { vTL, vTR, vBR, vBL };
-			regionsize = (vBR - vTL) * image.Size();
+			regionsize = (vBR - vTL) * image.get().Size();
 		}
 
+		// Flip texture coordinates vertically
 		olc::ImageRegion& flipV()
 		{
 			std::swap(coords[0], coords[3]);
@@ -1414,16 +1429,12 @@ namespace olc
 			return *this;
 		}
 
+		// Flip texture coordinates horizontally
 		olc::ImageRegion& flipH()
 		{
 			std::swap(coords[0], coords[1]);
 			std::swap(coords[2], coords[3]);
 			return *this;
-		}
-
-		ImageRegion& operator=(ImageRegion& o)
-		{
-            return *this; // TODO: Johnngy63 implement properly if needed temp code to get Macos to compile
 		}
 	};
 
@@ -1445,7 +1456,7 @@ namespace olc
 		olc::ImageRegion imgGlyph;
 		// Leading spacing in pixels before glyph
 		float spacing;
-		// Size of the glyph in pixels
+		// Size of the glyph in proportional format
 		olc::vf2d vPropSize;
 		// Size of the glyph in monospace format
 		olc::vf2d vMonoSize;
@@ -1458,9 +1469,11 @@ namespace olc
 		~Font() = default;
 
 	public:		
-		// Image that contains all glyphs
+		// Image that contains all glyphs. We store it here for
+		// for batch rendering, which does restrict all glyphs
+		// to being from the same image (for now)
 		olc::Image imgFont;
-		// All glyphs in the font
+		// All glyphs in the font (may use a map in future for non-ASCII)
 		std::vector<FontGlyph> glyphs;
 		// Line height in pixels
 		float fLineHeight = 10.0f;
@@ -1525,14 +1538,14 @@ namespace olc
 		Point = 0,
 		// Vertex buffer is a series of line segments
 		Line,
+		// Vertex buffer is a series of line segments, that close to form a loop
+		LineLoop,
 		// Vertex buffer is a fan of triangles
 		Fan,
 		// Vertex buffer is a strip of adjacent triangles
 		Strip,
 		// Vertex buffer is a series of discrete triangles
 		List, 
-		// Vertex buffer is a series of line segments, that close to form a loop
-		LineLoop
 	};
 	
 	// This is the default "packet" of work that is sent to 
@@ -4542,11 +4555,16 @@ namespace olc::host
 		AdjustWindowRectEx(&rWndRect, dwStyle, FALSE, dwExStyle);
 		int width = rWndRect.right - rWndRect.left;
 		int height = rWndRect.bottom - rWndRect.top;
-		pWindow->SetWindowSize(vWindowSize);
 
 		// Create the actual OS window, return a handle
 		HWND hWnd = CreateWindowEx(dwExStyle, olcT("OLC_PIXEL_GAME_ENGINE3"), olcT(""), dwStyle,
 			vTopLeft.x, vTopLeft.y, width, height, NULL, NULL, GetModuleHandle(nullptr), this);
+
+		// Update window size to match actual client area given. In situations where the window
+		// is clamped to the desktop, the client area may be smaller than requested.
+		RECT rClient;
+		GetClientRect(hWnd, &rClient);
+		pWindow->SetWindowSize({ rClient.right - rClient.left, rClient.bottom - rClient.top });
 
 		LONG_PTR lp = GetWindowLongPtr(hWnd, GWL_STYLE);
 		SetWindowLongPtr(hWnd, GWL_STYLE, lp | (WS_CAPTION | WS_SYSMENU | WS_POPUPWINDOW | WS_THICKFRAME));
@@ -9307,7 +9325,7 @@ const GPUTask& olc::Draw2D::Image(olc::ImageRegion image, const olc::vf2d& pos, 
 				image.coords[2],
 				image.coords[3],
 			},
-			&image.image
+			&image.image.get()
 		));
 
 }
@@ -9336,7 +9354,7 @@ const GPUTask& olc::Draw2D::ImageRotated(olc::ImageRegion image, const olc::vf2d
 			transformAffine.forward<float>(vPoints),
 			{ tint, tint, tint, tint},
 			{ image.coords[0], image.coords[1], image.coords[2], image.coords[3] },
-			&image.image
+			&image.image.get()
 		));
 }
 
@@ -9411,7 +9429,7 @@ const GPUTask& olc::Draw2D::ImageQuad(olc::ImageRegion image, const olc::vf2d& v
 				{ {q[0], 1.0f}, {q[1], 1.0f}, {q[2], 1.0f}, {q[3], 1.0f} },
 				{ tint, tint, tint, tint},
 				{ image.coords[0] * q[0], image.coords[1] * q[1], image.coords[2] * q[2], image.coords[3] * q[3] },
-				&image.image
+				&image.image.get()
 			));		
 		
 	}
@@ -9423,7 +9441,7 @@ const GPUTask& olc::Draw2D::ImageQuad(olc::ImageRegion image, const olc::vf2d& v
 			transformAffine.forwardRound<float>({ vTL, vTR, vBR, vBL }),
 			{ tint, tint, tint, tint },
 			{ image.coords[0], image.coords[1], image.coords[2], image.coords[3] },
-			&image.image
+			&image.image.get()
 		));
 }
 
@@ -9499,7 +9517,7 @@ const GPUTask& olc::Draw2D::ImageRect(olc::ImageRegion image, const olc::vf2d& p
 			{ tint, tint, tint, tint },
 			// Tex coords are clockwise
 			{ image.coords[0], image.coords[1], image.coords[2], image.coords[3] },
-			&image.image
+			&image.image.get()
 		));
 }
 

@@ -885,7 +885,7 @@ const GPUTask& olc::Draw2D::Image(olc::ImageRegion image, const olc::vf2d& pos, 
 				image.coords[2],
 				image.coords[3],
 			},
-			&image.image
+			&image.image.get()
 		));
 
 }
@@ -914,7 +914,7 @@ const GPUTask& olc::Draw2D::ImageRotated(olc::ImageRegion image, const olc::vf2d
 			transformAffine.forward<float>(vPoints),
 			{ tint, tint, tint, tint},
 			{ image.coords[0], image.coords[1], image.coords[2], image.coords[3] },
-			&image.image
+			&image.image.get()
 		));
 }
 
@@ -989,7 +989,7 @@ const GPUTask& olc::Draw2D::ImageQuad(olc::ImageRegion image, const olc::vf2d& v
 				{ {q[0], 1.0f}, {q[1], 1.0f}, {q[2], 1.0f}, {q[3], 1.0f} },
 				{ tint, tint, tint, tint},
 				{ image.coords[0] * q[0], image.coords[1] * q[1], image.coords[2] * q[2], image.coords[3] * q[3] },
-				&image.image
+				&image.image.get()
 			));		
 		
 	}
@@ -1001,7 +1001,7 @@ const GPUTask& olc::Draw2D::ImageQuad(olc::ImageRegion image, const olc::vf2d& v
 			transformAffine.forwardRound<float>({ vTL, vTR, vBR, vBL }),
 			{ tint, tint, tint, tint },
 			{ image.coords[0], image.coords[1], image.coords[2], image.coords[3] },
-			&image.image
+			&image.image.get()
 		));
 }
 
@@ -1077,7 +1077,7 @@ const GPUTask& olc::Draw2D::ImageRect(olc::ImageRegion image, const olc::vf2d& p
 			{ tint, tint, tint, tint },
 			// Tex coords are clockwise
 			{ image.coords[0], image.coords[1], image.coords[2], image.coords[3] },
-			&image.image
+			&image.image.get()
 		));
 }
 

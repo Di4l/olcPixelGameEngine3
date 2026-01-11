@@ -31,7 +31,7 @@ namespace olc
 		olc::ImageRegion imgGlyph;
 		// Leading spacing in pixels before glyph
 		float spacing;
-		// Size of the glyph in pixels
+		// Size of the glyph in proportional format
 		olc::vf2d vPropSize;
 		// Size of the glyph in monospace format
 		olc::vf2d vMonoSize;
@@ -44,9 +44,11 @@ namespace olc
 		~Font() = default;
 
 	public:		
-		// Image that contains all glyphs
+		// Image that contains all glyphs. We store it here for
+		// for batch rendering, which does restrict all glyphs
+		// to being from the same image (for now)
 		olc::Image imgFont;
-		// All glyphs in the font
+		// All glyphs in the font (may use a map in future for non-ASCII)
 		std::vector<FontGlyph> glyphs;
 		// Line height in pixels
 		float fLineHeight = 10.0f;
