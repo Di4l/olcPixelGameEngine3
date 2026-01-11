@@ -22,7 +22,12 @@ namespace olc::imload
                 png_byte color_type;
                 png_byte bit_depth;
                 png_bytep* row_pointers;
-                image.Create({png_get_image_width(png, info), png_get_image_height(png, info)});
+                image.Create(
+                    {
+                        static_cast<int>(png_get_image_width(png, info)),
+                        static_cast<int>(png_get_image_height(png, info))
+                    }
+                );
 
                 color_type = png_get_color_type(png, info);
                 bit_depth = png_get_bit_depth(png, info);
