@@ -383,6 +383,83 @@ namespace olc {
                 }
 
 
+                // Context view frame getters and setters
+                void setContentViewPosition(int32_t x, int32_t y) noexcept {
+                    setContentViewPosition(static_cast<double>(x), static_cast<double>(y));
+                }
+                void setContentViewPosition(float x, float y) noexcept {
+                    setContentViewPosition(static_cast<double>(x), static_cast<double>(y));
+                }
+                void setContentViewPosition(double x, double y) noexcept {
+                    if (window_) {
+                        NSRect frame{};
+                        window_getContentViewFrame(window_, nullptr, nullptr, &frame.width, &frame.height);
+                        window_setContentViewFrame(window_, &x, &y, &frame.width, &frame.height);
+                    }
+                }
+
+                void setContentViewSize(int32_t width, int32_t height) noexcept {
+                    setContentViewSize(static_cast<double>(width), static_cast<double>(height));
+                }
+
+                void setContentViewSize(float width, float height) noexcept {
+                    setContentViewSize(static_cast<double>(width), static_cast<double>(height));
+                }
+
+                void setContentViewSize(double width, double height) noexcept {
+                    if(window_) {
+                        NSRect frame{};
+                        window_getContentViewFrame(window_, &frame.x, &frame.y, nullptr, nullptr);
+                        window_setContentViewFrame(window_, &frame.x, &frame.y, &width, &height);
+                    }
+                }
+
+                void setContentViewFrame(NSRect& frame) noexcept {
+                    if (window_) {
+                        window_getContentViewFrame(window_, &frame.x, &frame.y, &frame.width, &frame.height);
+                    } else {
+                        frame = NSRect{0, 0, 0, 0};
+                    }
+                }
+
+                void getContentViewSize(int32_t& width, int32_t& height) const noexcept {
+                    double w = 0.0, h = 0.0;
+                    getContentViewSize(w, h);
+                    width = static_cast<int32_t>(w);
+                    height = static_cast<int32_t>(h);
+                }
+
+                void getContentViewSize(float& width, float& height) const noexcept {
+                    double w = 0.0, h = 0.0;
+                    getContentViewSize(w, h);
+                    width = static_cast<float>(w);
+                    height = static_cast<float>(h);
+                }
+
+                void getContentViewSize(double& width, double& height) const noexcept {
+                    NSRect frame{};
+                    getContentViewFrame(frame);
+                    width = frame.width;
+                    height = frame.height;
+                }
+
+                void getContentViewPosition(double& x, double& y) const noexcept {
+                    NSRect frame{};
+                    getContentViewFrame(frame);
+                    x = frame.x;
+                    y = (frame.y);
+                }
+
+                void getContentViewFrame(NSRect& frame) const noexcept {
+                    if (window_) {
+                        window_getContentViewFrame(window_, &frame.x, &frame.y, &frame.width, &frame.height);
+                    } else {
+                        frame = NSRect{0, 0, 0, 0};
+                    }
+                }
+
+               
+
                 // Set callback for window resize events
                 void setWindowDidResizeCallback(std::function<void()> callback) {
                     setCallback(window_setWindowDidResizeCallback, std::move(callback));

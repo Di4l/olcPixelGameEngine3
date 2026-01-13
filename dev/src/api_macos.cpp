@@ -1,4 +1,3 @@
-
 #include "api_macos.h"
 
 //! START IMPLEMENTATION
@@ -47,7 +46,8 @@ static constexpr const char* kMakeFirstResponderSel             = "makeFirstResp
 static constexpr const char* kMakeKeyAndOrderFrontSel           = "makeKeyAndOrderFront:";
 static constexpr const char* kMakeKeyWindowSel                  = "makeKeyWindow";
 static constexpr const char* kFrameSel                          = "frame";
-static constexpr const char* kSetFrameSel                       = "setFrame:display:";
+static constexpr const char* kSetFrameDisplaySel                = "setFrame:display:";
+static constexpr const char* kSetFrameSel                       = "setFrame:";
 
 // NSWindowDelegate lifecycle and event methods selectors
 static constexpr const char* kWindowDidResizeSel                = "windowDidResize:";
@@ -80,11 +80,16 @@ static constexpr const char* kBecomeFirstResponderSel           = "becomeFirstRe
 static constexpr const char* kCanBecomeKeyViewSel               = "canBecomeKeyView";
 static constexpr const char* kNeedsPanelToBecomeKeySel          = "needsPanelToBecomeKey";
 static constexpr const char* kDrawRectSel                       = "drawRect:";
+static constexpr const char* kReshapeSel                        = "reshape";
+static constexpr const char* kUpdateSel                         = "update";
 
 // NSOpenGL pixel format, view, and context management selectors
 static constexpr const char* kInitWithAttributesSel             = "initWithAttributes:";
 static constexpr const char* kInitWithFramePixelFormatSel       = "initWithFrame:pixelFormat:";
 static constexpr const char* kSetContentViewSel                 = "setContentView:";
+static constexpr const char* kContentViewSel                    = "contentView";
+static constexpr const char* kBoundsSel                         = "bounds";
+static constexpr const char* kConvertPointFromViewSel           = "convertPoint:fromView:";
 static constexpr const char* kOpenGLContextSel                  = "openGLContext";
 static constexpr const char* kMakeCurrentContextSel             = "makeCurrentContext";
 static constexpr const char* kSetAutoresizingMaskSel            = "setAutoresizingMask:";
@@ -140,6 +145,9 @@ static constexpr const char* kEventHandlerMethodTypeEncoding = "v@:@";
 // Type encoding for drawRect method with NSRect parameter: "v@:{NSRect={NSPoint=dd}{NSSize=dd}}"
 static constexpr const char* kDrawRectMethodTypeEncoding = "v@:{NSRect={NSPoint=dd}{NSSize=dd}}";
 
+// Type encoding for void methods with no parameters: "v@:"
+static constexpr const char* kVoidMethodTypeEncoding = "v@:";
+
 
 namespace ObjectiveCSEL {
      
@@ -173,6 +181,7 @@ namespace ObjectiveCSEL {
     static SEL makeKeyAndOrderFrontSel          = nullptr;
     static SEL makeKeyWindowSel                 = nullptr;
     static SEL frameSel                         = nullptr;
+    static SEL setFrameDisplaySel               = nullptr;
     static SEL setFrameSel                      = nullptr;
 
     // NSWindowDelegate lifecycle and event methods selectors
@@ -206,11 +215,16 @@ namespace ObjectiveCSEL {
     static SEL canBecomeKeyViewSel              = nullptr;
     static SEL needsPanelToBecomeKeySel         = nullptr;
     static SEL drawRectSel                      = nullptr;
+    static SEL reshapeSel                       = nullptr;
+    static SEL updateSel                        = nullptr;
 
     // NSOpenGL pixel format, view, and context management selectors
     static SEL initWithAttributesSel            = nullptr;
     static SEL initWithFramePixelFormatSel      = nullptr;
     static SEL setContentViewSel                = nullptr;
+    static SEL contentViewSel                   = nullptr;
+    static SEL boundsSel                        = nullptr;
+    static SEL convertPointFromViewSel          = nullptr;
     static SEL openGLContextSel                 = nullptr;
     static SEL makeCurrentContextSel            = nullptr;
     static SEL setAutoresizingMaskSel           = nullptr;
@@ -274,6 +288,7 @@ namespace ObjectiveCSEL {
         makeKeyAndOrderFrontSel             = sel_registerName(kMakeKeyAndOrderFrontSel);
         makeKeyWindowSel                    = sel_registerName(kMakeKeyWindowSel);
         frameSel                            = sel_registerName(kFrameSel);
+        setFrameDisplaySel                  = sel_registerName(kSetFrameDisplaySel);
         setFrameSel                         = sel_registerName(kSetFrameSel);
 
         // NSWindowDelegate lifecycle and event methods selectors
@@ -307,11 +322,16 @@ namespace ObjectiveCSEL {
         canBecomeKeyViewSel                 = sel_registerName(kCanBecomeKeyViewSel);
         needsPanelToBecomeKeySel            = sel_registerName(kNeedsPanelToBecomeKeySel);
         drawRectSel                         = sel_registerName(kDrawRectSel);
+        reshapeSel                          = sel_registerName(kReshapeSel);
+        updateSel                           = sel_registerName(kUpdateSel);
 
         // NSOpenGL pixel format, view, and context management selectors
         initWithAttributesSel              = sel_registerName(kInitWithAttributesSel);
         initWithFramePixelFormatSel        = sel_registerName(kInitWithFramePixelFormatSel);
         setContentViewSel                  = sel_registerName(kSetContentViewSel);
+        contentViewSel                     = sel_registerName(kContentViewSel);
+        boundsSel                          = sel_registerName(kBoundsSel);
+        convertPointFromViewSel            = sel_registerName(kConvertPointFromViewSel);
         openGLContextSel                   = sel_registerName(kOpenGLContextSel);
         makeCurrentContextSel              = sel_registerName(kMakeCurrentContextSel);
         setAutoresizingMaskSel             = sel_registerName(kSetAutoresizingMaskSel);
@@ -610,7 +630,8 @@ struct Application {
 struct Window {
     id nsWindow{nullptr};           // NSWindow instance
     id delegate{nullptr};           // Window delegate instance
-    NSRect frame{};                 // Window frame rectangle
+    NSRect windowFrame{};                 // Window frame rectangle
+    NSRect contentViewFrame{};      // Content view frame rectangle
     const char* title{nullptr};     // Window title string
 
     // Event callback function pointers with nullptr initialization
@@ -653,13 +674,15 @@ struct Window {
     const char* (*getTitle) (const struct Window* self){nullptr};
     void (*setTitle)        (struct Window* self, const char* title){nullptr};
 
-    void (*setWindowSize)     (struct Window* self, double width, double height){nullptr};
-    void (*getWindowSize)     (const struct Window* self, double* width, double* height){nullptr};
-    void (*setWindowPosition) (struct Window* self, double x, double y){nullptr};
-    void (*getWindowPosition) (const struct Window* self, double* x, double* y){nullptr};
-    void (*setWindowFrame)    (struct Window* self, double x, double y, double width, double height){nullptr};
-    void (*getWindowFrame)    (const struct Window* self, double* x, double* y, double* width, double* height){nullptr};
-    void (*getCurrentFrame)   (struct Window* self){nullptr};
+    void (*setWindowSize)       (struct Window* self, double width, double height){nullptr};
+    void (*getWindowSize)       (const struct Window* self, double* width, double* height){nullptr};
+    void (*setWindowPosition)   (struct Window* self, double x, double y){nullptr};
+    void (*getWindowPosition)   (const struct Window* self, double* x, double* y){nullptr};
+    void (*setWindowFrame)      (struct Window* self, double x, double y, double width, double height){nullptr};
+    void (*getWindowFrame)      (const struct Window* self, double* x, double* y, double* width, double* height){nullptr};
+    void (*getCurrentFrame)     (struct Window* self){nullptr};
+    void (*getContentViewFrame) (const struct Window* self, double* x, double* y, double* width, double* height){nullptr};
+    void (*setContentViewFrame) (struct Window* self, double* x, double* y, double* width, double* height){nullptr};
 };
 
 // Modern OpenGL context management and rendering operations
@@ -813,15 +836,32 @@ void view_keyUp(id self, SEL _cmd, id event) {
 //====================================================================//
 // Mouse Event Handling
 
-// Convert from bottom-left (macOS-opengl format) to top-left (standard) coordinates
-void flipCoordinateY (double& locationY) {
-    if(gptrNSWindowEvents) [[likely]]
+// Convert from window coordinates to content view coordinates and flip Y coordinate
+// from bottom-left (macOS format) to top-left (standard format)
+void convertToContentViewCoordinates(NSPoint& location) {
+
+    if(gptrNSWindowEvents && gptrNSWindowEvents->nsWindow) [[likely]]
     {
-        locationY = gptrNSWindowEvents->frame.height - locationY;
+        // Get the content view
+        id contentView = ((id(*)(id, SEL))objc_msgSend)(gptrNSWindowEvents->nsWindow, ObjectiveCSEL::contentViewSel);
+        if (contentView) {
+
+            // Convert from window coordinates to view coordinates
+            NSPoint contentLocation = ((NSPoint(*)(id, SEL, NSPoint, id))objc_msgSend)(
+                contentView, ObjectiveCSEL::convertPointFromViewSel, location, nil);
+            
+            // Get the content view bounds to flip Y coordinate
+            NSRect contentBounds = ((NSRect(*)(id, SEL))objc_msgSend)(contentView, ObjectiveCSEL::boundsSel);
+            
+            // Flip Y coordinate from bottom-left to top-left
+            location.x = contentLocation.x;
+            location.y = contentBounds.height - contentLocation.y;
+        }
     }
     else
     {
-        locationY = kDefaultWindowHeight - locationY;
+        // Fallback: use default window height
+        location.y = kDefaultWindowHeight - location.y;
     }
 }
 
@@ -839,8 +879,8 @@ MouseEventData extractMouseEventData(id event) {
     data.modifierFlags = ((NSUInteger(*)(id, SEL))objc_msgSend)(event, ObjectiveCSEL::modifierFlagsSel);
     data.buttonNumber = ((NSInteger(*)(id, SEL))objc_msgSend)(event, ObjectiveCSEL::buttonNumberSel);
     
-    // Auto-flip Y coordinate
-    flipCoordinateY(data.location.y);
+    // Convert to content view coordinates and flip Y coordinate
+    convertToContentViewCoordinates(data.location);
     
     return data;
 }
@@ -897,7 +937,7 @@ void view_mouseMoved(id self, SEL _cmd, id event) {
     NSPoint location         = ((NSPoint(*)(id, SEL))objc_msgSend)(event, ObjectiveCSEL::locationInWindowSel);
     NSUInteger modifierFlags = ((NSUInteger(*)(id, SEL))objc_msgSend)(event, ObjectiveCSEL::modifierFlagsSel);
 
-    flipCoordinateY(location.y);
+    convertToContentViewCoordinates(location);
 
     if (gptrNSWindowEvents && gptrNSWindowEvents->acceptsInputEvents && gptrNSWindowEvents->mouseMovedCallback) [[likely]] {
         gptrNSWindowEvents->mouseMovedCallback(location.x, location.y, kNoButton, (unsigned int)modifierFlags, gptrNSWindowEvents->eventUserData);
@@ -979,7 +1019,7 @@ void view_scrollWheel(id self, SEL _cmd, id event) {
     double deltaX            = ((double(*)(id, SEL))objc_msgSend)(event, ObjectiveCSEL::deltaXSel);
     double deltaY            = ((double(*)(id, SEL))objc_msgSend)(event, ObjectiveCSEL::deltaYSel);
 
-     flipCoordinateY(location.y);
+     convertToContentViewCoordinates(location);
 
     if (gptrNSWindowEvents && gptrNSWindowEvents->acceptsInputEvents && gptrNSWindowEvents->scrollWheelCallback) [[likely]] {
         gptrNSWindowEvents->scrollWheelCallback(location.x, location.y, deltaX, deltaY, (unsigned int)modifierFlags, gptrNSWindowEvents->eventUserData);
@@ -1075,8 +1115,8 @@ Class createCustomOpenGLViewClass() {
     class_addMethod(CustomViewClass, ObjectiveCSEL::drawRectSel, (IMP)view_drawRect, kDrawRectMethodTypeEncoding);
 
     // Block automatic OpenGL operations on main thread
-    class_addMethod(CustomViewClass, sel_registerName("reshape"), (IMP)view_reshape, "v@:");
-    class_addMethod(CustomViewClass, sel_registerName("update"), (IMP)view_update, "v@:");
+    class_addMethod(CustomViewClass, ObjectiveCSEL::reshapeSel, (IMP)view_reshape, kVoidMethodTypeEncoding);
+    class_addMethod(CustomViewClass, ObjectiveCSEL::updateSel,  (IMP)view_update,  kVoidMethodTypeEncoding);
 
     // Register the class with the runtime
     objc_registerClassPair(CustomViewClass);
@@ -1292,7 +1332,7 @@ extern "C" {
                                 NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskResizable;
         
         self->nsWindow = ((id(*)(id, SEL, NSRect, unsigned long, unsigned long, BOOL))objc_msgSend)(
-                        windowAlloc, ObjectiveCSEL::initWithContentRectSel, self->frame, styleMask,
+                        windowAlloc, ObjectiveCSEL::initWithContentRectSel, self->windowFrame, styleMask,
                         NSBackingStoreBuffered, NSWindowCreateNow); // Use modern buffered backing store, create immediately
         
         // Set window title using stored title or default
@@ -1300,6 +1340,19 @@ extern "C" {
         id titleString = ((id(*)(Class, SEL, const char*))objc_msgSend)(
                         NSStringClass, ObjectiveCSEL::stringWithUTF8StringSel, titleToUse);
         ((void(*)(id, SEL, id))objc_msgSend)(self->nsWindow, ObjectiveCSEL::setTitleSel, titleString);
+
+        // Set the content view frame
+        NSRect contentFrame = {self->windowFrame.x, self->windowFrame.y, self->windowFrame.width, self->windowFrame.height};
+        if (self->nsWindow) {
+            id contentView = ((id(*)(id, SEL))objc_msgSend)(self->nsWindow, ObjectiveCSEL::contentViewSel);
+            if (contentView) {
+                ((void(*)(id, SEL, NSRect))objc_msgSend)(contentView, ObjectiveCSEL::setFrameSel, contentFrame);
+            }
+        }
+
+        window_getContentViewFrame(self, &self->contentViewFrame.x, &self->contentViewFrame.y,
+                                   &self->contentViewFrame.width, &self->contentViewFrame.height);
+        // Update internal frame representation from actual NSWindow
     }
 
     // Show the window and set up event handling
@@ -1362,18 +1415,73 @@ extern "C" {
 
     // Refresh internal frame representation from actual NSWindow (OSX)
     void window_updateFrameFromOSX(Window* self) {
-        NSRect screenFrame = ((NSRect(*)(id, SEL))objc_msgSend)(self->nsWindow, ObjectiveCSEL::frameSel);
-        
-        self->frame = screenFrame; // Update internal frame representation
 
+       NSRect screenFrame = ((NSRect(*)(id, SEL))objc_msgSend)(self->nsWindow, ObjectiveCSEL::frameSel);
+
+        self->windowFrame = screenFrame; // Update internal frame representation
+       
     }
+
+    // Get the content view size (excludes title bar and borders)
+    void window_getContentViewFrame(const Window* self, double* x, double* y, double* width, double* height) {
+        if (!self || !self->nsWindow) {
+            if (x) *x = kMinValidDimension;
+            if (y) *y = kMinValidDimension;
+            if (width) *width = kDefaultWindowWidth;
+            if (height) *height = kDefaultWindowHeight;
+            return;
+        }
+        
+        // Get the content view
+        id contentView = ((id(*)(id, SEL))objc_msgSend)(self->nsWindow, ObjectiveCSEL::contentViewSel);
+        if (!contentView) {
+            if (x) *x = kMinValidDimension;
+            if (y) *y = kMinValidDimension;
+            if (width) *width = kDefaultWindowWidth;
+            if (height) *height = kDefaultWindowHeight;
+            return;
+        }
+        
+        // Get the content view bounds
+        NSRect contentBounds = ((NSRect(*)(id, SEL))objc_msgSend)(contentView, ObjectiveCSEL::boundsSel);
+        
+        if (x) *x = contentBounds.x;
+        if (y) *y = contentBounds.y;
+        if (width) *width = contentBounds.width;
+        if (height) *height = contentBounds.height;
+        
+    }
+
+    // Get the content view size (excludes title bar and borders)
+    void window_setContentViewFrame(struct Window* self, double* x, double* y, double* width, double* height) {
+        if (!self || !self->nsWindow) {
+            if (x) *x = kMinValidDimension;
+            if (y) *y = kMinValidDimension;
+            if (width) *width = kDefaultWindowWidth;
+            if (height) *height = kDefaultWindowHeight;
+            return;
+        }
+
+       // Set the content view frame
+       NSRect contentFrame = {x ? *x : 0, y ? *y : 0, width ? *width : 0, height ? *height : 0};
+       if (self->nsWindow) {
+           id contentView = ((id(*)(id, SEL))objc_msgSend)(self->nsWindow, ObjectiveCSEL::contentViewSel);
+           if (contentView) {
+               ((void(*)(id, SEL, NSRect))objc_msgSend)(contentView, ObjectiveCSEL::setFrameSel, contentFrame);
+           }
+       }
+    }
+
 
     // Get Window frame (x, y, width, height)
     void window_getWindowFrame(const Window* self, double* x, double* y, double* width, double* height) {
-        auto posX = self ? self->frame.x : kMinValidDimension;
-        auto posY = self ? self->frame.y : kMinValidDimension;
-        auto w = self ? self->frame.width : kDefaultWindowWidth;
-        auto h = self ? self->frame.height : kDefaultWindowHeight;
+        
+        window_updateFrameFromOSX(const_cast<Window*>(self));
+
+        auto posX = self ? self->windowFrame.x : kMinValidDimension;
+        auto posY = self ? self->windowFrame.y : kMinValidDimension;
+        auto w = self ? self->windowFrame.width : kDefaultWindowWidth;
+        auto h = self ? self->windowFrame.height : kDefaultWindowHeight;
         if (x) *x = posX;
         if (y) *y = posY;
         if (width) *width = w;
@@ -1394,29 +1502,29 @@ extern "C" {
     void window_setWindowFrame(Window* self, double x, double y, double width, double height) {
         if (self) {
             // Update internal frame representation
-            self->frame.x      = x;
-            self->frame.y      = y;
-            self->frame.width  = width;
-            self->frame.height = height;
-            
+            self->windowFrame.x      = x;
+            self->windowFrame.y      = y;
+            self->windowFrame.width  = width;
+            self->windowFrame.height = height;
+
             // Create new NSRect for the frame
             NSRect newFrame = {x, y, width, height};
             
             // Set the frame on the actual NSWindow
             if (self->nsWindow) {
-                ((void(*)(id, SEL, NSRect, BOOL))objc_msgSend)(self->nsWindow, ObjectiveCSEL::setFrameSel, newFrame, YES);
+                ((void(*)(id, SEL, NSRect, BOOL))objc_msgSend)(self->nsWindow, ObjectiveCSEL::setFrameDisplaySel, newFrame, YES);
             }
         }
     }
 
     // Set window position (x, y)
     void window_setWindowPosition(Window* self, double x, double y) {
-        window_setWindowFrame(self, x, y, self->frame.width, self->frame.height);
+        window_setWindowFrame(self, x, y, self->windowFrame.width, self->windowFrame.height);
     }
 
     // Set window size (width, height)
     void window_setWindowSize(Window* self, double width, double height) {
-        window_setWindowFrame(self, self->frame.x, self->frame.y, width, height);
+        window_setWindowFrame(self, self->windowFrame.x, self->windowFrame.y, width, height);
     }
 
     // Initialize OpenGL renderer
@@ -1443,7 +1551,7 @@ extern "C" {
             ObjectiveCSEL::initWithAttributesSel, attrs);
         
         // Create custom OpenGL view with event handling
-        NSRect glViewFrame = {0.0, 0.0, window->frame.width, window->frame.height};
+        NSRect glViewFrame = {0.0, 0.0, window->contentViewFrame.width, window->contentViewFrame.height};
         self->glView = ((id(*)(id, SEL, NSRect, id))objc_msgSend)(
             ((id(*)(Class, SEL))objc_msgSend)(CustomOpenGLViewClass, ObjectiveCSEL::allocSel),
             ObjectiveCSEL::initWithFramePixelFormatSel, glViewFrame, self->pixelFormat);
@@ -1782,12 +1890,18 @@ extern "C" {
         window->delegate    = NULL;
         window->title       = NULL;
         
-        // Set window frame
-        window->frame.x      = x;
-        window->frame.y      = y;
-        window->frame.width  = width;
-        window->frame.height = height;
-        
+        // Set initial window frame
+        window->windowFrame.x      = x;
+        window->windowFrame.y      = y;
+        window->windowFrame.width  = width;
+        window->windowFrame.height = height;
+
+        // Set window content view frame
+        window->contentViewFrame.x      = x;
+        window->contentViewFrame.y      = y;
+        window->contentViewFrame.width  = width;
+        window->contentViewFrame.height = height;
+
         // Initialize callback pointers
         window->keyDownCallback         = NULL;
         window->keyUpCallback           = NULL;
@@ -1832,6 +1946,8 @@ extern "C" {
         window->setWindowFrame    = window_setWindowFrame;
         window->getWindowFrame    = window_getWindowFrame;
         window->getCurrentFrame   = window_updateFrameFromOSX;
+        window->getContentViewFrame = window_getContentViewFrame;
+        window->setContentViewFrame = window_setContentViewFrame;
 
         return window;
     }
