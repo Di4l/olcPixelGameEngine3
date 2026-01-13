@@ -176,7 +176,7 @@ namespace olc::host {
             dispatch_async(dispatch_get_main_queue(), ^{
                 double width, height;
                 pMacOSWindow->getContentViewSize(width, height);
-                pPGEwindow->olc_OnWindowSize({static_cast<int>(width), static_cast<int>(height)});
+                //pPGEwindow->olc_OnWindowSize({static_cast<int>(width), static_cast<int>(height)});
             });
           
 
