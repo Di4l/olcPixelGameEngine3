@@ -66,6 +66,8 @@ extern "C" {
     void window_setWindowFrame           (struct Window* self, double x, double y, double width, double height);
     void window_setWindowPosition        (struct Window* self, double x, double y);
     void window_setWindowSize            (struct Window* self, double width, double height);
+    void window_getContentViewFrame      (const struct Window* self, double* x, double* y, double* width, double* height);
+    void window_setContentViewFrame      (struct Window* self, double* x, double* y, double* width, double* height);
     
 
     // OpenGL Renderer API - as implemented in api_macos.c
