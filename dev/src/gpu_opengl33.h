@@ -42,6 +42,8 @@ namespace olc
 			bool AssignTextureSource(const uint32_t slot, const uint32_t texid) override;
 			// Makes active the given texture resource (for subsequent rendering operations)
 			bool AssignTextureTarget(const uint32_t slot, const uint32_t texid) override;
+			// Resolves an MSAA texture into a normal texture
+			virtual bool ResolveMSAA(const uint32_t msaaTexId) override;
 
 		public: // Shader Construction Stuff
 			bool ApplyShader(const Shader& shader) override;
@@ -74,6 +76,12 @@ namespace olc
 
 			uint32_t nCurrentTextureTarget = 0;
 			uint32_t nCurrentTextureSource = 0;
+
+			std::unordered_map<uint32_t, uint32_t> mapMSAAToResolved;
+			uint32_t nResolveFBO_Read = 0;
+			uint32_t nResolveFBO_Draw = 0;
+
+			std::unordered_map<uint32_t, olc::vi2d> mapTextureSizes;
 
 		};
 	}

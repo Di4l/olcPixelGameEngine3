@@ -123,8 +123,8 @@ namespace olc
 		typedef void CALLSTYLE glFramebufferTexture2D_t(GLenum target, GLenum attachment, GLenum textarget, GLuint texture, GLint level);
 		typedef void CALLSTYLE glDrawBuffers_t(GLsizei n, const GLenum* bufs);
 		typedef void CALLSTYLE glBlendFuncSeparate_t(GLenum srcRGB, GLenum dstRGB, GLenum srcAlpha, GLenum dstAlpha);
-
-		
+		typedef void CALLSTYLE glTexImage2DMultisample_t(GLenum target, GLsizei samples, GLint internalformat, GLsizei width, GLsizei height, GLboolean fixedsamplelocations);
+		typedef void CALLSTYLE glBlitFramebuffer_t(GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1, GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1, GLbitfield mask, GLenum filter);
 
 #if OLC_HOST == OLC_HOST_WINDOWS
 		typedef void CALLSTYLE glSwapInterval_t(GLsizei n);
@@ -176,6 +176,8 @@ namespace olc
 			glFramebufferTexture2D_t* _glFramebufferTexture2D = nullptr;
 			glDrawBuffers_t* _glDrawBuffers = nullptr;
 			glBlendFuncSeparate_t* _glBlendFuncSeparate = nullptr;
+			glTexImage2DMultisample_t* _glTexImage2DMultisample = nullptr;
+			glBlitFramebuffer_t* _glBlitFramebuffer = nullptr;
 
 		public:
 			// Proxies allow switchable, clutter-free error checking
@@ -213,6 +215,8 @@ namespace olc
 			void glFramebufferTexture2D(GLenum target, GLenum attachment, GLenum textarget, GLuint texture, GLint level);
 			void glDrawBuffers(GLsizei n, const GLenum* bufs);
 			void glBlendFuncSeparate(GLenum srcRGB, GLenum dstRGB, GLenum srcAlpha, GLenum dstAlpha);
+			void glTexImage2DMultisample(GLenum target, GLsizei samples, GLint internalformat, GLsizei width, GLsizei height, GLboolean fixedsamplelocations);
+			void glBlitFramebuffer(GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1, GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1, GLbitfield mask, GLenum filter);
 
 			// OpenGL1.2 Proxies (just keeps things tidy imo)
 			void glGenTextures(GLsizei n, GLuint* textures);
@@ -234,6 +238,22 @@ namespace olc
 			void glGetTexImage(GLenum target, GLint level, GLenum format, GLenum type, void* pixels);
 			void glHint(GLenum target, GLenum mode);
 			void glPolygonMode(GLenum face, GLenum mode);
+
+			// Constants
+			static constexpr GLenum GL_FRAMEBUFFER_COMPLETE = 0x8CD5;
+			static constexpr GLenum GL_TEXTURE_2D_MULTISAMPLE = 0x9100;
+			static constexpr GLenum GL_COLOR_ATTACHMENT0 = 0x8CE0;
+			static constexpr GLenum GL_TEXTURE0 = 0x84C0;
+			static constexpr GLenum GL_READ_FRAMEBUFFER = 0x8CA8;
+			static constexpr GLenum GL_DRAW_FRAMEBUFFER = 0x8ca9;
+			static constexpr GLenum GL_FRAMEBUFFER = 0x8D40;
+			static constexpr GLenum GL_ARRAY_BUFFER = 0x8892;
+			static constexpr GLenum GL_STREAM_DRAW = 0x88E0;
+			static constexpr GLenum	GL_DRAW_FRAMEBUFFER_BINDING = 0x8CA6;
+			static constexpr GLenum GL_FRAGMENT_SHADER = 0x8B30;
+			static constexpr GLenum GL_VERTEX_SHADER = 0x8B31;
+			static constexpr GLenum GL_GEOMETRY_SHADER = 0x8DD9;
+			static constexpr GLenum GL_MULTISAMPLE = 0x809D;
 
 		private:
 			bool CheckError(const std::source_location loc = std::source_location::current());

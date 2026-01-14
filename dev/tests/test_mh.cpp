@@ -103,6 +103,7 @@ public:
 public:
 	bool OnUserCreate() override
 	{
+		
 
 		CreateImage(imLowRes, { 256, 240 });
 		CreateImageFromFile(imHighResSprite, "e:/voxel.png");
@@ -111,7 +112,10 @@ public:
 		CreateImageFromFile(imLogo, "../tests/olc.png");
 		CreateImageFromFile(imBlend, "../tests/blend.png");
 
-		CreateImage(imTempBuffer, { 128, 128 });
+
+		olc::ImageConfig cfg;
+		cfg.MSAA = true;
+		CreateImage(imTempBuffer, { 128, 128 }, cfg);
 
 		CreateSampleTestImage(imSampleTest, { 32, 32 });
 
@@ -150,6 +154,9 @@ public:
 
 	bool OnUserUpdate(float fElapsedTime) override
 	{
+		//draw.Line({ 0,0 }, mouse.GetPosition(), olc::Colour::WHITE);
+		//return true;
+
 
 		if (mouse.GetButton(1).bHeld)
 		{
@@ -300,6 +307,8 @@ public:
 		}
 
 		draw.String({ 10, 10 }, mouse.GetPosition().str(), olc::Colour::BLACK);
+
+		
 
 		return true;
 

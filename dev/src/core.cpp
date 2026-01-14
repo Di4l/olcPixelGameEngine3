@@ -76,6 +76,11 @@ namespace olc
 		// Finialise any outstanding tasks
 		draw.ProcessGPUTasks();
 
+		if (GetDefaultImage().GetConfig().MSAA)
+		{
+			pRenderer->ResolveMSAA(GetDefaultImage().GetGPUID());
+		}
+
 		// Take the window's completed "screen" and draw it as a textured quad to the backbuffer
 		pRenderer->AssignTextureTarget(0, 0);
 		pRenderer->SetViewport({ 0,0 }, GetWindowSize());
@@ -322,8 +327,9 @@ namespace olc
 
 
 		
-
-		CreateImage(GetDefaultImage(), config.vScreenSize);
+		olc::ImageConfig cfg;
+		cfg.MSAA = config.bAntiAliasMainScreen;
+		CreateImage(GetDefaultImage(), config.vScreenSize, cfg);
 		
 
 		// Initialise Font System
