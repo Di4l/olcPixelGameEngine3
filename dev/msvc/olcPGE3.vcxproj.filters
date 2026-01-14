@@ -22,6 +22,9 @@
     <Filter Include="Linux X11 Specific">
       <UniqueIdentifier>{eb9dbdc6-d27a-41e8-b44f-9dac7bf9c652}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Utilities">
+      <UniqueIdentifier>{514ef7ca-c1dc-4d41-98cf-efec9eb2a661}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\pixel.h">
@@ -125,6 +128,9 @@
     </ClInclude>
     <ClInclude Include="..\src\concepts.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\utilities\olcUTIL3_GameMode.h">
+      <Filter>Utilities</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

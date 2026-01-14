@@ -19,6 +19,12 @@ void Draw2D::SetTarget(olc::Image& image)
 	// Perform any outstanding tasks for current target
 	ProcessGPUTasks();
 
+	// Only resolve if we're ACTUALLY changing targets
+	if (pTarget && pTarget != &image && pTarget->GetConfig().MSAA)
+	{
+		pRenderer->ResolveMSAA(pTarget->GetGPUID());
+	}
+
 	// Endure new target exists in GPU up to date
 	PrepareImageForHW(image);
 
@@ -103,24 +109,15 @@ void Draw2D::PrepareImageForHW(olc::Image& image)
 		// Image resource is primed for CPU operations, send it to GPU
 		pRenderer->WriteTexture(image.GetGPUID(), image);
 
-		if (&image == pTarget)
-		{
-			// If this image is also the current target, ensure renderer is updated
-			//SetTarget(image);
-
-			// Store the target image
-			pTarget = &image;
-
-			// Reset Affine transform to unity
-			//WorldReset();
-
-			// Configure default render target
-			pRenderer->AssignTextureTarget(0, pTarget->GetGPUID());
-			//pRenderer->SetViewport({ 0,0 }, pTarget->Size());
-		}
-
 		// Image is now GPU bound
 		image.BindGPU();
+	}
+
+	// Only resolve MSAA if this image is NOT the current render target
+	// (i.e., we're preparing it to be SAMPLED from, not rendered to)
+	if (image.GetConfig().MSAA && &image != pTarget)
+	{
+		pRenderer->ResolveMSAA(image.GetGPUID());
 	}
 }
 

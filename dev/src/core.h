@@ -52,6 +52,8 @@ namespace olc
 		bool bForceIntegerPixelSize = false;
 		// Allow main PGE window to spawn child windows
 		bool bAllowChildWindows = true;
+		// Creates a "DefaultImage" with anti-aliased properties
+		bool bAntiAliasMainScreen = false;
 	};
 
 	// A PGE Window is a window with drawing and input capabilities a la olc::PixelGameEngine

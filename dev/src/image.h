@@ -25,6 +25,8 @@ namespace olc
 		bool Clamp = false;
 		bool InRAM = true;
 		bool InVRAM = true;
+		bool MSAA = false;
+		uint32_t MSAASamples = OLC_MSAA_SAMPLES;
 	};
 
 	struct ImageRegion;

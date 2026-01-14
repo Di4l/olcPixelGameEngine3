@@ -97,6 +97,8 @@ namespace olc
 			virtual bool AssignTextureSource(const uint32_t slot, const uint32_t texid) = 0;
 			// Makes active the given texture resource (for subsequent rendering operations)
 			virtual bool AssignTextureTarget(const uint32_t slot, const uint32_t texid) = 0;
+			// Resolves an MSAA texture into a normal texture
+			virtual bool ResolveMSAA(const uint32_t msaaTexId) = 0;
 
 		public: // Shader Construction Stuff
 
