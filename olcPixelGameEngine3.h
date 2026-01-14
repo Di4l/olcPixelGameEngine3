@@ -1436,6 +1436,45 @@ namespace olc
 			std::swap(coords[2], coords[3]);
 			return *this;
 		}
+
+		// [UNSAFE] Returns pixel at location according to region mapping
+		olc::Pixel& Pixel(const olc::vi2d& pos)
+		{
+			olc::vi2d imgSize = image.get().Size();
+			olc::vf2d uv = olc::vf2d(
+				(float(pos.x) + 0.5f) / regionsize.x,
+				(float(pos.y) + 0.5f) / regionsize.y
+			);
+			olc::vf2d texPos = TransformUV(uv);
+			olc::vi2d pixelPos =
+			{
+				int(std::floor(texPos.x * imgSize.x)) % imgSize.x,
+        		int(std::floor(texPos.y * imgSize.y)) % imgSize.y
+			};
+			return image.get().Pixel(pixelPos);
+		}
+
+		olc::Pixel Sample(const olc::vf2d& uv)
+		{
+			olc::vi2d imgSize = image.get().Size();
+			olc::vf2d texPos = TransformUV(uv);
+			olc::vi2d pixelPos =
+			{
+				int(std::floor(texPos.x * imgSize.x)) % imgSize.x,
+				int(std::floor(texPos.y * imgSize.y)) % imgSize.y
+			};
+			return image.get().Pixel(pixelPos);
+		}
+
+		private:
+			olc::vf2d TransformUV(const olc::vf2d& uv)
+			{
+				return
+				{
+					uv.x * (coords[1].x - coords[0].x) + uv.y * (coords[3].x - coords[0].x) + coords[0].x,
+					uv.x * (coords[1].y - coords[0].y) + uv.y * (coords[3].y - coords[0].y) + coords[0].y
+				};
+			}
 	};
 
 	
