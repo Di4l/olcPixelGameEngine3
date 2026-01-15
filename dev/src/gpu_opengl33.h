@@ -65,7 +65,11 @@ namespace olc
 		
 		protected: // These may need some thinking about re multiple window
 			//olc::apis::opengl::glDeviceContext_t glDeviceContext = 0;
+#if OLC_HOST != OLC_HOST_EMSCRIPTEN
 			olc::apis::opengl::glRenderContext_t glRenderContext = 0;
+#else
+			olc::apis::opengl::glRenderContext_t glRenderContext;
+#endif
 
 			Shader_GLSL33 shaderDefault;
 			uint32_t nDefaultVB = 0;
