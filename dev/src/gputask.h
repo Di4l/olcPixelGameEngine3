@@ -52,12 +52,12 @@ namespace olc
 
 		struct Vertex 
 		{
-			float p[4];     // x, y, z, w
-			olc::Pixel c;	// 32-bit colour
-			float t0[2];
-			float t1[2];
-			float t2[2];
-			float t3[2];
+			float p[4] = { 0,0,1,1 };     // x, y, z, w
+			olc::Pixel c = olc::Colour::WHITE;	// 32-bit colour
+			float t0[2]{};
+			float t1[2]{};
+			float t2[2]{};
+			float t3[2]{};
 		};
 
 		// Simple vertex buffer

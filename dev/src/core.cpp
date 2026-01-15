@@ -42,6 +42,7 @@ namespace olc
 
 	bool PGEWindow::OnUserUpdate(float fElapsedTime)
 	{
+		olc_IgnoreUnused(fElapsedTime);
 		return true;
 	}
 
@@ -83,7 +84,7 @@ namespace olc
 
 		if (GetDefaultImage().GetConfig().MSAA)
 		{
-			pRenderer->ResolveMSAA(GetDefaultImage().GetGPUID());
+			pRenderer->ResolveMSAA(uint32_t(GetDefaultImage().GetGPUID()));
 		}
 
 		// Take the window's completed "screen" and draw it as a textured quad to the backbuffer
@@ -145,11 +146,13 @@ namespace olc
 
 	bool PGEWindow::CreateImageFromMemory(olc::Image& image, const uint8_t* data, const size_t bytes, const ImageConfig& cfg)
 	{
+		olc_IgnoreUnused(image, data, bytes, cfg);
 		return false;
 	}
 
 	bool PGEWindow::WriteImageToFile(const olc::Image& image, const std::string& sFileName)
 	{
+		olc_IgnoreUnused(image, sFileName);
 		return false;
 	}
 
@@ -158,7 +161,7 @@ namespace olc
 		// If image has gpu resource, remove it
 		if (image.GetGPUID() != 0)
 		{
-			pRenderer->DeleteTexture(image.GetGPUID());
+			pRenderer->DeleteTexture(uint32_t(image.GetGPUID()));
 			image.SetGPUID(0);
 		}
 
@@ -285,6 +288,7 @@ namespace olc
 		return true;
 #else
 		// Can't create new windows
+		olc_IgnoreUnused(window, vScreenSize, vPixelSize);
 		return false;
 #endif
 	}
@@ -424,7 +428,7 @@ namespace olc
 		gpu->CreateDevice(host->GetHostWindowDescriptor(this), cfgRenderer);
 		if (gpu->GetLastError() != olc::gpu::RendererError::NoError)
 		{
-			const auto e = gpu->GetLastError(); // For debug visibility
+			//const auto e = gpu->GetLastError(); // For debug visibility
 			std::cout << "Error: Could not create Renderer\n";
 			return;
 		}

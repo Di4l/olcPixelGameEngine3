@@ -199,14 +199,14 @@ namespace olc
 			return *this;
 		}
 
-		inline constexpr Pixel& operator -= (const Pixel& p)
+		inline constexpr Pixel& operator -= (const Pixel& p  )
 		{
 			// Note we must force to a wider signed integer type to prohibit
 			// the values wrapping/truncating
 			this->r = uint8_t(std::clamp(int(r) - int(p.r), 0, 255));
 			this->g = uint8_t(std::clamp(int(g) - int(p.g), 0, 255));
 			this->b = uint8_t(std::clamp(int(b) - int(p.b), 0, 255));
-			return *this;
+			return *this; 
 		}
 
 		// Return RGBA string

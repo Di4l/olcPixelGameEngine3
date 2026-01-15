@@ -13,7 +13,7 @@ namespace olc
 		{
 		public:
 			std::string Compile() override;
-			int32_t CreateUniform(const std::string& name) override;
+			uint32_t CreateUniform(const std::string& name) override;
 		};
 
 		class Renderer_OGL33 : public olc::gpu::Renderer

@@ -39,12 +39,12 @@ namespace olc
 		return config;
 	}
 
-	int32_t Image::GetGPUID() const
+	uint32_t Image::GetGPUID() const
 	{
 		return gpuResourceID;
 	}
 
-	void Image::SetGPUID(const int32_t id)
+	void Image::SetGPUID(const uint32_t id)
 	{
 		gpuResourceID = id;
 	}

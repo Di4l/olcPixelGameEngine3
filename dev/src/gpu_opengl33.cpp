@@ -48,7 +48,7 @@ namespace olc::gpu
 		return "OK";
 	}
 
-	int32_t Shader_GLSL33::CreateUniform(const std::string& name)
+	uint32_t Shader_GLSL33::CreateUniform(const std::string& name)
 	{
 		auto& gl = olc::apis::opengl::gl::Get();
 		const char* s = name.c_str();
@@ -365,7 +365,7 @@ namespace olc::gpu
 
 	bool Renderer_OGL33::DestroyDevice()
 	{
-		auto& gl = olc::apis::opengl::gl::Get();
+		//auto& gl = olc::apis::opengl::gl::Get();
 
 #if OLC_HOST == OLC_HOST_WINDOWS
 		wglDeleteContext(glRenderContext);
@@ -397,8 +397,7 @@ namespace olc::gpu
 
 		if (!wglMakeCurrent(glDeviceContext, glRenderContext))
 		{
-			lastError = RendererError::FailedToSwitchRenderContext;
-			auto err = ::GetLastError();
+			lastError = RendererError::FailedToSwitchRenderContext;			
 			return false;
 		}
 		ReleaseDC((HWND)(os_win_id[0]), glDeviceContext);
@@ -589,6 +588,8 @@ namespace olc::gpu
 
 	bool Renderer_OGL33::ReadTexture(const uint32_t texid, olc::Image& image)
 	{
+		olc_IgnoreUnused(texid);
+
 		auto& gl = olc::apis::opengl::gl::Get();
 		// Read the teture data back into the image
 		gl.glBindTexture(GL_TEXTURE_2D, image.GetGPUID());
@@ -929,9 +930,10 @@ namespace olc::gpu
 
 	bool Renderer_OGL33::DisplayDraw(std::vector<void*> os_win_id, bool bVerticalSyncNow)
 	{
-		auto& gl = olc::apis::opengl::gl::Get();
+		//auto& gl = olc::apis::opengl::gl::Get();
 
 #if OLC_HOST == OLC_HOST_WINDOWS
+		olc_IgnoreUnused(bVerticalSyncNow);
 		auto glDeviceContext = GetDC((HWND)(os_win_id[0]));
 		SwapBuffers(glDeviceContext);
 		ReleaseDC((HWND)(os_win_id[0]), glDeviceContext);

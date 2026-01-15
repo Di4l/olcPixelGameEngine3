@@ -122,6 +122,9 @@ namespace olc
 		PixelGameEngine();
 		virtual ~PixelGameEngine();
 
+		PixelGameEngine(const PixelGameEngine&) = delete;
+		PixelGameEngine& operator=(const PixelGameEngine&) = delete;
+
 	public:
 		// Construct the PGE main engine window with traditional parameters
 		bool Construct(const olc::vi2d& vScreenSize, const olc::vi2d& vPixelSize, bool bFullScreen = false);

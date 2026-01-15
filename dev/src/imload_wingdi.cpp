@@ -69,21 +69,25 @@ namespace olc::imload
 
 	bool ImageLoader_WinGDI::CreateImageFromMemory(olc::Image& image, const uint8_t* data, const size_t bytes)
 	{
+		olc_IgnoreUnused(image, data, bytes);
 		return false;
 	}
 
 	bool ImageLoader_WinGDI::CreateImageFromMemory(olc::Image& image, const std::vector<uint8_t>& data)
 	{
+		olc_IgnoreUnused(image, data);
 		return false;
 	}
 
 	bool ImageLoader_WinGDI::WriteImageToFile(const olc::Image& image, const std::string& sFileName)
 	{
+		olc_IgnoreUnused(image, sFileName);
 		return false;
 	}
 
 	bool ImageLoader_WinGDI::WriteImageToMemoryFile(olc::Image& image, const std::vector<uint8_t>& data)
 	{
+		olc_IgnoreUnused(image, data);
 		return false;
 	}
 }

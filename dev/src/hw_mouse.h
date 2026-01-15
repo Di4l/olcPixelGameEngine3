@@ -40,8 +40,8 @@ namespace olc
 			std::array<bool, OLC_MOUSE_BUTTONS> buttons_old{};
 			olc::vf2d position;
 			olc::vf2d position_in;
-			int32_t wheel_in;
-			int32_t wheel;
+			int32_t wheel_in = 0;
+			int32_t wheel = 0;
 
 		private:
 			void SetPosition(const olc::vf2d& pos);

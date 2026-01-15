@@ -51,9 +51,9 @@ namespace olc
 		// Returns how this image was configured upon creation
 		const ImageConfig& GetConfig() const;
 		// Return GPU Resource ID
-		int32_t GetGPUID() const;
+		uint32_t GetGPUID() const;
 		// Set GPU Resource ID (0 to eliminate)
-		void SetGPUID(const int32_t id);
+		void SetGPUID(const uint32_t id);
 		// Get underlying vector of pixels
 		std::vector<olc::Pixel>& GetPixels();
 
@@ -78,7 +78,7 @@ namespace olc
 		ImageConfig config;
 		olc::vi2d dimensions;
 		std::vector<olc::Pixel> pixels;
-		int32_t gpuResourceID = 0;
+		uint32_t gpuResourceID = 0;
 		bool onGPU = false;
 		bool onCPU = true;
 	};
