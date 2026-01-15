@@ -336,6 +336,9 @@ namespace olc
 			{
 				// Application is to be terminated as primary window has closed
 				pge->coreActive = false;
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN
+				emscripten_cancel_main_loop();
+#endif
 			}
 			else
 			{
