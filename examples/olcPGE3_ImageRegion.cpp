@@ -48,11 +48,11 @@ public:
                 float tY = ::sinf((float)y / halfSize.y * M_PI * 5.0f) * 0.5f + 0.5f;
 				imgTest.region({ 0, 0 }, halfSize).Pixel({ x, y }) =
 					olc::PixelLerp(olc::Colour::BLACK, olc::Colour::TANGERINE, tX);
-                imgTest.region({ halfSize.x, 0 }, halfSize).Pixel({ x, y }) =
+                imgTest.region(olc::vi2d{ halfSize.x, 0 }, halfSize).Pixel({ x, y }) =
 					olc::PixelLerp(olc::Colour::BLACK, olc::Colour::RED, tY);
-                imgTest.region({ 0, halfSize.y }, halfSize).Pixel({ x, y }) =
+                imgTest.region(olc::vi2d{ 0, halfSize.y }, halfSize).Pixel({ x, y }) =
 					olc::PixelLerp(olc::Colour::BLACK, olc::Colour::BLUE, tY);
-                imgTest.region({ halfSize.x, halfSize.y }, halfSize).Pixel({ x, y }) =
+                imgTest.region(olc::vi2d{ halfSize.x, halfSize.y }, halfSize).Pixel({ x, y }) =
 					olc::PixelLerp(olc::Colour::BLACK, olc::Colour::GREEN, tX);
             }
 
