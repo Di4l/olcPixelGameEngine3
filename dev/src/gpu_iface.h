@@ -45,20 +45,20 @@ namespace olc
 			void SetGeometryShaderSource(const std::string& src);
 
 			virtual std::string Compile() = 0;
-			virtual int32_t CreateUniform(const std::string& name) = 0;
+			virtual uint32_t CreateUniform(const std::string& name) = 0;
 
-			int32_t GetUniform(const std::string& name)	const;
-			int32_t GetShaderID() const;
+			uint32_t GetUniform(const std::string& name)	const;
+			uint32_t GetShaderID() const;
 
 		protected:
 			std::string srcPixelShader;
 			std::string srcVertexShader;
 			std::string srcGeometryShader;
-			int32_t nPixelShaderID;
-			int32_t nVertexShaderID;
-			int32_t nGeometryShaderID;
-			int32_t nCompiledShaderID;
-			std::unordered_map<std::string, int32_t> mapUniforms;
+			uint32_t nPixelShaderID = 0;
+			uint32_t nVertexShaderID = 0;
+			uint32_t nGeometryShaderID = 0;
+			uint32_t nCompiledShaderID = 0 ;
+			std::unordered_map<std::string, uint32_t> mapUniforms;
 		};
 
 		class Renderer

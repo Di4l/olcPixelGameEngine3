@@ -22,7 +22,7 @@ void Draw2D::SetTarget(olc::Image& image)
 	// Only resolve if we're ACTUALLY changing targets
 	if (pTarget && pTarget != &image && pTarget->GetConfig().MSAA)
 	{
-		pRenderer->ResolveMSAA(pTarget->GetGPUID());
+		pRenderer->ResolveMSAA(uint32_t(pTarget->GetGPUID()));
 	}
 
 	// Endure new target exists in GPU up to date
@@ -35,7 +35,7 @@ void Draw2D::SetTarget(olc::Image& image)
 	WorldReset();
 
 	// Configure default render target
-	pRenderer->AssignTextureTarget(0, pTarget->GetGPUID());
+	pRenderer->AssignTextureTarget(0, uint32_t(pTarget->GetGPUID()));
 	pRenderer->SetViewport({ 0,0 }, pTarget->Size());
 }
 
@@ -65,13 +65,13 @@ void Draw2D::PrepareTargetForSW()
 		ProcessGPUTasks();
 
 		// Image resource is primed for GPU operations, bring it to CPU
-		pRenderer->ReadTexture(pTarget->GetGPUID(), *pTarget);
+		pRenderer->ReadTexture(uint32_t(pTarget->GetGPUID()), *pTarget);
 
 		// Image is now CPU bound
 		pTarget->BindCPU();
 
 		// Create a scanline buffer the height of this target
-		vScanlines.resize(pTarget->Size().y, {});
+		vScanlines.resize(size_t(pTarget->Size().y), {});
 	}
 }
 
@@ -80,7 +80,7 @@ void Draw2D::PrepareTargetForHW()
 	if (pTarget->BoundToCPU())
 	{
 		// Image resource is primed for CPU operations, send it to GPU
-		pRenderer->WriteTexture(pTarget->GetGPUID(), *pTarget);
+		pRenderer->WriteTexture(uint32_t(pTarget->GetGPUID()), *pTarget);
 
 		// Image is now GPU bound
 		pTarget->BindGPU();
@@ -95,7 +95,7 @@ void Draw2D::PrepareImageForSW(olc::Image& image)
 		ProcessGPUTasks();
 
 		// Image resource is primed for GPU operations, bring it to CPU
-		pRenderer->ReadTexture(image.GetGPUID(), image);
+		pRenderer->ReadTexture(uint32_t(image.GetGPUID()), image);
 
 		// Image is now CPU bound
 		image.BindCPU();
@@ -107,7 +107,7 @@ void Draw2D::PrepareImageForHW(olc::Image& image)
 	if (image.BoundToCPU())
 	{
 		// Image resource is primed for CPU operations, send it to GPU
-		pRenderer->WriteTexture(image.GetGPUID(), image);
+		pRenderer->WriteTexture(uint32_t(image.GetGPUID()), image);
 
 		// Image is now GPU bound
 		image.BindGPU();
@@ -117,7 +117,7 @@ void Draw2D::PrepareImageForHW(olc::Image& image)
 	// (i.e., we're preparing it to be SAMPLED from, not rendered to)
 	if (image.GetConfig().MSAA && &image != pTarget)
 	{
-		pRenderer->ResolveMSAA(image.GetGPUID());
+		pRenderer->ResolveMSAA(uint32_t(image.GetGPUID()));
 	}
 }
 
@@ -165,7 +165,7 @@ void Draw2D::Pixel(const olc::vf2d& pos, const olc::Pixel col, const olc::Pixel 
 {
 	// Check if in bounds
 	olc::vf2d tpos = transformAffine.forwardRound(pos);
-	if (tpos.x >= 0 && tpos.y >= 0 && tpos.x < pTarget->Size().x && tpos.y < pTarget->Size().y)
+	if (tpos.x >= 0 && tpos.y >= 0 && tpos.x < float(pTarget->Size().x) && tpos.y < float(pTarget->Size().y))
 	{
 		PrepareTargetForSW();
 		pTarget->Pixel(tpos) = col.blend(tint);
@@ -198,8 +198,8 @@ GPUTask olc::Draw2D::TaskDrawLine(const std::vector<olc::vf2d>& vPoints, const s
 	task.structure = olc::Structure::Line;
 	for (size_t i = 0; i < vPoints.size() - 1; i++)
 	{
-		task.vertexBuffer.push_back({ vPoints[i].x, vPoints[i].y, 1.0f, 1.0f, vColours[i], 0, 0, 0,0, 0, 0, 0, 0 });
-		task.vertexBuffer.push_back({ vPoints[i + 1].x, vPoints[i + 1].y, 1.0f, 1.0f, vColours[i + 1], 0, 0, 0,0, 0, 0, 0, 0 });
+		task.vertexBuffer.push_back({ {vPoints[i].x, vPoints[i].y, 1.0f, 1.0f}, vColours[i], {0, 0}, {0, 0}, {0, 0}, {0, 0} });
+		task.vertexBuffer.push_back({ {vPoints[i + 1].x, vPoints[i + 1].y, 1.0f, 1.0f}, vColours[i + 1], {0, 0}, {0, 0}, {0, 0}, {0, 0} });
 	}
 	task.tint = tint;
 	return task;
@@ -211,7 +211,7 @@ GPUTask olc::Draw2D::TaskDrawPolygon(olc::Structure structure, const std::vector
 	task.structure = structure;
 	task.bWireframe = true;
 	for (size_t i = 0; i < vPoints.size(); i++)
-		task.vertexBuffer.push_back({ vPoints[i].x, vPoints[i].y, 1.0f, 1.0f, vColours[i], 0, 0, 0,0, 0, 0, 0, 0});
+		task.vertexBuffer.push_back({ {vPoints[i].x, vPoints[i].y, 1.0f, 1.0f}, vColours[i], {0, 0}, {0, 0}, {0, 0}, {0, 0} });
 	task.tint = tint;
 	return task;
 }
@@ -222,7 +222,7 @@ GPUTask olc::Draw2D::TaskDrawPolygon(olc::Structure structure, const std::vector
 	task.structure = structure;
 	task.bWireframe = true;
 	for (const auto& v : vPoints)
-		task.vertexBuffer.push_back({ v.x+0.0f, v.y+0.0f, 1.0f, 1.0f, colour, 0, 0, 0,0, 0, 0, 0, 0 });
+		task.vertexBuffer.push_back({ {v.x, v.y, 1.0f, 1.0f}, colour, {0, 0}, {0, 0}, {0, 0}, {0, 0} });
 	task.tint = tint;
 	return task;
 }
@@ -232,7 +232,7 @@ GPUTask olc::Draw2D::TaskFillPolygon(olc::Structure structure, const std::vector
 	GPUTask task;
 	task.structure = structure;
 	for (size_t i = 0; i < vPoints.size(); i++)
-		task.vertexBuffer.push_back({ vPoints[i].x, vPoints[i].y, 1.0f, 1.0f, vColours[i], 0, 0, 0, 0, 0, 0, 0, 0 });
+		task.vertexBuffer.push_back({ {vPoints[i].x, vPoints[i].y, 1.0f, 1.0f}, vColours[i], {0, 0}, {0, 0}, {0, 0}, {0, 0} });
 	task.tint = tint;
 	return task;
 }
@@ -242,7 +242,7 @@ GPUTask olc::Draw2D::TaskFillPolygon(olc::Structure structure, const std::vector
 	GPUTask task;
 	task.structure = structure;
 	for (const auto& v : vPoints)
-		task.vertexBuffer.push_back({ v.x, v.y, 1.0f, 1.0f, colour, 0, 0, 0,0, 0, 0, 0, 0 });
+		task.vertexBuffer.push_back({ {v.x, v.y, 1.0f, 1.0f}, colour, {0, 0}, {0, 0}, {0, 0}, {0, 0} });
 	task.tint = tint;
 	return task;	
 }
@@ -250,8 +250,9 @@ GPUTask olc::Draw2D::TaskFillPolygon(olc::Structure structure, const std::vector
 GPUTask olc::Draw2D::TaskTexturedPolygon(olc::Structure structure, const std::vector<olc::vf2d>& vPoints, const std::vector<olc::Pixel>& vColours, const std::vector<olc::vf2d>& vTexCoords, olc::Image* const image, const olc::Pixel tint)
 {
 	GPUTask task;
+	task.structure = structure;
 	for (size_t i = 0; i<vPoints.size(); i++)
-		task.vertexBuffer.push_back({ vPoints[i].x, vPoints[i].y, 1.0f, 1.0f, vColours[i], vTexCoords[i].x, vTexCoords[i].y, 0, 0, 0, 0, 0, 0});
+		task.vertexBuffer.push_back({ {vPoints[i].x, vPoints[i].y, 1.0f, 1.0f}, vColours[i], {vTexCoords[i].x, vTexCoords[i].y}, {0, 0}, {0, 0}, {0, 0} });
 	task.pImage = image;
 	task.tint = tint;
 	return task;
@@ -260,8 +261,9 @@ GPUTask olc::Draw2D::TaskTexturedPolygon(olc::Structure structure, const std::ve
 GPUTask olc::Draw2D::TaskTexturedPolygon(olc::Structure structure, const std::vector<olc::vf2d>& vPoints, const std::vector<olc::vf2d>& vZWs, const std::vector<olc::Pixel>& vColours, const std::vector<olc::vf2d>& vTexCoords, olc::Image* const image, const olc::Pixel tint)
 {
 	GPUTask task;
+	task.structure = structure;
 	for (size_t i = 0; i < vPoints.size(); i++)
-		task.vertexBuffer.push_back({ vPoints[i].x, vPoints[i].y, vZWs[i].x, vZWs[i].y, vColours[i], vTexCoords[i].x, vTexCoords[i].y, 0, 0, 0, 0, 0, 0});
+		task.vertexBuffer.push_back({ {vPoints[i].x, vPoints[i].y, vZWs[i].x, vZWs[i].y}, vColours[i], {vTexCoords[i].x, vTexCoords[i].y}, {0, 0}, {0, 0}, {0, 0} });
 	task.pImage = image;
 	task.tint = tint;
 	return task;
@@ -849,12 +851,12 @@ const ImageBatch& olc::Draw2D::Image(ImageBatch& batch, olc::ImageRegion image, 
 	olc::vf2d p2 = transformAffine.forward(olc::vf2d{ pos.x + size.x, pos.y + size.y });
 	olc::vf2d p3 = transformAffine.forward(olc::vf2d{ pos.x, pos.y + size.y });
 
-	batch.task.vertexBuffer.push_back({ p0.x, p0.y, 1.0f, 1.0f, tint, image.coords[0].x, image.coords[0].y, 0, 0, 0, 0, 0, 0 });
-	batch.task.vertexBuffer.push_back({ p1.x, p1.y, 1.0f, 1.0f, tint, image.coords[1].x, image.coords[1].y, 0, 0, 0, 0, 0, 0 });
-	batch.task.vertexBuffer.push_back({ p2.x, p2.y, 1.0f, 1.0f, tint, image.coords[2].x, image.coords[2].y, 0, 0, 0, 0, 0, 0 });
-	batch.task.vertexBuffer.push_back({ p0.x, p0.y, 1.0f, 1.0f, tint, image.coords[0].x, image.coords[0].y, 0, 0, 0, 0, 0, 0 });
-	batch.task.vertexBuffer.push_back({ p2.x, p2.y, 1.0f, 1.0f, tint, image.coords[2].x, image.coords[2].y, 0, 0, 0, 0, 0, 0 });
-	batch.task.vertexBuffer.push_back({ p3.x, p3.y, 1.0f, 1.0f, tint, image.coords[3].x, image.coords[3].y, 0, 0, 0, 0, 0, 0 });
+	batch.task.vertexBuffer.push_back({ {p0.x, p0.y, 1.0f, 1.0f}, tint, {image.coords[0].x, image.coords[0].y}, {0, 0}, {0, 0}, {0, 0} });
+	batch.task.vertexBuffer.push_back({ {p1.x, p1.y, 1.0f, 1.0f}, tint, {image.coords[1].x, image.coords[1].y}, {0, 0}, {0, 0}, {0, 0} });
+	batch.task.vertexBuffer.push_back({ {p2.x, p2.y, 1.0f, 1.0f}, tint, {image.coords[2].x, image.coords[2].y}, {0, 0}, {0, 0}, {0, 0} });
+	batch.task.vertexBuffer.push_back({ {p0.x, p0.y, 1.0f, 1.0f}, tint, {image.coords[0].x, image.coords[0].y}, {0, 0}, {0, 0}, {0, 0} });
+	batch.task.vertexBuffer.push_back({ {p2.x, p2.y, 1.0f, 1.0f}, tint, {image.coords[2].x, image.coords[2].y}, {0, 0}, {0, 0}, {0, 0} });
+	batch.task.vertexBuffer.push_back({ {p3.x, p3.y, 1.0f, 1.0f}, tint, {image.coords[3].x, image.coords[3].y}, {0, 0}, {0, 0}, {0, 0} });
 	
 	batch.task.tint = tint;
 
@@ -902,7 +904,7 @@ const GPUTask& olc::Draw2D::ImageRotated(olc::ImageRegion image, const olc::vf2d
 	vPoints[3] = (olc::vf2d(0.0f, size.y) - center) * scale;
 
 	float c = cos(theta), s = sin(theta);
-	for (int i = 0; i < 4; i++)
+	for (size_t i = 0; i < 4; i++)
 		vPoints[i] = pos + olc::vf2d(vPoints[i].x * c - vPoints[i].y * s, vPoints[i].x * s + vPoints[i].y * c);
 
 	return vecGPUTasks.emplace_back(
@@ -927,7 +929,7 @@ const ImageBatch& olc::Draw2D::ImageRotated(olc::ImageBatch& batch, olc::ImageRe
 	vPoints[3] = (olc::vf2d(0.0f, size.y) - center) * scale;
 
 	float c = cos(theta), s = sin(theta);
-	for (int i = 0; i < 4; i++)
+	for (size_t i = 0; i < 4; i++)
 		vPoints[i] = pos + olc::vf2d(vPoints[i].x * c - vPoints[i].y * s, vPoints[i].x * s + vPoints[i].y * c);
 
 	olc::vf2d p0 = transformAffine.forward(vPoints[0]);
@@ -935,12 +937,12 @@ const ImageBatch& olc::Draw2D::ImageRotated(olc::ImageBatch& batch, olc::ImageRe
 	olc::vf2d p2 = transformAffine.forward(vPoints[2]);
 	olc::vf2d p3 = transformAffine.forward(vPoints[3]);
 
-	batch.task.vertexBuffer.push_back({ p0.x, p0.y, 1.0f, 1.0f, tint, image.coords[0].x, image.coords[0].y, 0, 0, 0, 0, 0, 0 });
-	batch.task.vertexBuffer.push_back({ p1.x, p1.y, 1.0f, 1.0f, tint, image.coords[1].x, image.coords[1].y, 0, 0, 0, 0, 0, 0 });
-	batch.task.vertexBuffer.push_back({ p2.x, p2.y, 1.0f, 1.0f, tint, image.coords[2].x, image.coords[2].y, 0, 0, 0, 0, 0, 0 });
-	batch.task.vertexBuffer.push_back({ p0.x, p0.y, 1.0f, 1.0f, tint, image.coords[0].x, image.coords[0].y, 0, 0, 0, 0, 0, 0 });
-	batch.task.vertexBuffer.push_back({ p2.x, p2.y, 1.0f, 1.0f, tint, image.coords[2].x, image.coords[2].y, 0, 0, 0, 0, 0, 0 });
-	batch.task.vertexBuffer.push_back({ p3.x, p3.y, 1.0f, 1.0f, tint, image.coords[3].x, image.coords[3].y, 0, 0, 0, 0, 0, 0 });
+	batch.task.vertexBuffer.push_back({ {p0.x, p0.y, 1.0f, 1.0f}, tint, {image.coords[0].x, image.coords[0].y}, {0, 0}, {0, 0}, {0, 0} });
+	batch.task.vertexBuffer.push_back({ {p1.x, p1.y, 1.0f, 1.0f}, tint, {image.coords[1].x, image.coords[1].y}, {0, 0}, {0, 0}, {0, 0} });
+	batch.task.vertexBuffer.push_back({ {p2.x, p2.y, 1.0f, 1.0f}, tint, {image.coords[2].x, image.coords[2].y}, {0, 0}, {0, 0}, {0, 0} });
+	batch.task.vertexBuffer.push_back({ {p0.x, p0.y, 1.0f, 1.0f}, tint, {image.coords[0].x, image.coords[0].y}, {0, 0}, {0, 0}, {0, 0} });
+	batch.task.vertexBuffer.push_back({ {p2.x, p2.y, 1.0f, 1.0f}, tint, {image.coords[2].x, image.coords[2].y}, {0, 0}, {0, 0}, {0, 0} });
+	batch.task.vertexBuffer.push_back({ {p3.x, p3.y, 1.0f, 1.0f}, tint, {image.coords[3].x, image.coords[3].y}, {0, 0}, {0, 0}, {0, 0} });
 
 	batch.task.tint = tint;
 
@@ -1034,12 +1036,12 @@ const ImageBatch& olc::Draw2D::ImageQuad(olc::ImageBatch& batch, olc::ImageRegio
 		olc::vf2d p2 = transformAffine.forward(vBR);
 		olc::vf2d p3 = transformAffine.forward(vBL);
 
-		batch.task.vertexBuffer.push_back({ p0.x, p0.y, q[0], 1.0f, tint, q[0] * image.coords[0].x, q[0] * image.coords[0].y, 0, 0, 0, 0, 0, 0});
-		batch.task.vertexBuffer.push_back({ p1.x, p1.y, q[1], 1.0f, tint, q[1] * image.coords[1].x, q[1] * image.coords[1].y, 0, 0, 0, 0, 0, 0});
-		batch.task.vertexBuffer.push_back({ p2.x, p2.y, q[2], 1.0f, tint, q[2] * image.coords[2].x, q[2] * image.coords[2].y, 0, 0, 0, 0, 0, 0});
-		batch.task.vertexBuffer.push_back({ p0.x, p0.y, q[0], 1.0f, tint, q[0] * image.coords[0].x, q[0] * image.coords[0].y, 0, 0, 0, 0, 0, 0});
-		batch.task.vertexBuffer.push_back({ p2.x, p2.y, q[2], 1.0f, tint, q[2] * image.coords[2].x, q[2] * image.coords[2].y, 0, 0, 0, 0, 0, 0});
-		batch.task.vertexBuffer.push_back({ p3.x, p3.y, q[3], 1.0f, tint, q[3] * image.coords[3].x, q[3] * image.coords[3].y, 0, 0, 0, 0, 0, 0});
+		batch.task.vertexBuffer.push_back({ {p0.x, p0.y, q[0], 1.0f}, tint, {q[0] * image.coords[0].x, q[0] * image.coords[0].y}, {0, 0}, {0, 0}, {0, 0}});
+		batch.task.vertexBuffer.push_back({ {p1.x, p1.y, q[1], 1.0f}, tint, {q[1] * image.coords[1].x, q[1] * image.coords[1].y}, {0, 0}, {0, 0}, {0, 0}});
+		batch.task.vertexBuffer.push_back({ {p2.x, p2.y, q[2], 1.0f}, tint, {q[2] * image.coords[2].x, q[2] * image.coords[2].y}, {0, 0}, {0, 0}, {0, 0}});
+		batch.task.vertexBuffer.push_back({ {p0.x, p0.y, q[0], 1.0f}, tint, {q[0] * image.coords[0].x, q[0] * image.coords[0].y}, {0, 0}, {0, 0}, {0, 0}});
+		batch.task.vertexBuffer.push_back({ {p2.x, p2.y, q[2], 1.0f}, tint, {q[2] * image.coords[2].x, q[2] * image.coords[2].y}, {0, 0}, {0, 0}, {0, 0}});
+		batch.task.vertexBuffer.push_back({ {p3.x, p3.y, q[3], 1.0f}, tint, {q[3] * image.coords[3].x, q[3] * image.coords[3].y}, {0, 0}, {0, 0}, {0, 0}});
 
 		batch.task.tint = tint;
 		return batch;
@@ -1080,6 +1082,8 @@ const GPUTask& olc::Draw2D::ImageRect(olc::ImageRegion image, const olc::vf2d& p
 
 const ImageBatch& olc::Draw2D::ImageRect(olc::ImageBatch& batch, olc::ImageRegion image, const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel tint)
 {
+	olc_IgnoreUnused(image, pos, size, tint);
+	// TODO: Implement this function
 	return batch;
 }
 

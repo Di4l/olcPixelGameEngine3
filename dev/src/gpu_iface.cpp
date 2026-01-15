@@ -23,12 +23,12 @@ namespace olc
         srcGeometryShader = src;
     }
 
-    int32_t gpu::Shader::GetUniform(const std::string& name) const
+    uint32_t gpu::Shader::GetUniform(const std::string& name) const
     {
         return mapUniforms.at(name);
     }
 
-    int32_t gpu::Shader::GetShaderID() const
+    uint32_t gpu::Shader::GetShaderID() const
     {
         return nCompiledShaderID;
     }

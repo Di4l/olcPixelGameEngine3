@@ -78,6 +78,8 @@ namespace olc::host
 
 	bool Host_Windows_WinAPI::AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen)
 	{
+		olc_IgnoreUnused(bFullScreen);
+
 		// The user created olc::Window object is the SSoT for what a window
 		// should look like, so get that sort of thing from there
 		olc::vi2d vWinPos = vWindowPos;

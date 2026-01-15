@@ -225,8 +225,13 @@
 
 #define LICENCE_DEFAULT "OneLoneCoder.com - Pixel Game Engine 3 - "
 
-// De-Noise in MSVC (C++20)
+// De-Noise in MSVC (C++20) /Wall
 #pragma warning(disable:4820) // Disable Padding Warnings
+#pragma warning(disable:5045) // Disable Spectre Mitigation Warnings
+#pragma warning(disable:4514) // Disable Unreferenced Inline Function Warnings
+
+template<typename... Args>
+inline constexpr void olc_IgnoreUnused(Args&&...) noexcept {}
 
 
 namespace olc
@@ -419,14 +424,14 @@ namespace olc
 			return *this;
 		}
 
-		inline constexpr Pixel& operator -= (const Pixel& p)
+		inline constexpr Pixel& operator -= (const Pixel& p  )
 		{
 			// Note we must force to a wider signed integer type to prohibit
 			// the values wrapping/truncating
 			this->r = uint8_t(std::clamp(int(r) - int(p.r), 0, 255));
 			this->g = uint8_t(std::clamp(int(g) - int(p.g), 0, 255));
 			this->b = uint8_t(std::clamp(int(b) - int(p.b), 0, 255));
-			return *this;
+			return *this; 
 		}
 
 		// Return RGBA string
@@ -1365,9 +1370,9 @@ namespace olc
 		// Returns how this image was configured upon creation
 		const ImageConfig& GetConfig() const;
 		// Return GPU Resource ID
-		int32_t GetGPUID() const;
+		uint32_t GetGPUID() const;
 		// Set GPU Resource ID (0 to eliminate)
-		void SetGPUID(const int32_t id);
+		void SetGPUID(const uint32_t id);
 		// Get underlying vector of pixels
 		std::vector<olc::Pixel>& GetPixels();
 
@@ -1392,7 +1397,7 @@ namespace olc
 		ImageConfig config;
 		olc::vi2d dimensions;
 		std::vector<olc::Pixel> pixels;
-		int32_t gpuResourceID = 0;
+		uint32_t gpuResourceID = 0;
 		bool onGPU = false;
 		bool onCPU = true;
 	};
@@ -1508,7 +1513,9 @@ namespace olc
 		olc::vf2d vPropSize;
 		// Size of the glyph in monospace format
 		olc::vf2d vMonoSize;
+
 	};
+	
 
 	class Font
 	{
@@ -1612,12 +1619,12 @@ namespace olc
 
 		struct Vertex 
 		{
-			float p[4];     // x, y, z, w
-			olc::Pixel c;	// 32-bit colour
-			float t0[2];
-			float t1[2];
-			float t2[2];
-			float t3[2];
+			float p[4] = { 0,0,1,1 };     // x, y, z, w
+			olc::Pixel c = olc::Colour::WHITE;	// 32-bit colour
+			float t0[2]{};
+			float t1[2]{};
+			float t2[2]{};
+			float t3[2]{};
 		};
 
 		// Simple vertex buffer
@@ -1691,20 +1698,20 @@ namespace olc
 			void SetGeometryShaderSource(const std::string& src);
 
 			virtual std::string Compile() = 0;
-			virtual int32_t CreateUniform(const std::string& name) = 0;
+			virtual uint32_t CreateUniform(const std::string& name) = 0;
 
-			int32_t GetUniform(const std::string& name)	const;
-			int32_t GetShaderID() const;
+			uint32_t GetUniform(const std::string& name)	const;
+			uint32_t GetShaderID() const;
 
 		protected:
 			std::string srcPixelShader;
 			std::string srcVertexShader;
 			std::string srcGeometryShader;
-			int32_t nPixelShaderID;
-			int32_t nVertexShaderID;
-			int32_t nGeometryShaderID;
-			int32_t nCompiledShaderID;
-			std::unordered_map<std::string, int32_t> mapUniforms;
+			uint32_t nPixelShaderID = 0;
+			uint32_t nVertexShaderID = 0;
+			uint32_t nGeometryShaderID = 0;
+			uint32_t nCompiledShaderID = 0 ;
+			std::unordered_map<std::string, uint32_t> mapUniforms;
 		};
 
 		class Renderer
@@ -2502,8 +2509,8 @@ namespace olc
 			std::array<bool, OLC_MOUSE_BUTTONS> buttons_old{};
 			olc::vf2d position;
 			olc::vf2d position_in;
-			int32_t wheel_in;
-			int32_t wheel;
+			int32_t wheel_in = 0;
+			int32_t wheel = 0;
 
 		private:
 			void SetPosition(const olc::vf2d& pos);
@@ -2578,8 +2585,8 @@ namespace olc
 		virtual bool olc_OnMouseFocus(const bool bHasFocus);
 		
 		// Set Window State
-		virtual bool olc_OnWindowPosition(const olc::vi2d& vWindowPos);
-		virtual bool olc_OnWindowSize(const olc::vi2d& vWindowSize);
+		virtual bool olc_OnWindowPosition(const olc::vi2d& vPos);
+		virtual bool olc_OnWindowSize(const olc::vi2d& vSize);
 		virtual bool olc_OnWindowClose();
 
 		// Set Keyboard State
@@ -2607,7 +2614,7 @@ namespace olc
 		bool bShouldRemove = false;
 
 	protected:
-		size_t nUniqueID = -1;
+		size_t nUniqueID = size_t(-1);
 		olc::vi2d vWindowPos;
 		olc::vi2d vWindowSize;
 		std::string sFrameTitle;
@@ -2802,6 +2809,9 @@ namespace olc
 	public:
 		PixelGameEngine();
 		virtual ~PixelGameEngine();
+
+		PixelGameEngine(const PixelGameEngine&) = delete;
+		PixelGameEngine& operator=(const PixelGameEngine&) = delete;
 
 	public:
 		// Construct the PGE main engine window with traditional parameters
@@ -4467,7 +4477,7 @@ namespace olc
 		{
 		public:
 			std::string Compile() override;
-			int32_t CreateUniform(const std::string& name) override;
+			uint32_t CreateUniform(const std::string& name) override;
 		};
 
 		class Renderer_OGL33 : public olc::gpu::Renderer
@@ -4762,6 +4772,8 @@ namespace olc::host
 
 	bool Host_Windows_WinAPI::AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen)
 	{
+		olc_IgnoreUnused(bFullScreen);
+
 		// The user created olc::Window object is the SSoT for what a window
 		// should look like, so get that sort of thing from there
 		olc::vi2d vWinPos = vWindowPos;
@@ -8049,12 +8061,12 @@ namespace olc
         srcGeometryShader = src;
     }
 
-    int32_t gpu::Shader::GetUniform(const std::string& name) const
+    uint32_t gpu::Shader::GetUniform(const std::string& name) const
     {
         return mapUniforms.at(name);
     }
 
-    int32_t gpu::Shader::GetShaderID() const
+    uint32_t gpu::Shader::GetShaderID() const
     {
         return nCompiledShaderID;
     }
@@ -8522,7 +8534,7 @@ namespace olc::gpu
 		return "OK";
 	}
 
-	int32_t Shader_GLSL33::CreateUniform(const std::string& name)
+	uint32_t Shader_GLSL33::CreateUniform(const std::string& name)
 	{
 		auto& gl = olc::apis::opengl::gl::Get();
 		const char* s = name.c_str();
@@ -8839,7 +8851,7 @@ namespace olc::gpu
 
 	bool Renderer_OGL33::DestroyDevice()
 	{
-		auto& gl = olc::apis::opengl::gl::Get();
+		//auto& gl = olc::apis::opengl::gl::Get();
 
 #if OLC_HOST == OLC_HOST_WINDOWS
 		wglDeleteContext(glRenderContext);
@@ -8871,8 +8883,7 @@ namespace olc::gpu
 
 		if (!wglMakeCurrent(glDeviceContext, glRenderContext))
 		{
-			lastError = RendererError::FailedToSwitchRenderContext;
-			auto err = ::GetLastError();
+			lastError = RendererError::FailedToSwitchRenderContext;			
 			return false;
 		}
 		ReleaseDC((HWND)(os_win_id[0]), glDeviceContext);
@@ -9031,7 +9042,7 @@ namespace olc::gpu
 			gl.glBindTexture(gl.GL_TEXTURE_2D_MULTISAMPLE_X, texid);
 
 			// Allocate MSAA texture storage
-			gl.glTexImage2DMultisample(gl.GL_TEXTURE_2D_MULTISAMPLE_X, image.GetConfig().MSAASamples, 
+			gl.glTexImage2DMultisample(gl.GL_TEXTURE_2D_MULTISAMPLE_X, image.GetConfig().MSAASamples,
 				GL_RGBA, image.Size().x, image.Size().y, GL_TRUE);
 
 			// Also allocate the resolve texture - we dont care
@@ -9063,6 +9074,8 @@ namespace olc::gpu
 
 	bool Renderer_OGL33::ReadTexture(const uint32_t texid, olc::Image& image)
 	{
+		olc_IgnoreUnused(texid);
+
 		auto& gl = olc::apis::opengl::gl::Get();
 		// Read the teture data back into the image
 		gl.glBindTexture(GL_TEXTURE_2D, image.GetGPUID());
@@ -9115,7 +9128,7 @@ namespace olc::gpu
 
 		// Bind texture to specified texture slot
 		gl.glActiveTexture(gl.GL_TEXTURE0_X + slot);
-		gl.glBindTexture(GL_TEXTURE_2D, actualTexId); 
+		gl.glBindTexture(GL_TEXTURE_2D, actualTexId);
 
 		// Record currently bound source texture
 		nCurrentTextureSource = actualTexId;
@@ -9164,15 +9177,15 @@ namespace olc::gpu
 		// Allocate target buffers - pick the single attachment corresponding to 'slot'
 		std::array<GLenum, 8> attachments =
 		{ { 
-			gl.GL_COLOR_ATTACHMENT0_X + 0, 
+			gl.GL_COLOR_ATTACHMENT0_X + 0,
 			gl.GL_COLOR_ATTACHMENT0_X + 1,
 			gl.GL_COLOR_ATTACHMENT0_X + 2,
 			gl.GL_COLOR_ATTACHMENT0_X + 3,
 			gl.GL_COLOR_ATTACHMENT0_X + 4,
 			gl.GL_COLOR_ATTACHMENT0_X + 5,
 			gl.GL_COLOR_ATTACHMENT0_X + 6,
-			gl.GL_COLOR_ATTACHMENT0_X + 7 
-		} };						
+			gl.GL_COLOR_ATTACHMENT0_X + 7
+		} };
 		GLenum draw = attachments[slot];
 		
 		// Set the draw buffer to the selected attachment
@@ -9403,9 +9416,10 @@ namespace olc::gpu
 
 	bool Renderer_OGL33::DisplayDraw(std::vector<void*> os_win_id, bool bVerticalSyncNow)
 	{
-		auto& gl = olc::apis::opengl::gl::Get();
+		//auto& gl = olc::apis::opengl::gl::Get();
 
 #if OLC_HOST == OLC_HOST_WINDOWS
+		olc_IgnoreUnused(bVerticalSyncNow);
 		auto glDeviceContext = GetDC((HWND)(os_win_id[0]));
 		SwapBuffers(glDeviceContext);
 		ReleaseDC((HWND)(os_win_id[0]), glDeviceContext);
@@ -9456,7 +9470,7 @@ void Draw2D::SetTarget(olc::Image& image)
 	// Only resolve if we're ACTUALLY changing targets
 	if (pTarget && pTarget != &image && pTarget->GetConfig().MSAA)
 	{
-		pRenderer->ResolveMSAA(pTarget->GetGPUID());
+		pRenderer->ResolveMSAA(uint32_t(pTarget->GetGPUID()));
 	}
 
 	// Endure new target exists in GPU up to date
@@ -9469,7 +9483,7 @@ void Draw2D::SetTarget(olc::Image& image)
 	WorldReset();
 
 	// Configure default render target
-	pRenderer->AssignTextureTarget(0, pTarget->GetGPUID());
+	pRenderer->AssignTextureTarget(0, uint32_t(pTarget->GetGPUID()));
 	pRenderer->SetViewport({ 0,0 }, pTarget->Size());
 }
 
@@ -9499,13 +9513,13 @@ void Draw2D::PrepareTargetForSW()
 		ProcessGPUTasks();
 
 		// Image resource is primed for GPU operations, bring it to CPU
-		pRenderer->ReadTexture(pTarget->GetGPUID(), *pTarget);
+		pRenderer->ReadTexture(uint32_t(pTarget->GetGPUID()), *pTarget);
 
 		// Image is now CPU bound
 		pTarget->BindCPU();
 
 		// Create a scanline buffer the height of this target
-		vScanlines.resize(pTarget->Size().y, {});
+		vScanlines.resize(size_t(pTarget->Size().y), {});
 	}
 }
 
@@ -9514,7 +9528,7 @@ void Draw2D::PrepareTargetForHW()
 	if (pTarget->BoundToCPU())
 	{
 		// Image resource is primed for CPU operations, send it to GPU
-		pRenderer->WriteTexture(pTarget->GetGPUID(), *pTarget);
+		pRenderer->WriteTexture(uint32_t(pTarget->GetGPUID()), *pTarget);
 
 		// Image is now GPU bound
 		pTarget->BindGPU();
@@ -9529,7 +9543,7 @@ void Draw2D::PrepareImageForSW(olc::Image& image)
 		ProcessGPUTasks();
 
 		// Image resource is primed for GPU operations, bring it to CPU
-		pRenderer->ReadTexture(image.GetGPUID(), image);
+		pRenderer->ReadTexture(uint32_t(image.GetGPUID()), image);
 
 		// Image is now CPU bound
 		image.BindCPU();
@@ -9541,7 +9555,7 @@ void Draw2D::PrepareImageForHW(olc::Image& image)
 	if (image.BoundToCPU())
 	{
 		// Image resource is primed for CPU operations, send it to GPU
-		pRenderer->WriteTexture(image.GetGPUID(), image);
+		pRenderer->WriteTexture(uint32_t(image.GetGPUID()), image);
 
 		// Image is now GPU bound
 		image.BindGPU();
@@ -9551,7 +9565,7 @@ void Draw2D::PrepareImageForHW(olc::Image& image)
 	// (i.e., we're preparing it to be SAMPLED from, not rendered to)
 	if (image.GetConfig().MSAA && &image != pTarget)
 	{
-		pRenderer->ResolveMSAA(image.GetGPUID());
+		pRenderer->ResolveMSAA(uint32_t(image.GetGPUID()));
 	}
 }
 
@@ -9599,7 +9613,7 @@ void Draw2D::Pixel(const olc::vf2d& pos, const olc::Pixel col, const olc::Pixel 
 {
 	// Check if in bounds
 	olc::vf2d tpos = transformAffine.forwardRound(pos);
-	if (tpos.x >= 0 && tpos.y >= 0 && tpos.x < pTarget->Size().x && tpos.y < pTarget->Size().y)
+	if (tpos.x >= 0 && tpos.y >= 0 && tpos.x < float(pTarget->Size().x) && tpos.y < float(pTarget->Size().y))
 	{
 		PrepareTargetForSW();
 		pTarget->Pixel(tpos) = col.blend(tint);
@@ -9632,8 +9646,8 @@ GPUTask olc::Draw2D::TaskDrawLine(const std::vector<olc::vf2d>& vPoints, const s
 	task.structure = olc::Structure::Line;
 	for (size_t i = 0; i < vPoints.size() - 1; i++)
 	{
-		task.vertexBuffer.push_back({ vPoints[i].x, vPoints[i].y, 1.0f, 1.0f, vColours[i], 0, 0, 0,0, 0, 0, 0, 0 });
-		task.vertexBuffer.push_back({ vPoints[i + 1].x, vPoints[i + 1].y, 1.0f, 1.0f, vColours[i + 1], 0, 0, 0,0, 0, 0, 0, 0 });
+		task.vertexBuffer.push_back({ {vPoints[i].x, vPoints[i].y, 1.0f, 1.0f}, vColours[i], {0, 0}, {0, 0}, {0, 0}, {0, 0} });
+		task.vertexBuffer.push_back({ {vPoints[i + 1].x, vPoints[i + 1].y, 1.0f, 1.0f}, vColours[i + 1], {0, 0}, {0, 0}, {0, 0}, {0, 0} });
 	}
 	task.tint = tint;
 	return task;
@@ -9645,7 +9659,7 @@ GPUTask olc::Draw2D::TaskDrawPolygon(olc::Structure structure, const std::vector
 	task.structure = structure;
 	task.bWireframe = true;
 	for (size_t i = 0; i < vPoints.size(); i++)
-		task.vertexBuffer.push_back({ vPoints[i].x, vPoints[i].y, 1.0f, 1.0f, vColours[i], 0, 0, 0,0, 0, 0, 0, 0});
+		task.vertexBuffer.push_back({ {vPoints[i].x, vPoints[i].y, 1.0f, 1.0f}, vColours[i], {0, 0}, {0, 0}, {0, 0}, {0, 0} });
 	task.tint = tint;
 	return task;
 }
@@ -9656,7 +9670,7 @@ GPUTask olc::Draw2D::TaskDrawPolygon(olc::Structure structure, const std::vector
 	task.structure = structure;
 	task.bWireframe = true;
 	for (const auto& v : vPoints)
-		task.vertexBuffer.push_back({ v.x+0.0f, v.y+0.0f, 1.0f, 1.0f, colour, 0, 0, 0,0, 0, 0, 0, 0 });
+		task.vertexBuffer.push_back({ {v.x, v.y, 1.0f, 1.0f}, colour, {0, 0}, {0, 0}, {0, 0}, {0, 0} });
 	task.tint = tint;
 	return task;
 }
@@ -9666,7 +9680,7 @@ GPUTask olc::Draw2D::TaskFillPolygon(olc::Structure structure, const std::vector
 	GPUTask task;
 	task.structure = structure;
 	for (size_t i = 0; i < vPoints.size(); i++)
-		task.vertexBuffer.push_back({ vPoints[i].x, vPoints[i].y, 1.0f, 1.0f, vColours[i], 0, 0, 0, 0, 0, 0, 0, 0 });
+		task.vertexBuffer.push_back({ {vPoints[i].x, vPoints[i].y, 1.0f, 1.0f}, vColours[i], {0, 0}, {0, 0}, {0, 0}, {0, 0} });
 	task.tint = tint;
 	return task;
 }
@@ -9676,7 +9690,7 @@ GPUTask olc::Draw2D::TaskFillPolygon(olc::Structure structure, const std::vector
 	GPUTask task;
 	task.structure = structure;
 	for (const auto& v : vPoints)
-		task.vertexBuffer.push_back({ v.x, v.y, 1.0f, 1.0f, colour, 0, 0, 0,0, 0, 0, 0, 0 });
+		task.vertexBuffer.push_back({ {v.x, v.y, 1.0f, 1.0f}, colour, {0, 0}, {0, 0}, {0, 0}, {0, 0} });
 	task.tint = tint;
 	return task;	
 }
@@ -9684,8 +9698,9 @@ GPUTask olc::Draw2D::TaskFillPolygon(olc::Structure structure, const std::vector
 GPUTask olc::Draw2D::TaskTexturedPolygon(olc::Structure structure, const std::vector<olc::vf2d>& vPoints, const std::vector<olc::Pixel>& vColours, const std::vector<olc::vf2d>& vTexCoords, olc::Image* const image, const olc::Pixel tint)
 {
 	GPUTask task;
+	task.structure = structure;
 	for (size_t i = 0; i<vPoints.size(); i++)
-		task.vertexBuffer.push_back({ vPoints[i].x, vPoints[i].y, 1.0f, 1.0f, vColours[i], vTexCoords[i].x, vTexCoords[i].y, 0, 0, 0, 0, 0, 0});
+		task.vertexBuffer.push_back({ {vPoints[i].x, vPoints[i].y, 1.0f, 1.0f}, vColours[i], {vTexCoords[i].x, vTexCoords[i].y}, {0, 0}, {0, 0}, {0, 0} });
 	task.pImage = image;
 	task.tint = tint;
 	return task;
@@ -9694,8 +9709,9 @@ GPUTask olc::Draw2D::TaskTexturedPolygon(olc::Structure structure, const std::ve
 GPUTask olc::Draw2D::TaskTexturedPolygon(olc::Structure structure, const std::vector<olc::vf2d>& vPoints, const std::vector<olc::vf2d>& vZWs, const std::vector<olc::Pixel>& vColours, const std::vector<olc::vf2d>& vTexCoords, olc::Image* const image, const olc::Pixel tint)
 {
 	GPUTask task;
+	task.structure = structure;
 	for (size_t i = 0; i < vPoints.size(); i++)
-		task.vertexBuffer.push_back({ vPoints[i].x, vPoints[i].y, vZWs[i].x, vZWs[i].y, vColours[i], vTexCoords[i].x, vTexCoords[i].y, 0, 0, 0, 0, 0, 0});
+		task.vertexBuffer.push_back({ {vPoints[i].x, vPoints[i].y, vZWs[i].x, vZWs[i].y}, vColours[i], {vTexCoords[i].x, vTexCoords[i].y}, {0, 0}, {0, 0}, {0, 0} });
 	task.pImage = image;
 	task.tint = tint;
 	return task;
@@ -10283,12 +10299,12 @@ const ImageBatch& olc::Draw2D::Image(ImageBatch& batch, olc::ImageRegion image, 
 	olc::vf2d p2 = transformAffine.forward(olc::vf2d{ pos.x + size.x, pos.y + size.y });
 	olc::vf2d p3 = transformAffine.forward(olc::vf2d{ pos.x, pos.y + size.y });
 
-	batch.task.vertexBuffer.push_back({ p0.x, p0.y, 1.0f, 1.0f, tint, image.coords[0].x, image.coords[0].y, 0, 0, 0, 0, 0, 0 });
-	batch.task.vertexBuffer.push_back({ p1.x, p1.y, 1.0f, 1.0f, tint, image.coords[1].x, image.coords[1].y, 0, 0, 0, 0, 0, 0 });
-	batch.task.vertexBuffer.push_back({ p2.x, p2.y, 1.0f, 1.0f, tint, image.coords[2].x, image.coords[2].y, 0, 0, 0, 0, 0, 0 });
-	batch.task.vertexBuffer.push_back({ p0.x, p0.y, 1.0f, 1.0f, tint, image.coords[0].x, image.coords[0].y, 0, 0, 0, 0, 0, 0 });
-	batch.task.vertexBuffer.push_back({ p2.x, p2.y, 1.0f, 1.0f, tint, image.coords[2].x, image.coords[2].y, 0, 0, 0, 0, 0, 0 });
-	batch.task.vertexBuffer.push_back({ p3.x, p3.y, 1.0f, 1.0f, tint, image.coords[3].x, image.coords[3].y, 0, 0, 0, 0, 0, 0 });
+	batch.task.vertexBuffer.push_back({ {p0.x, p0.y, 1.0f, 1.0f}, tint, {image.coords[0].x, image.coords[0].y}, {0, 0}, {0, 0}, {0, 0} });
+	batch.task.vertexBuffer.push_back({ {p1.x, p1.y, 1.0f, 1.0f}, tint, {image.coords[1].x, image.coords[1].y}, {0, 0}, {0, 0}, {0, 0} });
+	batch.task.vertexBuffer.push_back({ {p2.x, p2.y, 1.0f, 1.0f}, tint, {image.coords[2].x, image.coords[2].y}, {0, 0}, {0, 0}, {0, 0} });
+	batch.task.vertexBuffer.push_back({ {p0.x, p0.y, 1.0f, 1.0f}, tint, {image.coords[0].x, image.coords[0].y}, {0, 0}, {0, 0}, {0, 0} });
+	batch.task.vertexBuffer.push_back({ {p2.x, p2.y, 1.0f, 1.0f}, tint, {image.coords[2].x, image.coords[2].y}, {0, 0}, {0, 0}, {0, 0} });
+	batch.task.vertexBuffer.push_back({ {p3.x, p3.y, 1.0f, 1.0f}, tint, {image.coords[3].x, image.coords[3].y}, {0, 0}, {0, 0}, {0, 0} });
 	
 	batch.task.tint = tint;
 
@@ -10336,7 +10352,7 @@ const GPUTask& olc::Draw2D::ImageRotated(olc::ImageRegion image, const olc::vf2d
 	vPoints[3] = (olc::vf2d(0.0f, size.y) - center) * scale;
 
 	float c = cos(theta), s = sin(theta);
-	for (int i = 0; i < 4; i++)
+	for (size_t i = 0; i < 4; i++)
 		vPoints[i] = pos + olc::vf2d(vPoints[i].x * c - vPoints[i].y * s, vPoints[i].x * s + vPoints[i].y * c);
 
 	return vecGPUTasks.emplace_back(
@@ -10361,7 +10377,7 @@ const ImageBatch& olc::Draw2D::ImageRotated(olc::ImageBatch& batch, olc::ImageRe
 	vPoints[3] = (olc::vf2d(0.0f, size.y) - center) * scale;
 
 	float c = cos(theta), s = sin(theta);
-	for (int i = 0; i < 4; i++)
+	for (size_t i = 0; i < 4; i++)
 		vPoints[i] = pos + olc::vf2d(vPoints[i].x * c - vPoints[i].y * s, vPoints[i].x * s + vPoints[i].y * c);
 
 	olc::vf2d p0 = transformAffine.forward(vPoints[0]);
@@ -10369,12 +10385,12 @@ const ImageBatch& olc::Draw2D::ImageRotated(olc::ImageBatch& batch, olc::ImageRe
 	olc::vf2d p2 = transformAffine.forward(vPoints[2]);
 	olc::vf2d p3 = transformAffine.forward(vPoints[3]);
 
-	batch.task.vertexBuffer.push_back({ p0.x, p0.y, 1.0f, 1.0f, tint, image.coords[0].x, image.coords[0].y, 0, 0, 0, 0, 0, 0 });
-	batch.task.vertexBuffer.push_back({ p1.x, p1.y, 1.0f, 1.0f, tint, image.coords[1].x, image.coords[1].y, 0, 0, 0, 0, 0, 0 });
-	batch.task.vertexBuffer.push_back({ p2.x, p2.y, 1.0f, 1.0f, tint, image.coords[2].x, image.coords[2].y, 0, 0, 0, 0, 0, 0 });
-	batch.task.vertexBuffer.push_back({ p0.x, p0.y, 1.0f, 1.0f, tint, image.coords[0].x, image.coords[0].y, 0, 0, 0, 0, 0, 0 });
-	batch.task.vertexBuffer.push_back({ p2.x, p2.y, 1.0f, 1.0f, tint, image.coords[2].x, image.coords[2].y, 0, 0, 0, 0, 0, 0 });
-	batch.task.vertexBuffer.push_back({ p3.x, p3.y, 1.0f, 1.0f, tint, image.coords[3].x, image.coords[3].y, 0, 0, 0, 0, 0, 0 });
+	batch.task.vertexBuffer.push_back({ {p0.x, p0.y, 1.0f, 1.0f}, tint, {image.coords[0].x, image.coords[0].y}, {0, 0}, {0, 0}, {0, 0} });
+	batch.task.vertexBuffer.push_back({ {p1.x, p1.y, 1.0f, 1.0f}, tint, {image.coords[1].x, image.coords[1].y}, {0, 0}, {0, 0}, {0, 0} });
+	batch.task.vertexBuffer.push_back({ {p2.x, p2.y, 1.0f, 1.0f}, tint, {image.coords[2].x, image.coords[2].y}, {0, 0}, {0, 0}, {0, 0} });
+	batch.task.vertexBuffer.push_back({ {p0.x, p0.y, 1.0f, 1.0f}, tint, {image.coords[0].x, image.coords[0].y}, {0, 0}, {0, 0}, {0, 0} });
+	batch.task.vertexBuffer.push_back({ {p2.x, p2.y, 1.0f, 1.0f}, tint, {image.coords[2].x, image.coords[2].y}, {0, 0}, {0, 0}, {0, 0} });
+	batch.task.vertexBuffer.push_back({ {p3.x, p3.y, 1.0f, 1.0f}, tint, {image.coords[3].x, image.coords[3].y}, {0, 0}, {0, 0}, {0, 0} });
 
 	batch.task.tint = tint;
 
@@ -10468,12 +10484,12 @@ const ImageBatch& olc::Draw2D::ImageQuad(olc::ImageBatch& batch, olc::ImageRegio
 		olc::vf2d p2 = transformAffine.forward(vBR);
 		olc::vf2d p3 = transformAffine.forward(vBL);
 
-		batch.task.vertexBuffer.push_back({ p0.x, p0.y, q[0], 1.0f, tint, q[0] * image.coords[0].x, q[0] * image.coords[0].y, 0, 0, 0, 0, 0, 0});
-		batch.task.vertexBuffer.push_back({ p1.x, p1.y, q[1], 1.0f, tint, q[1] * image.coords[1].x, q[1] * image.coords[1].y, 0, 0, 0, 0, 0, 0});
-		batch.task.vertexBuffer.push_back({ p2.x, p2.y, q[2], 1.0f, tint, q[2] * image.coords[2].x, q[2] * image.coords[2].y, 0, 0, 0, 0, 0, 0});
-		batch.task.vertexBuffer.push_back({ p0.x, p0.y, q[0], 1.0f, tint, q[0] * image.coords[0].x, q[0] * image.coords[0].y, 0, 0, 0, 0, 0, 0});
-		batch.task.vertexBuffer.push_back({ p2.x, p2.y, q[2], 1.0f, tint, q[2] * image.coords[2].x, q[2] * image.coords[2].y, 0, 0, 0, 0, 0, 0});
-		batch.task.vertexBuffer.push_back({ p3.x, p3.y, q[3], 1.0f, tint, q[3] * image.coords[3].x, q[3] * image.coords[3].y, 0, 0, 0, 0, 0, 0});
+		batch.task.vertexBuffer.push_back({ {p0.x, p0.y, q[0], 1.0f}, tint, {q[0] * image.coords[0].x, q[0] * image.coords[0].y}, {0, 0}, {0, 0}, {0, 0}});
+		batch.task.vertexBuffer.push_back({ {p1.x, p1.y, q[1], 1.0f}, tint, {q[1] * image.coords[1].x, q[1] * image.coords[1].y}, {0, 0}, {0, 0}, {0, 0}});
+		batch.task.vertexBuffer.push_back({ {p2.x, p2.y, q[2], 1.0f}, tint, {q[2] * image.coords[2].x, q[2] * image.coords[2].y}, {0, 0}, {0, 0}, {0, 0}});
+		batch.task.vertexBuffer.push_back({ {p0.x, p0.y, q[0], 1.0f}, tint, {q[0] * image.coords[0].x, q[0] * image.coords[0].y}, {0, 0}, {0, 0}, {0, 0}});
+		batch.task.vertexBuffer.push_back({ {p2.x, p2.y, q[2], 1.0f}, tint, {q[2] * image.coords[2].x, q[2] * image.coords[2].y}, {0, 0}, {0, 0}, {0, 0}});
+		batch.task.vertexBuffer.push_back({ {p3.x, p3.y, q[3], 1.0f}, tint, {q[3] * image.coords[3].x, q[3] * image.coords[3].y}, {0, 0}, {0, 0}, {0, 0}});
 
 		batch.task.tint = tint;
 		return batch;
@@ -10514,6 +10530,8 @@ const GPUTask& olc::Draw2D::ImageRect(olc::ImageRegion image, const olc::vf2d& p
 
 const ImageBatch& olc::Draw2D::ImageRect(olc::ImageBatch& batch, olc::ImageRegion image, const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel tint)
 {
+	olc_IgnoreUnused(image, pos, size, tint);
+	// TODO: Implement this function
 	return batch;
 }
 
@@ -10642,7 +10660,7 @@ bool olc::Draw2D::swClipLine(olc::vf2d& p1, olc::vf2d& p2, const olc::vf2d& vMin
 {
 	// https://en.wikipedia.org/wiki/Cohen%E2%80%93Sutherland_algorithm
 	static constexpr int SEG_I = 0b0000, SEG_L = 0b0001, SEG_R = 0b0010, SEG_B = 0b0100, SEG_T = 0b1000;
-	auto Segment = [&vMin = vMin, &vMax = vMax](const olc::vi2d& v)
+	auto Segment = [&vMin = vMin, &vMax = vMax](const olc::vf2d& v)
 		{
 			int i = SEG_I;
 			if (v.x < vMin.x) i |= SEG_L; else if (v.x > vMax.x) i |= SEG_R;
@@ -10776,7 +10794,7 @@ std::pair<int, int> olc::Draw2D::swBaryFillTriangle(const olc::vi2d& v1, const o
 			int dy = p1.y - p0.y;
 			float dx_step = (p1.x - p0.x) / float(dy);
 			float dy_step = 1.0f / float(dy);
-			float x = p0.x;
+			float x = float(p0.x);
 
 			// Rasterise edge - if pixel lies on visible scanline then
 			// update the scanline bounds and barycentric coords
@@ -11017,8 +11035,8 @@ void olc::Draw2D::swRasterShadedLine(const olc::vi2d& v1, const olc::vi2d& v2, c
 	olc::Pixel cEnd = olc::PixelLerp(c1, c2, w1);	
 
 	// Starting position and color interpolation parameter
-	float x =  ip1.x;
-	float y =  ip1.y;
+	float x =  float(ip1.x);
+	float y =  float(ip1.y);
 	float t = 0.0f;
 
 	// Draw line pixel by pixel
@@ -11067,6 +11085,7 @@ namespace olc
 
 	bool PGEWindow::OnUserUpdate(float fElapsedTime)
 	{
+		olc_IgnoreUnused(fElapsedTime);
 		return true;
 	}
 
@@ -11108,7 +11127,7 @@ namespace olc
 
 		if (GetDefaultImage().GetConfig().MSAA)
 		{
-			pRenderer->ResolveMSAA(GetDefaultImage().GetGPUID());
+			pRenderer->ResolveMSAA(uint32_t(GetDefaultImage().GetGPUID()));
 		}
 
 		// Take the window's completed "screen" and draw it as a textured quad to the backbuffer
@@ -11170,11 +11189,13 @@ namespace olc
 
 	bool PGEWindow::CreateImageFromMemory(olc::Image& image, const uint8_t* data, const size_t bytes, const ImageConfig& cfg)
 	{
+		olc_IgnoreUnused(image, data, bytes, cfg);
 		return false;
 	}
 
 	bool PGEWindow::WriteImageToFile(const olc::Image& image, const std::string& sFileName)
 	{
+		olc_IgnoreUnused(image, sFileName);
 		return false;
 	}
 
@@ -11183,7 +11204,7 @@ namespace olc
 		// If image has gpu resource, remove it
 		if (image.GetGPUID() != 0)
 		{
-			pRenderer->DeleteTexture(image.GetGPUID());
+			pRenderer->DeleteTexture(uint32_t(image.GetGPUID()));
 			image.SetGPUID(0);
 		}
 
@@ -11310,6 +11331,7 @@ namespace olc
 		return true;
 #else
 		// Can't create new windows
+		olc_IgnoreUnused(window, vScreenSize, vPixelSize);
 		return false;
 #endif
 	}
@@ -11361,6 +11383,9 @@ namespace olc
 			{
 				// Application is to be terminated as primary window has closed
 				pge->coreActive = false;
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN
+				emscripten_cancel_main_loop();
+#endif
 			}
 			else
 			{
@@ -11446,7 +11471,7 @@ namespace olc
 		gpu->CreateDevice(host->GetHostWindowDescriptor(this), cfgRenderer);
 		if (gpu->GetLastError() != olc::gpu::RendererError::NoError)
 		{
-			const auto e = gpu->GetLastError(); // For debug visibility
+			//const auto e = gpu->GetLastError(); // For debug visibility
 			std::cout << "Error: Could not create Renderer\n";
 			return;
 		}
@@ -11534,12 +11559,12 @@ namespace olc
 		return config;
 	}
 
-	int32_t Image::GetGPUID() const
+	uint32_t Image::GetGPUID() const
 	{
 		return gpuResourceID;
 	}
 
-	void Image::SetGPUID(const int32_t id)
+	void Image::SetGPUID(const uint32_t id)
 	{
 		gpuResourceID = id;
 	}
@@ -11663,7 +11688,7 @@ namespace olc
 				for (int i = 0; i < 24; i++)
 				{
 					int k = r & (1 << i) ? 255 : 0;
-					fontClassicPGE.imgFont.Pixel({ px, py }) = olc::Pixel(k, k, k, k);
+					fontClassicPGE.imgFont.Pixel({ px, py }) = olc::Pixel(uint8_t(k), uint8_t(k), uint8_t(k), uint8_t(k));
 					if (++py == 48) { px++; py = 0; }
 				}
 			}
@@ -11806,17 +11831,19 @@ namespace olc
 
 	bool Window::olc_OnMouseFocus(const bool bHasFocus)
 	{
+		olc_IgnoreUnused(bHasFocus);
 		return false;
 	}
 
-	bool Window::olc_OnWindowPosition(const olc::vi2d& vWindowPos)
+	bool Window::olc_OnWindowPosition(const olc::vi2d& vPos)
 	{
+		olc_IgnoreUnused(vPos);
 		return false;
 	}
 
-	bool Window::olc_OnWindowSize(const olc::vi2d& vWindowSize)
+	bool Window::olc_OnWindowSize(const olc::vi2d& vSize)
 	{
-		return SetWindowSize(vWindowSize);		
+		return SetWindowSize(vSize);		
 	}
 
 	bool Window::olc_OnWindowClose()
@@ -11948,21 +11975,25 @@ namespace olc::imload
 
 	bool ImageLoader_WinGDI::CreateImageFromMemory(olc::Image& image, const uint8_t* data, const size_t bytes)
 	{
+		olc_IgnoreUnused(image, data, bytes);
 		return false;
 	}
 
 	bool ImageLoader_WinGDI::CreateImageFromMemory(olc::Image& image, const std::vector<uint8_t>& data)
 	{
+		olc_IgnoreUnused(image, data);
 		return false;
 	}
 
 	bool ImageLoader_WinGDI::WriteImageToFile(const olc::Image& image, const std::string& sFileName)
 	{
+		olc_IgnoreUnused(image, sFileName);
 		return false;
 	}
 
 	bool ImageLoader_WinGDI::WriteImageToMemoryFile(olc::Image& image, const std::vector<uint8_t>& data)
 	{
+		olc_IgnoreUnused(image, data);
 		return false;
 	}
 }

@@ -35,7 +35,9 @@ namespace olc
 		olc::vf2d vPropSize;
 		// Size of the glyph in monospace format
 		olc::vf2d vMonoSize;
+
 	};
+	
 
 	class Font
 	{
