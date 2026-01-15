@@ -11,10 +11,8 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 include(FetchContent)
 FetchContent_Declare(
     olcGimmeHead
-    # GIT_REPOSITORY https://github.com/OneLoneCoder/olcGimmeHead.git
-    # GIT_TAG e306043922ba5e1927080ad7b4f965505e607617
-    GIT_REPOSITORY https://github.com/Moros1138/olcGimmeHead.git
-    GIT_TAG main
+    GIT_REPOSITORY https://github.com/OneLoneCoder/olcGimmeHead.git
+    GIT_TAG 75e71cc66d165afdda436d5c8fc0ac97904011f7
 )
 
 FetchContent_MakeAvailable(olcGimmeHead)
