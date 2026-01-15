@@ -557,7 +557,7 @@ namespace olc::gpu
 			gl.glBindTexture(gl.GL_TEXTURE_2D_MULTISAMPLE_X, texid);
 
 			// Allocate MSAA texture storage
-			gl.glTexImage2DMultisample(gl.GL_TEXTURE_2D_MULTISAMPLE_X, image.GetConfig().MSAASamples, 
+			gl.glTexImage2DMultisample(gl.GL_TEXTURE_2D_MULTISAMPLE_X, image.GetConfig().MSAASamples,
 				GL_RGBA, image.Size().x, image.Size().y, GL_TRUE);
 
 			// Also allocate the resolve texture - we dont care
@@ -641,7 +641,7 @@ namespace olc::gpu
 
 		// Bind texture to specified texture slot
 		gl.glActiveTexture(gl.GL_TEXTURE0_X + slot);
-		gl.glBindTexture(GL_TEXTURE_2D, actualTexId); 
+		gl.glBindTexture(GL_TEXTURE_2D, actualTexId);
 
 		// Record currently bound source texture
 		nCurrentTextureSource = actualTexId;
@@ -690,15 +690,15 @@ namespace olc::gpu
 		// Allocate target buffers - pick the single attachment corresponding to 'slot'
 		std::array<GLenum, 8> attachments =
 		{ { 
-			gl.GL_COLOR_ATTACHMENT0_X + 0, 
+			gl.GL_COLOR_ATTACHMENT0_X + 0,
 			gl.GL_COLOR_ATTACHMENT0_X + 1,
 			gl.GL_COLOR_ATTACHMENT0_X + 2,
 			gl.GL_COLOR_ATTACHMENT0_X + 3,
 			gl.GL_COLOR_ATTACHMENT0_X + 4,
 			gl.GL_COLOR_ATTACHMENT0_X + 5,
 			gl.GL_COLOR_ATTACHMENT0_X + 6,
-			gl.GL_COLOR_ATTACHMENT0_X + 7 
-		} };						
+			gl.GL_COLOR_ATTACHMENT0_X + 7
+		} };
 		GLenum draw = attachments[slot];
 		
 		// Set the draw buffer to the selected attachment
