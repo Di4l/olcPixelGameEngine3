@@ -12,7 +12,7 @@ namespace olc::gpu
 		// Fragment Shader
 		if (!srcPixelShader.empty())
 		{
-			nPixelShaderID = gl.glCreateShader(gl.GL_FRAGMENT_SHADER);
+			nPixelShaderID = gl.glCreateShader(gl.GL_FRAGMENT_SHADER_X);
 			const char* s = srcPixelShader.c_str();
 			gl.glShaderSource(nPixelShaderID, 1, &s, nullptr);
 			gl.glCompileShader(nPixelShaderID);
@@ -23,7 +23,7 @@ namespace olc::gpu
 		// Vertex Shader
 		if (!srcVertexShader.empty())
 		{
-			nVertexShaderID = gl.glCreateShader(gl.GL_VERTEX_SHADER);
+			nVertexShaderID = gl.glCreateShader(gl.GL_VERTEX_SHADER_X);
 			const char* s = srcVertexShader.c_str();
 			gl.glShaderSource(nVertexShaderID, 1, &s, nullptr);
 			gl.glCompileShader(nVertexShaderID);
@@ -35,7 +35,7 @@ namespace olc::gpu
 		// Geometry Shader
 		if (!srcGeometryShader.empty())
 		{
-			nGeometryShaderID = gl.glCreateShader(gl.GL_GEOMETRY_SHADER);
+			nGeometryShaderID = gl.glCreateShader(gl.GL_GEOMETRY_SHADER_X);
 			const char* s = srcGeometryShader.c_str();
 			gl.glShaderSource(nGeometryShaderID, 1, &s, nullptr);
 			gl.glCompileShader(nGeometryShaderID);
@@ -206,11 +206,11 @@ namespace olc::gpu
 		gl.glGenBuffers(1, &nDefaultVB);
 		gl.glGenVertexArrays(1, &nDefaultVA);
 		gl.glBindVertexArray(nDefaultVA);
-		gl.glBindBuffer(gl.GL_ARRAY_BUFFER, nDefaultVB);
+		gl.glBindBuffer(gl.GL_ARRAY_BUFFER_X, nDefaultVB);
 
 		// A big one is allocated to reduce shuffles in GPU memory
 		GPUTask::Vertex verts[OLC_GPU_MAX_VERTICES];
-		gl.glBufferData(gl.GL_ARRAY_BUFFER, sizeof(GPUTask::Vertex) * OLC_GPU_MAX_VERTICES, verts, gl.GL_STREAM_DRAW);
+		gl.glBufferData(gl.GL_ARRAY_BUFFER_X, sizeof(GPUTask::Vertex) * OLC_GPU_MAX_VERTICES, verts, gl.GL_STREAM_DRAW_X);
 		
 		// Float Index 0 = x, 1 = y, 2 = z, 3 = w
 		gl.glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, sizeof(GPUTask::Vertex),        (void*)(0 * sizeof(float)));
@@ -232,7 +232,7 @@ namespace olc::gpu
 		gl.glEnableVertexAttribArray(5);
 
 		// Buffers are configured, unbind for now
-		gl.glBindBuffer(gl.GL_ARRAY_BUFFER, 0);
+		gl.glBindBuffer(gl.GL_ARRAY_BUFFER_X, 0);
 		gl.glBindVertexArray(0);
 
 
@@ -422,7 +422,7 @@ namespace olc::gpu
 			// "resolved" texture later for sampling when the 
 			// MSAA texture is used as a source
 			gl.glGenTextures(1, &id);
-			glBindTexture(gl.GL_TEXTURE_2D_MULTISAMPLE, id);
+			glBindTexture(gl.GL_TEXTURE_2D_MULTISAMPLE_X, id);
 
 			// Allocate MSAA texture storage
 			uint32_t regular_id = CreateRegularTexture();
@@ -452,10 +452,10 @@ namespace olc::gpu
 		if (mapMSAAToResolved.contains(texid))
 		{
 			// Texture is MSAA
-			gl.glBindTexture(gl.GL_TEXTURE_2D_MULTISAMPLE, texid);
+			gl.glBindTexture(gl.GL_TEXTURE_2D_MULTISAMPLE_X, texid);
 
 			// Allocate MSAA texture storage
-			gl.glTexImage2DMultisample(gl.GL_TEXTURE_2D_MULTISAMPLE, image.GetConfig().MSAASamples, 
+			gl.glTexImage2DMultisample(gl.GL_TEXTURE_2D_MULTISAMPLE_X, image.GetConfig().MSAASamples, 
 				GL_RGBA, image.Size().x, image.Size().y, GL_TRUE);
 
 			// Also allocate the resolve texture - we dont care
@@ -526,7 +526,7 @@ namespace olc::gpu
 #if defined(OLC_GPU_ERRORCHECK) && OLC_GPU_ERRORCHECK == 1
 			std::cout << "Warning ATS: Requested source is currently attached as target (" << actualTexId << ") - unbinding FBO\n";
 #endif
-			gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, 0);
+			gl.glBindFramebuffer(gl.GL_FRAMEBUFFER_X, 0);
 			nCurrentTextureTarget = 0;
 		}
 
@@ -534,7 +534,7 @@ namespace olc::gpu
 		//	return true;
 
 		// Bind texture to specified texture slot
-		gl.glActiveTexture(gl.GL_TEXTURE0 + slot);
+		gl.glActiveTexture(gl.GL_TEXTURE0_X + slot);
 		gl.glBindTexture(GL_TEXTURE_2D, actualTexId); 
 
 		// Record currently bound source texture
@@ -561,37 +561,37 @@ namespace olc::gpu
 			// Unbind from a reasonable number of texture units (0..7) used by this renderer
 			for (int i = 0; i < 8; ++i)
 			{
-				gl.glActiveTexture(gl.GL_TEXTURE0 + i);
+				gl.glActiveTexture(gl.GL_TEXTURE0_X + i);
 				gl.glBindTexture(GL_TEXTURE_2D, 0);
 			}
 
 			// Reset to texture unit 0
-			gl.glActiveTexture(gl.GL_TEXTURE0);
+			gl.glActiveTexture(gl.GL_TEXTURE0_X);
 			nCurrentTextureSource = 0;
 		}
 		
 		if (texid == 0)
 		{
 			// Unbind the FBO (bind default framebuffer)
-			gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, 0);
-			glDisable(gl.GL_MULTISAMPLE);
+			gl.glBindFramebuffer(gl.GL_FRAMEBUFFER_X, 0);
+			glDisable(gl.GL_MULTISAMPLE_X);
 			return true;
 		}	
 		
 		// Bind FBO
-		gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, nDefaultFBO);
+		gl.glBindFramebuffer(gl.GL_FRAMEBUFFER_X, nDefaultFBO);
 
 		// Allocate target buffers - pick the single attachment corresponding to 'slot'
 		std::array<GLenum, 8> attachments =
 		{ { 
-			gl.GL_COLOR_ATTACHMENT0 + 0, 
-			gl.GL_COLOR_ATTACHMENT0 + 1,
-			gl.GL_COLOR_ATTACHMENT0 + 2,
-			gl.GL_COLOR_ATTACHMENT0 + 3,
-			gl.GL_COLOR_ATTACHMENT0 + 4,
-			gl.GL_COLOR_ATTACHMENT0 + 5,
-			gl.GL_COLOR_ATTACHMENT0 + 6,
-			gl.GL_COLOR_ATTACHMENT0 + 7 
+			gl.GL_COLOR_ATTACHMENT0_X + 0, 
+			gl.GL_COLOR_ATTACHMENT0_X + 1,
+			gl.GL_COLOR_ATTACHMENT0_X + 2,
+			gl.GL_COLOR_ATTACHMENT0_X + 3,
+			gl.GL_COLOR_ATTACHMENT0_X + 4,
+			gl.GL_COLOR_ATTACHMENT0_X + 5,
+			gl.GL_COLOR_ATTACHMENT0_X + 6,
+			gl.GL_COLOR_ATTACHMENT0_X + 7 
 		} };						
 		GLenum draw = attachments[slot];
 		
@@ -601,15 +601,15 @@ namespace olc::gpu
 		// If target texture is MSAA, enable multisampling
 		if (mapMSAAToResolved.contains(texid))
 		{
-			glEnable(gl.GL_MULTISAMPLE);
+			glEnable(gl.GL_MULTISAMPLE_X);
 			// Attach MSAA texture to FBO
-			gl.glFramebufferTexture2D(gl.GL_FRAMEBUFFER, gl.GL_COLOR_ATTACHMENT0 + slot, gl.GL_TEXTURE_2D_MULTISAMPLE, texid, 0);
+			gl.glFramebufferTexture2D(gl.GL_FRAMEBUFFER_X, gl.GL_COLOR_ATTACHMENT0_X + slot, gl.GL_TEXTURE_2D_MULTISAMPLE_X, texid, 0);
 		}
 		else
 		{
-			glDisable(gl.GL_MULTISAMPLE);
+			glDisable(gl.GL_MULTISAMPLE_X);
 			// Attach regular texture to FBO
-			gl.glFramebufferTexture2D(gl.GL_FRAMEBUFFER, gl.GL_COLOR_ATTACHMENT0 + slot, GL_TEXTURE_2D, texid, 0);
+			gl.glFramebufferTexture2D(gl.GL_FRAMEBUFFER_X, gl.GL_COLOR_ATTACHMENT0_X + slot, GL_TEXTURE_2D, texid, 0);
 
 		}
 
@@ -633,8 +633,8 @@ namespace olc::gpu
 		glFinish();
 
 		// Bind MSAA texture to read FBO
-		gl.glBindFramebuffer(gl.GL_READ_FRAMEBUFFER, nResolveFBO_Read);
-		gl.glFramebufferTexture2D(gl.GL_READ_FRAMEBUFFER, gl.GL_COLOR_ATTACHMENT0, gl.GL_TEXTURE_2D_MULTISAMPLE, msaaTexId, 0);
+		gl.glBindFramebuffer(gl.GL_READ_FRAMEBUFFER_X, nResolveFBO_Read);
+		gl.glFramebufferTexture2D(gl.GL_READ_FRAMEBUFFER_X, gl.GL_COLOR_ATTACHMENT0_X, gl.GL_TEXTURE_2D_MULTISAMPLE_X, msaaTexId, 0);
 
 #if defined(OLC_GPU_ERRORCHECK) && OLC_GPU_ERRORCHECK == 1
 		// Check read framebuffer status
@@ -647,13 +647,13 @@ namespace olc::gpu
 #endif
 
 		// Bind resolved texture to draw FBO
-		gl.glBindFramebuffer(gl.GL_DRAW_FRAMEBUFFER, nResolveFBO_Draw);
-		gl.glFramebufferTexture2D(gl.GL_DRAW_FRAMEBUFFER, gl.GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, resolvedId, 0);
+		gl.glBindFramebuffer(gl.GL_DRAW_FRAMEBUFFER_X, nResolveFBO_Draw);
+		gl.glFramebufferTexture2D(gl.GL_DRAW_FRAMEBUFFER_X, gl.GL_COLOR_ATTACHMENT0_X, GL_TEXTURE_2D, resolvedId, 0);
 
 #if defined(OLC_GPU_ERRORCHECK) && OLC_GPU_ERRORCHECK == 1
 		// Check draw framebuffer status
-		GLenum drawStatus = gl.glCheckFramebufferStatus(gl.GL_DRAW_FRAMEBUFFER);
-		if (drawStatus != gl.GL_FRAMEBUFFER_COMPLETE)
+		GLenum drawStatus = gl.glCheckFramebufferStatus(gl.GL_DRAW_FRAMEBUFFER_X);
+		if (drawStatus != gl.GL_FRAMEBUFFER_COMPLETE_X)
 		{
 			std::cout << "ResolveMSAA ERROR: Draw framebuffer incomplete!";
 			return false;
@@ -670,7 +670,7 @@ namespace olc::gpu
 		);
 
 		// Restore to default framebuffer (screen)
-		gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, nDefaultFBO);
+		gl.glBindFramebuffer(gl.GL_FRAMEBUFFER_X, nDefaultFBO);
 		return true;
 	}
 
@@ -707,10 +707,10 @@ namespace olc::gpu
 
 				// Bind generic vertex buffer
 				gl.glBindVertexArray(nDefaultVA);
-				gl.glBindBuffer(gl.GL_ARRAY_BUFFER, nDefaultVB);
+				gl.glBindBuffer(gl.GL_ARRAY_BUFFER_X, nDefaultVB);
 				
 				// Copy data from CPU to GPU
-				gl.glBufferData(gl.GL_ARRAY_BUFFER, sizeof(GPUTask::Vertex) * task.vertexBuffer.size(), task.vertexBuffer.data(), gl.GL_STREAM_DRAW);
+				gl.glBufferData(gl.GL_ARRAY_BUFFER_X, sizeof(GPUTask::Vertex) * task.vertexBuffer.size(), task.vertexBuffer.data(), gl.GL_STREAM_DRAW_X);
 				
 				
 

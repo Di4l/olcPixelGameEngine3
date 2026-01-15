@@ -240,20 +240,20 @@ namespace olc
 			void glPolygonMode(GLenum face, GLenum mode);
 
 			// Constants
-			static constexpr GLenum GL_FRAMEBUFFER_COMPLETE = 0x8CD5;
-			static constexpr GLenum GL_TEXTURE_2D_MULTISAMPLE = 0x9100;
-			static constexpr GLenum GL_COLOR_ATTACHMENT0 = 0x8CE0;
-			static constexpr GLenum GL_TEXTURE0 = 0x84C0;
-			static constexpr GLenum GL_READ_FRAMEBUFFER = 0x8CA8;
-			static constexpr GLenum GL_DRAW_FRAMEBUFFER = 0x8ca9;
-			static constexpr GLenum GL_FRAMEBUFFER = 0x8D40;
-			static constexpr GLenum GL_ARRAY_BUFFER = 0x8892;
-			static constexpr GLenum GL_STREAM_DRAW = 0x88E0;
-			static constexpr GLenum	GL_DRAW_FRAMEBUFFER_BINDING = 0x8CA6;
-			static constexpr GLenum GL_FRAGMENT_SHADER = 0x8B30;
-			static constexpr GLenum GL_VERTEX_SHADER = 0x8B31;
-			static constexpr GLenum GL_GEOMETRY_SHADER = 0x8DD9;
-			static constexpr GLenum GL_MULTISAMPLE = 0x809D;
+			static constexpr GLenum GL_FRAMEBUFFER_COMPLETE_X = 0x8CD5;
+			static constexpr GLenum GL_TEXTURE_2D_MULTISAMPLE_X = 0x9100;
+			static constexpr GLenum GL_COLOR_ATTACHMENT0_X = 0x8CE0;
+			static constexpr GLenum GL_TEXTURE0_X = 0x84C0;
+			static constexpr GLenum GL_READ_FRAMEBUFFER_X = 0x8CA8;
+			static constexpr GLenum GL_DRAW_FRAMEBUFFER_X = 0x8ca9;
+			static constexpr GLenum GL_FRAMEBUFFER_X = 0x8D40;
+			static constexpr GLenum GL_ARRAY_BUFFER_X = 0x8892;
+			static constexpr GLenum GL_STREAM_DRAW_X = 0x88E0;
+			static constexpr GLenum	GL_DRAW_FRAMEBUFFER_BINDING_X = 0x8CA6;
+			static constexpr GLenum GL_FRAGMENT_SHADER_X = 0x8B30;
+			static constexpr GLenum GL_VERTEX_SHADER_X = 0x8B31;
+			static constexpr GLenum GL_GEOMETRY_SHADER_X = 0x8DD9;
+			static constexpr GLenum GL_MULTISAMPLE_X = 0x809D;
 
 		private:
 			bool CheckError(const std::source_location loc = std::source_location::current());
