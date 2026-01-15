@@ -14,14 +14,14 @@ Examples will be located at `build/examples`
 
 ```bash
 cd examples
-g++ -ggdb olcPGE3_ImageQuads.cpp -o olcPGE3_ImageQuads.html -std=c++20 -lpng -lGL -lX11 -lpthread
+g++ -ggdb olcPGE3_ImageQuads.cpp -o olcPGE3_ImageQuads -std=c++20 -lpng -lGL -lX11 -lpthread
 ```
 
 ## Manually build a single example with Clang
 
 ```bash
 cd examples
-clang++ -ggdb olcPGE3_ImageQuads.cpp -o olcPGE3_ImageQuads.html -std=c++20 -lpng -lGL -lX11 -lpthread
+clang++ -ggdb olcPGE3_ImageQuads.cpp -o olcPGE3_ImageQuads -std=c++20 -lpng -lGL -lX11 -lpthread
 ```
 
 # Emscripten build
