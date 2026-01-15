@@ -133,7 +133,10 @@ namespace olc
 
 	public: // Child Windows
 		bool AddChildWindow(std::shared_ptr<olc::PGEWindow> window, const olc::vi2d& vScreenSize, const olc::vi2d& vPixelSize);
-
+	
+	public: // Core Update
+		static void CoreUpdate(void* userdata);
+		
 	private:
 		// Window Management
 		std::deque<std::shared_ptr<PGEWindow>> deqChildWindows;
