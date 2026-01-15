@@ -800,6 +800,8 @@ namespace olc::gpu
 
 		switch (task.task)
 		{
+			case GPUTask::Task::NullTask:
+			break;
 			case GPUTask::Task::DrawPolygon:
 			{
 				
