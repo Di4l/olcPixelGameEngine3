@@ -40,7 +40,12 @@ jobs:
 
     - name: Install Dependencies
       run: |
-        echo "Placeholder for the future installation of depenedencies"
+        sudo apt-get update
+        sudo apt-get install -y \
+          libpng-dev \
+          libgl1-mesa-dev \
+          libx11-dev \
+          libpthread-stubs0-dev
 
     - name: Build
       run: |
