@@ -47,12 +47,17 @@
 #endif
 
 #if OLC_HOST == OLC_HOST_EMSCRIPTEN
+	#include <GL/gl.h>
 	#include <EGL/egl.h>
-	#include <GLES2/gl2.h>
+	#include <GLES3/gl3.h>
 	#define GL_GLEXT_PROTOTYPES
-	#include <GLES2/gl2ext.h>
+	#include <GLES3/gl2ext.h>
 	#include <emscripten/emscripten.h>
+	#define CALLSTYLE
+	#undef GL_CLAMP
 	#define GL_CLAMP GL_CLAMP_TO_EDGE
+
+	#define OGL_LOAD(t) ::t
 #endif
 
 #if !defined(CALLSTYLE)
@@ -90,6 +95,18 @@ namespace olc
         typedef void CALLSTYLE glShaderSource_t(GLuint shader, GLsizei count, const GLchar** string, const GLint* length);
 		typedef X11::GLXContext glDeviceContext_t;
 		typedef X11::GLXContext glRenderContext_t;
+#endif
+
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN
+	typedef void CALLSTYLE glShaderSource_t(GLuint shader, GLsizei size, const GLchar *const * string, const GLint * length);
+	typedef void glDeviceContext_t;
+	typedef struct
+	{
+		EGLDisplay display;
+		EGLContext context;
+		EGLSurface surface;
+		EGLConfig config;
+	} glRenderContext_t;
 #endif
 
 		typedef GLuint CALLSTYLE glCreateShader_t(GLenum type);

@@ -118,6 +118,27 @@ namespace olc::gpu
 
 #endif
 
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN
+	const auto canvasId = reinterpret_cast<std::string*>(os_win_id[0]);
+
+	EGLint const attribute_list[] = { EGL_RED_SIZE, 8, EGL_GREEN_SIZE, 8, EGL_BLUE_SIZE, 8, EGL_ALPHA_SIZE, 8, EGL_DEPTH_SIZE, 16, EGL_NONE };
+	EGLint const context_config[] = { EGL_CONTEXT_CLIENT_VERSION , 2, EGL_NONE };
+	EGLint num_config;
+
+	glRenderContext.display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
+	eglInitialize(glRenderContext.display, nullptr, nullptr);
+	eglChooseConfig(glRenderContext.display, attribute_list, &glRenderContext.config, 1, &num_config);
+	
+	/* create an EGL rendering context */
+	glRenderContext.context = eglCreateContext(glRenderContext.display, glRenderContext.config, EGL_NO_CONTEXT, context_config);
+	glRenderContext.surface = eglCreateWindowSurface(glRenderContext.display, glRenderContext.config, NULL, nullptr);
+	if(!eglMakeCurrent(glRenderContext.display, glRenderContext.surface, glRenderContext.surface, glRenderContext.context))
+	{
+		lastError = RendererError::FailedToCreateRenderContext;
+		return false;
+	}
+#endif
+
 		// Can't load OpenGL API until context is loaded
 		auto& gl = olc::apis::opengl::gl::Get();
 		if (!gl.HasLoaded())
@@ -129,6 +150,7 @@ namespace olc::gpu
 		
 
 		// Create "Default" Shader
+#if OLC_HOST != OLC_HOST_EMSCRIPTEN
 		shaderDefault.SetPixelShaderSource(R"(
 			#version 330 core
 			layout(location = 0) out vec4 pixel;
@@ -191,6 +213,70 @@ namespace olc::gpu
 				oCol = aCol * tint;																															  
 			}
 		)");
+#else
+		shaderDefault.SetPixelShaderSource(R"(#version 300 es
+			precision mediump float;
+			layout(location = 0) out vec4 pixel;
+			in vec2 oTex;
+			in vec4 oCol;
+			uniform sampler2D sprTex;
+
+			void main()
+			{
+				// Was just this
+				//pixel = texture(sprTex, oTex) * oCol;
+
+				// But to premultiply alpha correctly, we now do this:
+				vec4 texColor = texture(sprTex, oTex) * oCol;
+				pixel = vec4(texColor.rgb * texColor.a, texColor.a);
+			}
+		)");
+
+		shaderDefault.SetVertexShaderSource(R"(#version 300 es
+			precision mediump float;
+			layout(location = 0) in vec4 aPos;
+			layout(location = 1) in vec4 aCol;
+			layout(location = 2) in vec2 aTex;
+			uniform mat4 mvp;
+			uniform int drawtype;
+			uniform vec4 tint;
+			uniform vec2 target;
+			uniform vec2 invtarget;
+			out vec2 oTex;
+			out vec4 oCol;
+
+			void main()
+			{ 																																				  
+				if(drawtype == 2) // 3D																																  
+				{																																			  
+					gl_Position = mvp * vec4(aPos.x, aPos.y, aPos.z, 1.0); 																					  
+					oTex = aTex;																															  
+				} 				 
+			
+				else if(drawtype == 1) // 2D Line																																		  
+				{																																			  
+					float p = 1.0 / aPos.z; 																												  
+					gl_Position = p * vec4(vec2(2.0 * (floor(aPos.xy) + 0.5) * invtarget - 1.0), 0.0, 1.0);	  
+					oTex = aTex;																										  
+				} 			  
+			
+				else if(drawtype == 0) // 2D Polygon																																		  
+				{																																			  
+					float p = 1.0 / aPos.z; 																												  
+					gl_Position = p * vec4(vec2(2.0 * (aPos.xy + 0.25) * invtarget - 1.0), 0.0, 1.0);	 
+					oTex = p * vec2(aTex.x, aTex.y);																										  
+				} 
+				
+				else  // Balanced default
+				{
+					gl_Position = aPos;
+					oTex = aTex;
+				} 																																			  
+																																			  
+				oCol = aCol * tint;																															  
+			}
+		)");
+#endif
 
 		shaderDefault.Compile();
 		shaderDefault.CreateUniform("mvp");
@@ -267,9 +353,10 @@ namespace olc::gpu
 		gl.glGenFramebuffers(1, &nResolveFBO_Draw);
 		gl.glGenFramebuffers(1, &nResolveFBO_Read);
 
-
+#if OLC_HOST != OLC_HOST_EMSCRIPTEN
 		gl.glEnable(GL_TEXTURE_2D); // Turn on texturing
 		gl.glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
+#endif
 		gl.glEnable(GL_BLEND);
 
 		lastError = RendererError::NoError;
@@ -290,6 +377,15 @@ namespace olc::gpu
 		auto* display = X11::XOpenDisplay(nullptr);
 		X11::glXMakeCurrent(display, 0, NULL);
 		X11::glXDestroyContext(display, glRenderContext);
+#endif
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN
+		eglMakeCurrent(glRenderContext.display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+		eglDestroyContext(glRenderContext.display, glRenderContext.context);
+		eglDestroySurface(glRenderContext.display, glRenderContext.surface);
+		eglTerminate(glRenderContext.display);
+		glRenderContext.display = EGL_NO_DISPLAY;
+		glRenderContext.surface = EGL_NO_SURFACE;
+		glRenderContext.context = EGL_NO_CONTEXT;
 #endif
 		return false;
 	}
@@ -325,7 +421,13 @@ namespace olc::gpu
 			return false;
 		}
 #endif
-		
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN
+	if(!eglMakeCurrent(glRenderContext.display, glRenderContext.surface, glRenderContext.surface, glRenderContext.context))
+	{
+		lastError = RendererError::FailedToSwitchRenderContext;
+		return false;
+	}
+#endif		
 		return true;
 	}
 
@@ -490,10 +592,14 @@ namespace olc::gpu
 		auto& gl = olc::apis::opengl::gl::Get();
 		// Read the teture data back into the image
 		gl.glBindTexture(GL_TEXTURE_2D, image.GetGPUID());
-		gl.glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, image.Data());
 
+#if OLC_HOST != OLC_HOST_EMSCRIPTEN
+		gl.glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, image.Data());
 		// Note: For MSAA textures, this reads the resolved texture, which
 		// is probably what you want anyway
+#else		
+		gl.glReadPixels(0, 0, image.Size().x, image.Size().y, GL_RGBA, GL_UNSIGNED_BYTE, image.Data());
+#endif
 		return true;
 	}
 
@@ -652,8 +758,8 @@ namespace olc::gpu
 
 #if defined(OLC_GPU_ERRORCHECK) && OLC_GPU_ERRORCHECK == 1
 		// Check draw framebuffer status
-		GLenum drawStatus = gl.glCheckFramebufferStatus(gl.GL_DRAW_FRAMEBUFFER);
-		if (drawStatus != gl.GL_FRAMEBUFFER_COMPLETE)
+		GLenum drawStatus = gl.glCheckFramebufferStatus(gl.GL_DRAW_FRAMEBUFFER_X);
+		if (drawStatus != gl.GL_FRAMEBUFFER_COMPLETE_X)
 		{
 			std::cout << "ResolveMSAA ERROR: Draw framebuffer incomplete!";
 			return false;
@@ -841,6 +947,10 @@ namespace olc::gpu
 		const auto window_handle = reinterpret_cast<X11::Window>(os_win_id[0]);
 		auto* display = reinterpret_cast<X11::Display*>(os_win_id[1]);
 		X11::glXSwapBuffers(display, window_handle);
+#endif
+
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN
+		eglSwapInterval(glRenderContext.display, bVerticalSyncNow ? 1 : 0);
 #endif
 
 		return true;

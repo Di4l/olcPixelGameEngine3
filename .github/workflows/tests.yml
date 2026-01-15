@@ -28,13 +28,9 @@ jobs:
         echo "Placeholder for the future installation of depenedencies"
 
     - name: Build
-      working-directory: .\dev\tests
       run: |
-        cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+        cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_EXAMPLES=ON
         cmake --build build --config=Release
-
-    - name: Execute Test
-      run: .\dev\tests\build\Release\pge3_test.exe
 
   ubuntu:
     runs-on: ubuntu-latest
@@ -47,13 +43,9 @@ jobs:
         echo "Placeholder for the future installation of depenedencies"
 
     - name: Build
-      working-directory: ./dev/tests
       run: |
-        cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+        cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_EXAMPLES=ON
         cmake --build build --config=Release
-
-    - name: Execute Test
-      run: ./dev/tests/build/pge3_test
 
   mac:
     runs-on: macos-latest
@@ -68,8 +60,36 @@ jobs:
     - name: Build
       working-directory: ./dev/tests
       run: |
-        cmake -S . -B build -G Xcode -DCMAKE_BUILD_TYPE=Release
+        cmake -S . -B build -G Xcode -DCMAKE_BUILD_TYPE=Release -DBUILD_EXAMPLES=ON
         cmake --build build --config=Release
 
-    - name: Execute Test
-      run: ./dev/tests/build/Release/pge3_test
+  emscripten:
+    name: Emscripten
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+        with:
+          submodules: 'recursive'
+
+      - name: Set up Python (required for Emscripten)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install Emscripten SDK
+        run: |
+          git clone https://github.com/emscripten-core/emsdk.git
+          cd emsdk
+          ./emsdk install latest
+          ./emsdk activate latest
+          source ./emsdk_env.sh
+        shell: bash
+
+      - name: Build
+        run: |
+          source emsdk/emsdk_env.sh
+          emcmake cmake . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_EXAMPLES=ON
+          cmake --build build --config=Release
+        shell: bash

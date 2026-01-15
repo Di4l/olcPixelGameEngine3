@@ -149,6 +149,12 @@
 //! GRAB host_lin_x11.h DECLARATION
 #endif
 
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN
+//! GRAB host_web_emscripten.h EMSCRIPTEN_CONFIG
+
+//! GRAB host_web_emscripten.h DECLARATION
+#endif
+
 #if OLC_GPU == OLC_GPU_OPENGL33
 //! GRAB api_opengl.h OPENGL_CONFIG
 
@@ -190,6 +196,10 @@
 
 #if OLC_HOST == OLC_HOST_LINUX_X11
 //! GRAB host_lin_x11.cpp IMPLEMENTATION
+#endif
+
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN
+//! GRAB host_web_emscripten.cpp IMPLEMENTATION
 #endif
 
 #define PGE_HOST_IMPLEMENTED 1
