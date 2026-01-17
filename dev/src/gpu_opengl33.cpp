@@ -121,8 +121,7 @@ namespace olc::gpu
 #if OLC_HOST == OLC_HOST_EMSCRIPTEN
 	const auto canvasId = reinterpret_cast<std::string*>(os_win_id[0]);
 
-	EGLint const attribute_list[] = { EGL_RED_SIZE, 8, EGL_GREEN_SIZE, 8, EGL_BLUE_SIZE, 8, EGL_ALPHA_SIZE, 8, EGL_DEPTH_SIZE, 16, EGL_NONE };
-	EGLint const context_config[] = { EGL_CONTEXT_CLIENT_VERSION , 2, EGL_NONE };
+	EGLint const attribute_list[] = { EGL_RED_SIZE, 8, EGL_GREEN_SIZE, 8, EGL_BLUE_SIZE, 8, EGL_ALPHA_SIZE, 8, EGL_DEPTH_SIZE, 16, EGL_SAMPLE_BUFFERS, 1, EGL_SAMPLES, OLC_MSAA_SAMPLES, EGL_NONE };	EGLint const context_config[] = { EGL_CONTEXT_CLIENT_VERSION , 2, EGL_NONE };
 	EGLint num_config;
 
 	glRenderContext.display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
