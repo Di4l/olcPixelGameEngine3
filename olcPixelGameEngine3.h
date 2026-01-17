@@ -4317,6 +4317,12 @@ namespace olc
 		typedef void CALLSTYLE glBlendFuncSeparate_t(GLenum srcRGB, GLenum dstRGB, GLenum srcAlpha, GLenum dstAlpha);
 		typedef void CALLSTYLE glTexImage2DMultisample_t(GLenum target, GLsizei samples, GLint internalformat, GLsizei width, GLsizei height, GLboolean fixedsamplelocations);
 		typedef void CALLSTYLE glBlitFramebuffer_t(GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1, GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1, GLbitfield mask, GLenum filter);
+		typedef void CALLSTYLE glGenRenderbuffers_t(GLsizei n, GLuint* renderbuffers);
+		typedef void CALLSTYLE glBindRenderbuffer_t(GLenum target, GLuint renderbuffer);
+		typedef void CALLSTYLE glRenderbufferStorageMultisample_t(GLenum target, GLsizei samples, GLenum internalformat, GLsizei width, GLsizei height);
+		typedef void CALLSTYLE glFramebufferRenderbuffer_t(GLenum target, GLenum attachment, GLenum renderbuffertarget, GLuint renderbuffer);
+		typedef void CALLSTYLE glDeleteRenderbuffers_t(GLsizei n, const GLuint* renderbuffers);
+
 
 #if OLC_HOST == OLC_HOST_WINDOWS
 		typedef void CALLSTYLE glSwapInterval_t(GLsizei n);
@@ -4370,6 +4376,12 @@ namespace olc
 			glBlendFuncSeparate_t* _glBlendFuncSeparate = nullptr;
 			glTexImage2DMultisample_t* _glTexImage2DMultisample = nullptr;
 			glBlitFramebuffer_t* _glBlitFramebuffer = nullptr;
+			glGenRenderbuffers_t* _glGenRenderbuffers = nullptr;
+			glBindRenderbuffer_t* _glBindRenderbuffer = nullptr;
+			glRenderbufferStorageMultisample_t* _glRenderbufferStorageMultisample = nullptr;
+			glFramebufferRenderbuffer_t* _glFramebufferRenderbuffer = nullptr;
+			glDeleteRenderbuffers_t* _glDeleteRenderbuffers = nullptr;
+
 
 		public:
 			// Proxies allow switchable, clutter-free error checking
@@ -4409,6 +4421,13 @@ namespace olc
 			void glBlendFuncSeparate(GLenum srcRGB, GLenum dstRGB, GLenum srcAlpha, GLenum dstAlpha);
 			void glTexImage2DMultisample(GLenum target, GLsizei samples, GLint internalformat, GLsizei width, GLsizei height, GLboolean fixedsamplelocations);
 			void glBlitFramebuffer(GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1, GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1, GLbitfield mask, GLenum filter);
+			void glGenRenderbuffers(GLsizei n, GLuint* renderbuffers);
+			void glBindRenderbuffer(GLenum target, GLuint renderbuffer);
+			void glRenderbufferStorageMultisample(GLenum target, GLsizei samples, GLenum internalformat, GLsizei width, GLsizei height);
+			void glFramebufferRenderbuffer(GLenum target, GLenum attachment, GLenum renderbuffertarget, GLuint renderbuffer);
+			void glDeleteRenderbuffers(GLsizei n, const GLuint* renderbuffers);
+
+
 
 			// OpenGL1.2 Proxies (just keeps things tidy imo)
 			void glGenTextures(GLsizei n, GLuint* textures);
@@ -4446,6 +4465,8 @@ namespace olc
 			static constexpr GLenum GL_VERTEX_SHADER_X = 0x8B31;
 			static constexpr GLenum GL_GEOMETRY_SHADER_X = 0x8DD9;
 			static constexpr GLenum GL_MULTISAMPLE_X = 0x809D;
+			static constexpr GLenum GL_RENDERBUFFER_X = 0x8D41;
+
 
 		private:
 			bool CheckError(const std::source_location loc = std::source_location::current());
@@ -4545,11 +4566,13 @@ namespace olc
 			uint32_t nCurrentTextureTarget = 0;
 			uint32_t nCurrentTextureSource = 0;
 
-			std::unordered_map<uint32_t, uint32_t> mapMSAAToResolved;
+			//std::unordered_map<uint32_t, uint32_t> mapMSAAToResolved;
 			uint32_t nResolveFBO_Read = 0;
 			uint32_t nResolveFBO_Draw = 0;
 
 			std::unordered_map<uint32_t, olc::vi2d> mapTextureSizes;
+
+			std::unordered_map<uint32_t, uint32_t> mapTextureToRenderbuffer;
 
 		};
 	}
@@ -8128,6 +8151,12 @@ namespace olc::apis::opengl
 		bLoaded &= (_glDeleteFramebuffers = OGL_LOAD(glDeleteFramebuffers)) != nullptr;
 		bLoaded &= (_glFramebufferTexture2D = OGL_LOAD(glFramebufferTexture2D)) != nullptr;
 		bLoaded &= (_glBlendFuncSeparate = OGL_LOAD(glBlendFuncSeparate)) != nullptr;
+		bLoaded &= (_glGenRenderbuffers = OGL_LOAD(glGenRenderbuffers)) != nullptr;
+		bLoaded &= (_glBindRenderbuffer = OGL_LOAD(glBindRenderbuffer)) != nullptr;
+		bLoaded &= (_glRenderbufferStorageMultisample = OGL_LOAD(glRenderbufferStorageMultisample)) != nullptr;
+		bLoaded &= (_glFramebufferRenderbuffer = OGL_LOAD(glFramebufferRenderbuffer)) != nullptr;
+		bLoaded &= (_glDeleteRenderbuffers = OGL_LOAD(glDeleteRenderbuffers)) != nullptr;
+
 		
 		return bLoaded;
 	}
@@ -8484,6 +8513,36 @@ namespace olc::apis::opengl
 	void gl::glBlitFramebuffer(GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1, GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1, GLbitfield mask, GLenum filter)
 	{
 		_glBlitFramebuffer(srcX0, srcY0, srcX1, srcY1, dstX0, dstY0, dstX1, dstY1, mask, filter);
+		CheckError();
+	}
+
+	void gl::glGenRenderbuffers(GLsizei n, GLuint* renderbuffers)
+	{
+		_glGenRenderbuffers(n, renderbuffers);
+		CheckError();
+	}
+
+	void gl::glBindRenderbuffer(GLenum target, GLuint renderbuffer)
+	{
+		_glBindRenderbuffer(target, renderbuffer);
+		CheckError();
+	}
+
+	void gl::glRenderbufferStorageMultisample(GLenum target, GLsizei samples, GLenum internalformat, GLsizei width, GLsizei height)
+	{
+		_glRenderbufferStorageMultisample(target, samples, internalformat, width, height);
+		CheckError();
+	}
+
+	void gl::glFramebufferRenderbuffer(GLenum target, GLenum attachment, GLenum renderbuffertarget, GLuint renderbuffer)
+	{
+		_glFramebufferRenderbuffer(target, attachment, renderbuffertarget, renderbuffer);
+		CheckError();
+	}
+
+	void gl::glDeleteRenderbuffers(GLsizei n, const GLuint* renderbuffers)
+	{
+		_glDeleteRenderbuffers(n, renderbuffers);
 		CheckError();
 	}
 }
@@ -8998,36 +9057,26 @@ namespace olc::gpu
 			return new_id;
 		};
 
-		// Regular textures and MSAA textures are handled differently
-		if (!cfg.MSAA)
-		{
-			id = CreateRegularTexture();
-		}
-		else
-		{
-			// Texture is MSAA, so we need to create a special
-			// "resolved" texture later for sampling when the 
-			// MSAA texture is used as a source
-			gl.glGenTextures(1, &id);
-			glBindTexture(gl.GL_TEXTURE_2D_MULTISAMPLE_X, id);
+		// Create the regular texture (used for sampling)
+		id = CreateRegularTexture();
 
-			// Allocate MSAA texture storage
-			uint32_t regular_id = CreateRegularTexture();
-			mapMSAAToResolved[id] = regular_id;
-
-			// Note this "bonus" texture is quite hidden
-			// from the user.
+		// If MSAA is requested, also create a renderbuffer for MSAA rendering
+		if (cfg.MSAA)
+		{
+			uint32_t rboId = 0;
+			gl.glGenRenderbuffers(1, &rboId);
+			gl.glBindRenderbuffer(gl.GL_RENDERBUFFER_X, rboId);
+			
+			// Map texture to its MSAA renderbuffer
+			mapTextureToRenderbuffer[id] = rboId;
 		}
 
-		
 #if OLC_HOST != OLC_HOST_EMSCRIPTEN
 #if OLC_HOST != OLC_HOST_MACOS		
 		gl.glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 #endif
 #endif
 
-		// We need to store the size in case we
-		// need it later when resolving MSAA textures
 		mapTextureSizes[id] = vSize;
 		return id;
 	}
@@ -9036,37 +9085,31 @@ namespace olc::gpu
 	{
 		auto& gl = olc::apis::opengl::gl::Get();
 
-		if (mapMSAAToResolved.contains(texid))
+		// Always write to the regular texture (for sampling)
+		gl.glBindTexture(GL_TEXTURE_2D, texid);
+		gl.glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image.Size().x, image.Size().y, 0, 
+			GL_RGBA, GL_UNSIGNED_BYTE, image.Data());
+
+		// If this texture has MSAA, allocate storage for the renderbuffer
+		if (mapTextureToRenderbuffer.contains(texid))
 		{
-			// Texture is MSAA
-			gl.glBindTexture(gl.GL_TEXTURE_2D_MULTISAMPLE_X, texid);
-
-			// Allocate MSAA texture storage
-			gl.glTexImage2DMultisample(gl.GL_TEXTURE_2D_MULTISAMPLE_X, image.GetConfig().MSAASamples,
-				GL_RGBA, image.Size().x, image.Size().y, GL_TRUE);
-
-			// Also allocate the resolve texture - we dont care
-			// about the contents as it will be overwritten on
-			// an MSAA resolve
-			uint32_t resolvedId = mapMSAAToResolved[texid];
-			gl.glBindTexture(GL_TEXTURE_2D, resolvedId);
-
-			// Initialize resolve with transparent black
-			std::vector<uint8_t> a(image.Size().area() * sizeof(olc::Pixel), 0);
-			gl.glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image.Size().x, image.Size().y, 0, 
-				GL_RGBA, GL_UNSIGNED_BYTE, a.data());
-
+			uint32_t rboId = mapTextureToRenderbuffer[texid];
+			gl.glBindRenderbuffer(gl.GL_RENDERBUFFER_X, rboId);
+			
+			// Allocate MSAA renderbuffer storage
+			gl.glRenderbufferStorageMultisample(
+				gl.GL_RENDERBUFFER_X, 
+				image.GetConfig().MSAASamples,
+				GL_RGBA8, 
+				image.Size().x, 
+				image.Size().y
+			);
+			
+			// Unbind renderbuffer
+			gl.glBindRenderbuffer(gl.GL_RENDERBUFFER_X, 0);
 		}
-		else
-		{
-			// Texture is regular
-			gl.glBindTexture(GL_TEXTURE_2D, texid);
-			gl.glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image.Size().x, image.Size().y, 0, GL_RGBA, GL_UNSIGNED_BYTE, image.Data());
 
-		}
-	
-
-		// Update in case texture was resized
+		// Update size tracking
 		mapTextureSizes[texid] = image.Size();
 
 		return true;
@@ -9077,13 +9120,14 @@ namespace olc::gpu
 		olc_IgnoreUnused(texid);
 
 		auto& gl = olc::apis::opengl::gl::Get();
+
 		// Read the teture data back into the image
+		// With renderbuffer approach, we always read from the regular texture
+		// which has been blitted to via ResolveMSAA if its an MSAA texture
 		gl.glBindTexture(GL_TEXTURE_2D, image.GetGPUID());
 
 #if OLC_HOST != OLC_HOST_EMSCRIPTEN
 		gl.glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, image.Data());
-		// Note: For MSAA textures, this reads the resolved texture, which
-		// is probably what you want anyway
 #else		
 		gl.glReadPixels(0, 0, image.Size().x, image.Size().y, GL_RGBA, GL_UNSIGNED_BYTE, image.Data());
 #endif
@@ -9093,7 +9137,18 @@ namespace olc::gpu
 	bool Renderer_OGL33::DeleteTexture(const uint32_t texid)
 	{
 		auto& gl = olc::apis::opengl::gl::Get();
+		
+		// Delete the texture
 		gl.glDeleteTextures(1, &texid);
+		
+		// Delete associated renderbuffer if it exists
+		if (mapTextureToRenderbuffer.contains(texid))
+		{
+			uint32_t rboId = mapTextureToRenderbuffer[texid];
+			gl.glDeleteRenderbuffers(1, &rboId);
+			mapTextureToRenderbuffer.erase(texid);
+		}
+		
 		return true;
 	}
 
@@ -9106,11 +9161,11 @@ namespace olc::gpu
 
 		// Check if this is an MSAA texture...
 		uint32_t actualTexId = texid;
-		if (mapMSAAToResolved.contains(texid))
-		{
+		//if (mapMSAAToResolved.contains(texid))
+		//{
 			// ...yes it is, so use the resolved texture for sampling
-			actualTexId = mapMSAAToResolved[texid];
-		}
+		//	actualTexId = mapMSAAToResolved[texid];
+		//}
 
 		// If the requested source texture is currently attached as the render target,
 		// unbind the framebuffer to avoid sampling from a texture that's being written to.
@@ -9167,94 +9222,110 @@ namespace olc::gpu
 		{
 			// Unbind the FBO (bind default framebuffer)
 			gl.glBindFramebuffer(gl.GL_FRAMEBUFFER_X, 0);
-			glDisable(gl.GL_MULTISAMPLE_X);
 			return true;
 		}	
-		
+	
 		// Bind FBO
 		gl.glBindFramebuffer(gl.GL_FRAMEBUFFER_X, nDefaultFBO);
 
 		// Allocate target buffers - pick the single attachment corresponding to 'slot'
 		std::array<GLenum, 8> attachments =
 		{ { 
-			gl.GL_COLOR_ATTACHMENT0_X + 0,
+			gl.GL_COLOR_ATTACHMENT0_X + 0, 
 			gl.GL_COLOR_ATTACHMENT0_X + 1,
-			gl.GL_COLOR_ATTACHMENT0_X + 2,
+			gl.GL_COLOR_ATTACHMENT0_X + 2, 
 			gl.GL_COLOR_ATTACHMENT0_X + 3,
-			gl.GL_COLOR_ATTACHMENT0_X + 4,
+			gl.GL_COLOR_ATTACHMENT0_X + 4, 
 			gl.GL_COLOR_ATTACHMENT0_X + 5,
-			gl.GL_COLOR_ATTACHMENT0_X + 6,
+			gl.GL_COLOR_ATTACHMENT0_X + 6, 
 			gl.GL_COLOR_ATTACHMENT0_X + 7
 		} };
 		GLenum draw = attachments[slot];
-		
-		// Set the draw buffer to the selected attachment
 		gl.glDrawBuffers(1, &draw);
 		
 		// If target texture is MSAA, enable multisampling
-		if (mapMSAAToResolved.contains(texid))
+		if (mapTextureToRenderbuffer.contains(texid))
 		{
-			glEnable(gl.GL_MULTISAMPLE_X);
-			// Attach MSAA texture to FBO
-			gl.glFramebufferTexture2D(gl.GL_FRAMEBUFFER_X, gl.GL_COLOR_ATTACHMENT0_X + slot, gl.GL_TEXTURE_2D_MULTISAMPLE_X, texid, 0);
+			// MSAA texture - attach renderbuffer
+			uint32_t rboId = mapTextureToRenderbuffer[texid];
+			gl.glFramebufferRenderbuffer(
+				gl.GL_FRAMEBUFFER_X, 
+				gl.GL_COLOR_ATTACHMENT0_X + slot, 
+				gl.GL_RENDERBUFFER_X, 
+				rboId
+			);
 		}
 		else
 		{
-			glDisable(gl.GL_MULTISAMPLE_X);
-			// Attach regular texture to FBO
-			gl.glFramebufferTexture2D(gl.GL_FRAMEBUFFER_X, gl.GL_COLOR_ATTACHMENT0_X + slot, GL_TEXTURE_2D, texid, 0);
-
+			// Regular texture - attach directly
+			gl.glFramebufferTexture2D(
+				gl.GL_FRAMEBUFFER_X, 
+				gl.GL_COLOR_ATTACHMENT0_X + slot, 
+				GL_TEXTURE_2D, 
+				texid, 
+				0
+			);
 		}
 
-		// Record currently bound target texture
-		nCurrentTextureTarget = texid;		
-		return true;
+#if defined(OLC_GPU_ERRORCHECK) && OLC_GPU_ERRORCHECK == 1
+		// Check FBO complete state
+		GLenum status = gl.glCheckFramebufferStatus(gl.GL_FRAMEBUFFER_X);
+		if (status != gl.GL_FRAMEBUFFER_COMPLETE_X)
+		{
+			std::cout << "ERROR: FBO incomplete\n";
+		}
+#endif
+
+	nCurrentTextureTarget = texid;		
+	return true;
 	}
 
-	bool Renderer_OGL33::ResolveMSAA(const uint32_t msaaTexId)
+	bool Renderer_OGL33::ResolveMSAA(const uint32_t texid)
 	{
-		if (!mapMSAAToResolved.contains(msaaTexId))
-			return true;  // Not an error, just not MSAA
+		// Check if this texture has an MSAA renderbuffer
+		if (!mapTextureToRenderbuffer.contains(texid))
+			return true;  // Not MSAA, nothing to do
 
 		auto& gl = olc::apis::opengl::gl::Get();
 
-		// Get resolved texture ID. This is linked at 
-		// texture creation time for MSAA textures
-		uint32_t resolvedId = mapMSAAToResolved[msaaTexId];
+		// It did! Get the renderbuffer ID
+		uint32_t rboId = mapTextureToRenderbuffer[texid];
 
 		// Ensure all rendering to MSAA texture is finished
 		glFinish();
 
-		// Bind MSAA texture to read FBO
+		// Bind renderbuffer to read FBO
 		gl.glBindFramebuffer(gl.GL_READ_FRAMEBUFFER_X, nResolveFBO_Read);
-		gl.glFramebufferTexture2D(gl.GL_READ_FRAMEBUFFER_X, gl.GL_COLOR_ATTACHMENT0_X, gl.GL_TEXTURE_2D_MULTISAMPLE_X, msaaTexId, 0);
+		gl.glFramebufferRenderbuffer(
+			gl.GL_READ_FRAMEBUFFER_X, 
+			gl.GL_COLOR_ATTACHMENT0_X, 
+			gl.GL_RENDERBUFFER_X, 
+			rboId
+		);
 
-#if defined(OLC_GPU_ERRORCHECK) && OLC_GPU_ERRORCHECK == 1
-		// Check read framebuffer status
-		GLenum readStatus = gl.glCheckFramebufferStatus(gl.GL_READ_FRAMEBUFFER);
-		if (readStatus != gl.GL_FRAMEBUFFER_COMPLETE)
-		{
-			std::cout << "ResolveMSAA ERROR: Read framebuffer incomplete!\n";
-			return false;
-		}
-#endif
-
-		// Bind resolved texture to draw FBO
+		// Bind regular texture to draw FBO
 		gl.glBindFramebuffer(gl.GL_DRAW_FRAMEBUFFER_X, nResolveFBO_Draw);
-		gl.glFramebufferTexture2D(gl.GL_DRAW_FRAMEBUFFER_X, gl.GL_COLOR_ATTACHMENT0_X, GL_TEXTURE_2D, resolvedId, 0);
+		gl.glFramebufferTexture2D(
+			gl.GL_DRAW_FRAMEBUFFER_X, 
+			gl.GL_COLOR_ATTACHMENT0_X, 
+			GL_TEXTURE_2D, 
+			texid, 
+			0
+		);
 
 #if defined(OLC_GPU_ERRORCHECK) && OLC_GPU_ERRORCHECK == 1
-		// Check draw framebuffer status
+		// Check FBO complete state
+		GLenum readStatus = gl.glCheckFramebufferStatus(gl.GL_READ_FRAMEBUFFER_X);
 		GLenum drawStatus = gl.glCheckFramebufferStatus(gl.GL_DRAW_FRAMEBUFFER_X);
-		if (drawStatus != gl.GL_FRAMEBUFFER_COMPLETE_X)
+		if (readStatus != gl.GL_FRAMEBUFFER_COMPLETE_X || drawStatus != gl.GL_FRAMEBUFFER_COMPLETE_X)
 		{
-			std::cout << "ResolveMSAA ERROR: Draw framebuffer incomplete!";
+			std::cout << "ResolveMSAA ERROR: FBO incomplete!\n";
 			return false;
 		}
 #endif
 
-		// Blit from MSAA to resolved
-		olc::vi2d size = mapTextureSizes[msaaTexId];
+		// Blit from MSAA renderbuffer to resolved
+		olc::vi2d size = mapTextureSizes[texid];
 		gl.glBlitFramebuffer(
 			0, 0, size.x, size.y,
 			0, 0, size.x, size.y,
