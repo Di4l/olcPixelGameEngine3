@@ -13,6 +13,9 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="Assets">
+      <UniqueIdentifier>{384a13dc-3453-46b6-8fb0-3803b61f7796}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\examples\olcPGE3_Lines.cpp">
@@ -48,10 +51,30 @@
     <ClCompile Include="..\..\..\examples\olcPGE3_AntiAliasing.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\examples\olcPGE3_ImageRegion.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="olcPixelGameEngine3.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="..\..\..\examples\assets\minsanity_texture.png">
+      <Filter>Assets</Filter>
+    </Image>
+    <Image Include="..\..\..\examples\assets\olc_font.png">
+      <Filter>Assets</Filter>
+    </Image>
+    <Image Include="..\..\..\examples\assets\sanity_cube.png">
+      <Filter>Assets</Filter>
+    </Image>
+    <Image Include="..\..\..\examples\assets\sanity_texture.png">
+      <Filter>Assets</Filter>
+    </Image>
+    <Image Include="..\..\..\examples\assets\tile_atlas_4x4_16x16.png">
+      <Filter>Assets</Filter>
+    </Image>
   </ItemGroup>
 </Project>
