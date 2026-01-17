@@ -63,7 +63,6 @@ jobs:
         brew install cmake
 
     - name: Build
-      working-directory: ./dev/tests
       run: |
         cmake -S . -B build -G Xcode -DCMAKE_BUILD_TYPE=Release -DBUILD_EXAMPLES=ON
         cmake --build build --config=Release
