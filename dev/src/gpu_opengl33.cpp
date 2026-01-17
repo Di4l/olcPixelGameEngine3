@@ -150,9 +150,17 @@ namespace olc::gpu
 		
 
 		// Create "Default" Shader
+		shaderDefault.SetPixelShaderSource(
 #if OLC_HOST != OLC_HOST_EMSCRIPTEN
-		shaderDefault.SetPixelShaderSource(R"(
-			#version 330 core
+			R"(
+			#version 330 core)"
+#else
+			R"(
+			#version 300 es
+			precision mediump float;)"
+#endif
+
+			R"(
 			layout(location = 0) out vec4 pixel;
 			in vec2 oTex;
 			in vec4 oCol;
@@ -169,71 +177,16 @@ namespace olc::gpu
 			}
 		)");
 
-		shaderDefault.SetVertexShaderSource(R"(
-			#version 330 core
-			layout(location = 0) in vec4 aPos;
-			layout(location = 1) in vec4 aCol;
-			layout(location = 2) in vec2 aTex;
-			uniform mat4 mvp;
-			uniform int drawtype;
-			uniform vec4 tint;
-			uniform vec2 target;
-			uniform vec2 invtarget;
-			out vec2 oTex;
-			out vec4 oCol;
-
-			void main()
-			{ 																																				  
-				if(drawtype == 2) // 3D																																  
-				{																																			  
-					gl_Position = mvp * vec4(aPos.x, aPos.y, aPos.z, 1.0); 																					  
-					oTex = aTex;																															  
-				} 				 
-			
-				else if(drawtype == 1) // 2D Line																																		  
-				{																																			  
-					float p = 1.0 / aPos.z; 																												  
-					gl_Position = p * vec4(vec2(2.0 * (floor(aPos.xy) + 0.5) * invtarget - 1.0), 0.0, 1.0);	  
-					oTex = aTex;																										  
-				} 			  
-			
-				else if(drawtype == 0) // 2D Polygon																																		  
-				{																																			  
-					float p = 1.0 / aPos.z; 																												  
-					gl_Position = p * vec4(vec2(2.0 * (aPos.xy + 0.25) * invtarget - 1.0), 0.0, 1.0);	 
-					oTex = p * vec2(aTex.x, aTex.y);																										  
-				} 
-				
-				else  // Balanced default
-				{
-					gl_Position = aPos;
-					oTex = aTex;
-				} 																																			  
-																																			  
-				oCol = aCol * tint;																															  
-			}
-		)");
+		shaderDefault.SetVertexShaderSource(
+#if OLC_HOST != OLC_HOST_EMSCRIPTEN
+			R"(
+			#version 330 core)"
 #else
-		shaderDefault.SetPixelShaderSource(R"(#version 300 es
-			precision mediump float;
-			layout(location = 0) out vec4 pixel;
-			in vec2 oTex;
-			in vec4 oCol;
-			uniform sampler2D sprTex;
-
-			void main()
-			{
-				// Was just this
-				//pixel = texture(sprTex, oTex) * oCol;
-
-				// But to premultiply alpha correctly, we now do this:
-				vec4 texColor = texture(sprTex, oTex) * oCol;
-				pixel = vec4(texColor.rgb * texColor.a, texColor.a);
-			}
-		)");
-
-		shaderDefault.SetVertexShaderSource(R"(#version 300 es
-			precision mediump float;
+			R"(
+			#version 300 es
+			precision mediump float;)"
+#endif
+			R"(
 			layout(location = 0) in vec4 aPos;
 			layout(location = 1) in vec4 aCol;
 			layout(location = 2) in vec2 aTex;
@@ -276,7 +229,6 @@ namespace olc::gpu
 				oCol = aCol * tint;																															  
 			}
 		)");
-#endif
 
 		shaderDefault.Compile();
 		shaderDefault.CreateUniform("mvp");
