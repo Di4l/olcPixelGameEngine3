@@ -75,7 +75,7 @@ public:
 		{
 			for (int x = 130; x < 228; x++)
 			{
-				float h = static_cast<float>(rand() % 360);
+				float h = (float)(rand() % 360);
 				float s = 1.0f;
 				float v = 1.0f;
 				olc::Pixel p = olc::PixelHSV(h, s, v);
