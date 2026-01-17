@@ -111,10 +111,10 @@ namespace olc::gpu
         
 		// os_win_id[0] is the OLC OpenGL Device Context      
         glRenderContext = (olc::apis::opengl::glRenderContext_t)os_win_id[0];
-        if (!glRenderContext) {
-            lastError = RendererError::FailedToCreateRenderContext;
-            return false;
-        }
+        if (CGLSetCurrentContext((CGLContextObj)glRenderContext) != kCGLNoError) {
+			lastError = RendererError::FailedToSwitchRenderContext;
+			return false;
+		}
 
 #endif
 
@@ -371,7 +371,8 @@ namespace olc::gpu
 		wglDeleteContext(glRenderContext);
 #endif
 #if OLC_HOST == OLC_HOST_MACOS
-        //TODO: Add MacOS destroy context code
+		CGLSetCurrentContext(NULL);
+		CGLDestroyContext((CGLContextObj)glRenderContext);
 #endif
 #if OLC_HOST == OLC_HOST_LINUX_X11
 		auto* display = X11::XOpenDisplay(nullptr);
@@ -403,10 +404,9 @@ namespace olc::gpu
 		ReleaseDC((HWND)(os_win_id[0]), glDeviceContext);
 #endif
 #if OLC_HOST == OLC_HOST_MACOS
-
-		CGLContextObj cglContext = (CGLContextObj)glRenderContext;
-		if (!CGLSetCurrentContext(cglContext))
-		{
+    
+        auto glDeviceContext = (olc::apis::opengl::glRenderContext_t)os_win_id[0];
+		if (CGLSetCurrentContext((CGLContextObj)glDeviceContext) != kCGLNoError) {
 			lastError = RendererError::FailedToSwitchRenderContext;
 			return false;
 		}
@@ -458,13 +458,13 @@ namespace olc::gpu
 		ReleaseDC((HWND)(os_win_id[0]), glDeviceContext);
 #endif
 #if OLC_HOST == OLC_HOST_MACOS
-        
-		// params[0] is the OLC OpenGL Device Context      
+             
+        // params[0] is the OLC OpenGL Device Context      
         glRenderContext = (olc::apis::opengl::glRenderContext_t)os_win_id[0];
-        if (!glRenderContext) {
-            lastError = RendererError::FailedToCreateRenderContext;
-            return false;
-        }
+		if (CGLSetCurrentContext((CGLContextObj)glRenderContext) != kCGLNoError) {
+			lastError = RendererError::FailedToSwitchRenderContext;
+			return false;
+		}
 
 #endif
 		return true;
@@ -942,8 +942,11 @@ namespace olc::gpu
 #endif	
 
 #if OLC_HOST == OLC_HOST_MACOS
-        glFlushRenderAPPLE();
-        glSwapAPPLE();
+		// The pointer value in os_win_id[1] will be set to true, when the OS requests to skip the frame swap
+        const bool* bSkipFrame = static_cast<const bool*>(os_win_id[1]);
+		if (*bSkipFrame) return true;
+		CGLContextObj cglContext = static_cast<CGLContextObj>(os_win_id[0]);
+		CGLFlushDrawable(cglContext);
        
 #endif
 
