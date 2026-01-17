@@ -121,7 +121,10 @@ namespace olc::gpu
 #if OLC_HOST == OLC_HOST_EMSCRIPTEN
 	const auto canvasId = reinterpret_cast<std::string*>(os_win_id[0]);
 
-	EGLint const attribute_list[] = { EGL_RED_SIZE, 8, EGL_GREEN_SIZE, 8, EGL_BLUE_SIZE, 8, EGL_ALPHA_SIZE, 8, EGL_DEPTH_SIZE, 16, EGL_SAMPLE_BUFFERS, 1, EGL_SAMPLES, OLC_MSAA_SAMPLES, EGL_NONE };	EGLint const context_config[] = { EGL_CONTEXT_CLIENT_VERSION , 2, EGL_NONE };
+	const int samples = std::min(OLC_MSAA_SAMPLES, OLC_MSAA_EMSCRIPTEN_MAX_SAMPLES);
+
+	EGLint const attribute_list[] = {EGL_RED_SIZE, 8, EGL_GREEN_SIZE, 8, EGL_BLUE_SIZE, 8, EGL_ALPHA_SIZE, 8, EGL_DEPTH_SIZE, 16, EGL_SAMPLE_BUFFERS, 1, EGL_SAMPLES, samples, EGL_NONE};
+	EGLint const context_config[] = {EGL_CONTEXT_CLIENT_VERSION, 2, EGL_NONE};
 	EGLint num_config;
 
 	glRenderContext.display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
@@ -549,11 +552,17 @@ namespace olc::gpu
 		{
 			uint32_t rboId = mapTextureToRenderbuffer[texid];
 			gl.glBindRenderbuffer(gl.GL_RENDERBUFFER_X, rboId);
-			
+
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN
+			const int samples = std::min((int)image.GetConfig().MSAASamples, OLC_MSAA_EMSCRIPTEN_MAX_SAMPLES);
+#else
+			const int samples = image.GetConfig().MSAASamples;
+#endif
+
 			// Allocate MSAA renderbuffer storage
 			gl.glRenderbufferStorageMultisample(
 				gl.GL_RENDERBUFFER_X, 
-				image.GetConfig().MSAASamples,
+				samples,
 				GL_RGBA8, 
 				image.Size().x, 
 				image.Size().y
