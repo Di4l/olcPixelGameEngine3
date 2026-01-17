@@ -154,16 +154,13 @@ namespace olc::gpu
 		// Create "Default" Shader
 		shaderDefault.SetPixelShaderSource(
 #if OLC_HOST != OLC_HOST_EMSCRIPTEN
-			R"(
-			#version 330 core)"
+			R"(#version 330 core)"
 #else
-			R"(
-			#version 300 es
+			R"(#version 300 es
 			precision mediump float;)"
 #endif
 
-			R"(
-			layout(location = 0) out vec4 pixel;
+			R"(layout(location = 0) out vec4 pixel;
 			in vec2 oTex;
 			in vec4 oCol;
 			uniform sampler2D sprTex;
@@ -181,15 +178,12 @@ namespace olc::gpu
 
 		shaderDefault.SetVertexShaderSource(
 #if OLC_HOST != OLC_HOST_EMSCRIPTEN
-			R"(
-			#version 330 core)"
+			R"(#version 330 core)"
 #else
-			R"(
-			#version 300 es
+			R"(#version 300 es
 			precision mediump float;)"
 #endif
-			R"(
-			layout(location = 0) in vec4 aPos;
+			R"(layout(location = 0) in vec4 aPos;
 			layout(location = 1) in vec4 aCol;
 			layout(location = 2) in vec2 aTex;
 			uniform mat4 mvp;

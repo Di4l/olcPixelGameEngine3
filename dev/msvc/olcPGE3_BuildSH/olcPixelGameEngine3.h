@@ -221,7 +221,7 @@
 #define OLC_GPU_MAX_VERTICES 8192
 #define OLC_GPU_ERRORCHECK 0
 #define OLC_MSAA_SAMPLES 4
-
+#define OLC_MSAA_EMSCRIPTEN_MAX_SAMPLES 4
 
 #define LICENCE_DEFAULT "OneLoneCoder.com - Pixel Game Engine 3 - "
 
@@ -8666,8 +8666,10 @@ namespace olc::gpu
 #if OLC_HOST == OLC_HOST_EMSCRIPTEN
 	const auto canvasId = reinterpret_cast<std::string*>(os_win_id[0]);
 
-	EGLint const attribute_list[] = { EGL_RED_SIZE, 8, EGL_GREEN_SIZE, 8, EGL_BLUE_SIZE, 8, EGL_ALPHA_SIZE, 8, EGL_DEPTH_SIZE, 16, EGL_NONE };
-	EGLint const context_config[] = { EGL_CONTEXT_CLIENT_VERSION , 2, EGL_NONE };
+	const int samples = std::min(OLC_MSAA_SAMPLES, OLC_MSAA_EMSCRIPTEN_MAX_SAMPLES);
+
+	EGLint const attribute_list[] = {EGL_RED_SIZE, 8, EGL_GREEN_SIZE, 8, EGL_BLUE_SIZE, 8, EGL_ALPHA_SIZE, 8, EGL_DEPTH_SIZE, 16, EGL_SAMPLE_BUFFERS, 1, EGL_SAMPLES, samples, EGL_NONE};
+	EGLint const context_config[] = {EGL_CONTEXT_CLIENT_VERSION, 2, EGL_NONE};
 	EGLint num_config;
 
 	glRenderContext.display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
@@ -8697,16 +8699,13 @@ namespace olc::gpu
 		// Create "Default" Shader
 		shaderDefault.SetPixelShaderSource(
 #if OLC_HOST != OLC_HOST_EMSCRIPTEN
-			R"(
-			#version 330 core)"
+			R"(#version 330 core)"
 #else
-			R"(
-			#version 300 es
+			R"(#version 300 es
 			precision mediump float;)"
 #endif
 
-			R"(
-			layout(location = 0) out vec4 pixel;
+			R"(layout(location = 0) out vec4 pixel;
 			in vec2 oTex;
 			in vec4 oCol;
 			uniform sampler2D sprTex;
@@ -8724,15 +8723,12 @@ namespace olc::gpu
 
 		shaderDefault.SetVertexShaderSource(
 #if OLC_HOST != OLC_HOST_EMSCRIPTEN
-			R"(
-			#version 330 core)"
+			R"(#version 330 core)"
 #else
-			R"(
-			#version 300 es
+			R"(#version 300 es
 			precision mediump float;)"
 #endif
-			R"(
-			layout(location = 0) in vec4 aPos;
+			R"(layout(location = 0) in vec4 aPos;
 			layout(location = 1) in vec4 aCol;
 			layout(location = 2) in vec2 aTex;
 			uniform mat4 mvp;
@@ -9047,11 +9043,17 @@ namespace olc::gpu
 		{
 			uint32_t rboId = mapTextureToRenderbuffer[texid];
 			gl.glBindRenderbuffer(gl.GL_RENDERBUFFER_X, rboId);
-			
+
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN
+			const int samples = std::min((int)image.GetConfig().MSAASamples, OLC_MSAA_EMSCRIPTEN_MAX_SAMPLES);
+#else
+			const int samples = image.GetConfig().MSAASamples;
+#endif
+
 			// Allocate MSAA renderbuffer storage
 			gl.glRenderbufferStorageMultisample(
 				gl.GL_RENDERBUFFER_X, 
-				image.GetConfig().MSAASamples,
+				samples,
 				GL_RGBA8, 
 				image.Size().x, 
 				image.Size().y
