@@ -154,10 +154,12 @@ namespace olc::gpu
 		// Create "Default" Shader
 		shaderDefault.SetPixelShaderSource(
 #if OLC_HOST != OLC_HOST_EMSCRIPTEN
-			R"(#version 330 core)"
+			R"(#version 330 core
+)"
 #else
 			R"(#version 300 es
-			precision mediump float;)"
+			precision mediump float;
+)"
 #endif
 
 			R"(layout(location = 0) out vec4 pixel;
@@ -178,10 +180,12 @@ namespace olc::gpu
 
 		shaderDefault.SetVertexShaderSource(
 #if OLC_HOST != OLC_HOST_EMSCRIPTEN
-			R"(#version 330 core)"
+			R"(#version 330 core
+)"
 #else
 			R"(#version 300 es
-			precision mediump float;)"
+			precision mediump float;
+)"
 #endif
 			R"(layout(location = 0) in vec4 aPos;
 			layout(location = 1) in vec4 aCol;
@@ -499,9 +503,14 @@ namespace olc::gpu
 			uint32_t rboId = mapTextureToRenderbuffer[texid];
 			gl.glBindRenderbuffer(gl.GL_RENDERBUFFER_X, rboId);
 
+			int32_t maxSamples = 0;
+			gl.glGetInternalformativ(gl.GL_RENDERBUFFER_X, GL_RGBA8, gl.GL_SAMPLES_X, 1, &maxSamples);
+
 #if OLC_HOST == OLC_HOST_EMSCRIPTEN
+			maxSamples = std::min<int32_t>(OLC_MSAA_EMSCRIPTEN_MAX_SAMPLES, maxSamples);
 			const int samples = std::min((int)image.GetConfig().MSAASamples, OLC_MSAA_EMSCRIPTEN_MAX_SAMPLES);
 #else
+			maxSamples = std::min<int32_t>(OLC_MSAA_SAMPLES, maxSamples);
 			const int samples = image.GetConfig().MSAASamples;
 #endif
 

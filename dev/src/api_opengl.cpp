@@ -63,6 +63,7 @@ namespace olc::apis::opengl
 		bLoaded &= (_glRenderbufferStorageMultisample = OGL_LOAD(glRenderbufferStorageMultisample)) != nullptr;
 		bLoaded &= (_glFramebufferRenderbuffer = OGL_LOAD(glFramebufferRenderbuffer)) != nullptr;
 		bLoaded &= (_glDeleteRenderbuffers = OGL_LOAD(glDeleteRenderbuffers)) != nullptr;
+		bLoaded &= (_glGetInternalformativ = OGL_LOAD(glGetInternalformativ)) != nullptr;
 
 		
 		return bLoaded;
@@ -450,6 +451,12 @@ namespace olc::apis::opengl
 	void gl::glDeleteRenderbuffers(GLsizei n, const GLuint* renderbuffers)
 	{
 		_glDeleteRenderbuffers(n, renderbuffers);
+		CheckError();
+	}
+
+	void gl::glGetInternalformativ(GLenum target, GLenum internalformat, GLenum pname, GLsizei bufSize, GLint* params)
+	{
+		_glGetInternalformativ(target, internalformat, pname, bufSize, params);
 		CheckError();
 	}
 }

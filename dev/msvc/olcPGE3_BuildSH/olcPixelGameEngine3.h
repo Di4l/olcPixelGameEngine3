@@ -4322,7 +4322,7 @@ namespace olc
 		typedef void CALLSTYLE glRenderbufferStorageMultisample_t(GLenum target, GLsizei samples, GLenum internalformat, GLsizei width, GLsizei height);
 		typedef void CALLSTYLE glFramebufferRenderbuffer_t(GLenum target, GLenum attachment, GLenum renderbuffertarget, GLuint renderbuffer);
 		typedef void CALLSTYLE glDeleteRenderbuffers_t(GLsizei n, const GLuint* renderbuffers);
-
+		typedef void CALLSTYLE glGetInternalformativ_t(GLenum target, GLenum internalformat, GLenum pname, GLsizei bufSize, GLint* params);
 
 #if OLC_HOST == OLC_HOST_WINDOWS
 		typedef void CALLSTYLE glSwapInterval_t(GLsizei n);
@@ -4381,6 +4381,7 @@ namespace olc
 			glRenderbufferStorageMultisample_t* _glRenderbufferStorageMultisample = nullptr;
 			glFramebufferRenderbuffer_t* _glFramebufferRenderbuffer = nullptr;
 			glDeleteRenderbuffers_t* _glDeleteRenderbuffers = nullptr;
+			glGetInternalformativ_t* _glGetInternalformativ = nullptr;
 
 
 		public:
@@ -4426,6 +4427,7 @@ namespace olc
 			void glRenderbufferStorageMultisample(GLenum target, GLsizei samples, GLenum internalformat, GLsizei width, GLsizei height);
 			void glFramebufferRenderbuffer(GLenum target, GLenum attachment, GLenum renderbuffertarget, GLuint renderbuffer);
 			void glDeleteRenderbuffers(GLsizei n, const GLuint* renderbuffers);
+			void glGetInternalformativ(GLenum target, GLenum internalformat, GLenum pname, GLsizei bufSize, GLint* params);
 
 
 
@@ -4466,7 +4468,7 @@ namespace olc
 			static constexpr GLenum GL_GEOMETRY_SHADER_X = 0x8DD9;
 			static constexpr GLenum GL_MULTISAMPLE_X = 0x809D;
 			static constexpr GLenum GL_RENDERBUFFER_X = 0x8D41;
-
+			static constexpr GLenum GL_SAMPLES_X = 0x80A9;
 
 		private:
 			bool CheckError(const std::source_location loc = std::source_location::current());
@@ -8156,6 +8158,7 @@ namespace olc::apis::opengl
 		bLoaded &= (_glRenderbufferStorageMultisample = OGL_LOAD(glRenderbufferStorageMultisample)) != nullptr;
 		bLoaded &= (_glFramebufferRenderbuffer = OGL_LOAD(glFramebufferRenderbuffer)) != nullptr;
 		bLoaded &= (_glDeleteRenderbuffers = OGL_LOAD(glDeleteRenderbuffers)) != nullptr;
+		bLoaded &= (_glGetInternalformativ = OGL_LOAD(glGetInternalformativ)) != nullptr;
 
 		
 		return bLoaded;
@@ -8545,6 +8548,12 @@ namespace olc::apis::opengl
 		_glDeleteRenderbuffers(n, renderbuffers);
 		CheckError();
 	}
+
+	void gl::glGetInternalformativ(GLenum target, GLenum internalformat, GLenum pname, GLsizei bufSize, GLint* params)
+	{
+		_glGetInternalformativ(target, internalformat, pname, bufSize, params);
+		CheckError();
+	}
 }
 namespace olc::gpu
 {
@@ -8699,10 +8708,12 @@ namespace olc::gpu
 		// Create "Default" Shader
 		shaderDefault.SetPixelShaderSource(
 #if OLC_HOST != OLC_HOST_EMSCRIPTEN
-			R"(#version 330 core)"
+			R"(#version 330 core
+)"
 #else
 			R"(#version 300 es
-			precision mediump float;)"
+			precision mediump float;
+)"
 #endif
 
 			R"(layout(location = 0) out vec4 pixel;
@@ -8723,10 +8734,12 @@ namespace olc::gpu
 
 		shaderDefault.SetVertexShaderSource(
 #if OLC_HOST != OLC_HOST_EMSCRIPTEN
-			R"(#version 330 core)"
+			R"(#version 330 core
+)"
 #else
 			R"(#version 300 es
-			precision mediump float;)"
+			precision mediump float;
+)"
 #endif
 			R"(layout(location = 0) in vec4 aPos;
 			layout(location = 1) in vec4 aCol;
@@ -9044,9 +9057,14 @@ namespace olc::gpu
 			uint32_t rboId = mapTextureToRenderbuffer[texid];
 			gl.glBindRenderbuffer(gl.GL_RENDERBUFFER_X, rboId);
 
+			int32_t maxSamples = 0;
+			gl.glGetInternalformativ(gl.GL_RENDERBUFFER_X, GL_RGBA8, gl.GL_SAMPLES_X, 1, &maxSamples);
+
 #if OLC_HOST == OLC_HOST_EMSCRIPTEN
+			maxSamples = std::min<int32_t>(OLC_MSAA_EMSCRIPTEN_MAX_SAMPLES, maxSamples);
 			const int samples = std::min((int)image.GetConfig().MSAASamples, OLC_MSAA_EMSCRIPTEN_MAX_SAMPLES);
 #else
+			maxSamples = std::min<int32_t>(OLC_MSAA_SAMPLES, maxSamples);
 			const int samples = image.GetConfig().MSAASamples;
 #endif
 

@@ -147,7 +147,7 @@ namespace olc
 		typedef void CALLSTYLE glRenderbufferStorageMultisample_t(GLenum target, GLsizei samples, GLenum internalformat, GLsizei width, GLsizei height);
 		typedef void CALLSTYLE glFramebufferRenderbuffer_t(GLenum target, GLenum attachment, GLenum renderbuffertarget, GLuint renderbuffer);
 		typedef void CALLSTYLE glDeleteRenderbuffers_t(GLsizei n, const GLuint* renderbuffers);
-
+		typedef void CALLSTYLE glGetInternalformativ_t(GLenum target, GLenum internalformat, GLenum pname, GLsizei bufSize, GLint* params);
 
 #if OLC_HOST == OLC_HOST_WINDOWS
 		typedef void CALLSTYLE glSwapInterval_t(GLsizei n);
@@ -206,6 +206,7 @@ namespace olc
 			glRenderbufferStorageMultisample_t* _glRenderbufferStorageMultisample = nullptr;
 			glFramebufferRenderbuffer_t* _glFramebufferRenderbuffer = nullptr;
 			glDeleteRenderbuffers_t* _glDeleteRenderbuffers = nullptr;
+			glGetInternalformativ_t* _glGetInternalformativ = nullptr;
 
 
 		public:
@@ -251,6 +252,7 @@ namespace olc
 			void glRenderbufferStorageMultisample(GLenum target, GLsizei samples, GLenum internalformat, GLsizei width, GLsizei height);
 			void glFramebufferRenderbuffer(GLenum target, GLenum attachment, GLenum renderbuffertarget, GLuint renderbuffer);
 			void glDeleteRenderbuffers(GLsizei n, const GLuint* renderbuffers);
+			void glGetInternalformativ(GLenum target, GLenum internalformat, GLenum pname, GLsizei bufSize, GLint* params);
 
 
 
@@ -291,7 +293,7 @@ namespace olc
 			static constexpr GLenum GL_GEOMETRY_SHADER_X = 0x8DD9;
 			static constexpr GLenum GL_MULTISAMPLE_X = 0x809D;
 			static constexpr GLenum GL_RENDERBUFFER_X = 0x8D41;
-
+			static constexpr GLenum GL_SAMPLES_X = 0x80A9;
 
 		private:
 			bool CheckError(const std::source_location loc = std::source_location::current());
