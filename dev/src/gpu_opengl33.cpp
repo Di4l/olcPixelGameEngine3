@@ -121,9 +121,7 @@ namespace olc::gpu
 #if OLC_HOST == OLC_HOST_EMSCRIPTEN
 	const auto canvasId = reinterpret_cast<std::string*>(os_win_id[0]);
 
-	const int samples = std::min(OLC_MSAA_SAMPLES, OLC_MSAA_EMSCRIPTEN_MAX_SAMPLES);
-
-	EGLint const attribute_list[] = {EGL_RED_SIZE, 8, EGL_GREEN_SIZE, 8, EGL_BLUE_SIZE, 8, EGL_ALPHA_SIZE, 8, EGL_DEPTH_SIZE, 16, EGL_SAMPLE_BUFFERS, 1, EGL_SAMPLES, samples, EGL_NONE};
+	EGLint const attribute_list[] = {EGL_RED_SIZE, 8, EGL_GREEN_SIZE, 8, EGL_BLUE_SIZE, 8, EGL_ALPHA_SIZE, 8, EGL_DEPTH_SIZE, 16, EGL_SAMPLE_BUFFERS, EGL_SAMPLES, OLC_MSAA_SAMPLES, EGL_NONE};
 	EGLint const context_config[] = {EGL_CONTEXT_CLIENT_VERSION, 2, EGL_NONE};
 	EGLint num_config;
 
@@ -506,23 +504,15 @@ namespace olc::gpu
 			int32_t maxSamples = 0;
 			gl.glGetInternalformativ(gl.GL_RENDERBUFFER_X, GL_RGBA8, gl.GL_SAMPLES_X, 1, &maxSamples);
 
-#if OLC_HOST == OLC_HOST_EMSCRIPTEN
-			maxSamples = std::min<int32_t>(OLC_MSAA_EMSCRIPTEN_MAX_SAMPLES, maxSamples);
-			const int samples = std::min((int)image.GetConfig().MSAASamples, maxSamples);
-#else
-			maxSamples = std::min<int32_t>(OLC_MSAA_SAMPLES, maxSamples);
-			const int samples = std::min<int32_t>(image.GetConfig().MSAASamples, maxSamples);
-#endif
-
 			// Allocate MSAA renderbuffer storage
 			gl.glRenderbufferStorageMultisample(
-				gl.GL_RENDERBUFFER_X, 
-				samples,
-				GL_RGBA8, 
-				image.Size().x, 
+				gl.GL_RENDERBUFFER_X,
+				std::min<int32_t>(image.GetConfig().MSAASamples, maxSamples),
+				GL_RGBA8,
+				image.Size().x,
 				image.Size().y
 			);
-			
+
 			// Unbind renderbuffer
 			gl.glBindRenderbuffer(gl.GL_RENDERBUFFER_X, 0);
 		}
