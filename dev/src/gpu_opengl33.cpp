@@ -508,10 +508,10 @@ namespace olc::gpu
 
 #if OLC_HOST == OLC_HOST_EMSCRIPTEN
 			maxSamples = std::min<int32_t>(OLC_MSAA_EMSCRIPTEN_MAX_SAMPLES, maxSamples);
-			const int samples = std::min((int)image.GetConfig().MSAASamples, OLC_MSAA_EMSCRIPTEN_MAX_SAMPLES);
+			const int samples = std::min((int)image.GetConfig().MSAASamples, maxSamples);
 #else
 			maxSamples = std::min<int32_t>(OLC_MSAA_SAMPLES, maxSamples);
-			const int samples = image.GetConfig().MSAASamples;
+			const int samples = std::min<int32_t>(image.GetConfig().MSAASamples, maxSamples);
 #endif
 
 			// Allocate MSAA renderbuffer storage
