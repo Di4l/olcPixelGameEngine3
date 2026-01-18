@@ -128,8 +128,10 @@ namespace olc::gpu
 	auto* display = reinterpret_cast<wl_display*>(os_win_id[1]);
 #endif
 
-	EGLint const attribute_list[] = { EGL_RED_SIZE, 8, EGL_GREEN_SIZE, 8, EGL_BLUE_SIZE, 8, EGL_ALPHA_SIZE, 8, EGL_DEPTH_SIZE, 16, EGL_NONE };
-	EGLint const context_config[] = { EGL_CONTEXT_CLIENT_VERSION , 2, EGL_NONE };
+	const int samples = std::min(OLC_MSAA_SAMPLES, OLC_MSAA_EMSCRIPTEN_MAX_SAMPLES);
+
+	EGLint const attribute_list[] = {EGL_RED_SIZE, 8, EGL_GREEN_SIZE, 8, EGL_BLUE_SIZE, 8, EGL_ALPHA_SIZE, 8, EGL_DEPTH_SIZE, 16, EGL_SAMPLE_BUFFERS, 1, EGL_SAMPLES, samples, EGL_NONE};
+	EGLint const context_config[] = {EGL_CONTEXT_CLIENT_VERSION, 2, EGL_NONE};
 	EGLint num_config;
 
 	glRenderContext.display = eglGetDisplay(display);
@@ -164,10 +166,17 @@ namespace olc::gpu
 		
 
 		// Create "Default" Shader
+		shaderDefault.SetPixelShaderSource(
 #if OLC_HOST != OLC_HOST_EMSCRIPTEN
-		shaderDefault.SetPixelShaderSource(R"(
-			#version 330 core
-			layout(location = 0) out vec4 pixel;
+			R"(#version 330 core
+)"
+#else
+			R"(#version 300 es
+			precision mediump float;
+)"
+#endif
+
+			R"(layout(location = 0) out vec4 pixel;
 			in vec2 oTex;
 			in vec4 oCol;
 			uniform sampler2D sprTex;
@@ -183,72 +192,16 @@ namespace olc::gpu
 			}
 		)");
 
-		shaderDefault.SetVertexShaderSource(R"(
-			#version 330 core
-			layout(location = 0) in vec4 aPos;
-			layout(location = 1) in vec4 aCol;
-			layout(location = 2) in vec2 aTex;
-			uniform mat4 mvp;
-			uniform int drawtype;
-			uniform vec4 tint;
-			uniform vec2 target;
-			uniform vec2 invtarget;
-			out vec2 oTex;
-			out vec4 oCol;
-
-			void main()
-			{ 																																				  
-				if(drawtype == 2) // 3D																																  
-				{																																			  
-					gl_Position = mvp * vec4(aPos.x, aPos.y, aPos.z, 1.0); 																					  
-					oTex = aTex;																															  
-				} 				 
-			
-				else if(drawtype == 1) // 2D Line																																		  
-				{																																			  
-					float p = 1.0 / aPos.z; 																												  
-					gl_Position = p * vec4(vec2(2.0 * (floor(aPos.xy) + 0.5) * invtarget - 1.0), 0.0, 1.0);	  
-					oTex = aTex;																										  
-				} 			  
-			
-				else if(drawtype == 0) // 2D Polygon																																		  
-				{																																			  
-					float p = 1.0 / aPos.z; 																												  
-					gl_Position = p * vec4(vec2(2.0 * (aPos.xy + 0.25) * invtarget - 1.0), 0.0, 1.0);	 
-					oTex = p * vec2(aTex.x, aTex.y);																										  
-				} 
-				
-				else  // Balanced default
-				{
-					gl_Position = aPos;
-					oTex = aTex;
-				} 																																			  
-																																			  
-				oCol = aCol * tint;																															  
-			}
-		)");
+		shaderDefault.SetVertexShaderSource(
+#if OLC_HOST != OLC_HOST_EMSCRIPTEN
+			R"(#version 330 core
+)"
 #else
-		shaderDefault.SetPixelShaderSource(R"(#version 300 es
+			R"(#version 300 es
 			precision mediump float;
-			layout(location = 0) out vec4 pixel;
-			in vec2 oTex;
-			in vec4 oCol;
-			uniform sampler2D sprTex;
-
-			void main()
-			{
-				// Was just this
-				//pixel = texture(sprTex, oTex) * oCol;
-
-				// But to premultiply alpha correctly, we now do this:
-				vec4 texColor = texture(sprTex, oTex) * oCol;
-				pixel = vec4(texColor.rgb * texColor.a, texColor.a);
-			}
-		)");
-
-		shaderDefault.SetVertexShaderSource(R"(#version 300 es
-			precision mediump float;
-			layout(location = 0) in vec4 aPos;
+)"
+#endif
+			R"(layout(location = 0) in vec4 aPos;
 			layout(location = 1) in vec4 aCol;
 			layout(location = 2) in vec2 aTex;
 			uniform mat4 mvp;
@@ -290,7 +243,6 @@ namespace olc::gpu
 				oCol = aCol * tint;																															  
 			}
 		)");
-#endif
 
 		shaderDefault.Compile();
 		shaderDefault.CreateUniform("mvp");
@@ -526,36 +478,26 @@ namespace olc::gpu
 			return new_id;
 		};
 
-		// Regular textures and MSAA textures are handled differently
-		if (!cfg.MSAA)
-		{
-			id = CreateRegularTexture();
-		}
-		else
-		{
-			// Texture is MSAA, so we need to create a special
-			// "resolved" texture later for sampling when the 
-			// MSAA texture is used as a source
-			gl.glGenTextures(1, &id);
-			glBindTexture(gl.GL_TEXTURE_2D_MULTISAMPLE_X, id);
+		// Create the regular texture (used for sampling)
+		id = CreateRegularTexture();
 
-			// Allocate MSAA texture storage
-			uint32_t regular_id = CreateRegularTexture();
-			mapMSAAToResolved[id] = regular_id;
-
-			// Note this "bonus" texture is quite hidden
-			// from the user.
+		// If MSAA is requested, also create a renderbuffer for MSAA rendering
+		if (cfg.MSAA)
+		{
+			uint32_t rboId = 0;
+			gl.glGenRenderbuffers(1, &rboId);
+			gl.glBindRenderbuffer(gl.GL_RENDERBUFFER_X, rboId);
+			
+			// Map texture to its MSAA renderbuffer
+			mapTextureToRenderbuffer[id] = rboId;
 		}
 
-		
 #if OLC_HOST != OLC_HOST_EMSCRIPTEN
 #if OLC_HOST != OLC_HOST_MACOS		
 		gl.glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 #endif
 #endif
 
-		// We need to store the size in case we
-		// need it later when resolving MSAA textures
 		mapTextureSizes[id] = vSize;
 		return id;
 	}
@@ -564,37 +506,42 @@ namespace olc::gpu
 	{
 		auto& gl = olc::apis::opengl::gl::Get();
 
-		if (mapMSAAToResolved.contains(texid))
+		// Always write to the regular texture (for sampling)
+		gl.glBindTexture(GL_TEXTURE_2D, texid);
+		gl.glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image.Size().x, image.Size().y, 0, 
+			GL_RGBA, GL_UNSIGNED_BYTE, image.Data());
+
+		// If this texture has MSAA, allocate storage for the renderbuffer
+		if (mapTextureToRenderbuffer.contains(texid))
 		{
-			// Texture is MSAA
-			gl.glBindTexture(gl.GL_TEXTURE_2D_MULTISAMPLE_X, texid);
+			uint32_t rboId = mapTextureToRenderbuffer[texid];
+			gl.glBindRenderbuffer(gl.GL_RENDERBUFFER_X, rboId);
 
-			// Allocate MSAA texture storage
-			gl.glTexImage2DMultisample(gl.GL_TEXTURE_2D_MULTISAMPLE_X, image.GetConfig().MSAASamples,
-				GL_RGBA, image.Size().x, image.Size().y, GL_TRUE);
+			int32_t maxSamples = 0;
+			gl.glGetInternalformativ(gl.GL_RENDERBUFFER_X, GL_RGBA8, gl.GL_SAMPLES_X, 1, &maxSamples);
 
-			// Also allocate the resolve texture - we dont care
-			// about the contents as it will be overwritten on
-			// an MSAA resolve
-			uint32_t resolvedId = mapMSAAToResolved[texid];
-			gl.glBindTexture(GL_TEXTURE_2D, resolvedId);
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN
+			maxSamples = std::min<int32_t>(OLC_MSAA_EMSCRIPTEN_MAX_SAMPLES, maxSamples);
+			const int samples = std::min((int)image.GetConfig().MSAASamples, maxSamples);
+#else
+			maxSamples = std::min<int32_t>(OLC_MSAA_SAMPLES, maxSamples);
+			const int samples = std::min<int32_t>(image.GetConfig().MSAASamples, maxSamples);
+#endif
 
-			// Initialize resolve with transparent black
-			std::vector<uint8_t> a(image.Size().area() * sizeof(olc::Pixel), 0);
-			gl.glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image.Size().x, image.Size().y, 0, 
-				GL_RGBA, GL_UNSIGNED_BYTE, a.data());
-
+			// Allocate MSAA renderbuffer storage
+			gl.glRenderbufferStorageMultisample(
+				gl.GL_RENDERBUFFER_X, 
+				samples,
+				GL_RGBA8, 
+				image.Size().x, 
+				image.Size().y
+			);
+			
+			// Unbind renderbuffer
+			gl.glBindRenderbuffer(gl.GL_RENDERBUFFER_X, 0);
 		}
-		else
-		{
-			// Texture is regular
-			gl.glBindTexture(GL_TEXTURE_2D, texid);
-			gl.glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image.Size().x, image.Size().y, 0, GL_RGBA, GL_UNSIGNED_BYTE, image.Data());
 
-		}
-	
-
-		// Update in case texture was resized
+		// Update size tracking
 		mapTextureSizes[texid] = image.Size();
 
 		return true;
@@ -605,13 +552,14 @@ namespace olc::gpu
 		olc_IgnoreUnused(texid);
 
 		auto& gl = olc::apis::opengl::gl::Get();
+
 		// Read the teture data back into the image
+		// With renderbuffer approach, we always read from the regular texture
+		// which has been blitted to via ResolveMSAA if its an MSAA texture
 		gl.glBindTexture(GL_TEXTURE_2D, image.GetGPUID());
 
 #if OLC_HOST != OLC_HOST_EMSCRIPTEN
 		gl.glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, image.Data());
-		// Note: For MSAA textures, this reads the resolved texture, which
-		// is probably what you want anyway
 #else		
 		gl.glReadPixels(0, 0, image.Size().x, image.Size().y, GL_RGBA, GL_UNSIGNED_BYTE, image.Data());
 #endif
@@ -621,7 +569,18 @@ namespace olc::gpu
 	bool Renderer_OGL33::DeleteTexture(const uint32_t texid)
 	{
 		auto& gl = olc::apis::opengl::gl::Get();
+		
+		// Delete the texture
 		gl.glDeleteTextures(1, &texid);
+		
+		// Delete associated renderbuffer if it exists
+		if (mapTextureToRenderbuffer.contains(texid))
+		{
+			uint32_t rboId = mapTextureToRenderbuffer[texid];
+			gl.glDeleteRenderbuffers(1, &rboId);
+			mapTextureToRenderbuffer.erase(texid);
+		}
+		
 		return true;
 	}
 
@@ -634,11 +593,11 @@ namespace olc::gpu
 
 		// Check if this is an MSAA texture...
 		uint32_t actualTexId = texid;
-		if (mapMSAAToResolved.contains(texid))
-		{
+		//if (mapMSAAToResolved.contains(texid))
+		//{
 			// ...yes it is, so use the resolved texture for sampling
-			actualTexId = mapMSAAToResolved[texid];
-		}
+		//	actualTexId = mapMSAAToResolved[texid];
+		//}
 
 		// If the requested source texture is currently attached as the render target,
 		// unbind the framebuffer to avoid sampling from a texture that's being written to.
@@ -695,94 +654,110 @@ namespace olc::gpu
 		{
 			// Unbind the FBO (bind default framebuffer)
 			gl.glBindFramebuffer(gl.GL_FRAMEBUFFER_X, 0);
-			glDisable(gl.GL_MULTISAMPLE_X);
 			return true;
 		}	
-		
+	
 		// Bind FBO
 		gl.glBindFramebuffer(gl.GL_FRAMEBUFFER_X, nDefaultFBO);
 
 		// Allocate target buffers - pick the single attachment corresponding to 'slot'
 		std::array<GLenum, 8> attachments =
 		{ { 
-			gl.GL_COLOR_ATTACHMENT0_X + 0,
+			gl.GL_COLOR_ATTACHMENT0_X + 0, 
 			gl.GL_COLOR_ATTACHMENT0_X + 1,
-			gl.GL_COLOR_ATTACHMENT0_X + 2,
+			gl.GL_COLOR_ATTACHMENT0_X + 2, 
 			gl.GL_COLOR_ATTACHMENT0_X + 3,
-			gl.GL_COLOR_ATTACHMENT0_X + 4,
+			gl.GL_COLOR_ATTACHMENT0_X + 4, 
 			gl.GL_COLOR_ATTACHMENT0_X + 5,
-			gl.GL_COLOR_ATTACHMENT0_X + 6,
+			gl.GL_COLOR_ATTACHMENT0_X + 6, 
 			gl.GL_COLOR_ATTACHMENT0_X + 7
 		} };
 		GLenum draw = attachments[slot];
-		
-		// Set the draw buffer to the selected attachment
 		gl.glDrawBuffers(1, &draw);
 		
 		// If target texture is MSAA, enable multisampling
-		if (mapMSAAToResolved.contains(texid))
+		if (mapTextureToRenderbuffer.contains(texid))
 		{
-			glEnable(gl.GL_MULTISAMPLE_X);
-			// Attach MSAA texture to FBO
-			gl.glFramebufferTexture2D(gl.GL_FRAMEBUFFER_X, gl.GL_COLOR_ATTACHMENT0_X + slot, gl.GL_TEXTURE_2D_MULTISAMPLE_X, texid, 0);
+			// MSAA texture - attach renderbuffer
+			uint32_t rboId = mapTextureToRenderbuffer[texid];
+			gl.glFramebufferRenderbuffer(
+				gl.GL_FRAMEBUFFER_X, 
+				gl.GL_COLOR_ATTACHMENT0_X + slot, 
+				gl.GL_RENDERBUFFER_X, 
+				rboId
+			);
 		}
 		else
 		{
-			glDisable(gl.GL_MULTISAMPLE_X);
-			// Attach regular texture to FBO
-			gl.glFramebufferTexture2D(gl.GL_FRAMEBUFFER_X, gl.GL_COLOR_ATTACHMENT0_X + slot, GL_TEXTURE_2D, texid, 0);
-
+			// Regular texture - attach directly
+			gl.glFramebufferTexture2D(
+				gl.GL_FRAMEBUFFER_X, 
+				gl.GL_COLOR_ATTACHMENT0_X + slot, 
+				GL_TEXTURE_2D, 
+				texid, 
+				0
+			);
 		}
 
-		// Record currently bound target texture
-		nCurrentTextureTarget = texid;		
-		return true;
+#if defined(OLC_GPU_ERRORCHECK) && OLC_GPU_ERRORCHECK == 1
+		// Check FBO complete state
+		GLenum status = gl.glCheckFramebufferStatus(gl.GL_FRAMEBUFFER_X);
+		if (status != gl.GL_FRAMEBUFFER_COMPLETE_X)
+		{
+			std::cout << "ERROR: FBO incomplete\n";
+		}
+#endif
+
+	nCurrentTextureTarget = texid;		
+	return true;
 	}
 
-	bool Renderer_OGL33::ResolveMSAA(const uint32_t msaaTexId)
+	bool Renderer_OGL33::ResolveMSAA(const uint32_t texid)
 	{
-		if (!mapMSAAToResolved.contains(msaaTexId))
-			return true;  // Not an error, just not MSAA
+		// Check if this texture has an MSAA renderbuffer
+		if (!mapTextureToRenderbuffer.contains(texid))
+			return true;  // Not MSAA, nothing to do
 
 		auto& gl = olc::apis::opengl::gl::Get();
 
-		// Get resolved texture ID. This is linked at 
-		// texture creation time for MSAA textures
-		uint32_t resolvedId = mapMSAAToResolved[msaaTexId];
+		// It did! Get the renderbuffer ID
+		uint32_t rboId = mapTextureToRenderbuffer[texid];
 
 		// Ensure all rendering to MSAA texture is finished
 		glFinish();
 
-		// Bind MSAA texture to read FBO
+		// Bind renderbuffer to read FBO
 		gl.glBindFramebuffer(gl.GL_READ_FRAMEBUFFER_X, nResolveFBO_Read);
-		gl.glFramebufferTexture2D(gl.GL_READ_FRAMEBUFFER_X, gl.GL_COLOR_ATTACHMENT0_X, gl.GL_TEXTURE_2D_MULTISAMPLE_X, msaaTexId, 0);
+		gl.glFramebufferRenderbuffer(
+			gl.GL_READ_FRAMEBUFFER_X, 
+			gl.GL_COLOR_ATTACHMENT0_X, 
+			gl.GL_RENDERBUFFER_X, 
+			rboId
+		);
 
-#if defined(OLC_GPU_ERRORCHECK) && OLC_GPU_ERRORCHECK == 1
-		// Check read framebuffer status
-		GLenum readStatus = gl.glCheckFramebufferStatus(gl.GL_READ_FRAMEBUFFER);
-		if (readStatus != gl.GL_FRAMEBUFFER_COMPLETE)
-		{
-			std::cout << "ResolveMSAA ERROR: Read framebuffer incomplete!\n";
-			return false;
-		}
-#endif
-
-		// Bind resolved texture to draw FBO
+		// Bind regular texture to draw FBO
 		gl.glBindFramebuffer(gl.GL_DRAW_FRAMEBUFFER_X, nResolveFBO_Draw);
-		gl.glFramebufferTexture2D(gl.GL_DRAW_FRAMEBUFFER_X, gl.GL_COLOR_ATTACHMENT0_X, GL_TEXTURE_2D, resolvedId, 0);
+		gl.glFramebufferTexture2D(
+			gl.GL_DRAW_FRAMEBUFFER_X, 
+			gl.GL_COLOR_ATTACHMENT0_X, 
+			GL_TEXTURE_2D, 
+			texid, 
+			0
+		);
 
 #if defined(OLC_GPU_ERRORCHECK) && OLC_GPU_ERRORCHECK == 1
-		// Check draw framebuffer status
+		// Check FBO complete state
+		GLenum readStatus = gl.glCheckFramebufferStatus(gl.GL_READ_FRAMEBUFFER_X);
 		GLenum drawStatus = gl.glCheckFramebufferStatus(gl.GL_DRAW_FRAMEBUFFER_X);
-		if (drawStatus != gl.GL_FRAMEBUFFER_COMPLETE_X)
+		if (readStatus != gl.GL_FRAMEBUFFER_COMPLETE_X || drawStatus != gl.GL_FRAMEBUFFER_COMPLETE_X)
 		{
-			std::cout << "ResolveMSAA ERROR: Draw framebuffer incomplete!";
+			std::cout << "ResolveMSAA ERROR: FBO incomplete!\n";
 			return false;
 		}
 #endif
 
-		// Blit from MSAA to resolved
-		olc::vi2d size = mapTextureSizes[msaaTexId];
+		// Blit from MSAA renderbuffer to resolved
+		olc::vi2d size = mapTextureSizes[texid];
 		gl.glBlitFramebuffer(
 			0, 0, size.x, size.y,
 			0, 0, size.x, size.y,

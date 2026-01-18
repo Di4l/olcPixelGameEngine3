@@ -31,6 +31,12 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </ClCompile>
+    <ClCompile Include="..\..\..\examples\olcPGE3_ImageRegion.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
     <ClCompile Include="..\..\..\examples\olcPGE3_TextFontMap.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
@@ -88,6 +94,13 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="olcPixelGameEngine3.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="..\..\..\examples\assets\minsanity_texture.png" />
+    <Image Include="..\..\..\examples\assets\olc_font.png" />
+    <Image Include="..\..\..\examples\assets\sanity_cube.png" />
+    <Image Include="..\..\..\examples\assets\sanity_texture.png" />
+    <Image Include="..\..\..\examples\assets\tile_atlas_4x4_16x16.png" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>17.0</VCProjectVersion>

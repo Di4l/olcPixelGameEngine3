@@ -81,11 +81,13 @@ namespace olc
 			uint32_t nCurrentTextureTarget = 0;
 			uint32_t nCurrentTextureSource = 0;
 
-			std::unordered_map<uint32_t, uint32_t> mapMSAAToResolved;
+			//std::unordered_map<uint32_t, uint32_t> mapMSAAToResolved;
 			uint32_t nResolveFBO_Read = 0;
 			uint32_t nResolveFBO_Draw = 0;
 
 			std::unordered_map<uint32_t, olc::vi2d> mapTextureSizes;
+
+			std::unordered_map<uint32_t, uint32_t> mapTextureToRenderbuffer;
 
 		};
 	}

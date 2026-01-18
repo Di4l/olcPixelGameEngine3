@@ -16,19 +16,22 @@
     <Filter Include="Source Files\tests">
       <UniqueIdentifier>{7646c9a3-dfcd-4e94-a2d9-0178bb2e8f87}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Mac Specific">
-      <UniqueIdentifier>{fe268a15-2a5a-47fa-8398-970258db5b23}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Linux X11 Specific">
-      <UniqueIdentifier>{eb9dbdc6-d27a-41e8-b44f-9dac7bf9c652}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Utilities">
       <UniqueIdentifier>{514ef7ca-c1dc-4d41-98cf-efec9eb2a661}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Emscripten Specific">
+    <Filter Include="Hosts">
+      <UniqueIdentifier>{26ceec85-a90d-4b82-b25a-b37b79b71a1f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Hosts\Mac Specific">
+      <UniqueIdentifier>{fe268a15-2a5a-47fa-8398-970258db5b23}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Hosts\Linux X11 Specific">
+      <UniqueIdentifier>{eb9dbdc6-d27a-41e8-b44f-9dac7bf9c652}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Hosts\Emscripten Specific">
       <UniqueIdentifier>{8c31a956-8996-4b4b-9725-3b013ceb57f3}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Windows Specific">
+    <Filter Include="Hosts\Windows Specific">
       <UniqueIdentifier>{52d920c4-c1cb-430a-91f7-11b69794b120}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
@@ -106,22 +109,22 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\src\imload_macos.h">
-      <Filter>Mac Specific</Filter>
+      <Filter>Hosts\Mac Specific</Filter>
     </ClInclude>
     <ClInclude Include="..\src\api_macos_wrapper.hpp">
-      <Filter>Mac Specific</Filter>
+      <Filter>Hosts\Mac Specific</Filter>
     </ClInclude>
     <ClInclude Include="..\src\api_macos.h">
-      <Filter>Mac Specific</Filter>
+      <Filter>Hosts\Mac Specific</Filter>
     </ClInclude>
     <ClInclude Include="..\src\host_apple_macos.h">
-      <Filter>Mac Specific</Filter>
+      <Filter>Hosts\Mac Specific</Filter>
     </ClInclude>
     <ClInclude Include="..\src\host_lin_x11.h">
-      <Filter>Linux X11 Specific</Filter>
+      <Filter>Hosts\Linux X11 Specific</Filter>
     </ClInclude>
     <ClInclude Include="..\src\imload_lib_png.h">
-      <Filter>Linux X11 Specific</Filter>
+      <Filter>Hosts\Linux X11 Specific</Filter>
     </ClInclude>
     <ClInclude Include="..\src\concepts.h">
       <Filter>Header Files</Filter>
@@ -130,13 +133,13 @@
       <Filter>Utilities</Filter>
     </ClInclude>
     <ClInclude Include="..\src\host_web_emscripten.h">
-      <Filter>Emscripten Specific</Filter>
+      <Filter>Hosts\Emscripten Specific</Filter>
     </ClInclude>
     <ClInclude Include="..\src\imload_wingdi.h">
-      <Filter>Windows Specific</Filter>
+      <Filter>Hosts\Windows Specific</Filter>
     </ClInclude>
     <ClInclude Include="..\src\host_win_winapi.h">
-      <Filter>Windows Specific</Filter>
+      <Filter>Hosts\Windows Specific</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -186,28 +189,28 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\src\api_macos.cpp">
-      <Filter>Mac Specific</Filter>
+      <Filter>Hosts\Mac Specific</Filter>
     </ClCompile>
     <ClCompile Include="..\src\host_apple_macos.cpp">
-      <Filter>Mac Specific</Filter>
+      <Filter>Hosts\Mac Specific</Filter>
     </ClCompile>
     <ClCompile Include="..\src\imload_macos.cpp">
-      <Filter>Mac Specific</Filter>
+      <Filter>Hosts\Mac Specific</Filter>
     </ClCompile>
     <ClCompile Include="..\src\host_lin_x11.cpp">
-      <Filter>Linux X11 Specific</Filter>
+      <Filter>Hosts\Linux X11 Specific</Filter>
     </ClCompile>
     <ClCompile Include="..\src\imload_lib_png.cpp">
-      <Filter>Linux X11 Specific</Filter>
+      <Filter>Hosts\Linux X11 Specific</Filter>
     </ClCompile>
     <ClCompile Include="..\src\host_web_emscripten.cpp">
-      <Filter>Emscripten Specific</Filter>
+      <Filter>Hosts\Emscripten Specific</Filter>
     </ClCompile>
     <ClCompile Include="..\src\imload_wingdi.cpp">
-      <Filter>Windows Specific</Filter>
+      <Filter>Hosts\Windows Specific</Filter>
     </ClCompile>
     <ClCompile Include="..\src\host_win_winapi.cpp">
-      <Filter>Windows Specific</Filter>
+      <Filter>Hosts\Windows Specific</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

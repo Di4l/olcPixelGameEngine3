@@ -150,6 +150,12 @@ namespace olc
 		typedef void CALLSTYLE glBlendFuncSeparate_t(GLenum srcRGB, GLenum dstRGB, GLenum srcAlpha, GLenum dstAlpha);
 		typedef void CALLSTYLE glTexImage2DMultisample_t(GLenum target, GLsizei samples, GLint internalformat, GLsizei width, GLsizei height, GLboolean fixedsamplelocations);
 		typedef void CALLSTYLE glBlitFramebuffer_t(GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1, GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1, GLbitfield mask, GLenum filter);
+		typedef void CALLSTYLE glGenRenderbuffers_t(GLsizei n, GLuint* renderbuffers);
+		typedef void CALLSTYLE glBindRenderbuffer_t(GLenum target, GLuint renderbuffer);
+		typedef void CALLSTYLE glRenderbufferStorageMultisample_t(GLenum target, GLsizei samples, GLenum internalformat, GLsizei width, GLsizei height);
+		typedef void CALLSTYLE glFramebufferRenderbuffer_t(GLenum target, GLenum attachment, GLenum renderbuffertarget, GLuint renderbuffer);
+		typedef void CALLSTYLE glDeleteRenderbuffers_t(GLsizei n, const GLuint* renderbuffers);
+		typedef void CALLSTYLE glGetInternalformativ_t(GLenum target, GLenum internalformat, GLenum pname, GLsizei bufSize, GLint* params);
 
 #if OLC_HOST == OLC_HOST_WINDOWS
 		typedef void CALLSTYLE glSwapInterval_t(GLsizei n);
@@ -203,6 +209,13 @@ namespace olc
 			glBlendFuncSeparate_t* _glBlendFuncSeparate = nullptr;
 			glTexImage2DMultisample_t* _glTexImage2DMultisample = nullptr;
 			glBlitFramebuffer_t* _glBlitFramebuffer = nullptr;
+			glGenRenderbuffers_t* _glGenRenderbuffers = nullptr;
+			glBindRenderbuffer_t* _glBindRenderbuffer = nullptr;
+			glRenderbufferStorageMultisample_t* _glRenderbufferStorageMultisample = nullptr;
+			glFramebufferRenderbuffer_t* _glFramebufferRenderbuffer = nullptr;
+			glDeleteRenderbuffers_t* _glDeleteRenderbuffers = nullptr;
+			glGetInternalformativ_t* _glGetInternalformativ = nullptr;
+
 
 		public:
 			// Proxies allow switchable, clutter-free error checking
@@ -242,6 +255,14 @@ namespace olc
 			void glBlendFuncSeparate(GLenum srcRGB, GLenum dstRGB, GLenum srcAlpha, GLenum dstAlpha);
 			void glTexImage2DMultisample(GLenum target, GLsizei samples, GLint internalformat, GLsizei width, GLsizei height, GLboolean fixedsamplelocations);
 			void glBlitFramebuffer(GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1, GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1, GLbitfield mask, GLenum filter);
+			void glGenRenderbuffers(GLsizei n, GLuint* renderbuffers);
+			void glBindRenderbuffer(GLenum target, GLuint renderbuffer);
+			void glRenderbufferStorageMultisample(GLenum target, GLsizei samples, GLenum internalformat, GLsizei width, GLsizei height);
+			void glFramebufferRenderbuffer(GLenum target, GLenum attachment, GLenum renderbuffertarget, GLuint renderbuffer);
+			void glDeleteRenderbuffers(GLsizei n, const GLuint* renderbuffers);
+			void glGetInternalformativ(GLenum target, GLenum internalformat, GLenum pname, GLsizei bufSize, GLint* params);
+
+
 
 			// OpenGL1.2 Proxies (just keeps things tidy imo)
 			void glGenTextures(GLsizei n, GLuint* textures);
@@ -279,6 +300,8 @@ namespace olc
 			static constexpr GLenum GL_VERTEX_SHADER_X = 0x8B31;
 			static constexpr GLenum GL_GEOMETRY_SHADER_X = 0x8DD9;
 			static constexpr GLenum GL_MULTISAMPLE_X = 0x809D;
+			static constexpr GLenum GL_RENDERBUFFER_X = 0x8D41;
+			static constexpr GLenum GL_SAMPLES_X = 0x80A9;
 
 		private:
 			bool CheckError(const std::source_location loc = std::source_location::current());

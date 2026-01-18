@@ -58,6 +58,13 @@ namespace olc::apis::opengl
 		bLoaded &= (_glDeleteFramebuffers = OGL_LOAD(glDeleteFramebuffers)) != nullptr;
 		bLoaded &= (_glFramebufferTexture2D = OGL_LOAD(glFramebufferTexture2D)) != nullptr;
 		bLoaded &= (_glBlendFuncSeparate = OGL_LOAD(glBlendFuncSeparate)) != nullptr;
+		bLoaded &= (_glGenRenderbuffers = OGL_LOAD(glGenRenderbuffers)) != nullptr;
+		bLoaded &= (_glBindRenderbuffer = OGL_LOAD(glBindRenderbuffer)) != nullptr;
+		bLoaded &= (_glRenderbufferStorageMultisample = OGL_LOAD(glRenderbufferStorageMultisample)) != nullptr;
+		bLoaded &= (_glFramebufferRenderbuffer = OGL_LOAD(glFramebufferRenderbuffer)) != nullptr;
+		bLoaded &= (_glDeleteRenderbuffers = OGL_LOAD(glDeleteRenderbuffers)) != nullptr;
+		bLoaded &= (_glGetInternalformativ = OGL_LOAD(glGetInternalformativ)) != nullptr;
+
 		
 		return bLoaded;
 	}
@@ -414,6 +421,42 @@ namespace olc::apis::opengl
 	void gl::glBlitFramebuffer(GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1, GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1, GLbitfield mask, GLenum filter)
 	{
 		_glBlitFramebuffer(srcX0, srcY0, srcX1, srcY1, dstX0, dstY0, dstX1, dstY1, mask, filter);
+		CheckError();
+	}
+
+	void gl::glGenRenderbuffers(GLsizei n, GLuint* renderbuffers)
+	{
+		_glGenRenderbuffers(n, renderbuffers);
+		CheckError();
+	}
+
+	void gl::glBindRenderbuffer(GLenum target, GLuint renderbuffer)
+	{
+		_glBindRenderbuffer(target, renderbuffer);
+		CheckError();
+	}
+
+	void gl::glRenderbufferStorageMultisample(GLenum target, GLsizei samples, GLenum internalformat, GLsizei width, GLsizei height)
+	{
+		_glRenderbufferStorageMultisample(target, samples, internalformat, width, height);
+		CheckError();
+	}
+
+	void gl::glFramebufferRenderbuffer(GLenum target, GLenum attachment, GLenum renderbuffertarget, GLuint renderbuffer)
+	{
+		_glFramebufferRenderbuffer(target, attachment, renderbuffertarget, renderbuffer);
+		CheckError();
+	}
+
+	void gl::glDeleteRenderbuffers(GLsizei n, const GLuint* renderbuffers)
+	{
+		_glDeleteRenderbuffers(n, renderbuffers);
+		CheckError();
+	}
+
+	void gl::glGetInternalformativ(GLenum target, GLenum internalformat, GLenum pname, GLsizei bufSize, GLint* params)
+	{
+		_glGetInternalformativ(target, internalformat, pname, bufSize, params);
 		CheckError();
 	}
 }
