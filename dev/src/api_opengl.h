@@ -156,6 +156,7 @@ namespace olc
 		typedef void CALLSTYLE glFramebufferRenderbuffer_t(GLenum target, GLenum attachment, GLenum renderbuffertarget, GLuint renderbuffer);
 		typedef void CALLSTYLE glDeleteRenderbuffers_t(GLsizei n, const GLuint* renderbuffers);
 		typedef void CALLSTYLE glGetInternalformativ_t(GLenum target, GLenum internalformat, GLenum pname, GLsizei bufSize, GLint* params);
+		typedef void CALLSTYLE glGetShaderiv_t(GLuint shader, GLenum pname, GLint* params);
 
 #if OLC_HOST == OLC_HOST_WINDOWS
 		typedef void CALLSTYLE glSwapInterval_t(GLsizei n);
@@ -215,6 +216,7 @@ namespace olc
 			glFramebufferRenderbuffer_t* _glFramebufferRenderbuffer = nullptr;
 			glDeleteRenderbuffers_t* _glDeleteRenderbuffers = nullptr;
 			glGetInternalformativ_t* _glGetInternalformativ = nullptr;
+			glGetShaderiv_t* _glGetShaderiv = nullptr;
 
 
 		public:
@@ -261,6 +263,7 @@ namespace olc
 			void glFramebufferRenderbuffer(GLenum target, GLenum attachment, GLenum renderbuffertarget, GLuint renderbuffer);
 			void glDeleteRenderbuffers(GLsizei n, const GLuint* renderbuffers);
 			void glGetInternalformativ(GLenum target, GLenum internalformat, GLenum pname, GLsizei bufSize, GLint* params);
+			void glGetShaderiv(GLuint shader, GLenum pname, GLint* params);
 
 
 
@@ -302,6 +305,9 @@ namespace olc
 			static constexpr GLenum GL_MULTISAMPLE_X = 0x809D;
 			static constexpr GLenum GL_RENDERBUFFER_X = 0x8D41;
 			static constexpr GLenum GL_SAMPLES_X = 0x80A9;
+			static constexpr GLenum GL_COMPILE_STATUS_X = 0x8B81;
+			static constexpr GLenum GL_INFO_LOG_LENGTH_X = 0x8B84;
+
 
 		private:
 			bool CheckError(const std::source_location loc = std::source_location::current());
@@ -309,19 +315,6 @@ namespace olc
 		};
 	}
 	
-
-
-//#if defined(OLC_PLATFORM_X11)
-//	typedef int(locSwapInterval_t)(X11::Display* dpy, X11::GLXDrawable drawable, int interval);
-//#endif
-//
-//#if defined(OLC_PLATFORM_EMSCRIPTEN)
-//	typedef void CALLSTYLE locShaderSource_t(GLuint shader, GLsizei count, const GLchar* const* string, const GLint* length);
-//	typedef EGLBoolean(locSwapInterval_t)(EGLDisplay display, EGLint interval);
-//#else
-//	typedef void CALLSTYLE locShaderSource_t(GLuint shader, GLsizei count, const GLchar** string, const GLint* length);
-//#endif
-
 } // olc namespace
 //! END DECLARATION
 

@@ -1684,6 +1684,7 @@ namespace olc
 			FailedToSetDCPixelFormat,
 			FailedToCreateRenderContext,
 			FailedToSwitchRenderContext,
+			FailedToCompileShader,
 		};
 
 		class Shader
@@ -1702,6 +1703,18 @@ namespace olc
 			uint32_t GetUniform(const std::string& name)	const;
 			uint32_t GetShaderID() const;
 
+
+		public:
+			static std::string PS_DefaultHeader();
+			static std::string PS_DefaultMain();
+			
+			static std::string VS_DefaultHeader();
+			static std::string VS_DefaultMain();
+			
+			static std::string GS_DefaultHeader();
+			static std::string GS_DefaultMain();
+
+
 		protected:
 			std::string srcPixelShader;
 			std::string srcVertexShader;
@@ -1711,6 +1724,13 @@ namespace olc
 			uint32_t nGeometryShaderID = 0;
 			uint32_t nCompiledShaderID = 0 ;
 			std::unordered_map<std::string, uint32_t> mapUniforms;
+
+			static std::string static_PS_DefaultHeader;
+			static std::string static_PS_DefaultMain;
+			static std::string static_VS_DefaultHeader;
+			static std::string static_VS_DefaultMain;
+			static std::string static_GS_DefaultHeader;
+			static std::string static_GS_DefaultMain;			
 		};
 
 		class Renderer
@@ -1754,8 +1774,16 @@ namespace olc
 
 		public: // Shader Construction Stuff
 
+			// Change the shader used for subsequent GPU drawing tasks
 			virtual bool ApplyShader(const Shader& shader) = 0;
+			// Reset to default shader for subsequent GPU drawing tasks
 			virtual bool ApplyDefaultShader() = 0;
+			// Set uniform variable for subsequent GPU drawing tasks
+			virtual bool SetUniform(const std::string& name, const float value) = 0;
+			// Set uniform variable for subsequent GPU drawing tasks
+			virtual bool SetUniform(const std::string& name, const olc::vf2d& value) = 0;
+			// Set uniform variable for subsequent GPU drawing tasks
+			virtual bool SetUniform(const std::string& name, const olc::Pixel value) = 0;
 
 		public: // GPU Task Processing Stuff
 			virtual bool DoGPUTask(const olc::GPUTask& task) = 0;
@@ -1766,7 +1794,7 @@ namespace olc
 			// Sets the viewport area of the drawing space
 			virtual bool SetViewport(const olc::vf2d& pos, const olc::vf2d& size) = 0;
 			// Configures defaults prior to drawing
-			virtual bool DisplayPrepare() = 0;
+			virtual bool DisplayPrepare(const float fFrameElapsedTime, const float fTotalElapsedTime) = 0;
 			// Displays the final output
 			virtual bool DisplayDraw(std::vector<void*> os_win_id, bool bVerticalSyncNow = false) = 0;
 
@@ -1774,6 +1802,8 @@ namespace olc
 		protected:
 			RendererConfig config;
 			RendererError lastError = RendererError::NoError;
+			float fFrameTime = 0;
+			float fTotalTime = 0;
 		};
 	}
 }
@@ -1786,6 +1816,7 @@ namespace olc
 	namespace gpu
 	{
 		class Renderer;
+		class Shader;
 	}
 	
 	// These "opaque" structs are merely to help with
@@ -2417,8 +2448,19 @@ namespace olc
 
 
 
-		
-
+		public:
+			// Change the shader used for subsequent GPU drawing tasks
+			bool SetShader(const olc::gpu::Shader& shader);
+			// Reset to default shader for subsequent GPU drawing tasks
+			bool ResetShader();
+			// Set uniform variable for subsequent GPU drawing tasks
+			bool SetShaderUniform(const std::string& name, const float value);
+			// Set uniform variable for subsequent GPU drawing tasks
+			bool SetShaderUniform(const std::string& name, const olc::vf2d& value);
+			// Set uniform variable for subsequent GPU drawing tasks
+			bool SetShaderUniform(const std::string& name, const olc::Pixel value);
+			// Assign an image to a texture slot for subsequent GPU drawing tasks
+			bool SetShaderTexture(const uint32_t nSlot, olc::Image& image);
 
 
 
@@ -2790,7 +2832,7 @@ namespace olc
 		bool olc_OnMouseMove(const olc::vi2d& vMousePos) override;
 
 	public:
-		virtual bool olc_WindowUpdate(const float fElapsedTime);
+		virtual bool olc_WindowUpdate(const float fElapsedTime, const float fTotalElapsedTime);
 
 	protected:
 		olc::Draw2D draw;
@@ -2821,6 +2863,11 @@ namespace olc
 		// Start the PGE main engine loop (on its own thread)
 		bool Start();
 
+
+	public:
+		float FrameTimeElapsed() const;
+		double TotalTimeElapsed() const;
+
 	public: // Child Windows
 		bool AddChildWindow(std::shared_ptr<olc::PGEWindow> window, const olc::vi2d& vScreenSize, const olc::vi2d& vPixelSize);
 	
@@ -2836,6 +2883,7 @@ namespace olc
 		std::chrono::steady_clock::time_point timeFrame2;
 		std::chrono::duration<float> durationFrame{ 0 };
 		std::chrono::duration<float> durationFrameCount{ 0 };
+		std::chrono::duration<double> durationTotalElapsed{ 0 };
 		size_t frameCount = 0;
 
 		// PGE Configuration
@@ -4322,6 +4370,7 @@ namespace olc
 		typedef void CALLSTYLE glFramebufferRenderbuffer_t(GLenum target, GLenum attachment, GLenum renderbuffertarget, GLuint renderbuffer);
 		typedef void CALLSTYLE glDeleteRenderbuffers_t(GLsizei n, const GLuint* renderbuffers);
 		typedef void CALLSTYLE glGetInternalformativ_t(GLenum target, GLenum internalformat, GLenum pname, GLsizei bufSize, GLint* params);
+		typedef void CALLSTYLE glGetShaderiv_t(GLuint shader, GLenum pname, GLint* params);
 
 #if OLC_HOST == OLC_HOST_WINDOWS
 		typedef void CALLSTYLE glSwapInterval_t(GLsizei n);
@@ -4381,6 +4430,7 @@ namespace olc
 			glFramebufferRenderbuffer_t* _glFramebufferRenderbuffer = nullptr;
 			glDeleteRenderbuffers_t* _glDeleteRenderbuffers = nullptr;
 			glGetInternalformativ_t* _glGetInternalformativ = nullptr;
+			glGetShaderiv_t* _glGetShaderiv = nullptr;
 
 
 		public:
@@ -4427,6 +4477,7 @@ namespace olc
 			void glFramebufferRenderbuffer(GLenum target, GLenum attachment, GLenum renderbuffertarget, GLuint renderbuffer);
 			void glDeleteRenderbuffers(GLsizei n, const GLuint* renderbuffers);
 			void glGetInternalformativ(GLenum target, GLenum internalformat, GLenum pname, GLsizei bufSize, GLint* params);
+			void glGetShaderiv(GLuint shader, GLenum pname, GLint* params);
 
 
 
@@ -4468,6 +4519,9 @@ namespace olc
 			static constexpr GLenum GL_MULTISAMPLE_X = 0x809D;
 			static constexpr GLenum GL_RENDERBUFFER_X = 0x8D41;
 			static constexpr GLenum GL_SAMPLES_X = 0x80A9;
+			static constexpr GLenum GL_COMPILE_STATUS_X = 0x8B81;
+			static constexpr GLenum GL_INFO_LOG_LENGTH_X = 0x8B84;
+
 
 		private:
 			bool CheckError(const std::source_location loc = std::source_location::current());
@@ -4475,19 +4529,6 @@ namespace olc
 		};
 	}
 	
-
-
-//#if defined(OLC_PLATFORM_X11)
-//	typedef int(locSwapInterval_t)(X11::Display* dpy, X11::GLXDrawable drawable, int interval);
-//#endif
-//
-//#if defined(OLC_PLATFORM_EMSCRIPTEN)
-//	typedef void CALLSTYLE locShaderSource_t(GLuint shader, GLsizei count, const GLchar* const* string, const GLint* length);
-//	typedef EGLBoolean(locSwapInterval_t)(EGLDisplay display, EGLint interval);
-//#else
-//	typedef void CALLSTYLE locShaderSource_t(GLuint shader, GLsizei count, const GLchar** string, const GLint* length);
-//#endif
-
 } // olc namespace
 
 #if !defined(PGE_RENDERER_OPENGL33_DECLARED)
@@ -4532,8 +4573,16 @@ namespace olc
 			virtual bool ResolveMSAA(const uint32_t msaaTexId) override;
 
 		public: // Shader Construction Stuff
+			// Change the shader used for subsequent GPU drawing tasks
 			bool ApplyShader(const Shader& shader) override;
+			// Reset to default shader for subsequent GPU drawing tasks
 			bool ApplyDefaultShader() override;
+			// Set uniform variable for subsequent GPU drawing tasks
+			bool SetUniform(const std::string& name, const float value) override;
+			// Set uniform variable for subsequent GPU drawing tasks
+			bool SetUniform(const std::string& name, const olc::vf2d& value) override;
+			// Set uniform variable for subsequent GPU drawing tasks
+			bool SetUniform(const std::string& name, const olc::Pixel value) override;
 
 		public: // GPU Task Stuff
 			virtual bool DoGPUTask(const olc::GPUTask& task) override;
@@ -4544,7 +4593,7 @@ namespace olc
 			// Sets the viewport area of the drawing space
 			virtual bool SetViewport(const olc::vf2d& pos, const olc::vf2d& size) override;
 			// Configures defaults prior to drawing
-			virtual bool DisplayPrepare() override;
+			virtual bool DisplayPrepare(const float fFrameElapsedTime, const float fTotalElapsedTime) override;
 			// Displays the final output
 			virtual bool DisplayDraw(std::vector<void*> os_win_id, bool bVerticalSyncNow) override;
 
@@ -4574,6 +4623,8 @@ namespace olc
 			std::unordered_map<uint32_t, olc::vi2d> mapTextureSizes;
 
 			std::unordered_map<uint32_t, uint32_t> mapTextureToRenderbuffer;
+
+			const Shader* pCurrentShader = nullptr;
 
 		};
 	}
@@ -8094,6 +8145,36 @@ namespace olc
     {
         return nCompiledShaderID;
     }
+
+    std::string gpu::Shader::PS_DefaultHeader() 
+    {
+        return static_PS_DefaultHeader;
+    }
+
+    std::string gpu::Shader::PS_DefaultMain() 
+    {
+		return static_PS_DefaultMain;
+    }
+
+    std::string gpu::Shader::VS_DefaultHeader() 
+    {
+		return static_VS_DefaultHeader;        
+    }
+
+    std::string gpu::Shader::VS_DefaultMain() 
+    {
+		return static_VS_DefaultMain;      
+    }
+
+    std::string gpu::Shader::GS_DefaultHeader() 
+    {
+		return static_GS_DefaultHeader;
+    }
+
+    std::string gpu::Shader::GS_DefaultMain() 
+    {
+		return static_GS_DefaultMain;
+    }
 }
 
 namespace olc::apis::opengl
@@ -8158,6 +8239,7 @@ namespace olc::apis::opengl
 		bLoaded &= (_glFramebufferRenderbuffer = OGL_LOAD(glFramebufferRenderbuffer)) != nullptr;
 		bLoaded &= (_glDeleteRenderbuffers = OGL_LOAD(glDeleteRenderbuffers)) != nullptr;
 		bLoaded &= (_glGetInternalformativ = OGL_LOAD(glGetInternalformativ)) != nullptr;
+		bLoaded &= (_glGetShaderiv = OGL_LOAD(glGetShaderiv)) != nullptr;
 
 		
 		return bLoaded;
@@ -8553,9 +8635,125 @@ namespace olc::apis::opengl
 		_glGetInternalformativ(target, internalformat, pname, bufSize, params);
 		CheckError();
 	}
+
+	void gl::glGetShaderiv(GLuint shader, GLenum pname, GLint* params)
+	{
+		_glGetShaderiv(shader, pname, params);
+		CheckError();
+	}
 }
 namespace olc::gpu
 {
+
+	// === PIXEL SHADER PGE DEFAULTS ===
+	std::string Shader::static_PS_DefaultHeader =
+#if OLC_HOST != OLC_HOST_EMSCRIPTEN
+R"(#version 330 core
+)"
+#else
+R"(#version 300 es
+precision mediump float;
+)"
+#endif
+R"(
+// Pixel output to framebuffer
+layout(location = 0) out vec4 pixel;
+
+// PGE *REQUIRED* Uniforms - You must have these in your shader
+uniform vec2 pgeTargetSizeInPixels;			// Size of the target olc::Image in pixels
+uniform vec2 pgeInverseTargetSizeInPixels;  // 1.0 / Size of the target olc::Image in pixels
+uniform float pgeTotalTimeElapsed;			// Total time elapsed since application started
+uniform sampler2D pgeTexture0;				// Current source olc::Image bound as texture0
+uniform sampler2D pgeTexture1;				// Current source olc::Image bound as texture1
+uniform sampler2D pgeTexture2;				// Current source olc::Image bound as texture2
+uniform sampler2D pgeTexture3;				// Current source olc::Image bound as texture3
+
+// Inputs from Vertex Shader
+in vec2 oTex;
+in vec4 oCol;
+)";
+
+	std::string Shader::static_PS_DefaultMain =
+R"(
+void main()
+{
+	// We premultiply alpha here
+	vec4 texColor = texture(pgeTexture0, oTex) * oCol;
+	pixel = vec4(texColor.rgb * texColor.a, texColor.a);
+}
+)";
+	
+	
+	// === VERTEX SHADER PGE DEFAULTS ===
+	std::string Shader::static_VS_DefaultHeader =
+#if OLC_HOST != OLC_HOST_EMSCRIPTEN
+R"(#version 330 core
+)"
+#else
+R"(#version 300 es
+precision mediump float;
+)"
+#endif
+R"(
+// PGE *REQUIRED* Attributes - You must have these in your shader
+layout(location = 0) in vec4 aPos; // x, y, z, w
+layout(location = 1) in vec4 aCol; // r, g, b, a
+layout(location = 2) in vec2 aTex; // u, v
+
+// PGE *REQUIRED* Uniforms - You must have these in your shader
+uniform mat4 pgeMVP;						// Model-View-Projection matrix
+uniform int pgeDrawType;					// 0 = 2D Polygon, 1 = 2D Line, 2 = 3D
+uniform vec4 pgeGlobalTint;					// Global tint to apply to all vertices
+uniform vec2 pgeTargetSizeInPixels;			// Size of the target olc::Image in pixels
+uniform vec2 pgeInverseTargetSizeInPixels;  // 1.0 / Size of the target olc::Image in pixels
+uniform float pgeTotalTimeElapsed;			// Total time elapsed since application started
+
+// Outputs to Pixel Shader
+out vec2 oTex;
+out vec4 oCol;
+)";
+
+	std::string Shader::static_VS_DefaultMain =
+R"(
+void main()
+{
+	if (pgeDrawType == 2) // 3D																																  
+	{
+		gl_Position = pgeMVP * vec4(aPos.x, aPos.y, aPos.z, 1.0);
+		oTex = aTex;
+	}
+
+	else if (pgeDrawType == 1) // 2D Line																																		  
+	{
+		float p = 1.0 / aPos.z;
+		gl_Position = p * vec4(vec2(2.0 * (floor(aPos.xy) + 0.5) * pgeInverseTargetSizeInPixels - 1.0), 0.0, 1.0);
+		oTex = aTex;
+	}
+
+	else if (pgeDrawType == 0) // 2D Polygon																																		  
+	{
+		float p = 1.0 / aPos.z; 
+		gl_Position = p * vec4(vec2(2.0 * (aPos.xy + 0.25) * pgeInverseTargetSizeInPixels - 1.0), 0.0, 1.0);
+		oTex = p * vec2(aTex.x, aTex.y);
+	}
+
+	else  // Balanced default
+	{
+		gl_Position = aPos;
+		oTex = aTex;
+	}
+
+	oCol = aCol * pgeGlobalTint;
+}
+)";
+
+	
+	// === GEOMETRY SHADER PGE DEFAULTS ===
+	std::string Shader::static_GS_DefaultHeader = "";
+	std::string Shader::static_GS_DefaultMain = "";
+
+
+
 	std::string Shader_GLSL33::Compile()
 	{
 		auto& gl = olc::apis::opengl::gl::Get();
@@ -8569,7 +8767,19 @@ namespace olc::gpu
 			const char* s = srcPixelShader.c_str();
 			gl.glShaderSource(nPixelShaderID, 1, &s, nullptr);
 			gl.glCompileShader(nPixelShaderID);
-			// TODO: Error Check
+			
+			// Display Fragment Shader Compile Errors
+			int32_t nCompileStatus = 0;
+			gl.glGetShaderiv(nPixelShaderID, gl.GL_COMPILE_STATUS_X, &nCompileStatus);
+			if (nCompileStatus == 0)
+			{
+				int32_t nInfoLogLength = 0;
+				gl.glGetShaderiv(nPixelShaderID, gl.GL_INFO_LOG_LENGTH_X, &nInfoLogLength);
+				std::vector<char> vInfoLog(nInfoLogLength);
+				gl.glGetShaderInfoLog(nPixelShaderID, nInfoLogLength, nullptr, vInfoLog.data());
+				return std::string("Fragment Shader Compile Error:\n") + std::string(vInfoLog.data());				
+			}
+
 			gl.glAttachShader(nCompiledShaderID, nPixelShaderID);
 		}
 
@@ -8580,7 +8790,19 @@ namespace olc::gpu
 			const char* s = srcVertexShader.c_str();
 			gl.glShaderSource(nVertexShaderID, 1, &s, nullptr);
 			gl.glCompileShader(nVertexShaderID);
-			// TODO: Error Check
+			
+			// Display Vertex Shader Compile Errors
+			int32_t nCompileStatus = 0;
+			gl.glGetShaderiv(nVertexShaderID, gl.GL_COMPILE_STATUS_X, &nCompileStatus);
+			if (nCompileStatus == 0)
+			{
+				int32_t nInfoLogLength = 0;
+				gl.glGetShaderiv(nVertexShaderID, gl.GL_INFO_LOG_LENGTH_X, &nInfoLogLength);
+				std::vector<char> vInfoLog(nInfoLogLength);
+				gl.glGetShaderInfoLog(nVertexShaderID, nInfoLogLength, nullptr, vInfoLog.data());
+				return std::string("Vertex Shader Compile Error:\n") + std::string(vInfoLog.data());				
+			}
+
 			gl.glAttachShader(nCompiledShaderID, nVertexShaderID);
 		}
 
@@ -8592,11 +8814,38 @@ namespace olc::gpu
 			const char* s = srcGeometryShader.c_str();
 			gl.glShaderSource(nGeometryShaderID, 1, &s, nullptr);
 			gl.glCompileShader(nGeometryShaderID);
-			// TODO: Error Check
+			
+			// Display Vertex Shader Compile Errors
+			int32_t nCompileStatus = 0;
+			gl.glGetShaderiv(nGeometryShaderID, gl.GL_COMPILE_STATUS_X, &nCompileStatus);
+			if (nCompileStatus == 0)
+			{
+				int32_t nInfoLogLength = 0;
+				gl.glGetShaderiv(nGeometryShaderID, gl.GL_INFO_LOG_LENGTH_X, &nInfoLogLength);
+				std::vector<char> vInfoLog(nInfoLogLength);
+				gl.glGetShaderInfoLog(nGeometryShaderID, nInfoLogLength, nullptr, vInfoLog.data());
+				return std::string("Geometry Shader Compile Error:\n") + std::string(vInfoLog.data());
+				
+			}
+
+
 			gl.glAttachShader(nCompiledShaderID, nGeometryShaderID);
 		}
 
 		gl.glLinkProgram(nCompiledShaderID);
+
+		// Required PGE3 Uniforms
+		CreateUniform("pgeMVP");
+		CreateUniform("pgeDrawType");
+		CreateUniform("pgeGlobalTint");
+		CreateUniform("pgeTargetSizeInPixels");
+		CreateUniform("pgeInverseTargetSizeInPixels");
+		CreateUniform("pgeTotalTimeElapsed");
+
+		CreateUniform("pgeTexture0");
+		CreateUniform("pgeTexture1");
+		CreateUniform("pgeTexture2");
+		CreateUniform("pgeTexture3");
 
 		return "OK";
 	}
@@ -8608,7 +8857,6 @@ namespace olc::gpu
 		mapUniforms.insert({ name, gl.glGetUniformLocation(nCompiledShaderID, s) });
 		return GetUniform(name);
 	}
-
 
 
 	bool Renderer_OGL33::CreateDevice(std::vector<void*> os_win_id, const RendererConfig& cfg)
@@ -8704,89 +8952,21 @@ namespace olc::gpu
 
 		// Create "Default" Shader
 		shaderDefault.SetPixelShaderSource(
-#if OLC_HOST != OLC_HOST_EMSCRIPTEN
-			R"(#version 330 core
-)"
-#else
-			R"(#version 300 es
-			precision mediump float;
-)"
-#endif
-
-			R"(layout(location = 0) out vec4 pixel;
-			in vec2 oTex;
-			in vec4 oCol;
-			uniform sampler2D sprTex;
-
-			void main()
-			{
-				// Was just this
-				//pixel = texture(sprTex, oTex) * oCol;
-
-				// But to premultiply alpha correctly, we now do this:	
-				vec4 texColor = texture(sprTex, oTex) * oCol;
-				pixel = vec4(texColor.rgb * texColor.a, texColor.a);
-			}
-		)");
+			Shader_GLSL33::PS_DefaultHeader() + Shader_GLSL33::PS_DefaultMain());
 
 		shaderDefault.SetVertexShaderSource(
-#if OLC_HOST != OLC_HOST_EMSCRIPTEN
-			R"(#version 330 core
-)"
-#else
-			R"(#version 300 es
-			precision mediump float;
-)"
-#endif
-			R"(layout(location = 0) in vec4 aPos;
-			layout(location = 1) in vec4 aCol;
-			layout(location = 2) in vec2 aTex;
-			uniform mat4 mvp;
-			uniform int drawtype;
-			uniform vec4 tint;
-			uniform vec2 target;
-			uniform vec2 invtarget;
-			out vec2 oTex;
-			out vec4 oCol;
+			Shader_GLSL33::VS_DefaultHeader() + Shader_GLSL33::VS_DefaultMain());
 
-			void main()
-			{ 																																				  
-				if(drawtype == 2) // 3D																																  
-				{																																			  
-					gl_Position = mvp * vec4(aPos.x, aPos.y, aPos.z, 1.0); 																					  
-					oTex = aTex;																															  
-				} 				 
-			
-				else if(drawtype == 1) // 2D Line																																		  
-				{																																			  
-					float p = 1.0 / aPos.z; 																												  
-					gl_Position = p * vec4(vec2(2.0 * (floor(aPos.xy) + 0.5) * invtarget - 1.0), 0.0, 1.0);	  
-					oTex = aTex;																										  
-				} 			  
-			
-				else if(drawtype == 0) // 2D Polygon																																		  
-				{																																			  
-					float p = 1.0 / aPos.z; 																												  
-					gl_Position = p * vec4(vec2(2.0 * (aPos.xy + 0.25) * invtarget - 1.0), 0.0, 1.0);	 
-					oTex = p * vec2(aTex.x, aTex.y);																										  
-				} 
-				
-				else  // Balanced default
-				{
-					gl_Position = aPos;
-					oTex = aTex;
-				} 																																			  
-																																			  
-				oCol = aCol * tint;																															  
-			}
-		)");
+		shaderDefault.SetGeometryShaderSource(
+			Shader_GLSL33::GS_DefaultHeader() + Shader_GLSL33::GS_DefaultMain());
 
-		shaderDefault.Compile();
-		shaderDefault.CreateUniform("mvp");
-		shaderDefault.CreateUniform("drawtype");
-		shaderDefault.CreateUniform("tint");
-		shaderDefault.CreateUniform("target");
-		shaderDefault.CreateUniform("invtarget");
+		std::string sResult = shaderDefault.Compile();
+		if (sResult != "OK")
+		{
+			std::cout << "Error compiling default shader: " << sResult << std::endl;
+			lastError = RendererError::FailedToCompileShader;
+			return false;
+		}
 
 		// Create "Default" Vertex Buffer / Vertex Attributes. This buffer is reused
 		// for all drawing operations. It's possible future versions may allow the
@@ -9302,14 +9482,49 @@ namespace olc::gpu
 	bool Renderer_OGL33::ApplyShader(const Shader& shader)
 	{
 		auto& gl = olc::apis::opengl::gl::Get();
-		gl.glUseProgram(shader.GetShaderID());
+		pCurrentShader = &shader;
+		gl.glUseProgram(pCurrentShader->GetShaderID());
+
+		gl.glUniform1i(pCurrentShader->GetUniform("pgeTexture0"), 0); // Texture slot 0
+		gl.glUniform1i(pCurrentShader->GetUniform("pgeTexture1"), 1); // Texture slot 1
+		gl.glUniform1i(pCurrentShader->GetUniform("pgeTexture2"), 2); // Texture slot 2
+		gl.glUniform1i(pCurrentShader->GetUniform("pgeTexture3"), 3); // Texture slot 3
 		return true;
 	}
 
 	bool Renderer_OGL33::ApplyDefaultShader()
+	{	
+		return ApplyShader(shaderDefault);
+	}
+
+	bool Renderer_OGL33::SetUniform(const std::string& name, const float value)
 	{
 		auto& gl = olc::apis::opengl::gl::Get();
-		gl.glUseProgram(shaderDefault.GetShaderID());
+		int loc = pCurrentShader->GetUniform(name);
+		gl.glUniform1f(loc, value);
+		return true;
+	}
+
+	bool Renderer_OGL33::SetUniform(const std::string& name, const olc::vf2d& value)
+	{
+		auto& gl = olc::apis::opengl::gl::Get();
+		int loc = pCurrentShader->GetUniform(name);
+		gl.glUniform2fv(loc, 1, value.a().data());
+		return true;
+	}
+
+	bool Renderer_OGL33::SetUniform(const std::string& name, const olc::Pixel value)
+	{
+		float f[4] = {
+			float(value.r) / 255.0f,
+			float(value.g) / 255.0f,
+			float(value.b) / 255.0f,
+			float(value.a) / 255.0f
+		};
+
+		auto& gl = olc::apis::opengl::gl::Get();
+		int loc = pCurrentShader->GetUniform(name);
+		gl.glUniform4fv(loc, 1, f);
 		return true;
 	}
 
@@ -9340,6 +9555,9 @@ namespace olc::gpu
 				gl.glBufferData(gl.GL_ARRAY_BUFFER_X, sizeof(GPUTask::Vertex) * task.vertexBuffer.size(), task.vertexBuffer.data(), gl.GL_STREAM_DRAW_X);
 				
 				
+				// Configure shader with expected values
+
+
 
 				// Shader: Apply MVP Matrix
 				//gl.glUniformMatrix4fv(shaderDefault.GetUniform("mvp"), 1, true, task.mvpMatrix.data());
@@ -9351,12 +9569,17 @@ namespace olc::gpu
 					float(task.tint.b) / 255.0f, 
 					float(task.tint.a) / 255.0f 
 				};
-				gl.glUniform4fv(shaderDefault.GetUniform("tint"), 1, f);
+				
+				gl.glUniform4fv(pCurrentShader->GetUniform("pgeGlobalTint"), 1, f);
 
 				f[0] = 64.0f;
 				f[1] = 64.0f;
-				gl.glUniform2fv(shaderDefault.GetUniform("target"), 1, vTargetSize.a().data());
-				gl.glUniform2fv(shaderDefault.GetUniform("invtarget"), 1, ((1.0f / vTargetSize)).a().data());
+				gl.glUniform2fv(pCurrentShader->GetUniform("pgeTargetSizeInPixels"), 1, vTargetSize.a().data());
+				gl.glUniform2fv(pCurrentShader->GetUniform("pgeInverseTargetSizeInPixels"), 1, ((1.0f / vTargetSize)).a().data());
+				gl.glUniform1f(pCurrentShader->GetUniform("pgeTotalTimeElapsed"), fTotalTime);
+
+
+				
 
 				// Apply Culling modes
 				//if (task.cullmode == GPUTask::CullMode::None)
@@ -9387,13 +9610,13 @@ namespace olc::gpu
 					gl.glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
 				if (task.structure == olc::Structure::Point)
-					gl.glUniform1i(shaderDefault.GetUniform("drawtype"), 1);
+					gl.glUniform1i(shaderDefault.GetUniform("pgeDrawType"), 1);
 				else if (task.structure == olc::Structure::Line)
-					gl.glUniform1i(shaderDefault.GetUniform("drawtype"), 1);
+					gl.glUniform1i(shaderDefault.GetUniform("pgeDrawType"), 1);
 				else if (task.structure == olc::Structure::LineLoop)
-					gl.glUniform1i(shaderDefault.GetUniform("drawtype"), 1);
+					gl.glUniform1i(shaderDefault.GetUniform("pgeDrawType"), 1);
 				else
-					gl.glUniform1i(shaderDefault.GetUniform("drawtype"), 0);
+					gl.glUniform1i(shaderDefault.GetUniform("pgeDrawType"), 0);
 
 				if (task.structure == olc::Structure::Fan)
 					gl.glDrawArrays(GL_TRIANGLE_FAN, 0, (GLsizei)task.vertexBuffer.size());
@@ -9438,8 +9661,11 @@ namespace olc::gpu
 		return true;
 	}
 
-	bool Renderer_OGL33::DisplayPrepare()
+	bool Renderer_OGL33::DisplayPrepare(const float fFrameElapsedTime, const float fTotalElapsedTime)
 	{
+		fFrameTime = fFrameElapsedTime;
+		fTotalTime = fTotalElapsedTime;
+
 		auto& gl = olc::apis::opengl::gl::Get();
 
 		gl.glEnable(GL_BLEND);
@@ -9601,6 +9827,42 @@ void Draw2D::PrepareImageForHW(olc::Image& image)
 	{
 		pRenderer->ResolveMSAA(uint32_t(image.GetGPUID()));
 	}
+}
+
+bool olc::Draw2D::SetShader(const olc::gpu::Shader& shader)
+{
+	// Finish all drawing with current shader
+	ProcessGPUTasks();
+	// Set new shader
+	return pRenderer->ApplyShader(shader);
+}
+
+bool olc::Draw2D::ResetShader()
+{
+	ProcessGPUTasks();
+	return pRenderer->ApplyDefaultShader();
+}
+
+bool olc::Draw2D::SetShaderUniform(const std::string& name, const float value)
+{
+
+	return pRenderer->SetUniform(name, value);
+}
+
+bool olc::Draw2D::SetShaderUniform(const std::string& name, const olc::vf2d& value)
+{
+	return pRenderer->SetUniform(name, value);	
+}
+
+bool olc::Draw2D::SetShaderUniform(const std::string& name, const olc::Pixel value)
+{
+	return pRenderer->SetUniform(name, value);
+}
+
+bool olc::Draw2D::SetShaderTexture(const uint32_t nSlot, olc::Image& image)
+{
+	PrepareImageForHW(image);
+	return pRenderer->AssignTextureSource(nSlot, image.GetGPUID());	
 }
 
 void olc::Draw2D::WorldReset()
@@ -11007,6 +11269,8 @@ void olc::Draw2D::swRasterTexturedTriangle(const olc::vi2d& v1, const olc::vi2d&
 	return;
 }
 
+
+
 void olc::Draw2D::swRasterShadedLine(const olc::vi2d& v1, const olc::vi2d& v2, const olc::Pixel c1, const olc::Pixel c2)
 {
 	PrepareTargetForSW();
@@ -11128,13 +11392,16 @@ namespace olc
 		return true;
 	}
 
-	bool PGEWindow::olc_WindowUpdate(const float fElapsedTime)
+	bool PGEWindow::olc_WindowUpdate(const float fElapsedTime, const float fTotalElapsedTime)
 	{
 		// Input Changes
 		mouse.UpdateState();
 		
 		draw.SetGPU(pRenderer);
 		draw.SetTarget(GetDefaultImage());
+
+		pRenderer->DisplayPrepare(fElapsedTime, fTotalElapsedTime);
+
 #if OLC_MULTIWINDOW == OLC_MULTIWINDOW_YES
 		pRenderer->RetargetDevice(pHost->GetHostWindowDescriptor(this));
 #endif
@@ -11163,6 +11430,8 @@ namespace olc
 		{
 			pRenderer->ResolveMSAA(uint32_t(GetDefaultImage().GetGPUID()));
 		}
+
+		draw.ResetShader();
 
 		// Take the window's completed "screen" and draw it as a textured quad to the backbuffer
 		pRenderer->AssignTextureTarget(0, 0);
@@ -11347,6 +11616,16 @@ namespace olc
 		return true;
 	}
 
+	float PixelGameEngine::FrameTimeElapsed() const
+	{
+		return durationFrame.count();
+	}
+
+	double PixelGameEngine::TotalTimeElapsed() const
+	{
+		return durationTotalElapsed.count();
+	}
+
 	bool PixelGameEngine::AddChildWindow(std::shared_ptr<olc::PGEWindow> window, const olc::vi2d& vScreenSize, const olc::vi2d& vPixelSize)
 	{
 #if OLC_MULTIWINDOW == OLC_MULTIWINDOW_YES
@@ -11396,8 +11675,13 @@ namespace olc
 			pge->durationFrame = pge->timeFrame1 - pge->timeFrame2;
 			pge->timeFrame2 = pge->timeFrame1;
 
+			pge->durationTotalElapsed += pge->durationFrame;
+
 			// Our time per frame coefficient
 			float fDT = pge->durationFrame.count();
+			
+			// Our Total Time accumulator
+			float fTT = float(pge->durationTotalElapsed.count());
 
 			pge->frameCount++;
 			pge->durationFrameCount += pge->durationFrame;
@@ -11410,7 +11694,7 @@ namespace olc
 				pge->frameCount = 0;
 			}
 				
-
+			
 			
 			// Primary Window
 			if (pge->olc_ShouldRemove())
@@ -11426,7 +11710,7 @@ namespace olc
 #if OLC_MULTIWINDOW == OLC_MULTIWINDOW_YES
 				// Update Child Windows (if any)
 				for (auto& winChild : deqChildWindows)
-					winChild->olc_WindowUpdate(fDT);
+					winChild->olc_WindowUpdate(fDT, fTT);
 
 				// Remove child windows that have requested closure
 				if (!deqChildWindows.empty())
@@ -11445,7 +11729,7 @@ namespace olc
 #endif
 
 				// Update Primary Window
-				pge->olc_WindowUpdate(fDT);
+				pge->olc_WindowUpdate(fDT, fTT);
 
 				// Wait for vertical sync if required. 
 				// Note: Child windows will never vsync as waiting for each buffer swap with vsync

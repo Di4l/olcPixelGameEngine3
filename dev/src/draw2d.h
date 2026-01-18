@@ -26,6 +26,7 @@ namespace olc
 	namespace gpu
 	{
 		class Renderer;
+		class Shader;
 	}
 	
 	// These "opaque" structs are merely to help with
@@ -657,8 +658,19 @@ namespace olc
 
 
 
-		
-
+		public:
+			// Change the shader used for subsequent GPU drawing tasks
+			bool SetShader(const olc::gpu::Shader& shader);
+			// Reset to default shader for subsequent GPU drawing tasks
+			bool ResetShader();
+			// Set uniform variable for subsequent GPU drawing tasks
+			bool SetShaderUniform(const std::string& name, const float value);
+			// Set uniform variable for subsequent GPU drawing tasks
+			bool SetShaderUniform(const std::string& name, const olc::vf2d& value);
+			// Set uniform variable for subsequent GPU drawing tasks
+			bool SetShaderUniform(const std::string& name, const olc::Pixel value);
+			// Assign an image to a texture slot for subsequent GPU drawing tasks
+			bool SetShaderTexture(const uint32_t nSlot, olc::Image& image);
 
 
 
