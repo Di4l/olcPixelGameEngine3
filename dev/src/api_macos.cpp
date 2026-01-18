@@ -477,6 +477,10 @@ static constexpr int NSOpenGLPFAColorSize     = static_cast<int>(NSOpenGLPixelFo
 static constexpr int NSOpenGLPFADepthSize     = static_cast<int>(NSOpenGLPixelFormatAttribute::DepthSize);
 static constexpr int NSOpenGLPFAAccelerated   = static_cast<int>(NSOpenGLPixelFormatAttribute::Accelerated);
 static constexpr int NSOpenGLPFAOpenGLProfile = static_cast<int>(NSOpenGLPixelFormatAttribute::OpenGLProfile);
+static constexpr int NSOpenGLPFASampleBuffers = static_cast<int>(NSOpenGLPixelFormatAttribute::SampleBuffers);
+static constexpr int NSOpenGLPFAMultisample        = static_cast<int>(NSOpenGLPixelFormatAttribute::Multisample);
+static constexpr int NSOpenGLAllowOfflineRenderers = static_cast<int>(NSOpenGLPixelFormatAttribute::AllowOfflineRenderers);
+static constexpr int NSOpenGLPFAAcceleratedCompute = static_cast<int>(NSOpenGLPixelFormatAttribute::AcceleratedCompute);
 
 // enum for OpenGL profile versions
 enum class NSOpenGLProfile : int {
@@ -687,11 +691,12 @@ struct Window {
 
 // Modern OpenGL context management and rendering operations
 struct OpenGLRenderer {
-    id pixelFormat{nullptr};          // NSOpenGLPixelFormat instance
-    id glView{nullptr};               // NSOpenGLView instance
-    id glContext{nullptr};            // NSOpenGLContext instance
-    Window* window{nullptr};          // Associated window pointer
-    
+    id pixelFormat{nullptr};                     // NSOpenGLPixelFormat instance
+    id glView{nullptr};                          // NSOpenGLView instance
+    id glContext{nullptr};                       // NSOpenGLContext instance
+    unsigned int MSAA_Samples{OLC_MSAA_SAMPLES}; // Multisample anti-aliasing samples
+    Window* window{nullptr};                     // Associated window pointer
+
     // Method function pointers with nullptr initialization
     void (*initialize)            (struct OpenGLRenderer* self, Window* window){nullptr};
     void (*setupContext)          (struct OpenGLRenderer* self){nullptr};
@@ -1535,20 +1540,41 @@ extern "C" {
         Class NSOpenGLPixelFormatClass  = objc_getClass(kNSOpenGLPixelFormatClass);
         Class CustomOpenGLViewClass     = createCustomOpenGLViewClass(); // Use our custom class
         
-        // Create pixel format attributes array using enum values
-        const unsigned int attrs[] = {
-            NSOpenGLPFADoubleBuffer,                                        // Enable double buffering
-            NSOpenGLPFADepthSize,        32,                                // 32-bit depth buffer
-            NSOpenGLPFAColorSize,        24,                                // 24-bit color
-            NSOpenGLPFAAccelerated,                                         // Hardware acceleration
-            NSOpenGLPFAOpenGLProfile,    NSOpenGLProfileVersion4_1Core,     // OpenGL 4.1 Core Profile
-            0                                                               // null terminator
-        };
-        
-        // Create pixel format
-        self->pixelFormat = ((id(*)(id, SEL, const unsigned int*))objc_msgSend)(
-            ((id(*)(Class, SEL))objc_msgSend)(NSOpenGLPixelFormatClass, ObjectiveCSEL::allocSel),
-            ObjectiveCSEL::initWithAttributesSel, attrs);
+        unsigned int sampleBuffers = (self->MSAA_Samples > 0) ? 1 : 0;
+        std::vector<unsigned int> preferredSamples = {32, 16, 8, 4, 2, 0};
+        if(self->MSAA_Samples <= 0) {
+            // If no multisampling requested, only try 0 samples
+            preferredSamples.clear();
+            preferredSamples.resize(1);
+            preferredSamples.push_back(0);
+        }
+
+        for(unsigned int samples: preferredSamples)
+        {
+            // Create pixel format attributes array using enum values
+            const unsigned int attrs[] = {
+                NSOpenGLPFADoubleBuffer,                                        // Enable double buffering
+                NSOpenGLPFADepthSize,        32,                                // 32-bit depth buffer
+                NSOpenGLPFAColorSize,        24,                                // 24-bit color
+                NSOpenGLPFAAccelerated,                                         // Hardware acceleration
+                NSOpenGLAllowOfflineRenderers,                                  // Allow offline renderers
+                NSOpenGLPFAOpenGLProfile,    NSOpenGLProfileVersion4_1Core,     // OpenGL 4.1 Core Profile
+                NSOpenGLPFAMultisample,      samples,                           // 0x --> 32X Multisampling
+                NSOpenGLPFASampleBuffers,    sampleBuffers,                     // Number of sample buffers
+                0                                                               // null terminator
+            };
+            
+            // Create pixel format
+            self->pixelFormat = ((id(*)(id, SEL, const unsigned int*))objc_msgSend)(
+                ((id(*)(Class, SEL))objc_msgSend)(NSOpenGLPixelFormatClass, ObjectiveCSEL::allocSel),
+                ObjectiveCSEL::initWithAttributesSel, attrs);
+            
+            // Check if pixel format was created successfully
+            if (self->pixelFormat) {
+                self->MSAA_Samples = samples;
+                break; // Successfully created pixel format
+            }
+        }
         
         // Create custom OpenGL view with event handling
         NSRect glViewFrame = {0.0, 0.0, window->contentViewFrame.width, window->contentViewFrame.height};
