@@ -118,20 +118,34 @@ namespace olc::gpu
 
 #endif
 
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN || OLC_HOST == OLC_HOST_LINUX_WAYLAND
 #if OLC_HOST == OLC_HOST_EMSCRIPTEN
-	const auto canvasId = reinterpret_cast<std::string*>(os_win_id[0]);
+	const auto window_handle = reinterpret_cast<std::string*>(os_win_id[0]);
+	void* native_display = EGL_DEFAULT_DISPLAY;
+#else
+	const auto wayland_window = reinterpret_cast<olc::host::WaylandWindow*>(os_win_id[0]);
+	auto* window_handle = wayland_window->window;
+	auto* display = reinterpret_cast<wl_display*>(os_win_id[1]);
+#endif
 
 	EGLint const attribute_list[] = { EGL_RED_SIZE, 8, EGL_GREEN_SIZE, 8, EGL_BLUE_SIZE, 8, EGL_ALPHA_SIZE, 8, EGL_DEPTH_SIZE, 16, EGL_NONE };
 	EGLint const context_config[] = { EGL_CONTEXT_CLIENT_VERSION , 2, EGL_NONE };
 	EGLint num_config;
 
-	glRenderContext.display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
+	glRenderContext.display = eglGetDisplay(display);
+	if(glRenderContext.display == EGL_NO_DISPLAY) {
+		std::cout << "Could not create EGL Display" << std::endl;
+	}
 	eglInitialize(glRenderContext.display, nullptr, nullptr);
 	eglChooseConfig(glRenderContext.display, attribute_list, &glRenderContext.config, 1, &num_config);
 	
 	/* create an EGL rendering context */
+	eglBindAPI(EGL_OPENGL_API);
 	glRenderContext.context = eglCreateContext(glRenderContext.display, glRenderContext.config, EGL_NO_CONTEXT, context_config);
-	glRenderContext.surface = eglCreateWindowSurface(glRenderContext.display, glRenderContext.config, NULL, nullptr);
+	glRenderContext.surface = eglCreateWindowSurface(glRenderContext.display, glRenderContext.config, window_handle, nullptr);
+	if(glRenderContext.surface == EGL_NO_SURFACE) {
+		std::cout << "Could not create EGL Surface" << std::endl;
+	}
 	if(!eglMakeCurrent(glRenderContext.display, glRenderContext.surface, glRenderContext.surface, glRenderContext.context))
 	{
 		lastError = RendererError::FailedToCreateRenderContext;
@@ -378,7 +392,7 @@ namespace olc::gpu
 		X11::glXMakeCurrent(display, 0, NULL);
 		X11::glXDestroyContext(display, glRenderContext);
 #endif
-#if OLC_HOST == OLC_HOST_EMSCRIPTEN
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN || OLC_HOST == OLC_HOST_LINUX_WAYLAND
 		eglMakeCurrent(glRenderContext.display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
 		eglDestroyContext(glRenderContext.display, glRenderContext.context);
 		eglDestroySurface(glRenderContext.display, glRenderContext.surface);
@@ -420,7 +434,7 @@ namespace olc::gpu
 			return false;
 		}
 #endif
-#if OLC_HOST == OLC_HOST_EMSCRIPTEN
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN || OLC_HOST == OLC_HOST_LINUX_WAYLAND
 	if(!eglMakeCurrent(glRenderContext.display, glRenderContext.surface, glRenderContext.surface, glRenderContext.context))
 	{
 		lastError = RendererError::FailedToSwitchRenderContext;
@@ -951,6 +965,13 @@ namespace olc::gpu
 		const auto window_handle = reinterpret_cast<X11::Window>(os_win_id[0]);
 		auto* display = reinterpret_cast<X11::Display*>(os_win_id[1]);
 		X11::glXSwapBuffers(display, window_handle);
+#endif
+
+#if OLC_HOST == OLC_HOST_LINUX_WAYLAND
+	const auto* wayland_window = reinterpret_cast<olc::host::WaylandWindow*>(os_win_id[0]);
+	//auto* window_handle = wayland_window->window;
+	//auto* display = reinterpret_cast<wl_display*>(os_win_id[1]);
+	eglSwapBuffers(glRenderContext.display, glRenderContext.surface);
 #endif
 
 #if OLC_HOST == OLC_HOST_EMSCRIPTEN

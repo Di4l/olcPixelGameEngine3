@@ -41,7 +41,7 @@
 
 	#if defined(__linux__) || defined(__FreeBSD__)
 		// Note: Assumes X11 atm
-		#define OLC_HOST OLC_HOST_LINUX_X11
+		#define OLC_HOST OLC_HOST_LINUX_WAYLAND
 	#endif
 
 	#if defined(__APPLE__)
@@ -83,7 +83,7 @@
 	#define OLC_IMAGELOADER OLC_IMAGELOADER_MACOS
 #endif
 
-#if OLC_HOST == OLC_HOST_LINUX_X11
+#if OLC_HOST == OLC_HOST_LINUX_X11 || OLC_HOST == OLC_HOST_LINUX_WAYLAND
 	#undef OLC_IMAGELOADER
 	#define OLC_IMAGELOADER OLC_IMAGELOADER_LIB_PNG
 #endif

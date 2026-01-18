@@ -149,6 +149,12 @@
 //! GRAB host_lin_x11.h DECLARATION
 #endif
 
+#if OLC_HOST == OLC_HOST_LINUX_WAYLAND
+//! GRAB host_lin_wayland.h WAYLAND_CONFIG
+
+//! GRAB host_lin_wayland.h DECLARATION
+#endif
+
 #if OLC_HOST == OLC_HOST_EMSCRIPTEN
 //! GRAB host_web_emscripten.h EMSCRIPTEN_CONFIG
 
@@ -196,6 +202,10 @@
 
 #if OLC_HOST == OLC_HOST_LINUX_X11
 //! GRAB host_lin_x11.cpp IMPLEMENTATION
+#endif
+
+#if OLC_HOST == OLC_HOST_LINUX_WAYLAND
+//! GRAB host_lin_wayland.cpp IMPLEMENTATION
 #endif
 
 #if OLC_HOST == OLC_HOST_EMSCRIPTEN
