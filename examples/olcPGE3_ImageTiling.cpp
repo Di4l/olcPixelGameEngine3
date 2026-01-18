@@ -80,8 +80,8 @@ public:
 		// assume the origin of the world
 		float fScreenRadius = (vBottomRight - vTopLeft).mag() * 0.5f;
 		olc::vi2d vVisibleGridExtents = {
-			static_cast<int>(std::ceil(fScreenRadius / 16.0f)),
-			static_cast<int>(std::ceil(fScreenRadius / 16.0f))
+			(int)(std::ceil(fScreenRadius / 16.0f)),
+			(int)(std::ceil(fScreenRadius / 16.0f))
 		};
 
 		// Find center of screen in world space
