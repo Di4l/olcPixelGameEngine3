@@ -34,7 +34,7 @@
 	License (OLC-3)
 	~~~~~~~~~~~~~~~
 
-	Copyright 2018 - 2025 OneLoneCoder.com
+	Copyright 2018 - 2026 OneLoneCoder.com
 
 	Redistribution and use in source and binary forms, with or without modification,
 	are permitted provided that the following conditions are met:
@@ -79,6 +79,30 @@
 	GitHub:		https://www.github.com/onelonecoder
 	Homepage:	https://www.onelonecoder.com
 	Patreon:	https://www.patreon.com/javidx9
+
+	AI Disclosure
+	~~~~~~~~~~~~~
+	Parts of this code may have been generated with the assistance of AI tools. Instances
+	of such usage have typically been restricted to the tedious and repetitious through 
+	the use of auto-completion and other small code generation helpers. This community
+	driven project has been developed on numerous platforms, across countless tools and
+	environments, by different people over a number of years. As such, it is impossible
+	to categorically state which sections of code may have had AI assistance. Regardless,
+	the entire codebase has been architected, reviewed and tested by human developers
+	mostly for fun and learning purposes, and is intended to be used in that spirit.
+
+	Primary Contributors
+	~~~~~~~~~~~~~~~~~~~~
+	@javidx9 (aka David Barr, OneLoneCoder)
+	@Moros1198, @dandistine, @johnnyg63, @iCiaran
+
+	With assistance from all of the developers of olc::PixelGameEngine 2 over the years,
+	and the many community contributors that have provided bug fixes, suggestions,
+	criticisms, and encouragement from the OneLoneCoder Discord server, YouTube & GitHub.
+
+	Version History
+	~~~~~~~~~~~~~~~
+	v3.00: It begins...
 */
 
 
@@ -106,6 +130,7 @@
 #include <mutex>
 #include <stdexcept>
 #include <exception>
+#include <condition_variable>
 #include <atomic>
 #include <sstream>
 #include <source_location>
@@ -3064,6 +3089,7 @@ extern "C" {
     void opengl_makeCurrentContext        (struct OpenGLRenderer* self);        // Make OpenGL context current
     void opengl_setVsync                  (struct OpenGLRenderer* self, BOOL enabled); // Enable/disable vsync
     void opengl_destroy                   (struct OpenGLRenderer* self);
+    bool opengl_resetContextForSize       (struct OpenGLRenderer* self, double width, double height);
 
     // Image Loader API - as implemented in api_macos.c
     struct ImageLoader* imageloader_init        (void);
@@ -3671,7 +3697,20 @@ namespace olc {
                     }
                 }
                 
+                bool resetContextSize(int32_t width, int32_t height) noexcept {
+                    return resetContextSize(static_cast<double>(width), static_cast<double>(height));
+                }
 
+                bool resetContextSize(float width, float height) noexcept {
+                    return resetContextSize(static_cast<double>(width), static_cast<double>(height));
+                }
+
+                bool resetContextSize(double width, double height) noexcept {
+                    if (renderer_) {
+                        return opengl_resetContextForSize(renderer_, width, height);
+                    }
+                    return false;
+                }
                 
                 void* getOpenGLContext() const noexcept {
                     return renderer_ ? opengl_getOpenGLContext(renderer_) : nullptr;
@@ -4102,7 +4141,7 @@ namespace olc
 			HostError lastError = HostError::None;
 
         public:
-            // Internal Mac OS functions
+          
             // MacOS Application and Window pointers
             std::unique_ptr<olc::apis::macos::Application> pMacApplication = nullptr;
             std::unique_ptr<olc::apis::macos::Window> pMacOSWindow = nullptr;
@@ -4114,14 +4153,36 @@ namespace olc
     
             
         private:
-                        
-            bool bApplicationInitialized = false;       // Flag to indicate application has initialized
-            bool bWindowInitialized = false;            // Flag to indicate window has initialized
-            bool bEventHandlerInitialized = false;      // Flag to indicate event handler has initialized
-            bool bInitializeOpenGLRenderer = false;     // Flag to indicate OpenGL renderer should be initialized
+                       
+            enum MAINTASKS{
+                NONE,
+                CREATE_OPENGL_RENDERER,
+                RESIZE_WINDOW,
+                BECOME_ACTIVE,
+                RESIGN_ACTIVE,
+                MINIMIZE_WINDOW,
+                DEMINIMIZE_WINDOW
+            };
+            
+            // Internal Mac OS functions
+            bool ExecutePendingMainThreadTasks(void);       // Execute pending tasks on main thread
+            bool MainThreadTasks(void);                     // Handle main thread tasks
+            bool AddPendingMainThreadTask(MAINTASKS task);  // Add a pending task to main thread. Note: You should ever add tasks that require main thread execution only from the PGE thread
+            bool CreateCGLContextObj();                     // Create CGL Context Object
+            std::vector<MAINTASKS> vPendingMainThreadTasks; // Vector of pending main thread tasks
+            
             std::vector<void*> vMacOSWindowDescriptors; // Vector to hold window descriptors
             bool enableVSync = false;                   // VSync enabled flag
-            const uint16_t raceConditionTimeoutMS = 1;  // Race condition sleep time in milliseconds
+            bool bSkipFrame = false;                     // Flag to indicate if frame should be skipped 
+
+            // Thread synchronization for PGE Thread V Main thread
+            mutable std::mutex      mainThreadPendingTasksMutex;    // Mutex for main thread pending tasks
+            std::condition_variable mainThreadResetCondition;       // Condition variable for main thread reset
+            std::atomic<bool>       isMainThreadResetting{false};   // Atomic flag for resetting main thread 
+
+            mutable std::mutex      pgeThreadPendingTasksMutex;    // Mutex for PGE thread pending tasks
+            std::condition_variable pgeThreadResetCondition;       // Condition variable for PGE thread reset
+            std::atomic<bool>       isPGEThreadResetting{true};    // Atomic flag for resetting PGE thread
 
             struct sFrameBounds
             {
@@ -5266,7 +5327,7 @@ namespace olc::host
 #endif
 #if OLC_HOST == OLC_HOST_MACOS
 namespace olc::host {
-    
+
     bool Host_Apple_MacOS::StartSystemEventLoop(bool bBlockIfPossible)
     {
         (void)(bBlockIfPossible); // Remove unused variable warning
@@ -5284,9 +5345,7 @@ namespace olc::host {
         
         // Initialize the MacOS Window
         pMacOSWindow = std::make_unique<olc::apis::macos::Window>(frameBounds.width, frameBounds.height, "OLC PGE 3 MacOS Demo");
-        
         pMacOSWindow->setPosition(frameBounds.x, frameBounds.y);
-        
         pMacOSWindow->setContentViewPosition(0, 0);
         
         // Set up window event handlers
@@ -5301,9 +5360,6 @@ namespace olc::host {
         // Create the window
         pMacOSWindow->show();
         pMacOSEventHandler->enable();
-        
-        // Tell the PGE engine we have an OpenGL context ready
-        bInitializeOpenGLRenderer = true;
         
         // Start the main event loop (this will block)
         pMacApplication->run();
@@ -5349,35 +5405,13 @@ namespace olc::host {
 
     std::vector<void*> Host_Apple_MacOS::GetHostWindowDescriptor(olc::Window* pWindow)
     {
-        // We need to manage a race condition here. The window is created on the main thread
-        while(!bInitializeOpenGLRenderer)
-        {
-            std::this_thread::sleep_for(std::chrono::milliseconds(raceConditionTimeoutMS));
-        }
+               
+        // While the PGE is running, if there are pending main thread tasks, process them, this causes PGE to wait
+        bSkipFrame = ExecutePendingMainThreadTasks();
         
+        // Ensure OpenGL renderer is created
         if(pMacOSOpenGLRenderer == nullptr)
-        {
-            vMacOSWindowDescriptors.clear(); // ensure we are starting fresh
-            pMacOSOpenGLRenderer = std::make_shared<olc::apis::macos::OpenGLRenderer>();
-            
-            dispatch_sync(dispatch_get_main_queue(), ^{
-                 // Edge case for when the window is auto resize due to MacOS clamping to screen size
-                pMacOSWindow->getContentViewSize(frameBounds.width, frameBounds.height);
-                pPGEwindow->olc_OnWindowSize({static_cast<int>(frameBounds.width), static_cast<int>(frameBounds.height)});
-
-                pMacOSOpenGLRenderer->attachToWindow(*pMacOSWindow);
-                pMacOSOpenGLRenderer->setupContext();
-            });
-            
-            pMacGLConextObj = pMacOSOpenGLRenderer->getCGLContextObj();
-            
-            pMacOSOpenGLRenderer->setVsync(false);
-            
-            vMacOSWindowDescriptors.push_back(pMacGLConextObj);
-
-             // Set up OpenGL renderer for visual feedback
-            pMacOSOpenGLRenderer->makeCurrentContext();
-        }
+            CreateCGLContextObj();
 
         return vMacOSWindowDescriptors;
        
@@ -5390,6 +5424,12 @@ namespace olc::host {
 
     bool Host_Apple_MacOS::SyncWithDesktopComposite()
     {
+        /*
+         core.h SyncWithDesktopComposite is only called when vSync is enabled on each frame,
+         the method of enabling vSync varies between platforms, For macos we use a local var enableVSync,
+         set to false and toggle it on first call, so that vSync is only enabled once
+         */
+        
         if(!enableVSync)
         {
             pMacOSOpenGLRenderer->enableVsync();
@@ -5399,6 +5439,147 @@ namespace olc::host {
         return enableVSync;
     }
 
+// ------- Priavate Main Thread Task Handling for MacOS Host -------
+
+    bool Host_Apple_MacOS::CreateCGLContextObj()
+    {
+        // This method should only be called on the PGE thread, use AddPendingMainThreadTask(CREATE_OPENGL_RENDERER); to queue it if needed
+        if(pMacOSOpenGLRenderer == nullptr)
+       {
+           vMacOSWindowDescriptors.clear(); // ensure we are starting fresh
+           pMacOSOpenGLRenderer = std::make_shared<olc::apis::macos::OpenGLRenderer>();
+           
+           dispatch_sync(dispatch_get_main_queue(), ^{
+                // Edge case for when the window is auto resize due to MacOS clamping to screen size
+               pMacOSWindow->getContentViewSize(frameBounds.width, frameBounds.height);
+               pPGEwindow->olc_OnWindowSize({static_cast<int>(frameBounds.width), static_cast<int>(frameBounds.height)});
+
+               pMacOSOpenGLRenderer->attachToWindow(*pMacOSWindow);
+               pMacOSOpenGLRenderer->setupContext();
+           });
+           
+           pMacGLConextObj = pMacOSOpenGLRenderer->getCGLContextObj();
+           
+           pMacOSOpenGLRenderer->setVsync(false);
+           
+           vMacOSWindowDescriptors.push_back(pMacGLConextObj); // Pointer to CGLContextObj
+           vMacOSWindowDescriptors.push_back(&bSkipFrame);     // Pointer to skip frame flag
+
+            // Set up OpenGL renderer for visual feedback
+           pMacOSOpenGLRenderer->makeCurrentContext();
+       }
+        
+        return true;
+    }
+
+    bool Host_Apple_MacOS::ExecutePendingMainThreadTasks()
+    {
+        // 1: Check if main thread wants us to wait
+        std::unique_lock<std::mutex> lock(pgeThreadPendingTasksMutex);
+        
+        if (isPGEThreadResetting.load()) {
+            
+            // 2. PGE Thread signals it's waiting
+            {
+                std::lock_guard<std::mutex> mainLock(mainThreadPendingTasksMutex);
+                isMainThreadResetting = true;  // Signal to main thread we're waiting
+            }
+            mainThreadResetCondition.notify_all();  // Wake up main thread
+
+            // Note: MainThreadTasks(); will be called by the main thread to process tasks
+            
+            // 3. PGE Thread waits for main thread to finish
+            pgeThreadResetCondition.wait(lock, [this] { 
+                return !isPGEThreadResetting.load(); 
+            });
+
+            //4: return true indicating we processed tasks
+            return true;
+        }
+        else
+        {
+            // No pending tasks, just return
+            return false;
+        }
+    }
+
+    bool Host_Apple_MacOS::AddPendingMainThreadTask(MAINTASKS task)
+    {
+        // NOTE: Note: You should only add tasks that require main thread execution
+        vPendingMainThreadTasks.push_back(task);
+        MainThreadTasks();
+            
+        return true;
+    }
+    
+    bool Host_Apple_MacOS::MainThreadTasks()
+    {
+        bool res = false;
+        if(vPendingMainThreadTasks.empty())
+            return res;         // edge case
+        
+        // 1. Main Thread locks PGE Thread
+        {
+            std::lock_guard<std::mutex> lock(pgeThreadPendingTasksMutex);
+            isPGEThreadResetting = true;  // Signal PGE to stop
+        }
+        pgeThreadResetCondition.notify_all();  // Wake up PGE thread to check flag
+        
+        // 2. Main Thread waits for PGE Thread to acknowledge and wait
+        std::unique_lock<std::mutex> lock(mainThreadPendingTasksMutex);
+        mainThreadResetCondition.wait(lock, [this] {
+            return isMainThreadResetting.load(); // Wait until PGE signals it's waiting
+        });
+        
+        // Process any pending main thread tasks
+        for (const auto& task : vPendingMainThreadTasks)
+        {
+            switch (task)
+            {
+                case CREATE_OPENGL_RENDERER:
+                {
+                    // In this case, the PGE will be waiting for main thread to singal, so the ContextOBJ can be created
+                    res = false; // No need to skip frame
+                    break;
+                }
+                case RESIZE_WINDOW:
+                {
+                    // Resize window on main thread
+                    pMacOSWindow->getContentViewSize(frameBounds.width, frameBounds.height);
+                    pPGEwindow->olc_OnWindowSize({static_cast<int>(frameBounds.width), static_cast<int>(frameBounds.height)});
+                    pMacOSOpenGLRenderer->resetContextSize(frameBounds.width, frameBounds.height);
+                    res = true; // Skip frame to allow resize to take effect
+                    break;
+                }
+                case MINIMIZE_WINDOW:
+                case DEMINIMIZE_WINDOW:
+                case BECOME_ACTIVE:
+                case RESIGN_ACTIVE:
+                case NONE:
+                default:
+                {
+                    res = false;
+                    break;
+                }
+                    
+            }
+        }
+        vPendingMainThreadTasks.clear();
+        
+        // Release any locks on the PGE
+        // 4. Main Thread unlocks PGE Thread
+        {
+            std::lock_guard<std::mutex> lock(pgeThreadPendingTasksMutex);
+            isPGEThreadResetting = false;  // Release PGE thread
+            isMainThreadResetting = false; // Reset main thread flag
+        }
+        pgeThreadResetCondition.notify_all();  // Wake up PGE thread
+
+        return res;
+        
+    }
+
+//------ Events Handlers -----
 
     void Host_Apple_MacOS::MacApplicationEventsHandler()
     {
@@ -5410,13 +5591,13 @@ namespace olc::host {
        
        pMacApplication->setDidFinishLaunchingCallback([&]() {
            //std::cout << "--> Application delegate: Did finish launching" << std::endl;
-           // Tell the PGE 3.0 we have looded the application
-           bApplicationInitialized = true;
+           // Queue the Create OpenGL context task
+           vPendingMainThreadTasks.push_back(CREATE_OPENGL_RENDERER);
        });
        
        pMacApplication->setWillTerminateCallback([&]() {
            //std::cout << "--> Application delegate: Will terminate" << std::endl;
-           // TODO: Johnngy63 - Implement olc_OnApplicationTerminate in window.h/cpp
+           // TODO: Johnngy63 - Implement olc_OnDestory in window.h/cpp
            
        });
        
@@ -5434,13 +5615,8 @@ namespace olc::host {
     {
         // Window event handling code here
         pMacOSWindow->setWindowDidResizeCallback([&]() {
-            dispatch_async(dispatch_get_main_queue(), ^{
-                double width, height;
-                pMacOSWindow->getContentViewSize(width, height);
-                //pPGEwindow->olc_OnWindowSize({static_cast<int>(width), static_cast<int>(height)});
-            });
-          
-
+            AddPendingMainThreadTask(RESIZE_WINDOW);
+            
         });
 
         pMacOSWindow->setWindowWillCloseCallback([&]() {
@@ -5451,28 +5627,30 @@ namespace olc::host {
 
         pMacOSWindow->setWindowDidBecomeKeyCallback([&]() {
             //TODO: Johnngy63 - Implement olc_OnWindowFocus in window.h/cpp
+            AddPendingMainThreadTask(BECOME_ACTIVE);
         });
 
         pMacOSWindow->setWindowDidResignKeyCallback([&]() {
             //TODO: Johnngy63 - Implement olc_OnWindowFocus in window.h/cpp
+            
         });
        
-        pMacOSWindow->setWindowDidMiniaturizeCallback([]() {
-            //todo: Johnngy63 - Implement olc_OnWindowMinimize in window.h/cpp if needed
+        pMacOSWindow->setWindowDidMiniaturizeCallback([&]() {
+            //TODO: Johnngy63 - Implement olc_OnWindowMinimize in window.h/cpp if needed
+            AddPendingMainThreadTask(MINIMIZE_WINDOW);
         });
        
-        pMacOSWindow->setWindowDidDeminiaturizeCallback([]() {
+        pMacOSWindow->setWindowDidDeminiaturizeCallback([&]() {
             //TODO: Johnngy63 - Implement olc_OnWindowFocus in window.h/cpp if needed
+            AddPendingMainThreadTask(DEMINIMIZE_WINDOW);
         });
         
-        // Tell the PGE engine we have a window initialized
-        bWindowInitialized = true;
     }
 
 
     void Host_Apple_MacOS::MacEventsHandler()
     {
-        // General MacOS event handling code here
+        // General MacOS key event handling code here
         // Reference: https://eastmanreference.com/complete-list-of-applescript-key-codes
 
         // Set up keyboard event handlers
@@ -5561,16 +5739,11 @@ namespace olc::host {
             pPGEwindow->olc_OnMouseMove({static_cast<int>(event.x), static_cast<int>(event.y)});
         });
 
-       
-
         pMacOSEventHandler->onScrollWheel([&](const olc::apis::macos::ScrollWheelEvent& event) {
             // Although MacOS provides both deltaX and deltaY, we will only use deltaY for vertical scrolling
             pPGEwindow->olc_OnMouseWheel(static_cast<int>(event.deltaY));
         });
         
-        // Tell the PGE engine we have an event handler initialized
-        bEventHandlerInitialized = true;
-
     }
 
 
@@ -6052,6 +6225,10 @@ static constexpr int NSOpenGLPFAColorSize     = static_cast<int>(NSOpenGLPixelFo
 static constexpr int NSOpenGLPFADepthSize     = static_cast<int>(NSOpenGLPixelFormatAttribute::DepthSize);
 static constexpr int NSOpenGLPFAAccelerated   = static_cast<int>(NSOpenGLPixelFormatAttribute::Accelerated);
 static constexpr int NSOpenGLPFAOpenGLProfile = static_cast<int>(NSOpenGLPixelFormatAttribute::OpenGLProfile);
+static constexpr int NSOpenGLPFASampleBuffers = static_cast<int>(NSOpenGLPixelFormatAttribute::SampleBuffers);
+static constexpr int NSOpenGLPFAMultisample        = static_cast<int>(NSOpenGLPixelFormatAttribute::Multisample);
+static constexpr int NSOpenGLAllowOfflineRenderers = static_cast<int>(NSOpenGLPixelFormatAttribute::AllowOfflineRenderers);
+static constexpr int NSOpenGLPFAAcceleratedCompute = static_cast<int>(NSOpenGLPixelFormatAttribute::AcceleratedCompute);
 
 // enum for OpenGL profile versions
 enum class NSOpenGLProfile : int {
@@ -6205,7 +6382,8 @@ struct Application {
 struct Window {
     id nsWindow{nullptr};           // NSWindow instance
     id delegate{nullptr};           // Window delegate instance
-    NSRect windowFrame{};                 // Window frame rectangle
+    OpenGLRenderer* renderer{nullptr}; // Associated OpenGL renderer
+    NSRect windowFrame{};           // Window frame rectangle
     NSRect contentViewFrame{};      // Content view frame rectangle
     const char* title{nullptr};     // Window title string
 
@@ -6262,11 +6440,12 @@ struct Window {
 
 // Modern OpenGL context management and rendering operations
 struct OpenGLRenderer {
-    id pixelFormat{nullptr};          // NSOpenGLPixelFormat instance
-    id glView{nullptr};               // NSOpenGLView instance
-    id glContext{nullptr};            // NSOpenGLContext instance
-    Window* window{nullptr};          // Associated window pointer
-    
+    id pixelFormat{nullptr};                     // NSOpenGLPixelFormat instance
+    id glView{nullptr};                          // NSOpenGLView instance
+    id glContext{nullptr};                       // NSOpenGLContext instance
+    unsigned int MSAA_Samples{OLC_MSAA_SAMPLES}; // Multisample anti-aliasing samples
+    Window* window{nullptr};                     // Associated window pointer
+
     // Method function pointers with nullptr initialization
     void (*initialize)            (struct OpenGLRenderer* self, Window* window){nullptr};
     void (*setupContext)          (struct OpenGLRenderer* self){nullptr};
@@ -6278,6 +6457,8 @@ struct OpenGLRenderer {
     void (*makeCurrentContext)    (struct OpenGLRenderer* self){nullptr};
     void (*setVsync)              (struct OpenGLRenderer* self, BOOL enabled){nullptr};
     void (*destroy)               (struct OpenGLRenderer* self){nullptr};
+    bool (*resetContextForSize)   (struct OpenGLRenderer* self, double width, double height){nullptr};
+
 };
 
 // Modern image loading and pixel data extraction
@@ -6709,6 +6890,11 @@ void windowDidResize(id self, SEL _cmd, id notification) {
     if (gptrWindowDelegate && gptrWindowDelegate->nsWindow) {
         // Safely update frame data only - no OpenGL operations
         window_updateFrameFromOSX(gptrWindowDelegate);
+
+         // Get the new content view size
+        double width, height;
+        window_getContentViewFrame(gptrWindowDelegate, nullptr, nullptr, &width, &height);
+
         if (gptrWindowDelegate->windowDidResizeCallback) {
             gptrWindowDelegate->windowDidResizeCallback(gptrWindowDelegate->windowDidResizeUserData);
         }
@@ -7105,25 +7291,47 @@ extern "C" {
     // Initialize OpenGL renderer
     void opengl_initialize(OpenGLRenderer* self, Window* window) {
         self->window = window;
+        window->renderer = self;
         
         // Get classes using const strings
         Class NSOpenGLPixelFormatClass  = objc_getClass(kNSOpenGLPixelFormatClass);
         Class CustomOpenGLViewClass     = createCustomOpenGLViewClass(); // Use our custom class
         
-        // Create pixel format attributes array using enum values
-        const unsigned int attrs[] = {
-            NSOpenGLPFADoubleBuffer,                                        // Enable double buffering
-            NSOpenGLPFADepthSize,        32,                                // 32-bit depth buffer
-            NSOpenGLPFAColorSize,        24,                                // 24-bit color
-            NSOpenGLPFAAccelerated,                                         // Hardware acceleration
-            NSOpenGLPFAOpenGLProfile,    NSOpenGLProfileVersion4_1Core,     // OpenGL 4.1 Core Profile
-            0                                                               // null terminator
-        };
-        
-        // Create pixel format
-        self->pixelFormat = ((id(*)(id, SEL, const unsigned int*))objc_msgSend)(
-            ((id(*)(Class, SEL))objc_msgSend)(NSOpenGLPixelFormatClass, ObjectiveCSEL::allocSel),
-            ObjectiveCSEL::initWithAttributesSel, attrs);
+        unsigned int sampleBuffers = (self->MSAA_Samples > 0) ? 1 : 0;
+        std::vector<unsigned int> preferredSamples = {32, 16, 8, 4, 2, 0};
+        if(self->MSAA_Samples <= 0) {
+            // If no multisampling requested, only try 0 samples
+            preferredSamples.clear();
+            preferredSamples.resize(1);
+            preferredSamples.push_back(0);
+        }
+
+        for(unsigned int samples: preferredSamples)
+        {
+            // Create pixel format attributes array using enum values
+            const unsigned int attrs[] = {
+                NSOpenGLPFADoubleBuffer,                                        // Enable double buffering
+                NSOpenGLPFADepthSize,        32,                                // 32-bit depth buffer
+                NSOpenGLPFAColorSize,        24,                                // 24-bit color
+                NSOpenGLPFAAccelerated,                                         // Hardware acceleration
+                NSOpenGLAllowOfflineRenderers,                                  // Allow offline renderers
+                NSOpenGLPFAOpenGLProfile,    NSOpenGLProfileVersion4_1Core,     // OpenGL 4.1 Core Profile
+                NSOpenGLPFAMultisample,      samples,                           // 0x --> 32X Multisampling
+                NSOpenGLPFASampleBuffers,    sampleBuffers,                     // Number of sample buffers
+                0                                                               // null terminator
+            };
+            
+            // Create pixel format
+            self->pixelFormat = ((id(*)(id, SEL, const unsigned int*))objc_msgSend)(
+                ((id(*)(Class, SEL))objc_msgSend)(NSOpenGLPixelFormatClass, ObjectiveCSEL::allocSel),
+                ObjectiveCSEL::initWithAttributesSel, attrs);
+            
+            // Check if pixel format was created successfully
+            if (self->pixelFormat) {
+                self->MSAA_Samples = samples;
+                break; // Successfully created pixel format
+            }
+        }
         
         // Create custom OpenGL view with event handling
         NSRect glViewFrame = {0.0, 0.0, window->contentViewFrame.width, window->contentViewFrame.height};
@@ -7163,6 +7371,33 @@ extern "C" {
             // Handle error if needed
             //printf("Warning: OpenGL view cannot become key view.\n");
         }
+
+    }
+
+    // Implementation function
+    bool opengl_resetContextForSize(OpenGLRenderer* self, double width, double height) {
+        if (!self || !self->glContext || !self->glView) {
+            return false;
+        }
+        
+        // Make context current
+        ((void(*)(id, SEL))objc_msgSend)(self->glContext, ObjectiveCSEL::makeCurrentContextSel);
+        
+        // Update the view frame
+        NSRect newFrame = {0.0, 0.0, width, height};
+        ((void(*)(id, SEL, NSRect))objc_msgSend)(self->glView, ObjectiveCSEL::setFrameSel, newFrame);
+        
+        // Force context to reshape
+        ((void(*)(id, SEL))objc_msgSend)(self->glView, ObjectiveCSEL::reshapeSel);
+        ((void(*)(id, SEL))objc_msgSend)(self->glContext, ObjectiveCSEL::updateSel);
+        
+        // Update viewport
+        glViewport(0, 0, (GLsizei)width, (GLsizei)height);
+        
+        // Clear buffers
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        return true;
 
     }
 
@@ -7241,6 +7476,7 @@ extern "C" {
         renderer->makeCurrentContext     = opengl_makeCurrentContext;
         renderer->setVsync               = opengl_setVsync;
         renderer->destroy                = opengl_destroy;
+        renderer->resetContextForSize    = opengl_resetContextForSize;
 
         return renderer;
     }
@@ -9563,10 +9799,10 @@ void main()
         
 		// os_win_id[0] is the OLC OpenGL Device Context      
         glRenderContext = (olc::apis::opengl::glRenderContext_t)os_win_id[0];
-        if (!glRenderContext) {
-            lastError = RendererError::FailedToCreateRenderContext;
-            return false;
-        }
+        if (CGLSetCurrentContext((CGLContextObj)glRenderContext) != kCGLNoError) {
+			lastError = RendererError::FailedToSwitchRenderContext;
+			return false;
+		}
 
 #endif
 
@@ -9718,7 +9954,8 @@ void main()
 		wglDeleteContext(glRenderContext);
 #endif
 #if OLC_HOST == OLC_HOST_MACOS
-        //TODO: Add MacOS destroy context code
+		CGLSetCurrentContext(NULL);
+		CGLDestroyContext((CGLContextObj)glRenderContext);
 #endif
 #if OLC_HOST == OLC_HOST_LINUX_X11
 		auto* display = X11::XOpenDisplay(nullptr);
@@ -9750,10 +9987,9 @@ void main()
 		ReleaseDC((HWND)(os_win_id[0]), glDeviceContext);
 #endif
 #if OLC_HOST == OLC_HOST_MACOS
-
-		CGLContextObj cglContext = (CGLContextObj)glRenderContext;
-		if (!CGLSetCurrentContext(cglContext))
-		{
+    
+        auto glDeviceContext = (olc::apis::opengl::glRenderContext_t)os_win_id[0];
+		if (CGLSetCurrentContext((CGLContextObj)glDeviceContext) != kCGLNoError) {
 			lastError = RendererError::FailedToSwitchRenderContext;
 			return false;
 		}
@@ -9805,13 +10041,13 @@ void main()
 		ReleaseDC((HWND)(os_win_id[0]), glDeviceContext);
 #endif
 #if OLC_HOST == OLC_HOST_MACOS
-        
-		// params[0] is the OLC OpenGL Device Context      
+             
+        // params[0] is the OLC OpenGL Device Context      
         glRenderContext = (olc::apis::opengl::glRenderContext_t)os_win_id[0];
-        if (!glRenderContext) {
-            lastError = RendererError::FailedToCreateRenderContext;
-            return false;
-        }
+		if (CGLSetCurrentContext((CGLContextObj)glRenderContext) != kCGLNoError) {
+			lastError = RendererError::FailedToSwitchRenderContext;
+			return false;
+		}
 
 #endif
 		return true;
@@ -10356,8 +10592,11 @@ void main()
 #endif	
 
 #if OLC_HOST == OLC_HOST_MACOS
-        glFlushRenderAPPLE();
-        glSwapAPPLE();
+		// The pointer value in os_win_id[1] will be set to true, when the OS requests to skip the frame swap
+        const bool* bSkipFrame = static_cast<const bool*>(os_win_id[1]);
+		if (*bSkipFrame) return true;
+		CGLContextObj cglContext = static_cast<CGLContextObj>(os_win_id[0]);
+		CGLFlushDrawable(cglContext);
        
 #endif
 
@@ -13189,4 +13428,22 @@ namespace olc::imload
 #endif
 #define PGE_IMAGELOADER_IMPLEMENTED 1
 #endif
+
+/*
+
+So you scrolled all this way huh ? In that case:
+
+28 04 56 02 0D   16 5D            4A 15 19 49 01 
+19 5A 02 41 19   1D 0C            1D 4B 4A 4C 56
+0A 0B    1C 50   04 06            56 00 
+17 58    51 0B   13 12            49 01 
+16 56    1F 06   1E 49            13 11 
+4D 02    0E 03   1D 44            1A 5C 
+06 08    02 1D   08 11            57 0D 
+41 13 08 07 10   19 05 15 1E 0C   16 5F 4A 4A 00 
+14 00 08 11 4D   03 04 05 48 44   55 19 00 19 4F 
+
+*/
+
+// Thank you for using olcPixelGameEngine! :)
 

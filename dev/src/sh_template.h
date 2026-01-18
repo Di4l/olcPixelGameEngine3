@@ -34,7 +34,7 @@
 	License (OLC-3)
 	~~~~~~~~~~~~~~~
 
-	Copyright 2018 - 2025 OneLoneCoder.com
+	Copyright 2018 - 2026 OneLoneCoder.com
 
 	Redistribution and use in source and binary forms, with or without modification,
 	are permitted provided that the following conditions are met:
@@ -79,6 +79,30 @@
 	GitHub:		https://www.github.com/onelonecoder
 	Homepage:	https://www.onelonecoder.com
 	Patreon:	https://www.patreon.com/javidx9
+
+	AI Disclosure
+	~~~~~~~~~~~~~
+	Parts of this code may have been generated with the assistance of AI tools. Instances
+	of such usage have typically been restricted to the tedious and repetitious through 
+	the use of auto-completion and other small code generation helpers. This community
+	driven project has been developed on numerous platforms, across countless tools and
+	environments, by different people over a number of years. As such, it is impossible
+	to categorically state which sections of code may have had AI assistance. Regardless,
+	the entire codebase has been architected, reviewed and tested by human developers
+	mostly for fun and learning purposes, and is intended to be used in that spirit.
+
+	Primary Contributors
+	~~~~~~~~~~~~~~~~~~~~
+	@javidx9 (aka David Barr, OneLoneCoder)
+	@Moros1198, @dandistine, @johnnyg63, @iCiaran
+
+	With assistance from all of the developers of olc::PixelGameEngine 2 over the years,
+	and the many community contributors that have provided bug fixes, suggestions,
+	criticisms, and encouragement from the OneLoneCoder Discord server, YouTube & GitHub.
+
+	Version History
+	~~~~~~~~~~~~~~~
+	v3.00: It begins...
 */
 
 
@@ -267,4 +291,22 @@
 #endif
 #define PGE_IMAGELOADER_IMPLEMENTED 1
 #endif
+
+/*
+
+So you scrolled all this way huh ? In that case:
+
+28 04 56 02 0D   16 5D            4A 15 19 49 01 
+19 5A 02 41 19   1D 0C            1D 4B 4A 4C 56
+0A 0B    1C 50   04 06            56 00 
+17 58    51 0B   13 12            49 01 
+16 56    1F 06   1E 49            13 11 
+4D 02    0E 03   1D 44            1A 5C 
+06 08    02 1D   08 11            57 0D 
+41 13 08 07 10   19 05 15 1E 0C   16 5F 4A 4A 00 
+14 00 08 11 4D   03 04 05 48 44   55 19 00 19 4F 
+
+*/
+
+// Thank you for using olcPixelGameEngine! :)
 

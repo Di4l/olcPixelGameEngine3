@@ -34,6 +34,9 @@
     <Filter Include="Hosts\Windows Specific">
       <UniqueIdentifier>{52d920c4-c1cb-430a-91f7-11b69794b120}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Hosts\Wayland Specific">
+      <UniqueIdentifier>{469b9ff0-8c4d-48fe-9034-fe6f877aab29}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\pixel.h">
@@ -49,9 +52,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\src\core.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\host_lin_wayland.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\src\matrix3d.h">
@@ -141,6 +141,9 @@
     <ClInclude Include="..\src\host_win_winapi.h">
       <Filter>Hosts\Windows Specific</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\host_lin_wayland.h">
+      <Filter>Hosts\Wayland Specific</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\tests\test_main.cpp">
@@ -211,6 +214,9 @@
     </ClCompile>
     <ClCompile Include="..\src\host_win_winapi.cpp">
       <Filter>Hosts\Windows Specific</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\host_lin_wayland.cpp">
+      <Filter>Hosts\Wayland Specific</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>
