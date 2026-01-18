@@ -55,13 +55,36 @@ public:
 
 		void main()
 		{
-			// Horizontal Wobble
+			// 1) Horizontal Wobble
 			vec2 sample = vec2(
 				oTex.x + sin(oTex.y * frequency * pgeTargetSizeInPixels.y + pgeTotalTimeElapsed * 2.0) * amplitude, 
 				oTex.y
 			);
 
-			// Colour bias vertically
+
+
+			// 2) Sobel Edge Detection
+
+			// Sample 3x3 neighborhood for Sobel
+			vec2 pixelSize = pgeInverseTargetSizeInPixels;
+	
+			float tl = length(texture(pgeTexture, sample + vec2(-pixelSize.x, -pixelSize.y)).rgb);
+			float t  = length(texture(pgeTexture, sample + vec2(0.0, -pixelSize.y)).rgb);
+			float tr = length(texture(pgeTexture, sample + vec2(pixelSize.x, -pixelSize.y)).rgb);
+			float l  = length(texture(pgeTexture, sample + vec2(-pixelSize.x, 0.0)).rgb);
+			float r  = length(texture(pgeTexture, sample + vec2(pixelSize.x, 0.0)).rgb);
+			float bl = length(texture(pgeTexture, sample + vec2(-pixelSize.x, pixelSize.y)).rgb);
+			float b  = length(texture(pgeTexture, sample + vec2(0.0, pixelSize.y)).rgb);
+			float br = length(texture(pgeTexture, sample + vec2(pixelSize.x, pixelSize.y)).rgb);
+
+			// Apply Sobel Kernels
+			float sobelX = -tl + tr - 2.0 * l + 2.0 * r - bl + br;
+			float sobelY = -tl - 2.0 * t - tr + bl + 2.0 * b + br;
+
+			// Calculate edge magnitude
+			float edge = sqrt(sobelX * sobelX + sobelY * sobelY);
+
+			// 3) Colour bias vertically
 			float bias = oTex.y;
 			vec4 newCol = vec4(
 				oCol.r * bias,
@@ -70,8 +93,11 @@ public:
 				oCol.a
 			);
 
-			vec4 texColor = texture(pgeTexture, sample) * newCol;
-			pixel = vec4(texColor.rgb * texColor.a, texColor.a);
+
+			// 4) Combine effects			
+			vec4 texColour = texture(pgeTexture, sample) * oCol;
+			vec4 edgeColour = vec4(newCol * edge);
+			pixel = vec4(edgeColour.rgb * texColour.a, texColour.a);
 		}
 		)";
 
