@@ -59,11 +59,6 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="olcPixelGameEngine3.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-  </ItemGroup>
-  <ItemGroup>
     <Image Include="..\..\..\examples\assets\minsanity_texture.png">
       <Filter>Assets</Filter>
     </Image>
@@ -79,5 +74,10 @@
     <Image Include="..\..\..\examples\assets\tile_atlas_4x4_16x16.png">
       <Filter>Assets</Filter>
     </Image>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\..\olcPixelGameEngine3.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
