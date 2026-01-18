@@ -47,12 +47,17 @@
 #endif
 
 #if OLC_HOST == OLC_HOST_EMSCRIPTEN
+	#include <GL/gl.h>
 	#include <EGL/egl.h>
-	#include <GLES2/gl2.h>
+	#include <GLES3/gl3.h>
 	#define GL_GLEXT_PROTOTYPES
-	#include <GLES2/gl2ext.h>
+	#include <GLES3/gl2ext.h>
 	#include <emscripten/emscripten.h>
+	#define CALLSTYLE
+	#undef GL_CLAMP
 	#define GL_CLAMP GL_CLAMP_TO_EDGE
+
+	#define OGL_LOAD(t) ::t
 #endif
 
 #if !defined(CALLSTYLE)
@@ -92,6 +97,18 @@ namespace olc
 		typedef X11::GLXContext glRenderContext_t;
 #endif
 
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN
+	typedef void CALLSTYLE glShaderSource_t(GLuint shader, GLsizei size, const GLchar *const * string, const GLint * length);
+	typedef void glDeviceContext_t;
+	typedef struct
+	{
+		EGLDisplay display;
+		EGLContext context;
+		EGLSurface surface;
+		EGLConfig config;
+	} glRenderContext_t;
+#endif
+
 		typedef GLuint CALLSTYLE glCreateShader_t(GLenum type);
 		typedef GLuint CALLSTYLE glCreateProgram_t(void);
 		
@@ -123,8 +140,14 @@ namespace olc
 		typedef void CALLSTYLE glFramebufferTexture2D_t(GLenum target, GLenum attachment, GLenum textarget, GLuint texture, GLint level);
 		typedef void CALLSTYLE glDrawBuffers_t(GLsizei n, const GLenum* bufs);
 		typedef void CALLSTYLE glBlendFuncSeparate_t(GLenum srcRGB, GLenum dstRGB, GLenum srcAlpha, GLenum dstAlpha);
-
-		
+		typedef void CALLSTYLE glTexImage2DMultisample_t(GLenum target, GLsizei samples, GLint internalformat, GLsizei width, GLsizei height, GLboolean fixedsamplelocations);
+		typedef void CALLSTYLE glBlitFramebuffer_t(GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1, GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1, GLbitfield mask, GLenum filter);
+		typedef void CALLSTYLE glGenRenderbuffers_t(GLsizei n, GLuint* renderbuffers);
+		typedef void CALLSTYLE glBindRenderbuffer_t(GLenum target, GLuint renderbuffer);
+		typedef void CALLSTYLE glRenderbufferStorageMultisample_t(GLenum target, GLsizei samples, GLenum internalformat, GLsizei width, GLsizei height);
+		typedef void CALLSTYLE glFramebufferRenderbuffer_t(GLenum target, GLenum attachment, GLenum renderbuffertarget, GLuint renderbuffer);
+		typedef void CALLSTYLE glDeleteRenderbuffers_t(GLsizei n, const GLuint* renderbuffers);
+		typedef void CALLSTYLE glGetInternalformativ_t(GLenum target, GLenum internalformat, GLenum pname, GLsizei bufSize, GLint* params);
 
 #if OLC_HOST == OLC_HOST_WINDOWS
 		typedef void CALLSTYLE glSwapInterval_t(GLsizei n);
@@ -176,6 +199,15 @@ namespace olc
 			glFramebufferTexture2D_t* _glFramebufferTexture2D = nullptr;
 			glDrawBuffers_t* _glDrawBuffers = nullptr;
 			glBlendFuncSeparate_t* _glBlendFuncSeparate = nullptr;
+			glTexImage2DMultisample_t* _glTexImage2DMultisample = nullptr;
+			glBlitFramebuffer_t* _glBlitFramebuffer = nullptr;
+			glGenRenderbuffers_t* _glGenRenderbuffers = nullptr;
+			glBindRenderbuffer_t* _glBindRenderbuffer = nullptr;
+			glRenderbufferStorageMultisample_t* _glRenderbufferStorageMultisample = nullptr;
+			glFramebufferRenderbuffer_t* _glFramebufferRenderbuffer = nullptr;
+			glDeleteRenderbuffers_t* _glDeleteRenderbuffers = nullptr;
+			glGetInternalformativ_t* _glGetInternalformativ = nullptr;
+
 
 		public:
 			// Proxies allow switchable, clutter-free error checking
@@ -213,6 +245,16 @@ namespace olc
 			void glFramebufferTexture2D(GLenum target, GLenum attachment, GLenum textarget, GLuint texture, GLint level);
 			void glDrawBuffers(GLsizei n, const GLenum* bufs);
 			void glBlendFuncSeparate(GLenum srcRGB, GLenum dstRGB, GLenum srcAlpha, GLenum dstAlpha);
+			void glTexImage2DMultisample(GLenum target, GLsizei samples, GLint internalformat, GLsizei width, GLsizei height, GLboolean fixedsamplelocations);
+			void glBlitFramebuffer(GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1, GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1, GLbitfield mask, GLenum filter);
+			void glGenRenderbuffers(GLsizei n, GLuint* renderbuffers);
+			void glBindRenderbuffer(GLenum target, GLuint renderbuffer);
+			void glRenderbufferStorageMultisample(GLenum target, GLsizei samples, GLenum internalformat, GLsizei width, GLsizei height);
+			void glFramebufferRenderbuffer(GLenum target, GLenum attachment, GLenum renderbuffertarget, GLuint renderbuffer);
+			void glDeleteRenderbuffers(GLsizei n, const GLuint* renderbuffers);
+			void glGetInternalformativ(GLenum target, GLenum internalformat, GLenum pname, GLsizei bufSize, GLint* params);
+
+
 
 			// OpenGL1.2 Proxies (just keeps things tidy imo)
 			void glGenTextures(GLsizei n, GLuint* textures);
@@ -234,6 +276,24 @@ namespace olc
 			void glGetTexImage(GLenum target, GLint level, GLenum format, GLenum type, void* pixels);
 			void glHint(GLenum target, GLenum mode);
 			void glPolygonMode(GLenum face, GLenum mode);
+
+			// Constants
+			static constexpr GLenum GL_FRAMEBUFFER_COMPLETE_X = 0x8CD5;
+			static constexpr GLenum GL_TEXTURE_2D_MULTISAMPLE_X = 0x9100;
+			static constexpr GLenum GL_COLOR_ATTACHMENT0_X = 0x8CE0;
+			static constexpr GLenum GL_TEXTURE0_X = 0x84C0;
+			static constexpr GLenum GL_READ_FRAMEBUFFER_X = 0x8CA8;
+			static constexpr GLenum GL_DRAW_FRAMEBUFFER_X = 0x8ca9;
+			static constexpr GLenum GL_FRAMEBUFFER_X = 0x8D40;
+			static constexpr GLenum GL_ARRAY_BUFFER_X = 0x8892;
+			static constexpr GLenum GL_STREAM_DRAW_X = 0x88E0;
+			static constexpr GLenum	GL_DRAW_FRAMEBUFFER_BINDING_X = 0x8CA6;
+			static constexpr GLenum GL_FRAGMENT_SHADER_X = 0x8B30;
+			static constexpr GLenum GL_VERTEX_SHADER_X = 0x8B31;
+			static constexpr GLenum GL_GEOMETRY_SHADER_X = 0x8DD9;
+			static constexpr GLenum GL_MULTISAMPLE_X = 0x809D;
+			static constexpr GLenum GL_RENDERBUFFER_X = 0x8D41;
+			static constexpr GLenum GL_SAMPLES_X = 0x80A9;
 
 		private:
 			bool CheckError(const std::source_location loc = std::source_location::current());

@@ -33,6 +33,10 @@
 	#define FRIENDLY_HOST Host_Linux_X11
 #endif
 
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN
+	#define FRIENDLY_HOST Host_Web_Emscripten
+#endif
+
 namespace olc
 {
 	namespace host
@@ -77,8 +81,8 @@ namespace olc
 		virtual bool olc_OnMouseFocus(const bool bHasFocus);
 		
 		// Set Window State
-		virtual bool olc_OnWindowPosition(const olc::vi2d& vWindowPos);
-		virtual bool olc_OnWindowSize(const olc::vi2d& vWindowSize);
+		virtual bool olc_OnWindowPosition(const olc::vi2d& vPos);
+		virtual bool olc_OnWindowSize(const olc::vi2d& vSize);
 		virtual bool olc_OnWindowClose();
 
 		// Set Keyboard State
@@ -106,7 +110,7 @@ namespace olc
 		bool bShouldRemove = false;
 
 	protected:
-		size_t nUniqueID = -1;
+		size_t nUniqueID = size_t(-1);
 		olc::vi2d vWindowPos;
 		olc::vi2d vWindowSize;
 		std::string sFrameTitle;

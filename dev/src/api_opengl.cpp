@@ -31,8 +31,19 @@ namespace olc::apis::opengl
 		bLoaded &= (_glVertexAttribPointer = OGL_LOAD(glVertexAttribPointer)) != nullptr;
 		bLoaded &= (_glEnableVertexAttribArray = OGL_LOAD(glEnableVertexAttribArray)) != nullptr;
 		bLoaded &= (_glUseProgram = OGL_LOAD(glUseProgram)) != nullptr;
+#if OLC_HOST != OLC_HOST_EMSCRIPTEN
 		bLoaded &= (_glBindVertexArray = OGL_LOAD(glBindVertexArray)) != nullptr;
 		bLoaded &= (_glGenVertexArrays = OGL_LOAD(glGenVertexArrays)) != nullptr;
+		bLoaded &= (_glDrawBuffers = OGL_LOAD(glDrawBuffers)) != nullptr;
+		bLoaded &= (_glTexImage2DMultisample = OGL_LOAD(glTexImage2DMultisample)) != nullptr;
+		bLoaded &= (_glBlitFramebuffer = OGL_LOAD(glBlitFramebuffer)) != nullptr;
+#else
+		bLoaded &= (_glBindVertexArray = OGL_LOAD(glBindVertexArrayOES)) != nullptr;
+		bLoaded &= (_glGenVertexArrays = OGL_LOAD(glGenVertexArraysOES)) != nullptr;
+		bLoaded &= (_glDrawBuffers = OGL_LOAD(glDrawBuffersEXT)) != nullptr;
+		// bLoaded &= (_glTexImage2DMultisample = OGL_LOAD(glTexImage2DMultisample)) != nullptr;
+		bLoaded &= (_glBlitFramebuffer = OGL_LOAD(glBlitFramebuffer)) != nullptr;
+#endif
 		bLoaded &= (_glGetShaderInfoLog = OGL_LOAD(glGetShaderInfoLog)) != nullptr;
 		bLoaded &= (_glGetUniformLocation = OGL_LOAD(glGetUniformLocation)) != nullptr;
 		bLoaded &= (_glUniform1f = OGL_LOAD(glUniform1f)) != nullptr;
@@ -46,8 +57,14 @@ namespace olc::apis::opengl
 		bLoaded &= (_glCheckFramebufferStatus = OGL_LOAD(glCheckFramebufferStatus)) != nullptr;
 		bLoaded &= (_glDeleteFramebuffers = OGL_LOAD(glDeleteFramebuffers)) != nullptr;
 		bLoaded &= (_glFramebufferTexture2D = OGL_LOAD(glFramebufferTexture2D)) != nullptr;
-		bLoaded &= (_glDrawBuffers = OGL_LOAD(glDrawBuffers)) != nullptr;
 		bLoaded &= (_glBlendFuncSeparate = OGL_LOAD(glBlendFuncSeparate)) != nullptr;
+		bLoaded &= (_glGenRenderbuffers = OGL_LOAD(glGenRenderbuffers)) != nullptr;
+		bLoaded &= (_glBindRenderbuffer = OGL_LOAD(glBindRenderbuffer)) != nullptr;
+		bLoaded &= (_glRenderbufferStorageMultisample = OGL_LOAD(glRenderbufferStorageMultisample)) != nullptr;
+		bLoaded &= (_glFramebufferRenderbuffer = OGL_LOAD(glFramebufferRenderbuffer)) != nullptr;
+		bLoaded &= (_glDeleteRenderbuffers = OGL_LOAD(glDeleteRenderbuffers)) != nullptr;
+		bLoaded &= (_glGetInternalformativ = OGL_LOAD(glGetInternalformativ)) != nullptr;
+
 		
 		return bLoaded;
 	}
@@ -191,8 +208,10 @@ namespace olc::apis::opengl
 
 	void gl::glGetTexImage(GLenum target, GLint level, GLenum format, GLenum type, void* pixels)
 	{
+#if OLC_HOST != OLC_HOST_EMSCRIPTEN
 		::glGetTexImage(target, level, format, type, pixels);
 		CheckError();
+#endif
 	}
 
 	void gl::glHint(GLenum target, GLenum mode)
@@ -203,8 +222,10 @@ namespace olc::apis::opengl
 
 	void gl::glPolygonMode(GLenum face, GLenum mode)
 	{
+#if OLC_HOST != OLC_HOST_EMSCRIPTEN
 		::glPolygonMode(face, mode);
 		CheckError();
+#endif
 	}
 
 	GLuint gl::glCreateShader(GLenum type)
@@ -386,6 +407,56 @@ namespace olc::apis::opengl
 	void gl::glBlendFuncSeparate(GLenum srcRGB, GLenum dstRGB, GLenum srcAlpha, GLenum dstAlpha)
 	{
 		_glBlendFuncSeparate(srcRGB, dstRGB, srcAlpha, dstAlpha);
+		CheckError();
+	}
+
+	void gl::glTexImage2DMultisample(GLenum target, GLsizei samples, GLint internalformat, GLsizei width, GLsizei height, GLboolean fixedsamplelocations)
+	{
+#if OLC_HOST != OLC_HOST_EMSCRIPTEN
+		_glTexImage2DMultisample(target, samples, internalformat, width, height, fixedsamplelocations);
+		CheckError();
+#endif
+	}
+
+	void gl::glBlitFramebuffer(GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1, GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1, GLbitfield mask, GLenum filter)
+	{
+		_glBlitFramebuffer(srcX0, srcY0, srcX1, srcY1, dstX0, dstY0, dstX1, dstY1, mask, filter);
+		CheckError();
+	}
+
+	void gl::glGenRenderbuffers(GLsizei n, GLuint* renderbuffers)
+	{
+		_glGenRenderbuffers(n, renderbuffers);
+		CheckError();
+	}
+
+	void gl::glBindRenderbuffer(GLenum target, GLuint renderbuffer)
+	{
+		_glBindRenderbuffer(target, renderbuffer);
+		CheckError();
+	}
+
+	void gl::glRenderbufferStorageMultisample(GLenum target, GLsizei samples, GLenum internalformat, GLsizei width, GLsizei height)
+	{
+		_glRenderbufferStorageMultisample(target, samples, internalformat, width, height);
+		CheckError();
+	}
+
+	void gl::glFramebufferRenderbuffer(GLenum target, GLenum attachment, GLenum renderbuffertarget, GLuint renderbuffer)
+	{
+		_glFramebufferRenderbuffer(target, attachment, renderbuffertarget, renderbuffer);
+		CheckError();
+	}
+
+	void gl::glDeleteRenderbuffers(GLsizei n, const GLuint* renderbuffers)
+	{
+		_glDeleteRenderbuffers(n, renderbuffers);
+		CheckError();
+	}
+
+	void gl::glGetInternalformativ(GLenum target, GLenum internalformat, GLenum pname, GLsizei bufSize, GLint* params)
+	{
+		_glGetInternalformativ(target, internalformat, pname, bufSize, params);
 		CheckError();
 	}
 }

@@ -12,7 +12,7 @@ namespace olc::gpu
 		// Fragment Shader
 		if (!srcPixelShader.empty())
 		{
-			nPixelShaderID = gl.glCreateShader(0x8B30);			
+			nPixelShaderID = gl.glCreateShader(gl.GL_FRAGMENT_SHADER_X);
 			const char* s = srcPixelShader.c_str();
 			gl.glShaderSource(nPixelShaderID, 1, &s, nullptr);
 			gl.glCompileShader(nPixelShaderID);
@@ -23,7 +23,7 @@ namespace olc::gpu
 		// Vertex Shader
 		if (!srcVertexShader.empty())
 		{
-			nVertexShaderID = gl.glCreateShader(0x8B31);
+			nVertexShaderID = gl.glCreateShader(gl.GL_VERTEX_SHADER_X);
 			const char* s = srcVertexShader.c_str();
 			gl.glShaderSource(nVertexShaderID, 1, &s, nullptr);
 			gl.glCompileShader(nVertexShaderID);
@@ -35,7 +35,7 @@ namespace olc::gpu
 		// Geometry Shader
 		if (!srcGeometryShader.empty())
 		{
-			nGeometryShaderID = gl.glCreateShader(0x8DD9);
+			nGeometryShaderID = gl.glCreateShader(gl.GL_GEOMETRY_SHADER_X);
 			const char* s = srcGeometryShader.c_str();
 			gl.glShaderSource(nGeometryShaderID, 1, &s, nullptr);
 			gl.glCompileShader(nGeometryShaderID);
@@ -48,7 +48,7 @@ namespace olc::gpu
 		return "OK";
 	}
 
-	int32_t Shader_GLSL33::CreateUniform(const std::string& name)
+	uint32_t Shader_GLSL33::CreateUniform(const std::string& name)
 	{
 		auto& gl = olc::apis::opengl::gl::Get();
 		const char* s = name.c_str();
@@ -118,6 +118,29 @@ namespace olc::gpu
 
 #endif
 
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN
+	const auto canvasId = reinterpret_cast<std::string*>(os_win_id[0]);
+
+	const int samples = std::min(OLC_MSAA_SAMPLES, OLC_MSAA_EMSCRIPTEN_MAX_SAMPLES);
+
+	EGLint const attribute_list[] = {EGL_RED_SIZE, 8, EGL_GREEN_SIZE, 8, EGL_BLUE_SIZE, 8, EGL_ALPHA_SIZE, 8, EGL_DEPTH_SIZE, 16, EGL_SAMPLE_BUFFERS, 1, EGL_SAMPLES, samples, EGL_NONE};
+	EGLint const context_config[] = {EGL_CONTEXT_CLIENT_VERSION, 2, EGL_NONE};
+	EGLint num_config;
+
+	glRenderContext.display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
+	eglInitialize(glRenderContext.display, nullptr, nullptr);
+	eglChooseConfig(glRenderContext.display, attribute_list, &glRenderContext.config, 1, &num_config);
+	
+	/* create an EGL rendering context */
+	glRenderContext.context = eglCreateContext(glRenderContext.display, glRenderContext.config, EGL_NO_CONTEXT, context_config);
+	glRenderContext.surface = eglCreateWindowSurface(glRenderContext.display, glRenderContext.config, NULL, nullptr);
+	if(!eglMakeCurrent(glRenderContext.display, glRenderContext.surface, glRenderContext.surface, glRenderContext.context))
+	{
+		lastError = RendererError::FailedToCreateRenderContext;
+		return false;
+	}
+#endif
+
 		// Can't load OpenGL API until context is loaded
 		auto& gl = olc::apis::opengl::gl::Get();
 		if (!gl.HasLoaded())
@@ -129,9 +152,17 @@ namespace olc::gpu
 		
 
 		// Create "Default" Shader
-		shaderDefault.SetPixelShaderSource(R"(
-			#version 330 core
-			layout(location = 0) out vec4 pixel;
+		shaderDefault.SetPixelShaderSource(
+#if OLC_HOST != OLC_HOST_EMSCRIPTEN
+			R"(#version 330 core
+)"
+#else
+			R"(#version 300 es
+			precision mediump float;
+)"
+#endif
+
+			R"(layout(location = 0) out vec4 pixel;
 			in vec2 oTex;
 			in vec4 oCol;
 			uniform sampler2D sprTex;
@@ -147,9 +178,16 @@ namespace olc::gpu
 			}
 		)");
 
-		shaderDefault.SetVertexShaderSource(R"(
-			#version 330 core
-			layout(location = 0) in vec4 aPos;
+		shaderDefault.SetVertexShaderSource(
+#if OLC_HOST != OLC_HOST_EMSCRIPTEN
+			R"(#version 330 core
+)"
+#else
+			R"(#version 300 es
+			precision mediump float;
+)"
+#endif
+			R"(layout(location = 0) in vec4 aPos;
 			layout(location = 1) in vec4 aCol;
 			layout(location = 2) in vec2 aTex;
 			uniform mat4 mvp;
@@ -192,47 +230,6 @@ namespace olc::gpu
 			}
 		)");
 
-		//shaderDefault.SetVertexShaderSource(
-		//	"#version 330 core\n"
-		//	"layout(location = 0) in vec4 aPos;\n"
-		//	"layout(location = 1) in vec4 aCol;\n"
-		//	"layout(location = 2) in vec2 aTex;\n"
-		//	"uniform mat4 mvp;\n"
-		//	"uniform int drawtype;\n"
-		//	"uniform vec4 tint;\n"
-		//	"uniform vec2 target;\n"
-		//	"uniform vec2 invtarget;\n"
-		//	"out vec2 oTex;\n"
-		//	"out vec4 oCol;\n"
-		//	"void main()\n"
-		//	"{\n 																																				  "
-		//	"	if(drawtype == 2)\n // 3D\n																																  "
-		//	"	{\n																																			  "
-		//	"		gl_Position = mvp * vec4(aPos.x, aPos.y, aPos.z, 1.0);\n 																					  "
-		//	"		oTex = aTex;\n																															  "
-		//	"	}\n 				 "
-		//	"\n"
-		//	"	else if(drawtype == 1)\n // Line\n																																		  "
-		//	"	{\n																																			  "
-		//	"		float p = 1.0 / aPos.z;\n 																												  "
-		//	"		gl_Position = p * vec4(2.0 * ((floor(aPos.x) + 0.5) * invtarget.x) - 1.0,2.0 * ((floor(aPos.y)+0.5) * invtarget.y) - 1.0, 0.0, 1.0);\n 	  "
-		//	"		oTex = p * vec2(aTex.x, aTex.y);\n																										  "
-		//	"	}\n 			  "
-		//	""
-		//	"	else if(drawtype == 0)\n // Quad\n																																		  "
-		//	"	{\n																																			  "
-		//	"		float p = 1.0 / aPos.z;\n 																												  "
-		//	"		gl_Position = p * vec4(2.0 * ((floor(aPos.x)) * invtarget.x) - 1.0,2.0 * ((floor(aPos.y)) * invtarget.y) - 1.0, 0.0, 1.0);\n 	  "
-		//	"		oTex = p * vec2(aTex.x, aTex.y);\n																										  "
-		//	"	} else {gl_Position = aPos;}\n 																																			  "
-		//	"	\n	 "
-		//	"	\n																																			  "
-		//	"	oCol = aCol * tint;\n																															  "
-		//	"}\n"
-		//	//"void main(){ if(is3d!=0) {gl_Position = mvp * vec4(aPos.x, aPos.y, aPos.z, 1.0); oTex = aTex;} else {float p = 1.0 / aPos.z; gl_Position = mvp * (p * vec4(aPos.x, aPos.y, 0.0, 1.0)); oTex = p * aTex;} oCol = aCol * tint;}"
-
-		//);
-
 		shaderDefault.Compile();
 		shaderDefault.CreateUniform("mvp");
 		shaderDefault.CreateUniform("drawtype");
@@ -247,11 +244,11 @@ namespace olc::gpu
 		gl.glGenBuffers(1, &nDefaultVB);
 		gl.glGenVertexArrays(1, &nDefaultVA);
 		gl.glBindVertexArray(nDefaultVA);
-		gl.glBindBuffer(0x8892, nDefaultVB);
+		gl.glBindBuffer(gl.GL_ARRAY_BUFFER_X, nDefaultVB);
 
 		// A big one is allocated to reduce shuffles in GPU memory
 		GPUTask::Vertex verts[OLC_GPU_MAX_VERTICES];
-		gl.glBufferData(0x8892, sizeof(GPUTask::Vertex) * OLC_GPU_MAX_VERTICES, verts, 0x88E0);
+		gl.glBufferData(gl.GL_ARRAY_BUFFER_X, sizeof(GPUTask::Vertex) * OLC_GPU_MAX_VERTICES, verts, gl.GL_STREAM_DRAW_X);
 		
 		// Float Index 0 = x, 1 = y, 2 = z, 3 = w
 		gl.glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, sizeof(GPUTask::Vertex),        (void*)(0 * sizeof(float)));
@@ -273,7 +270,7 @@ namespace olc::gpu
 		gl.glEnableVertexAttribArray(5);
 
 		// Buffers are configured, unbind for now
-		gl.glBindBuffer(0x8892, 0);
+		gl.glBindBuffer(gl.GL_ARRAY_BUFFER_X, 0);
 		gl.glBindVertexArray(0);
 
 
@@ -303,8 +300,15 @@ namespace olc::gpu
 		// Unbind the FBO
 		gl.glBindFramebuffer(36160U, 0);
 
+
+		// Create FBOs for MSAA resolve operations
+		gl.glGenFramebuffers(1, &nResolveFBO_Draw);
+		gl.glGenFramebuffers(1, &nResolveFBO_Read);
+
+#if OLC_HOST != OLC_HOST_EMSCRIPTEN
 		gl.glEnable(GL_TEXTURE_2D); // Turn on texturing
 		gl.glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
+#endif
 		gl.glEnable(GL_BLEND);
 
 		lastError = RendererError::NoError;
@@ -313,7 +317,7 @@ namespace olc::gpu
 
 	bool Renderer_OGL33::DestroyDevice()
 	{
-		auto& gl = olc::apis::opengl::gl::Get();
+		//auto& gl = olc::apis::opengl::gl::Get();
 
 #if OLC_HOST == OLC_HOST_WINDOWS
 		wglDeleteContext(glRenderContext);
@@ -326,6 +330,15 @@ namespace olc::gpu
 		X11::glXMakeCurrent(display, 0, NULL);
 		X11::glXDestroyContext(display, glRenderContext);
 #endif
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN
+		eglMakeCurrent(glRenderContext.display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+		eglDestroyContext(glRenderContext.display, glRenderContext.context);
+		eglDestroySurface(glRenderContext.display, glRenderContext.surface);
+		eglTerminate(glRenderContext.display);
+		glRenderContext.display = EGL_NO_DISPLAY;
+		glRenderContext.surface = EGL_NO_SURFACE;
+		glRenderContext.context = EGL_NO_CONTEXT;
+#endif
 		return false;
 	}
 
@@ -336,8 +349,7 @@ namespace olc::gpu
 
 		if (!wglMakeCurrent(glDeviceContext, glRenderContext))
 		{
-			lastError = RendererError::FailedToSwitchRenderContext;
-			auto err = ::GetLastError();
+			lastError = RendererError::FailedToSwitchRenderContext;			
 			return false;
 		}
 		ReleaseDC((HWND)(os_win_id[0]), glDeviceContext);
@@ -360,7 +372,13 @@ namespace olc::gpu
 			return false;
 		}
 #endif
-		
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN
+	if(!eglMakeCurrent(glRenderContext.display, glRenderContext.surface, glRenderContext.surface, glRenderContext.context))
+	{
+		lastError = RendererError::FailedToSwitchRenderContext;
+		return false;
+	}
+#endif		
 		return true;
 	}
 
@@ -413,62 +431,142 @@ namespace olc::gpu
 		// resources on GPU
 		
 		uint32_t id = 0;
-		gl.glGenTextures(1, &id);
-		gl.glBindTexture(GL_TEXTURE_2D, id);
 
-		if (cfg.Filtered)
+		// Helper function to create regular (non-MSAA) texture
+		auto CreateRegularTexture = [&]()
 		{
-			gl.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-			gl.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-		}
-		else
-		{
-			gl.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-			gl.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-		}
+			uint32_t new_id = 0;
+			gl.glGenTextures(1, &new_id);
+			glBindTexture(GL_TEXTURE_2D, new_id);
 
-		if (cfg.Clamp)
+			if (cfg.Filtered)
+			{
+				gl.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+				gl.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+			}
+			else
+			{
+				gl.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+				gl.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+			}
+
+			if (cfg.Clamp)
+			{
+				gl.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+				gl.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+			}
+			else
+			{
+				gl.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+				gl.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+			}
+
+			return new_id;
+		};
+
+		// Create the regular texture (used for sampling)
+		id = CreateRegularTexture();
+
+		// If MSAA is requested, also create a renderbuffer for MSAA rendering
+		if (cfg.MSAA)
 		{
-			gl.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
-			gl.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
-		}
-		else
-		{
-			gl.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-			gl.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+			uint32_t rboId = 0;
+			gl.glGenRenderbuffers(1, &rboId);
+			gl.glBindRenderbuffer(gl.GL_RENDERBUFFER_X, rboId);
+			
+			// Map texture to its MSAA renderbuffer
+			mapTextureToRenderbuffer[id] = rboId;
 		}
 
 #if OLC_HOST != OLC_HOST_EMSCRIPTEN
-#if OLC_HOST != OLC_HOST_MACOS
+#if OLC_HOST != OLC_HOST_MACOS		
 		gl.glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 #endif
 #endif
 
-		std::cout << "Created Texture ID: " << id << " Size: " << vSize.x << "x" << vSize.y << "\n";
+		mapTextureSizes[id] = vSize;
 		return id;
 	}
 
 	bool Renderer_OGL33::WriteTexture(const uint32_t texid, olc::Image& image)
 	{
 		auto& gl = olc::apis::opengl::gl::Get();
-		gl.glBindTexture(GL_TEXTURE_2D, image.GetGPUID());
-		gl.glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image.Size().x, image.Size().y, 0, GL_RGBA, GL_UNSIGNED_BYTE, image.Data());
+
+		// Always write to the regular texture (for sampling)
+		gl.glBindTexture(GL_TEXTURE_2D, texid);
+		gl.glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image.Size().x, image.Size().y, 0, 
+			GL_RGBA, GL_UNSIGNED_BYTE, image.Data());
+
+		// If this texture has MSAA, allocate storage for the renderbuffer
+		if (mapTextureToRenderbuffer.contains(texid))
+		{
+			uint32_t rboId = mapTextureToRenderbuffer[texid];
+			gl.glBindRenderbuffer(gl.GL_RENDERBUFFER_X, rboId);
+
+			int32_t maxSamples = 0;
+			gl.glGetInternalformativ(gl.GL_RENDERBUFFER_X, GL_RGBA8, gl.GL_SAMPLES_X, 1, &maxSamples);
+
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN
+			maxSamples = std::min<int32_t>(OLC_MSAA_EMSCRIPTEN_MAX_SAMPLES, maxSamples);
+			const int samples = std::min((int)image.GetConfig().MSAASamples, maxSamples);
+#else
+			maxSamples = std::min<int32_t>(OLC_MSAA_SAMPLES, maxSamples);
+			const int samples = std::min<int32_t>(image.GetConfig().MSAASamples, maxSamples);
+#endif
+
+			// Allocate MSAA renderbuffer storage
+			gl.glRenderbufferStorageMultisample(
+				gl.GL_RENDERBUFFER_X, 
+				samples,
+				GL_RGBA8, 
+				image.Size().x, 
+				image.Size().y
+			);
+			
+			// Unbind renderbuffer
+			gl.glBindRenderbuffer(gl.GL_RENDERBUFFER_X, 0);
+		}
+
+		// Update size tracking
+		mapTextureSizes[texid] = image.Size();
+
 		return true;
 	}
 
 	bool Renderer_OGL33::ReadTexture(const uint32_t texid, olc::Image& image)
 	{
+		olc_IgnoreUnused(texid);
+
 		auto& gl = olc::apis::opengl::gl::Get();
+
+		// Read the teture data back into the image
+		// With renderbuffer approach, we always read from the regular texture
+		// which has been blitted to via ResolveMSAA if its an MSAA texture
 		gl.glBindTexture(GL_TEXTURE_2D, image.GetGPUID());
-		//gl.glReadPixels(0, 0, image.Size().x, image.Size().y, GL_RGBA, GL_UNSIGNED_BYTE, image.Data());
+
+#if OLC_HOST != OLC_HOST_EMSCRIPTEN
 		gl.glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, image.Data());
+#else		
+		gl.glReadPixels(0, 0, image.Size().x, image.Size().y, GL_RGBA, GL_UNSIGNED_BYTE, image.Data());
+#endif
 		return true;
 	}
 
 	bool Renderer_OGL33::DeleteTexture(const uint32_t texid)
 	{
 		auto& gl = olc::apis::opengl::gl::Get();
+		
+		// Delete the texture
 		gl.glDeleteTextures(1, &texid);
+		
+		// Delete associated renderbuffer if it exists
+		if (mapTextureToRenderbuffer.contains(texid))
+		{
+			uint32_t rboId = mapTextureToRenderbuffer[texid];
+			gl.glDeleteRenderbuffers(1, &rboId);
+			mapTextureToRenderbuffer.erase(texid);
+		}
+		
 		return true;
 	}
 
@@ -476,30 +574,47 @@ namespace olc::gpu
 	{
 		auto& gl = olc::apis::opengl::gl::Get();
 
+		// This function binds a texture to a texture slot for sampling. If the
+		// texture is an MSAA texture, we need to use the resolved version for sampling
+
+		// Check if this is an MSAA texture...
+		uint32_t actualTexId = texid;
+		//if (mapMSAAToResolved.contains(texid))
+		//{
+			// ...yes it is, so use the resolved texture for sampling
+		//	actualTexId = mapMSAAToResolved[texid];
+		//}
+
 		// If the requested source texture is currently attached as the render target,
 		// unbind the framebuffer to avoid sampling from a texture that's being written to.
-		if (texid == nCurrentTextureTarget && texid != 0)
+		if (actualTexId == nCurrentTextureTarget && actualTexId != 0)
 		{
 #if defined(OLC_GPU_ERRORCHECK) && OLC_GPU_ERRORCHECK == 1
-			std::cout << "Warning ATS: Requested source is currently attached as target (" << texid << ") - unbinding FBO\n";
+			std::cout << "Warning ATS: Requested source is currently attached as target (" << actualTexId << ") - unbinding FBO\n";
 #endif
-			gl.glBindFramebuffer(36160U, 0);
+			gl.glBindFramebuffer(gl.GL_FRAMEBUFFER_X, 0);
 			nCurrentTextureTarget = 0;
 		}
 
 		//if (nCurrentTextureSource == texid)
 		//	return true;
 
-		gl.glActiveTexture(0x84C0 + slot); // GL_TEXTURE0
-		gl.glBindTexture(GL_TEXTURE_2D, texid);
-		nCurrentTextureSource = texid;
+		// Bind texture to specified texture slot
+		gl.glActiveTexture(gl.GL_TEXTURE0_X + slot);
+		gl.glBindTexture(GL_TEXTURE_2D, actualTexId);
+
+		// Record currently bound source texture
+		nCurrentTextureSource = actualTexId;
 		return true;
 	}
 
+	// Assign a texture as the current render target. 
+	// If texid is 0, bind the default framebuffer (screen)
 	bool Renderer_OGL33::AssignTextureTarget(const uint32_t slot, const uint32_t texid)
 	{
 		auto& gl = olc::apis::opengl::gl::Get();
 
+		// This function attaches a texture to the FBO for rendering.
 
 		// If the requested target texture is currently bound as a source, unbind it
 		// from all texture units to ensure we do not sample from a texture that's
@@ -512,39 +627,132 @@ namespace olc::gpu
 			// Unbind from a reasonable number of texture units (0..7) used by this renderer
 			for (int i = 0; i < 8; ++i)
 			{
-				gl.glActiveTexture(0x84C0 + i);
+				gl.glActiveTexture(gl.GL_TEXTURE0_X + i);
 				gl.glBindTexture(GL_TEXTURE_2D, 0);
 			}
+
 			// Reset to texture unit 0
-			gl.glActiveTexture(0x84C0);
+			gl.glActiveTexture(gl.GL_TEXTURE0_X);
 			nCurrentTextureSource = 0;
 		}
-
+		
 		if (texid == 0)
 		{
 			// Unbind the FBO (bind default framebuffer)
-			gl.glBindFramebuffer(36160U, 0);
+			gl.glBindFramebuffer(gl.GL_FRAMEBUFFER_X, 0);
 			return true;
 		}	
-		
+	
 		// Bind FBO
-		gl.glBindFramebuffer(36160U, nDefaultFBO);
+		gl.glBindFramebuffer(gl.GL_FRAMEBUFFER_X, nDefaultFBO);
 
-		//gl.glEnable(GL_BLEND);
-		//gl.glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 		// Allocate target buffers - pick the single attachment corresponding to 'slot'
 		std::array<GLenum, 8> attachments =
-		{ { 36064U, 36065U, 36066U, 36067U, 36068U, 36069U, 36070U, 36071U } };
+		{ { 
+			gl.GL_COLOR_ATTACHMENT0_X + 0, 
+			gl.GL_COLOR_ATTACHMENT0_X + 1,
+			gl.GL_COLOR_ATTACHMENT0_X + 2, 
+			gl.GL_COLOR_ATTACHMENT0_X + 3,
+			gl.GL_COLOR_ATTACHMENT0_X + 4, 
+			gl.GL_COLOR_ATTACHMENT0_X + 5,
+			gl.GL_COLOR_ATTACHMENT0_X + 6, 
+			gl.GL_COLOR_ATTACHMENT0_X + 7
+		} };
 		GLenum draw = attachments[slot];
 		gl.glDrawBuffers(1, &draw);
-		// Bind buffers to texture
-		gl.glFramebufferTexture2D(36160U, 36064U + slot, GL_TEXTURE_2D, texid, 0);
-
-		//glReadBuffer(36064U + slot);  // GL_COLOR_ATTACHMENT0 + slot
 		
+		// If target texture is MSAA, enable multisampling
+		if (mapTextureToRenderbuffer.contains(texid))
+		{
+			// MSAA texture - attach renderbuffer
+			uint32_t rboId = mapTextureToRenderbuffer[texid];
+			gl.glFramebufferRenderbuffer(
+				gl.GL_FRAMEBUFFER_X, 
+				gl.GL_COLOR_ATTACHMENT0_X + slot, 
+				gl.GL_RENDERBUFFER_X, 
+				rboId
+			);
+		}
+		else
+		{
+			// Regular texture - attach directly
+			gl.glFramebufferTexture2D(
+				gl.GL_FRAMEBUFFER_X, 
+				gl.GL_COLOR_ATTACHMENT0_X + slot, 
+				GL_TEXTURE_2D, 
+				texid, 
+				0
+			);
+		}
 
-		nCurrentTextureTarget = texid;
-		
+#if defined(OLC_GPU_ERRORCHECK) && OLC_GPU_ERRORCHECK == 1
+		// Check FBO complete state
+		GLenum status = gl.glCheckFramebufferStatus(gl.GL_FRAMEBUFFER_X);
+		if (status != gl.GL_FRAMEBUFFER_COMPLETE_X)
+		{
+			std::cout << "ERROR: FBO incomplete\n";
+		}
+#endif
+
+	nCurrentTextureTarget = texid;		
+	return true;
+	}
+
+	bool Renderer_OGL33::ResolveMSAA(const uint32_t texid)
+	{
+		// Check if this texture has an MSAA renderbuffer
+		if (!mapTextureToRenderbuffer.contains(texid))
+			return true;  // Not MSAA, nothing to do
+
+		auto& gl = olc::apis::opengl::gl::Get();
+
+		// It did! Get the renderbuffer ID
+		uint32_t rboId = mapTextureToRenderbuffer[texid];
+
+		// Ensure all rendering to MSAA texture is finished
+		glFinish();
+
+		// Bind renderbuffer to read FBO
+		gl.glBindFramebuffer(gl.GL_READ_FRAMEBUFFER_X, nResolveFBO_Read);
+		gl.glFramebufferRenderbuffer(
+			gl.GL_READ_FRAMEBUFFER_X, 
+			gl.GL_COLOR_ATTACHMENT0_X, 
+			gl.GL_RENDERBUFFER_X, 
+			rboId
+		);
+
+		// Bind regular texture to draw FBO
+		gl.glBindFramebuffer(gl.GL_DRAW_FRAMEBUFFER_X, nResolveFBO_Draw);
+		gl.glFramebufferTexture2D(
+			gl.GL_DRAW_FRAMEBUFFER_X, 
+			gl.GL_COLOR_ATTACHMENT0_X, 
+			GL_TEXTURE_2D, 
+			texid, 
+			0
+		);
+
+#if defined(OLC_GPU_ERRORCHECK) && OLC_GPU_ERRORCHECK == 1
+		// Check FBO complete state
+		GLenum readStatus = gl.glCheckFramebufferStatus(gl.GL_READ_FRAMEBUFFER_X);
+		GLenum drawStatus = gl.glCheckFramebufferStatus(gl.GL_DRAW_FRAMEBUFFER_X);
+		if (readStatus != gl.GL_FRAMEBUFFER_COMPLETE_X || drawStatus != gl.GL_FRAMEBUFFER_COMPLETE_X)
+		{
+			std::cout << "ResolveMSAA ERROR: FBO incomplete!\n";
+			return false;
+		}
+#endif
+
+		// Blit from MSAA renderbuffer to resolved
+		olc::vi2d size = mapTextureSizes[texid];
+		gl.glBlitFramebuffer(
+			0, 0, size.x, size.y,
+			0, 0, size.x, size.y,
+			GL_COLOR_BUFFER_BIT,
+			GL_NEAREST
+		);
+
+		// Restore to default framebuffer (screen)
+		gl.glBindFramebuffer(gl.GL_FRAMEBUFFER_X, nDefaultFBO);
 		return true;
 	}
 
@@ -559,8 +767,6 @@ namespace olc::gpu
 	{
 		auto& gl = olc::apis::opengl::gl::Get();
 		gl.glUseProgram(shaderDefault.GetShaderID());
-
-
 		return true;
 	}
 
@@ -570,13 +776,11 @@ namespace olc::gpu
 
 		switch (task.task)
 		{
+			case GPUTask::Task::NullTask:
+			break;
 			case GPUTask::Task::DrawPolygon:
 			{
 				
-				//gl.glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-				//gl.glBlendFunc(GL_DST_COLOR, GL_ONE_MINUS_SRC_ALPHA);
-
-
 				if (task.pImage == nullptr)
 					AssignTextureSource(0, imgBlank.GetGPUID());
 				else
@@ -587,10 +791,10 @@ namespace olc::gpu
 
 				// Bind generic vertex buffer
 				gl.glBindVertexArray(nDefaultVA);
-				gl.glBindBuffer(0x8892, nDefaultVB);
+				gl.glBindBuffer(gl.GL_ARRAY_BUFFER_X, nDefaultVB);
 				
 				// Copy data from CPU to GPU
-				gl.glBufferData(0x8892, sizeof(GPUTask::Vertex) * task.vertexBuffer.size(), task.vertexBuffer.data(), 0x88E0);
+				gl.glBufferData(gl.GL_ARRAY_BUFFER_X, sizeof(GPUTask::Vertex) * task.vertexBuffer.size(), task.vertexBuffer.data(), gl.GL_STREAM_DRAW_X);
 				
 				
 
@@ -665,39 +869,6 @@ namespace olc::gpu
 				if (task.bWireframe)
 					gl.glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
-				//// Draw the thing!
-				//if (task.bWireframe)
-				//{
-				//	// Shader: Configure Rendering Mode
-				//	gl.glUniform1i(shaderDefault.GetUniform("drawtype"), 1);
-				//	gl.glDrawArrays(GL_LINE_LOOP, 0, (GLsizei)task.vertexBuffer.size());
-				//}
-				//else
-				//{
-				//	// Shader: Configure Rendering Mode
-				//	if (task.structure == olc::Structure::Point)
-				//		gl.glUniform1i(shaderDefault.GetUniform("drawtype"), 1);
-				//	else if(task.structure == olc::Structure::Line)
-				//		gl.glUniform1i(shaderDefault.GetUniform("drawtype"), 1);
-				//	else
-				//		gl.glUniform1i(shaderDefault.GetUniform("drawtype"), 0);
-
-				//	if (task.structure == olc::Structure::Fan)
-				//		gl.glDrawArrays(GL_TRIANGLE_FAN, 0, (GLsizei)task.vertexBuffer.size());
-				//	else if (task.structure == olc::Structure::Strip)
-				//	{
-				//		gl.glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-				//		gl.glDrawArrays(GL_TRIANGLE_STRIP, 0, (GLsizei)task.vertexBuffer.size());
-				//		gl.glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-				//	}
-				//	else if (task.structure == olc::Structure::List)
-				//		gl.glDrawArrays(GL_TRIANGLES, 0, (GLsizei)task.vertexBuffer.size());
-				//	else if (task.structure == olc::Structure::Line)
-				//		gl.glDrawArrays(GL_LINES, 0, (GLsizei)task.vertexBuffer.size());
-				//	else if (task.structure == olc::Structure::Point)
-				//		gl.glDrawArrays(GL_POINTS, 0, (GLsizei)task.vertexBuffer.size());
-				//}
-
 				if (task.bDepth)
 					gl.glDisable(GL_DEPTH_TEST);
 
@@ -728,21 +899,18 @@ namespace olc::gpu
 	{
 		auto& gl = olc::apis::opengl::gl::Get();
 
-		//gl.glUseProgram(shaderDefault.GetShaderID());
 		gl.glEnable(GL_BLEND);
 		gl.glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 		gl.glDepthFunc(GL_LESS);
-		//gl.glBindTexture(GL_TEXTURE_2D, imgBlank.GetGPUID());
-
 		return false;
 	}
 
 	bool Renderer_OGL33::DisplayDraw(std::vector<void*> os_win_id, bool bVerticalSyncNow)
 	{
-		auto& gl = olc::apis::opengl::gl::Get();
-
+		//auto& gl = olc::apis::opengl::gl::Get();
 
 #if OLC_HOST == OLC_HOST_WINDOWS
+		olc_IgnoreUnused(bVerticalSyncNow);
 		auto glDeviceContext = GetDC((HWND)(os_win_id[0]));
 		SwapBuffers(glDeviceContext);
 		ReleaseDC((HWND)(os_win_id[0]), glDeviceContext);
@@ -758,6 +926,10 @@ namespace olc::gpu
 		const auto window_handle = reinterpret_cast<X11::Window>(os_win_id[0]);
 		auto* display = reinterpret_cast<X11::Display*>(os_win_id[1]);
 		X11::glXSwapBuffers(display, window_handle);
+#endif
+
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN
+		eglSwapInterval(glRenderContext.display, bVerticalSyncNow ? 1 : 0);
 #endif
 
 		return true;

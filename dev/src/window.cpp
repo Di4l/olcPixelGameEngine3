@@ -44,17 +44,19 @@ namespace olc
 
 	bool Window::olc_OnMouseFocus(const bool bHasFocus)
 	{
+		olc_IgnoreUnused(bHasFocus);
 		return false;
 	}
 
-	bool Window::olc_OnWindowPosition(const olc::vi2d& vWindowPos)
+	bool Window::olc_OnWindowPosition(const olc::vi2d& vPos)
 	{
+		olc_IgnoreUnused(vPos);
 		return false;
 	}
 
-	bool Window::olc_OnWindowSize(const olc::vi2d& vWindowSize)
+	bool Window::olc_OnWindowSize(const olc::vi2d& vSize)
 	{
-		return SetWindowSize(vWindowSize);		
+		return SetWindowSize(vSize);		
 	}
 
 	bool Window::olc_OnWindowClose()

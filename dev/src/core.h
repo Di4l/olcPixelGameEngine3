@@ -52,6 +52,8 @@ namespace olc
 		bool bForceIntegerPixelSize = false;
 		// Allow main PGE window to spawn child windows
 		bool bAllowChildWindows = true;
+		// Creates a "DefaultImage" with anti-aliased properties
+		bool bAntiAliasMainScreen = false;
 	};
 
 	// A PGE Window is a window with drawing and input capabilities a la olc::PixelGameEngine
@@ -120,6 +122,9 @@ namespace olc
 		PixelGameEngine();
 		virtual ~PixelGameEngine();
 
+		PixelGameEngine(const PixelGameEngine&) = delete;
+		PixelGameEngine& operator=(const PixelGameEngine&) = delete;
+
 	public:
 		// Construct the PGE main engine window with traditional parameters
 		bool Construct(const olc::vi2d& vScreenSize, const olc::vi2d& vPixelSize, bool bFullScreen = false);
@@ -131,7 +136,10 @@ namespace olc
 
 	public: // Child Windows
 		bool AddChildWindow(std::shared_ptr<olc::PGEWindow> window, const olc::vi2d& vScreenSize, const olc::vi2d& vPixelSize);
-
+	
+	public: // Core Update
+		static void CoreUpdate(void* userdata);
+		
 	private:
 		// Window Management
 		std::deque<std::shared_ptr<PGEWindow>> deqChildWindows;

@@ -24,12 +24,13 @@ namespace olc::host {
         // Initialize the MacOS Window
         pMacOSWindow = std::make_unique<olc::apis::macos::Window>(frameBounds.width, frameBounds.height, "OLC PGE 3 MacOS Demo");
         
+        pMacOSWindow->setPosition(frameBounds.x, frameBounds.y);
+        
+        pMacOSWindow->setContentViewPosition(0, 0);
+        
         // Set up window event handlers
         MacWindowEventsHandler();
         
-        // Set Window Position
-        pMacOSWindow->setPosition(frameBounds.x, frameBounds.y);
-
         // Create Input Event handler
         pMacOSEventHandler = std::make_unique<olc::apis::macos::EventHandler>(*pMacOSWindow);
             
@@ -51,14 +52,15 @@ namespace olc::host {
 
     bool Host_Apple_MacOS::AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen)
     {
+         // Update the PGE window with the actual window size given by MacOS
         
         pPGEwindow = pWindow;
         pPGEwindow->SetWindowPosition(vWindowPos);
-        pPGEwindow->SetWindowSize(vWindowSize);
+        pPGEwindow->SetWindowSize(vWindowSize); // Temporary small size to avoid large window on creation
         pPGEwindow->LinkToHost(this);
 
-        frameBounds.x = static_cast<double>(vWindowPos.x);
-        frameBounds.y = static_cast<double>(vWindowPos.y);
+        frameBounds.x = 0.0;
+        frameBounds.y = 0.0;
         frameBounds.width = static_cast<double>(vWindowSize.x);
         frameBounds.height = static_cast<double>(vWindowSize.y);
         
@@ -91,13 +93,17 @@ namespace olc::host {
         {
             std::this_thread::sleep_for(std::chrono::milliseconds(raceConditionTimeoutMS));
         }
-
+        
         if(pMacOSOpenGLRenderer == nullptr)
         {
             vMacOSWindowDescriptors.clear(); // ensure we are starting fresh
             pMacOSOpenGLRenderer = std::make_shared<olc::apis::macos::OpenGLRenderer>();
             
             dispatch_sync(dispatch_get_main_queue(), ^{
+                 // Edge case for when the window is auto resize due to MacOS clamping to screen size
+                pMacOSWindow->getContentViewSize(frameBounds.width, frameBounds.height);
+                pPGEwindow->olc_OnWindowSize({static_cast<int>(frameBounds.width), static_cast<int>(frameBounds.height)});
+
                 pMacOSOpenGLRenderer->attachToWindow(*pMacOSWindow);
                 pMacOSOpenGLRenderer->setupContext();
             });
@@ -107,10 +113,11 @@ namespace olc::host {
             pMacOSOpenGLRenderer->setVsync(false);
             
             vMacOSWindowDescriptors.push_back(pMacGLConextObj);
+
+             // Set up OpenGL renderer for visual feedback
+            pMacOSOpenGLRenderer->makeCurrentContext();
         }
-        
-        // Set up OpenGL renderer for visual feedback
-        pMacOSOpenGLRenderer->makeCurrentContext();
+
         return vMacOSWindowDescriptors;
        
     }
@@ -166,9 +173,12 @@ namespace olc::host {
     {
         // Window event handling code here
         pMacOSWindow->setWindowDidResizeCallback([&]() {
-            double width, height;
-            pMacOSWindow->getWindowSize(width, height);
-            //pPGEwindow->olc_OnWindowSize({static_cast<int>(width), static_cast<int>(height)});
+            dispatch_async(dispatch_get_main_queue(), ^{
+                double width, height;
+                pMacOSWindow->getContentViewSize(width, height);
+                //pPGEwindow->olc_OnWindowSize({static_cast<int>(width), static_cast<int>(height)});
+            });
+          
 
         });
 
@@ -294,7 +304,7 @@ namespace olc::host {
 
         pMacOSEventHandler->onScrollWheel([&](const olc::apis::macos::ScrollWheelEvent& event) {
             // Although MacOS provides both deltaX and deltaY, we will only use deltaY for vertical scrolling
-            pPGEwindow->olc_OnMouseWheel({static_cast<int>(event.deltaY)});
+            pPGEwindow->olc_OnMouseWheel(static_cast<int>(event.deltaY));
         });
         
         // Tell the PGE engine we have an event handler initialized

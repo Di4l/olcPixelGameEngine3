@@ -130,7 +130,7 @@ public:
 				long idy = ((a + 4) % 4);
 
 				// Tile index in tile atlas in tile units
-				olc::vi2d vTileIndex = { idy, idx };
+				olc::vi2d vTileIndex = { (int)idy, (int)idx };
 
 				// Extract tile from tile atlas using the region() function, specifying
 				// in pixels the top left corner of the tile and its size.

@@ -88,6 +88,11 @@
 	#define OLC_IMAGELOADER OLC_IMAGELOADER_LIB_PNG
 #endif
 
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN
+	#undef OLC_IMAGELOADER
+	#define OLC_IMAGELOADER OLC_IMAGELOADER_LIB_PNG
+#endif
+
 #if !defined(OLC_IMAGELOADER)
 	#define OLC_IMAGELOADER OLC_IMAGELOADER_WINGDI
 #endif
@@ -105,10 +110,17 @@
 
 #define OLC_GPU_MAX_VERTICES 8192
 #define OLC_GPU_ERRORCHECK 0
+#define OLC_MSAA_SAMPLES 4
+#define OLC_MSAA_EMSCRIPTEN_MAX_SAMPLES 4
 
 #define LICENCE_DEFAULT "OneLoneCoder.com - Pixel Game Engine 3 - "
 
-// De-Noise in MSVC (C++20)
+// De-Noise in MSVC (C++20) /Wall
 #pragma warning(disable:4820) // Disable Padding Warnings
+#pragma warning(disable:5045) // Disable Spectre Mitigation Warnings
+#pragma warning(disable:4514) // Disable Unreferenced Inline Function Warnings
+
+template<typename... Args>
+inline constexpr void olc_IgnoreUnused(Args&&...) noexcept {}
 
 //! END CONFIGURATION

@@ -54,7 +54,7 @@ namespace olc
 				for (int i = 0; i < 24; i++)
 				{
 					int k = r & (1 << i) ? 255 : 0;
-					fontClassicPGE.imgFont.Pixel({ px, py }) = olc::Pixel(k, k, k, k);
+					fontClassicPGE.imgFont.Pixel({ px, py }) = olc::Pixel(uint8_t(k), uint8_t(k), uint8_t(k), uint8_t(k));
 					if (++py == 48) { px++; py = 0; }
 				}
 			}

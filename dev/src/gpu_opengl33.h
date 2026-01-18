@@ -13,7 +13,7 @@ namespace olc
 		{
 		public:
 			std::string Compile() override;
-			int32_t CreateUniform(const std::string& name) override;
+			uint32_t CreateUniform(const std::string& name) override;
 		};
 
 		class Renderer_OGL33 : public olc::gpu::Renderer
@@ -42,6 +42,8 @@ namespace olc
 			bool AssignTextureSource(const uint32_t slot, const uint32_t texid) override;
 			// Makes active the given texture resource (for subsequent rendering operations)
 			bool AssignTextureTarget(const uint32_t slot, const uint32_t texid) override;
+			// Resolves an MSAA texture into a normal texture
+			virtual bool ResolveMSAA(const uint32_t msaaTexId) override;
 
 		public: // Shader Construction Stuff
 			bool ApplyShader(const Shader& shader) override;
@@ -63,7 +65,11 @@ namespace olc
 		
 		protected: // These may need some thinking about re multiple window
 			//olc::apis::opengl::glDeviceContext_t glDeviceContext = 0;
+#if OLC_HOST != OLC_HOST_EMSCRIPTEN
 			olc::apis::opengl::glRenderContext_t glRenderContext = 0;
+#else
+			olc::apis::opengl::glRenderContext_t glRenderContext;
+#endif
 
 			Shader_GLSL33 shaderDefault;
 			uint32_t nDefaultVB = 0;
@@ -74,6 +80,14 @@ namespace olc
 
 			uint32_t nCurrentTextureTarget = 0;
 			uint32_t nCurrentTextureSource = 0;
+
+			//std::unordered_map<uint32_t, uint32_t> mapMSAAToResolved;
+			uint32_t nResolveFBO_Read = 0;
+			uint32_t nResolveFBO_Draw = 0;
+
+			std::unordered_map<uint32_t, olc::vi2d> mapTextureSizes;
+
+			std::unordered_map<uint32_t, uint32_t> mapTextureToRenderbuffer;
 
 		};
 	}

@@ -39,7 +39,13 @@ namespace olc
 		{
 			return uuid++;
 		}
-		#endif	
+		#endif
+		#if OLC_HOST == OLC_HOST_EMSCRIPTEN
+		inline size_t CreateUID()
+		{
+			return uuid++;
+		}		
+		#endif
 	}
 
 	namespace host

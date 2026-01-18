@@ -130,7 +130,7 @@ bool olc::Draw2D::swClipLine(olc::vf2d& p1, olc::vf2d& p2, const olc::vf2d& vMin
 {
 	// https://en.wikipedia.org/wiki/Cohen%E2%80%93Sutherland_algorithm
 	static constexpr int SEG_I = 0b0000, SEG_L = 0b0001, SEG_R = 0b0010, SEG_B = 0b0100, SEG_T = 0b1000;
-	auto Segment = [&vMin = vMin, &vMax = vMax](const olc::vi2d& v)
+	auto Segment = [&vMin = vMin, &vMax = vMax](const olc::vf2d& v)
 		{
 			int i = SEG_I;
 			if (v.x < vMin.x) i |= SEG_L; else if (v.x > vMax.x) i |= SEG_R;
@@ -264,7 +264,7 @@ std::pair<int, int> olc::Draw2D::swBaryFillTriangle(const olc::vi2d& v1, const o
 			int dy = p1.y - p0.y;
 			float dx_step = (p1.x - p0.x) / float(dy);
 			float dy_step = 1.0f / float(dy);
-			float x = p0.x;
+			float x = float(p0.x);
 
 			// Rasterise edge - if pixel lies on visible scanline then
 			// update the scanline bounds and barycentric coords
@@ -505,8 +505,8 @@ void olc::Draw2D::swRasterShadedLine(const olc::vi2d& v1, const olc::vi2d& v2, c
 	olc::Pixel cEnd = olc::PixelLerp(c1, c2, w1);	
 
 	// Starting position and color interpolation parameter
-	float x =  ip1.x;
-	float y =  ip1.y;
+	float x =  float(ip1.x);
+	float y =  float(ip1.y);
 	float t = 0.0f;
 
 	// Draw line pixel by pixel

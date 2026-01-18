@@ -150,7 +150,7 @@ style of text rendering!
 		draw.String({ 4,210 }, "pqrstuvwxyz{|}~\x7F", olc::Colour::BLUE, { 1,1 }, fontExample);
 
 		// Draw a fancy logo
-		draw.FilledRoundedRect({ 183, 155 }, { 65, 65 }, 5, olc::Colour::TANGERINE);
+		draw.FilledRoundedRect({ 183, 155 }, { 66, 66 }, 5, olc::Colour::TANGERINE);
 		draw.String({ 188, 160 }, "olc\npge\nIII", olc::Colour::WHITE, { 2,2 }, fontExample);
 
 

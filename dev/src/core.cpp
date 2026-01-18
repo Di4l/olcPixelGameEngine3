@@ -18,6 +18,11 @@
 #include "imload_lib_png.h"
 #endif
 
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN
+#include "host_web_emscripten.h"
+#include "imload_lib_png.h"
+#endif
+
 //! START IMPLEMENTATION
 namespace olc
 {
@@ -37,6 +42,7 @@ namespace olc
 
 	bool PGEWindow::OnUserUpdate(float fElapsedTime)
 	{
+		olc_IgnoreUnused(fElapsedTime);
 		return true;
 	}
 
@@ -75,6 +81,11 @@ namespace olc
 
 		// Finialise any outstanding tasks
 		draw.ProcessGPUTasks();
+
+		if (GetDefaultImage().GetConfig().MSAA)
+		{
+			pRenderer->ResolveMSAA(uint32_t(GetDefaultImage().GetGPUID()));
+		}
 
 		// Take the window's completed "screen" and draw it as a textured quad to the backbuffer
 		pRenderer->AssignTextureTarget(0, 0);
@@ -135,11 +146,13 @@ namespace olc
 
 	bool PGEWindow::CreateImageFromMemory(olc::Image& image, const uint8_t* data, const size_t bytes, const ImageConfig& cfg)
 	{
+		olc_IgnoreUnused(image, data, bytes, cfg);
 		return false;
 	}
 
 	bool PGEWindow::WriteImageToFile(const olc::Image& image, const std::string& sFileName)
 	{
+		olc_IgnoreUnused(image, sFileName);
 		return false;
 	}
 
@@ -148,7 +161,7 @@ namespace olc
 		// If image has gpu resource, remove it
 		if (image.GetGPUID() != 0)
 		{
-			pRenderer->DeleteTexture(image.GetGPUID());
+			pRenderer->DeleteTexture(uint32_t(image.GetGPUID()));
 			image.SetGPUID(0);
 		}
 
@@ -228,12 +241,17 @@ namespace olc
 		#if OLC_HOST == OLC_HOST_LINUX_X11
 		host = std::make_unique<olc::host::Host_Linux_X11>();
 		#endif
+		#if OLC_HOST == OLC_HOST_EMSCRIPTEN
+		host = std::make_unique<olc::host::Host_Web_Emscripten>();
+		#endif
 #if OLC_MULTIWINDOW == OLC_MULTIWINDOW_NO
 		// Create OS window on this thread
 		host->AddWindowFrame(this, { 30,30 }, config.vPixelSize * config.vScreenSize, false);
 		// Create EngineThread - no more windows will be created now. We needed one window
 		// at least to initialise teh rendering subsystem... sigh.
 		coreActive = true;
+
+#if OLC_HOST != OLC_HOST_EMSCRIPTEN
 		coreThread = std::thread(&PixelGameEngine::EngineThread, this);
 		// Handle window events on this thread (and block)
 		host->StartSystemEventLoop(true);		
@@ -241,6 +259,10 @@ namespace olc
 		coreActive = false;
 		// Wait for engine thread to terminate
 		coreThread.join();
+#else
+		EngineThread();
+#endif
+
 #else
 		
 #endif
@@ -266,11 +288,98 @@ namespace olc
 		return true;
 #else
 		// Can't create new windows
+		olc_IgnoreUnused(window, vScreenSize, vPixelSize);
 		return false;
 #endif
 	}
 
+	void PixelGameEngine::CoreUpdate(void* userdata)
+	{
+		using namespace std::chrono_literals;
+		auto pge = reinterpret_cast<olc::PixelGameEngine*>(userdata);	
+#if OLC_MULTIWINDOW == OLC_MULTIWINDOW_YES
+			// Multiwindow system uses one event loop (non blocking) for all windows
+			pge->host->StartSystemEventLoop(false);
+#endif
 
+			// Frame Delta Timing - "ElapsedTime" since last core update
+			// ~~~~~~~~~~~~~~~~~~
+			// All timing is synchronous to the primary window, i.e child
+			// windows do not maintain their own frame timing. This is a
+			// deliberate decision as PGE will maintain sync between windows.
+			// Why? Multiple windows are not really the point of PGE and
+			// indeed could just be addional unnecessary complexity. However,
+			// by moving to a Window abstraction we kinda get it for free.
+			// This freedom comes at the expense of complexity. If we allowed
+			// windows to be wholly isolated from the core loop, then the
+			// user is expected to maintain thread safety, context sharing
+			// and resource management. That is not olc::PGE.
+
+			pge->timeFrame1 = std::chrono::steady_clock::now();
+			pge->durationFrame = pge->timeFrame1 - pge->timeFrame2;
+			pge->timeFrame2 = pge->timeFrame1;
+
+			// Our time per frame coefficient
+			float fDT = pge->durationFrame.count();
+
+			pge->frameCount++;
+			pge->durationFrameCount += pge->durationFrame;
+			
+			if (pge->durationFrameCount >= 1s)
+			{
+				pge->durationFrameCount -= 1s;
+				std::string sTitle = "OneLoneCoder.com - Pixel Game Engine 3 - Test - FPS: " + std::to_string(pge->frameCount);
+				pge->SetWindowTitle(sTitle);
+				pge->frameCount = 0;
+			}
+				
+
+			
+			// Primary Window
+			if (pge->olc_ShouldRemove())
+			{
+				// Application is to be terminated as primary window has closed
+				pge->coreActive = false;
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN
+				emscripten_cancel_main_loop();
+#endif
+			}
+			else
+			{
+#if OLC_MULTIWINDOW == OLC_MULTIWINDOW_YES
+				// Update Child Windows (if any)
+				for (auto& winChild : deqChildWindows)
+					winChild->olc_WindowUpdate(fDT);
+
+				// Remove child windows that have requested closure
+				if (!deqChildWindows.empty())
+				{
+					deqChildWindows.erase(std::remove_if(deqChildWindows.begin(), deqChildWindows.end(),
+						[this](const std::shared_ptr<PGEWindow>& w)
+						{
+							if (w->olc_ShouldRemove())
+							{
+								host->CloseWindowFrame(w.get());
+							}
+							return w->olc_ShouldRemove();
+						}
+					), deqChildWindows.end());
+				}
+#endif
+
+				// Update Primary Window
+				pge->olc_WindowUpdate(fDT);
+
+				// Wait for vertical sync if required. 
+				// Note: Child windows will never vsync as waiting for each buffer swap with vsync
+				// divides up the frame rate budget across the windows.
+				if (pge->gpu->GetConfig().VerticalSync)
+				{
+					pge->host->SyncWithDesktopComposite();
+				}
+			}
+		
+	}	
 	
 	void PixelGameEngine::EngineThread()
 	{
@@ -298,6 +407,10 @@ namespace olc
 		imageloader = std::make_unique<olc::imload::ImageLoader_LibPNG>();
 		#endif
 
+		#if OLC_HOST == OLC_HOST_EMSCRIPTEN
+		imageloader = std::make_unique<olc::imload::ImageLoader_LibPNG>();
+		#endif
+
 		// Initialise GPU Interface	- This thread is the context
 		olc::gpu::RendererConfig cfgRenderer;
 		cfgRenderer.VerticalSync = config.bVSync;
@@ -315,15 +428,16 @@ namespace olc
 		gpu->CreateDevice(host->GetHostWindowDescriptor(this), cfgRenderer);
 		if (gpu->GetLastError() != olc::gpu::RendererError::NoError)
 		{
-			const auto e = gpu->GetLastError(); // For debug visibility
+			//const auto e = gpu->GetLastError(); // For debug visibility
 			std::cout << "Error: Could not create Renderer\n";
 			return;
 		}
 
 
 		
-
-		CreateImage(GetDefaultImage(), config.vScreenSize);
+		olc::ImageConfig cfg;
+		cfg.MSAA = config.bAntiAliasMainScreen;
+		CreateImage(GetDefaultImage(), config.vScreenSize, cfg);
 		
 
 		// Initialise Font System
@@ -350,91 +464,14 @@ namespace olc
 
 		durationFrameCount = 0s;
 
-
-
+		#if OLC_HOST == OLC_HOST_EMSCRIPTEN
+			emscripten_set_main_loop_arg(PixelGameEngine::CoreUpdate, reinterpret_cast<void*>(this), 0, 1);
+		#else
 		while (coreActive)
 		{
-#if OLC_MULTIWINDOW == OLC_MULTIWINDOW_YES
-			// Multiwindow system uses one event loop (non blocking) for all windows
-			host->StartSystemEventLoop(false);
-#endif
-
-			// Frame Delta Timing - "ElapsedTime" since last core update
-			// ~~~~~~~~~~~~~~~~~~
-			// All timing is synchronous to the primary window, i.e child
-			// windows do not maintain their own frame timing. This is a
-			// deliberate decision as PGE will maintain sync between windows.
-			// Why? Multiple windows are not really the point of PGE and
-			// indeed could just be addional unnecessary complexity. However,
-			// by moving to a Window abstraction we kinda get it for free.
-			// This freedom comes at the expense of complexity. If we allowed
-			// windows to be wholly isolated from the core loop, then the
-			// user is expected to maintain thread safety, context sharing
-			// and resource management. That is not olc::PGE.
-
-			timeFrame1 = std::chrono::steady_clock::now();
-			durationFrame = timeFrame1 - timeFrame2;
-			timeFrame2 = timeFrame1;
-
-			// Our time per frame coefficient
-			float fDT = durationFrame.count();
-
-			frameCount++;
-			durationFrameCount += durationFrame;
-			
-			if (durationFrameCount >= 1s)
-			{
-				durationFrameCount -= 1s;
-				std::string sTitle = "OneLoneCoder.com - Pixel Game Engine 3 - Test - FPS: " + std::to_string(frameCount);
-				SetWindowTitle(sTitle);
-				frameCount = 0;
-			}
-				
-
-			
-			// Primary Window
-			if (olc_ShouldRemove())
-			{
-				// Application is to be terminated as primary window has closed
-				coreActive = false;
-			}
-			else
-			{
-#if OLC_MULTIWINDOW == OLC_MULTIWINDOW_YES
-				// Update Child Windows (if any)
-				for (auto& winChild : deqChildWindows)
-					winChild->olc_WindowUpdate(fDT);
-
-				// Remove child windows that have requested closure
-				if (!deqChildWindows.empty())
-				{
-					deqChildWindows.erase(std::remove_if(deqChildWindows.begin(), deqChildWindows.end(),
-						[this](const std::shared_ptr<PGEWindow>& w)
-						{
-							if (w->olc_ShouldRemove())
-							{
-								host->CloseWindowFrame(w.get());
-							}
-							return w->olc_ShouldRemove();
-						}
-					), deqChildWindows.end());
-				}
-#endif
-
-				// Update Primary Window
-				olc_WindowUpdate(fDT);
-
-				// Wait for vertical sync if required. 
-				// Note: Child windows will never vsync as waiting for each buffer swap with vsync
-				// divides up the frame rate budget across the windows.
-				if (gpu->GetConfig().VerticalSync)
-				{
-					host->SyncWithDesktopComposite();
-				}
-			}
-
-			
+			PixelGameEngine::CoreUpdate(this);
 		}
+		#endif
 	}
 }
 //! END IMPLEMENTATION
