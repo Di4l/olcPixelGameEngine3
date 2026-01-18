@@ -209,12 +209,18 @@ void main()
 		return "OK";
 	}
 
-	uint32_t Shader_GLSL33::CreateUniform(const std::string& name)
+	int32_t Shader_GLSL33::CreateUniform(const std::string& name)
 	{
 		auto& gl = olc::apis::opengl::gl::Get();
 		const char* s = name.c_str();
-		mapUniforms.insert({ name, gl.glGetUniformLocation(nCompiledShaderID, s) });
-		return GetUniform(name);
+		int32_t nID = gl.glGetUniformLocation(nCompiledShaderID, s);
+		if (nID != -1)
+		{
+			mapUniforms.insert({ name, nID });
+			return GetUniform(name);
+		}
+		else
+			return -1;
 	}
 
 
@@ -857,10 +863,16 @@ void main()
 		pCurrentShader = &shader;
 		gl.glUseProgram(pCurrentShader->GetShaderID());
 
-		gl.glUniform1i(pCurrentShader->GetUniform("pgeTexture0"), 0); // Texture slot 0
-		gl.glUniform1i(pCurrentShader->GetUniform("pgeTexture1"), 1); // Texture slot 1
-		gl.glUniform1i(pCurrentShader->GetUniform("pgeTexture2"), 2); // Texture slot 2
-		gl.glUniform1i(pCurrentShader->GetUniform("pgeTexture3"), 3); // Texture slot 3
+		// Set default texture slots if they exist in the shader
+		int32_t loc0 = pCurrentShader->GetUniform("pgeTexture0");
+		if (loc0 != -1) { gl.glUniform1i(loc0, 0); } // Texture slot 0
+		int32_t loc1 = pCurrentShader->GetUniform("pgeTexture1");
+		if (loc1 != -1) { gl.glUniform1i(loc1, 1); } // Texture slot 1
+		int32_t loc2 = pCurrentShader->GetUniform("pgeTexture2");
+		if (loc2 != -1) { gl.glUniform1i(loc2, 2); } // Texture slot 2
+		int32_t loc3 = pCurrentShader->GetUniform("pgeTexture3");
+		if (loc3 != -1) { gl.glUniform1i(loc3, 3); } // Texture slot 3
+		
 		return true;
 	}
 
@@ -982,13 +994,13 @@ void main()
 					gl.glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
 				if (task.structure == olc::Structure::Point)
-					gl.glUniform1i(shaderDefault.GetUniform("pgeDrawType"), 1);
+					gl.glUniform1i(pCurrentShader->GetUniform("pgeDrawType"), 1);
 				else if (task.structure == olc::Structure::Line)
-					gl.glUniform1i(shaderDefault.GetUniform("pgeDrawType"), 1);
+					gl.glUniform1i(pCurrentShader->GetUniform("pgeDrawType"), 1);
 				else if (task.structure == olc::Structure::LineLoop)
-					gl.glUniform1i(shaderDefault.GetUniform("pgeDrawType"), 1);
+					gl.glUniform1i(pCurrentShader->GetUniform("pgeDrawType"), 1);
 				else
-					gl.glUniform1i(shaderDefault.GetUniform("pgeDrawType"), 0);
+					gl.glUniform1i(pCurrentShader->GetUniform("pgeDrawType"), 0);
 
 				if (task.structure == olc::Structure::Fan)
 					gl.glDrawArrays(GL_TRIANGLE_FAN, 0, (GLsizei)task.vertexBuffer.size());
