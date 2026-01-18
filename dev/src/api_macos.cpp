@@ -1,4 +1,5 @@
 #include "api_macos.h"
+#include <iostream>
 
 //! START IMPLEMENTATION
 
@@ -634,7 +635,8 @@ struct Application {
 struct Window {
     id nsWindow{nullptr};           // NSWindow instance
     id delegate{nullptr};           // Window delegate instance
-    NSRect windowFrame{};                 // Window frame rectangle
+    OpenGLRenderer* renderer{nullptr}; // Associated OpenGL renderer
+    NSRect windowFrame{};           // Window frame rectangle
     NSRect contentViewFrame{};      // Content view frame rectangle
     const char* title{nullptr};     // Window title string
 
@@ -708,6 +710,8 @@ struct OpenGLRenderer {
     void (*makeCurrentContext)    (struct OpenGLRenderer* self){nullptr};
     void (*setVsync)              (struct OpenGLRenderer* self, BOOL enabled){nullptr};
     void (*destroy)               (struct OpenGLRenderer* self){nullptr};
+    bool (*resetContextForSize)   (struct OpenGLRenderer* self, double width, double height){nullptr};
+
 };
 
 // Modern image loading and pixel data extraction
@@ -1139,6 +1143,11 @@ void windowDidResize(id self, SEL _cmd, id notification) {
     if (gptrWindowDelegate && gptrWindowDelegate->nsWindow) {
         // Safely update frame data only - no OpenGL operations
         window_updateFrameFromOSX(gptrWindowDelegate);
+
+         // Get the new content view size
+        double width, height;
+        window_getContentViewFrame(gptrWindowDelegate, nullptr, nullptr, &width, &height);
+
         if (gptrWindowDelegate->windowDidResizeCallback) {
             gptrWindowDelegate->windowDidResizeCallback(gptrWindowDelegate->windowDidResizeUserData);
         }
@@ -1535,6 +1544,7 @@ extern "C" {
     // Initialize OpenGL renderer
     void opengl_initialize(OpenGLRenderer* self, Window* window) {
         self->window = window;
+        window->renderer = self;
         
         // Get classes using const strings
         Class NSOpenGLPixelFormatClass  = objc_getClass(kNSOpenGLPixelFormatClass);
@@ -1617,6 +1627,33 @@ extern "C" {
 
     }
 
+    // Implementation function
+    bool opengl_resetContextForSize(OpenGLRenderer* self, double width, double height) {
+        if (!self || !self->glContext || !self->glView) {
+            return false;
+        }
+        
+        // Make context current
+        ((void(*)(id, SEL))objc_msgSend)(self->glContext, ObjectiveCSEL::makeCurrentContextSel);
+        
+        // Update the view frame
+        NSRect newFrame = {0.0, 0.0, width, height};
+        ((void(*)(id, SEL, NSRect))objc_msgSend)(self->glView, ObjectiveCSEL::setFrameSel, newFrame);
+        
+        // Force context to reshape
+        ((void(*)(id, SEL))objc_msgSend)(self->glView, ObjectiveCSEL::reshapeSel);
+        ((void(*)(id, SEL))objc_msgSend)(self->glContext, ObjectiveCSEL::updateSel);
+        
+        // Update viewport
+        glViewport(0, 0, (GLsizei)width, (GLsizei)height);
+        
+        // Clear buffers
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        return true;
+
+    }
+
 
     // Get the underlying OpenGL context
     void* opengl_getOpenGLContext(const struct OpenGLRenderer* self) {
@@ -1692,6 +1729,7 @@ extern "C" {
         renderer->makeCurrentContext     = opengl_makeCurrentContext;
         renderer->setVsync               = opengl_setVsync;
         renderer->destroy                = opengl_destroy;
+        renderer->resetContextForSize    = opengl_resetContextForSize;
 
         return renderer;
     }

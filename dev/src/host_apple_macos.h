@@ -10,6 +10,9 @@
 #include <exception>
 #include <thread>
 #include <chrono>
+#include <mutex>
+#include <condition_variable>
+#include <atomic>
 //! END STDHEADER
 
 //! START CUSTOMHEADER
@@ -67,7 +70,7 @@ namespace olc
 			HostError lastError = HostError::None;
 
         public:
-            // Internal Mac OS functions
+          
             // MacOS Application and Window pointers
             std::unique_ptr<olc::apis::macos::Application> pMacApplication = nullptr;
             std::unique_ptr<olc::apis::macos::Window> pMacOSWindow = nullptr;
@@ -79,14 +82,36 @@ namespace olc
     
             
         private:
-                        
-            bool bApplicationInitialized = false;       // Flag to indicate application has initialized
-            bool bWindowInitialized = false;            // Flag to indicate window has initialized
-            bool bEventHandlerInitialized = false;      // Flag to indicate event handler has initialized
-            bool bInitializeOpenGLRenderer = false;     // Flag to indicate OpenGL renderer should be initialized
+                       
+            enum MAINTASKS{
+                NONE,
+                CREATE_OPENGL_RENDERER,
+                RESIZE_WINDOW,
+                BECOME_ACTIVE,
+                RESIGN_ACTIVE,
+                MINIMIZE_WINDOW,
+                DEMINIMIZE_WINDOW
+            };
+            
+            // Internal Mac OS functions
+            bool ExecutePendingMainThreadTasks(void);       // Execute pending tasks on main thread
+            bool MainThreadTasks(void);                     // Handle main thread tasks
+            bool AddPendingMainThreadTask(MAINTASKS task);  // Add a pending task to main thread. Note: You should ever add tasks that require main thread execution only from the PGE thread
+            bool CreateCGLContextObj();                     // Create CGL Context Object
+            std::vector<MAINTASKS> vPendingMainThreadTasks; // Vector of pending main thread tasks
+            
             std::vector<void*> vMacOSWindowDescriptors; // Vector to hold window descriptors
             bool enableVSync = false;                   // VSync enabled flag
-            const uint16_t raceConditionTimeoutMS = 1;  // Race condition sleep time in milliseconds
+            bool bSkipFrame = false;                     // Flag to indicate if frame should be skipped 
+
+            // Thread synchronization for PGE Thread V Main thread
+            mutable std::mutex      mainThreadPendingTasksMutex;    // Mutex for main thread pending tasks
+            std::condition_variable mainThreadResetCondition;       // Condition variable for main thread reset
+            std::atomic<bool>       isMainThreadResetting{false};   // Atomic flag for resetting main thread 
+
+            mutable std::mutex      pgeThreadPendingTasksMutex;    // Mutex for PGE thread pending tasks
+            std::condition_variable pgeThreadResetCondition;       // Condition variable for PGE thread reset
+            std::atomic<bool>       isPGEThreadResetting{true};    // Atomic flag for resetting PGE thread
 
             struct sFrameBounds
             {

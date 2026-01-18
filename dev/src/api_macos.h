@@ -80,6 +80,7 @@ extern "C" {
     void opengl_makeCurrentContext        (struct OpenGLRenderer* self);        // Make OpenGL context current
     void opengl_setVsync                  (struct OpenGLRenderer* self, BOOL enabled); // Enable/disable vsync
     void opengl_destroy                   (struct OpenGLRenderer* self);
+    bool opengl_resetContextForSize       (struct OpenGLRenderer* self, double width, double height);
 
     // Image Loader API - as implemented in api_macos.c
     struct ImageLoader* imageloader_init        (void);
