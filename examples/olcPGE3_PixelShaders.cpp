@@ -55,12 +55,22 @@ public:
 
 		void main()
 		{
+			// Horizontal Wobble
 			vec2 sample = vec2(
 				oTex.x + sin(oTex.y * frequency * pgeTargetSizeInPixels.y + pgeTotalTimeElapsed * 2.0) * amplitude, 
 				oTex.y
 			);
 
-			vec4 texColor = texture(pgeTexture, sample) * oCol;
+			// Colour bias vertically
+			float bias = oTex.y;
+			vec4 newCol = vec4(
+				oCol.r * bias,
+				oCol.g,
+				oCol.b * (1.0 - bias),
+				oCol.a
+			);
+
+			vec4 texColor = texture(pgeTexture, sample) * newCol;
 			pixel = vec4(texColor.rgb * texColor.a, texColor.a);
 		}
 		)";
@@ -81,7 +91,7 @@ public:
 		std::string sResult = shaderExample.Compile();
 		if (sResult != "OK")
 		{
-			std::cout << "Error compiling default shader: " << sResult << std::endl;
+			std::cout << "Error compiling shader: " << sResult << std::endl;
 			return false;
 		}
 
