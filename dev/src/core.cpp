@@ -59,7 +59,6 @@ namespace olc
 
 	bool PGEWindow::olc_WindowUpdate(const float fElapsedTime)
 	{
-		total_time += fElapsedTime;
 		// Input Changes
 		mouse.UpdateState();
 		
@@ -97,7 +96,7 @@ namespace olc
 		// Take the window's completed "screen" and draw it as a textured quad to the backbuffer
 		pRenderer->AssignTextureTarget(0, 0);
 		pRenderer->SetViewport({ 0,0 }, GetWindowSize());
-		pRenderer->ClearViewport(olc::Colour::MAGENTA * fmodf(total_time, 1.0f), true, true);
+		pRenderer->ClearViewport(olc::Colour::MAGENTA, true, true);
 		
 		
 		draw.WorldReset();		

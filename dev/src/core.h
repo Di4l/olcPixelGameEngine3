@@ -89,7 +89,6 @@ namespace olc
 		void LinkToRenderer(olc::gpu::Renderer* gpu);
 		void LinkToImageLoader(olc::imload::ImageLoader* imload);
 
-float total_time = 0;
 	public:
 		// Returns the image that represents the primary drawing surface
 		olc::Image& GetDefaultImage();

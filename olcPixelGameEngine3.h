@@ -2787,7 +2787,6 @@ namespace olc
 		void LinkToRenderer(olc::gpu::Renderer* gpu);
 		void LinkToImageLoader(olc::imload::ImageLoader* imload);
 
-float total_time = 0;
 	public:
 		// Returns the image that represents the primary drawing surface
 		olc::Image& GetDefaultImage();
@@ -4146,6 +4145,8 @@ namespace olc::host
 #include <wayland-client.h>
 #include <wayland-egl.h>
 #include "xdg-shell.h"
+#include "xdg-decoration.h"
+#include <linux/input-event-codes.h>
 
 #include <EGL/egl.h>
 #include <EGL/eglplatform.h>
@@ -4153,25 +4154,63 @@ namespace olc::host
 namespace olc::host
 {
     struct WaylandWindow  {
-        wl_surface* surface;
-        xdg_surface* surface_xdg;
-        xdg_toplevel* toplevel;
-        //wl_shell* shell;
-        //wl_shell_surface* shell_surface;
-        wl_egl_window* window;
-        size_t olc_window_uid;
+        wl_surface* surface{nullptr};
+        xdg_surface* surface_xdg{nullptr};
+        xdg_toplevel* toplevel{nullptr};
+        zxdg_toplevel_decoration_v1* decorations{nullptr};
+        wl_egl_window* window{nullptr};
+        size_t olc_window_uid{0};
+        int32_t bounds_x{0};
+        int32_t bounds_y{0};
     };
+
+    namespace wayland {
+        enum PointerEventMask {
+            PointerEventEnter = 1 << 0,
+            PointerEventLeave = 1 << 1,
+            PointerEventMotion = 1 << 2,
+            PointerEventButton = 1 << 3,
+            PointerEventAxis = 1 << 4, 
+            PointerEventAxisSource = 1 << 5,
+            PointerEventAxisStop = 1 << 6,
+            PointerEventDiscrete = 1 << 7
+        };
+
+        struct PointerState {
+            uint32_t event_mask{0};
+            wl_surface* surface{nullptr};
+            wl_fixed_t surface_x{};
+            wl_fixed_t surface_y{};
+            uint32_t button{0};
+            uint32_t state{0};
+            uint32_t time{0};
+            uint32_t serial{0};
+
+            struct Axis {
+                wl_fixed_t value{};
+                int32_t discrete{0};
+                bool valid{false};
+            };
+
+            std::array<Axis, 2> axes{};
+            uint32_t axis_source{0};
+        };
+    }
 
     class Host_Linux_Wayland : public olc::host::Host
     {
 	private:
-		wl_display* display;
-        wl_registry* registry;
-        wl_compositor* compositor;
-        //wl_surface* surface;
-        //wl_shell* shell;
-        xdg_wm_base* xdg_wm;
-        //wl_shell_surface* shell_surface;
+		wl_display* display{nullptr};
+        wl_registry* registry{nullptr};
+        wl_compositor* compositor{nullptr};
+        wl_seat* seat{nullptr};
+        wl_pointer* pointer{nullptr};
+        xdg_wm_base* xdg_wm{nullptr};
+        zxdg_decoration_manager_v1* decoration_manager{nullptr};
+
+        wayland::PointerState pointer_state;
+
+        size_t active_window_id;
 
     public:
         Host_Linux_Wayland();
@@ -4194,18 +4233,53 @@ namespace olc::host
         static void registry_handle_global_callback(void* data, wl_registry* registry, uint32_t name, const char* interface, uint32_t version);
         static void registry_handle_global_remove_callback(void* data, wl_registry* registry, uint32_t name);
 
+        static void seat_capabilities_callback(void* data, wl_seat* seat, uint32_t capabilities);
+        static void seat_name_callback(void* data, wl_seat* wl_seat, const char* name);
+
+        // pointer callbacks
+        static void pointer_enter_callback(void* data, wl_pointer* pointer, uint32_t serial, wl_surface* surface, wl_fixed_t surface_x, wl_fixed_t surface_y);
+        static void pointer_leave_callback(void* data, wl_pointer* pointer, uint32_t serial, wl_surface* surface);
+        static void pointer_motion_callback(void* data, wl_pointer* pointer, uint32_t time, wl_fixed_t surface_x, wl_fixed_t surface_y);
+        static void pointer_button_callback(void* data, wl_pointer* pointer, uint32_t serial, uint32_t time, uint32_t button, uint32_t state);
+        static void pointer_axis_callback(void* data, wl_pointer* pointer, uint32_t time, uint32_t axis, wl_fixed_t value);
+        static void pointer_frame_callback(void* data, wl_pointer* pointer);
+        static void pointer_axis_source_callback(void* data, wl_pointer* pointer, uint32_t axis_source);
+        static void pointer_axis_stop_callback(void* data, wl_pointer* pointer, uint32_t time, uint32_t axis);
+        static void pointer_axis_discrete_callback(void* data, wl_pointer* pointer, uint32_t axis, int32_t discrete);
+        static void pointer_axis_value120_callback(void* data, wl_pointer* pointer, uint32_t axis, int32_t value120);
+        static void pointer_axis_relative_direction_callback(void* data, wl_pointer* pointer, uint32_t axis, uint32_t direction);
+
         // xdg callbacks
         static void xdg_wm_ping_callback(void* data, xdg_wm_base* wm, uint32_t serial);
         static void xdg_surface_configure_callback(void* data, xdg_surface* surface, uint32_t serial);
         static void xdg_toplevel_configure_callback(void* data, xdg_toplevel* toplevel, int32_t width, int32_t height, wl_array* states);
         static void xdg_toplevel_close_callback(void* data, xdg_toplevel* toplevel);
         static void xdg_toplevel_configure_bounds_callback(void* data, xdg_toplevel* toplevel, int32_t width, int32_t height);
-        static void xdg_toplevel_capabilities(void* data, xdg_toplevel* toplevel, wl_array* capabilities);
+        static void xdg_toplevel_capabilities_callback(void* data, xdg_toplevel* toplevel, wl_array* capabilities);
+        static void xdg_toplevel_decoration_configure_callback(void* data, zxdg_toplevel_decoration_v1* zxdg_toplevel_decoration_v1, uint32_t mode);
     private:
+        // Wayland callback functions
         void registry_handle_global(wl_registry* registry, uint32_t name, const char* interface, uint32_t version);
         void registry_handle_global_remove(wl_registry* registry, uint32_t name);
+        void seat_capabilities(wl_seat* seat, uint32_t capabilities);
+
+        // Pointer callback functions
+        void pointer_enter(wl_pointer* pointer, uint32_t serial, wl_surface* surface, wl_fixed_t surface_x, wl_fixed_t surface_y);
+        void pointer_leave(wl_pointer* pointer, uint32_t serial, wl_surface* surface);
+        void pointer_motion(wl_pointer* pointer, uint32_t time, wl_fixed_t surface_x, wl_fixed_t surface_y);
+        void pointer_button(wl_pointer* pointer, uint32_t serial, uint32_t time, uint32_t button, uint32_t state);
+        void pointer_axis(wl_pointer* pointer, uint32_t time, uint32_t axis, wl_fixed_t value);
+        void pointer_frame(wl_pointer* pointer);
+        void pointer_axis_source(wl_pointer* pointer, uint32_t axis_source);
+        void pointer_axis_stop(wl_pointer* pointer, uint32_t time, uint32_t axis);
+        void pointer_axis_discrete(wl_pointer* pointer, uint32_t axis, int32_t discrete);
+        void pointer_axis_value120(wl_pointer* pointer, uint32_t axis, int32_t value120);
+        void pointer_axis_relative_direction(wl_pointer* pointer, uint32_t axis, uint32_t direction);
+
+        // XDG toplevel callback functions
         void xdg_toplevel_configure(xdg_toplevel* toplevel, int32_t width, int32_t height, wl_array* states);
         void xdg_toplevel_close(xdg_toplevel* toplevel);
+        void xdg_toplevel_configure_bounds(xdg_toplevel* toplevel, int32_t width, int32_t height);
 
         bool CreateEGLContext(WaylandWindow* window);
 
@@ -7683,7 +7757,7 @@ namespace olc::host
         
         XMapWindow(olc_Display, olc_Window);
         XStoreName(olc_Display, olc_Window, "OneLoneCoder.com - Pixel Game Engine");
-            pWindow->SetWindowSize(vWindowSize);
+        pWindow->SetWindowSize(vWindowSize);
             
         mapUID2X11Window.insert_or_assign(pWindow->GetUID(), olc_Window);
 		mapX11Window2PTR.insert_or_assign(olc_Window, pWindow);
@@ -7744,6 +7818,24 @@ namespace olc::host
             .global_remove = Host_Linux_Wayland::registry_handle_global_remove_callback,
         };
 
+        static const wl_seat_listener seat_listener {
+            .capabilities = Host_Linux_Wayland::seat_capabilities_callback,
+            .name = Host_Linux_Wayland::seat_name_callback
+        };
+
+        static const wl_pointer_listener pointer_listener {
+            .enter = Host_Linux_Wayland::pointer_enter_callback,
+            .leave = Host_Linux_Wayland::pointer_leave_callback,
+            .motion = Host_Linux_Wayland::pointer_motion_callback,
+            .button = Host_Linux_Wayland::pointer_button_callback,
+            .axis = Host_Linux_Wayland::pointer_axis_callback,
+            .frame = Host_Linux_Wayland::pointer_frame_callback,
+            .axis_source = Host_Linux_Wayland::pointer_axis_source_callback,
+            .axis_stop = Host_Linux_Wayland::pointer_axis_stop_callback,
+            .axis_discrete = Host_Linux_Wayland::pointer_axis_discrete_callback,
+            .axis_value120 = Host_Linux_Wayland::pointer_axis_value120_callback,
+            .axis_relative_direction = Host_Linux_Wayland::pointer_axis_relative_direction_callback
+        };
     }
 
     namespace xdg {
@@ -7759,7 +7851,11 @@ namespace olc::host
             .configure = Host_Linux_Wayland::xdg_toplevel_configure_callback,
             .close = Host_Linux_Wayland::xdg_toplevel_close_callback,
             .configure_bounds = Host_Linux_Wayland::xdg_toplevel_configure_bounds_callback,
-            .wm_capabilities = Host_Linux_Wayland::xdg_toplevel_capabilities
+            .wm_capabilities = Host_Linux_Wayland::xdg_toplevel_capabilities_callback
+        };
+
+        static const zxdg_toplevel_decoration_v1_listener toplevel_decoration_listener {
+            .configure = Host_Linux_Wayland::xdg_toplevel_decoration_configure_callback
         };
     }
 
@@ -7772,16 +7868,12 @@ namespace olc::host
         wl_registry_add_listener(registry, &wayland::registry_listener, this);
         wl_display_roundtrip(display);
 
-        if(compositor == nullptr || xdg_wm == nullptr) {
+        if(compositor == nullptr || xdg_wm == nullptr || seat == nullptr || decoration_manager == nullptr) {
             throw;
         }
         
         xdg_wm_base_add_listener(xdg_wm, &xdg::xdg_base_listener, this);
-
-
-        //surface = static_cast<wl_surface*>(wl_compositor_create_surface(compositor));
-        //shell_surface = static_cast<wl_shell_surface*>(wl_shell_get_shell_surface(shell, surface));
-        //wl_shell_surface_set_toplevel(shell_surface);
+        wl_seat_add_listener(seat, &wayland::seat_listener, this);
     }
 
     Host_Linux_Wayland::~Host_Linux_Wayland()
@@ -7792,17 +7884,14 @@ namespace olc::host
             xdg_toplevel_destroy(wayland_window.toplevel);
             xdg_surface_destroy(wayland_window.surface_xdg);
             wl_surface_destroy(wayland_window.surface);
-            //auto uid = wayland_window.olc_window_uid;
-            //mapUID2Window.erase(uid);
-            //mapUID2OlcWindow.erase(uid);
         }
 
         wl_display_disconnect(display);
     }
 
-    bool Host_Linux_Wayland::StartSystemEventLoop(bool bBlockIfPOssible)
+    bool Host_Linux_Wayland::StartSystemEventLoop(bool bBlockIfPossible)
     {
-        if(bBlockIfPOssible) {
+        if(bBlockIfPossible) {
             while(!terminate && wl_display_dispatch_pending(display) != -1) {
 
             }
@@ -7813,8 +7902,6 @@ namespace olc::host
 
     bool Host_Linux_Wayland::AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen)
     {
-        std::cout << __FUNCTION__ << std::endl;
-
         // Create a window
         WaylandWindow w;
         wl_region* region = wl_compositor_create_region(compositor);
@@ -7825,13 +7912,17 @@ namespace olc::host
 
         xdg_surface_add_listener(w.surface_xdg, &xdg::surface_listener, this);
         w.toplevel = xdg_surface_get_toplevel(w.surface_xdg);
-        xdg_toplevel_set_title(w.toplevel, "Test");
+        xdg_toplevel_set_title(w.toplevel, "OneLoneCoder.com - Pixel Game Engine");
         xdg_toplevel_add_listener(w.toplevel, &xdg::xdg_top_listener, this);
         wl_surface_set_opaque_region(w.surface, region);
         w.window = wl_egl_window_create(w.surface, vWindowSize.x, vWindowSize.y);
         w.olc_window_uid = pWindow->GetUID();
         wl_surface_commit(w.surface);
         wl_region_destroy(region);
+
+        w.decorations = zxdg_decoration_manager_v1_get_toplevel_decoration(decoration_manager, w.toplevel);
+        zxdg_toplevel_decoration_v1_add_listener(w.decorations, &xdg::toplevel_decoration_listener, this);
+        zxdg_toplevel_decoration_v1_set_mode(w.decorations, 2);
 
         pWindow->SetWindowPosition(vWindowPos);
         pWindow->SetWindowSize(vWindowSize);
@@ -7841,70 +7932,13 @@ namespace olc::host
         return true;
     }
 
-    // bool Host_Linux_Wayland::CreateEGLContext(wl_egl_window* window) {
-    //     //EGLint config_count;
-
-    //     EGLDisplay egl_display = eglGetDisplay(display);
-    //     if(!egl_display) {
-    //         return false;
-    //     }
-
-    //     EGLint egl_major_version;
-    //     EGLint egl_minor_version;
-
-    //     if(!eglInitialize(egl_display, &egl_major_version, &egl_minor_version)) {
-    //         return false;
-    //     }
-
-    //     EGLint num_configs;
-        
-    //     if(!eglGetConfigs(display, nullptr, 0, &num_configs) || num_configs == 0) {
-    //         return false;
-    //     }
-
-    //     EGLConfig egl_config;
-    //     EGLint egl_attributes[] {
-    //         EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
-    //         EGL_RENDERABLE_TYPE, EGL_OPENGL_BIT,
-    //         EGL_RED_SIZE, 8,
-    //         EGL_GREEN_SIZE, 8,
-    //         EGL_BLUE_SIZE, 8,
-    //         EGL_DEPTH_SIZE, 24,
-    //         0
-    //     };
-
-    //     if(!eglChooseConfig(egl_display, egl_attributes, &egl_config, 1, &num_configs) || num_configs != 1) {
-    //         return false;
-    //     }
-
-    //     EGLSurface egl_surface;
-
-    //     egl_surface = eglCreateWindowSurface(egl_display, egl_config, window, nullptr);
-
-    //     if(egl_surface == EGL_NO_SURFACE) {
-    //         return false;
-    //     }
-
-    //     EGLint egl_context_attributes[] = {EGL_CONTEXT_CLIENT_VERSION, 2, EGL_NONE, EGL_NONE};
-    //     EGLContext egl_context = eglCreateContext(egl_display, egl_config, EGL_NO_CONTEXT, egl_context_attributes);
-
-    //     if(egl_context = EGL_NO_CONTEXT) {
-    //         return false;
-    //     }
-
-    //     if(!eglMakeCurrent(egl_display, egl_surface, egl_surface, egl_context)) {
-    //         return false;
-    //     }
-
-    //     return true
-    // }
-
     bool Host_Linux_Wayland::CloseWindowFrame(olc::Window* pWindow)
     {
         auto itr = mapUID2Window.find(pWindow->GetUID());
         if(itr != mapUID2Window.end()) {
             auto& wayland_window = itr->second;
             wl_egl_window_destroy(wayland_window.window);
+            zxdg_toplevel_decoration_v1_destroy(wayland_window.decorations);
             xdg_toplevel_destroy(wayland_window.toplevel);
             xdg_surface_destroy(wayland_window.surface_xdg);
             wl_surface_destroy(wayland_window.surface);
@@ -7926,13 +7960,17 @@ namespace olc::host
 
     void Host_Linux_Wayland::registry_handle_global(wl_registry* registry, uint32_t name, const char* interface, uint32_t version)
     {
-        printf("interface: '%s', version: %d, name: %d\n", interface, version, name);
-
         if(std::strcmp(interface, wl_compositor_interface.name) == 0) {
             compositor = static_cast<wl_compositor*>(wl_registry_bind(registry, name, &wl_compositor_interface, version));
         }
         if(std::strcmp(interface, xdg_wm_base_interface.name) == 0) {
             xdg_wm = static_cast<xdg_wm_base*>(wl_registry_bind(registry, name, &xdg_wm_base_interface, version));
+        }
+        if(std::strcmp(interface, wl_seat_interface.name) == 0) {
+            seat = static_cast<wl_seat*>(wl_registry_bind(registry, name, &wl_seat_interface, version));
+        }
+        if(std::strcmp(interface, zxdg_decoration_manager_v1_interface.name) == 0) {
+            decoration_manager = static_cast<zxdg_decoration_manager_v1*>(wl_registry_bind(registry, name, &zxdg_decoration_manager_v1_interface, version));
         }
     }
     
@@ -7941,11 +7979,30 @@ namespace olc::host
 
     }
 
+    void Host_Linux_Wayland::seat_capabilities(wl_seat* seat, uint32_t capabilities)
+    {
+        if (capabilities & WL_SEAT_CAPABILITY_POINTER && pointer == nullptr) {
+            pointer = wl_seat_get_pointer(seat);
+            wl_pointer_add_listener(pointer, &wayland::pointer_listener, this);
+        }
+    }
+
     void Host_Linux_Wayland::xdg_toplevel_configure(xdg_toplevel* toplevel, int32_t width, int32_t height, wl_array* states)
     {
-        std::cout << __FUNCTION__ << std::endl;
         for(auto& i : mapUID2Window) {
-            if(i.second.toplevel == toplevel) {
+            auto& w = i.second;
+            if(w.toplevel == toplevel) {
+                // Attempt to constrain the window size to what the compositor may have told us earlier
+                // in a bounds_configure message
+                if(w.bounds_x != 0) {
+                    width = std::min<int32_t>(width, w.bounds_x);
+                }
+
+                if(w.bounds_y != 0) {
+                    height = std::min<int32_t>(height, w.bounds_y);
+                }
+                
+                mapUID2OlcWindow[i.first]->olc_OnWindowSize({width, height});
                 wl_egl_window_resize(i.second.window, width, height, 0, 0);
                 wl_surface_commit(i.second.surface);
             }
@@ -7954,16 +8011,24 @@ namespace olc::host
 
     void Host_Linux_Wayland::xdg_toplevel_close(xdg_toplevel* toplevel)
     {
-        std::cout << __FUNCTION__ << std::endl;
         for(auto& i : mapUID2Window) {
             if(i.second.toplevel == toplevel) {
                 auto itr = mapUID2OlcWindow.find(i.second.olc_window_uid);
                 if(itr != mapUID2OlcWindow.end()) {
                     auto* ptr = itr->second;
                     ptr->olc_OnWindowClose();
-                    std::cout << __FUNCTION__;
                     terminate = true;
                 }
+            }
+        }
+    }
+
+    void Host_Linux_Wayland::xdg_toplevel_configure_bounds(xdg_toplevel* toplevel, int32_t width, int32_t height)
+    {
+        for(auto& i : mapUID2Window) {
+            if(i.second.toplevel == toplevel) {
+                i.second.bounds_x = width;
+                i.second.bounds_y = height;
             }
         }
     }
@@ -7979,44 +8044,219 @@ namespace olc::host
         host->registry_handle_global_remove(registry, name);
     }
 
-    void Host_Linux_Wayland::xdg_wm_ping_callback(void* data, xdg_wm_base* wm, uint32_t serial) {
-        std::cout << __FUNCTION__ << std::endl;
+    void Host_Linux_Wayland::seat_capabilities_callback(void* data, wl_seat* seat, uint32_t capabilities)
+    {
+        auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
+        host->seat_capabilities(seat, capabilities);
+    }
 
+    void Host_Linux_Wayland::seat_name_callback(void* data, wl_seat* wl_seat, const char* name)
+    {
+
+    }
+
+    // Pointer Callbacks
+    void Host_Linux_Wayland::pointer_enter_callback(void* data, wl_pointer* pointer, uint32_t serial, wl_surface* surface, wl_fixed_t surface_x, wl_fixed_t surface_y)
+    {
+        auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
+        host->pointer_enter(pointer, serial, surface, surface_x, surface_y);
+    }
+
+    void Host_Linux_Wayland::pointer_enter(wl_pointer* pointer, uint32_t serial, wl_surface* surface, wl_fixed_t surface_x, wl_fixed_t surface_y)
+    {
+        pointer_state.event_mask |= wayland::PointerEventMask::PointerEventEnter;
+        pointer_state.serial = serial;
+        pointer_state.surface_x = surface_x;
+        pointer_state.surface_y = surface_y;
+    }
+
+    void Host_Linux_Wayland::pointer_leave_callback(void* data, wl_pointer* pointer, uint32_t serial, wl_surface* surface)
+    {
+        auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
+        host->pointer_leave(pointer, serial, surface);
+    }
+
+    void Host_Linux_Wayland::pointer_leave(wl_pointer* pointer, uint32_t serial, wl_surface* surface)
+    {
+        pointer_state.event_mask |= wayland::PointerEventMask::PointerEventLeave;
+        pointer_state.serial = serial;
+    }
+
+    void Host_Linux_Wayland::pointer_motion_callback(void* data, wl_pointer* pointer, uint32_t time, wl_fixed_t surface_x, wl_fixed_t surface_y)
+    {
+        auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
+        host->pointer_motion(pointer, time, surface_x, surface_y);
+    }
+
+    void Host_Linux_Wayland::pointer_motion(wl_pointer* pointer, uint32_t time, wl_fixed_t surface_x, wl_fixed_t surface_y)
+    {
+        pointer_state.event_mask |= wayland::PointerEventMask::PointerEventMotion;
+        pointer_state.time = time;
+        pointer_state.surface_x = surface_x;
+        pointer_state.surface_y = surface_y;   
+    }
+
+    void Host_Linux_Wayland::pointer_button_callback(void* data, wl_pointer* pointer, uint32_t serial, uint32_t time, uint32_t button, uint32_t state)
+    {
+        auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
+        host->pointer_button(pointer, serial, time, button, state);
+    }
+
+    void Host_Linux_Wayland::pointer_button(wl_pointer* pointer, uint32_t serial, uint32_t time, uint32_t button, uint32_t state)
+    {
+        pointer_state.event_mask |= wayland::PointerEventMask::PointerEventButton;
+        pointer_state.time = time;
+        pointer_state.serial = serial;
+        pointer_state.button = button;
+        pointer_state.state = state;
+    }
+
+    void Host_Linux_Wayland::pointer_axis_callback(void* data, wl_pointer* pointer, uint32_t time, uint32_t axis, wl_fixed_t value)
+    {
+        auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
+        host->pointer_axis(pointer, time, axis, value);
+    }
+
+    void Host_Linux_Wayland::pointer_axis(wl_pointer* pointer, uint32_t time, uint32_t axis, wl_fixed_t value)
+    {
+        pointer_state.event_mask |= wayland::PointerEventMask::PointerEventAxis;
+        pointer_state.time = time;
+        pointer_state.axes[axis].valid = true;
+        pointer_state.axes[axis].value = value;
+    }
+
+    void Host_Linux_Wayland::pointer_frame_callback(void* data, wl_pointer* pointer)
+    {
+        auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
+        host->pointer_frame(pointer);
+    }
+
+    void Host_Linux_Wayland::pointer_frame(wl_pointer* pointer)
+    {
+        wayland::PointerState *event = &pointer_state;
+
+        if (pointer_state.event_mask & wayland::PointerEventMask::PointerEventEnter) {
+            for(auto& itr : mapUID2Window) {
+                if (itr.second.surface == event->surface) {
+                    active_window_id = itr.first;
+                }
+            }
+        }
+
+        auto* pge_window = mapUID2OlcWindow[active_window_id];
+
+        if (pointer_state.event_mask & wayland::PointerEventMask::PointerEventMotion) {
+                pge_window->olc_OnMouseMove(olc::vi2d{
+                    wl_fixed_to_int(pointer_state.surface_x), 
+                    wl_fixed_to_int(pointer_state.surface_y)
+                });
+        }
+
+        if (pointer_state.event_mask & wayland::PointerEventMask::PointerEventButton) {
+            switch (pointer_state.button) {
+                case BTN_LEFT: pge_window->olc_OnMouseButton(0, pointer_state.state == WL_POINTER_BUTTON_STATE_PRESSED); break;
+                case BTN_MIDDLE: pge_window->olc_OnMouseButton(2, pointer_state.state == WL_POINTER_BUTTON_STATE_PRESSED); break;
+                case BTN_RIGHT: pge_window->olc_OnMouseButton(1, pointer_state.state == WL_POINTER_BUTTON_STATE_PRESSED); break;
+                default: break;
+            }
+        }
+
+        if(pointer_state.event_mask & wayland::PointerEventMask::PointerEventAxis
+            && pointer_state.axes[WL_POINTER_AXIS_VERTICAL_SCROLL].valid)
+        {
+            pge_window->olc_OnMouseWheel(-wl_fixed_to_int(pointer_state.axes[WL_POINTER_AXIS_VERTICAL_SCROLL].value));
+        }
+
+        memset(event, 0, sizeof(*event));     
+    }
+
+    void Host_Linux_Wayland::pointer_axis_source_callback(void* data, wl_pointer* pointer, uint32_t axis_source)
+    {
+        auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
+        host->pointer_axis_source(pointer, axis_source);
+    }
+
+    void Host_Linux_Wayland::pointer_axis_source(wl_pointer* pointer, uint32_t axis_source)
+    {
+        pointer_state.event_mask |= wayland::PointerEventMask::PointerEventAxisSource;
+        pointer_state.axis_source = axis_source;
+    }
+
+    void Host_Linux_Wayland::pointer_axis_stop_callback(void* data, wl_pointer* pointer, uint32_t time, uint32_t axis)
+    {
+        auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
+        host->pointer_axis_stop(pointer, time, axis);
+    }
+
+    void Host_Linux_Wayland::pointer_axis_stop(wl_pointer* pointer, uint32_t time, uint32_t axis)
+    {
+        pointer_state.event_mask |= wayland::PointerEventMask::PointerEventAxisStop;
+        pointer_state.time = time;
+        pointer_state.axes[axis].valid = true;
+    }
+
+    void Host_Linux_Wayland::pointer_axis_discrete_callback(void* data, wl_pointer* pointer, uint32_t axis, int32_t discrete)
+    {
+        auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
+        host->pointer_axis_discrete(pointer, axis, discrete);
+    }
+
+    void Host_Linux_Wayland::pointer_axis_discrete(wl_pointer* pointer, uint32_t axis, int32_t discrete)
+    {
+        pointer_state.event_mask |= wayland::PointerEventMask::PointerEventDiscrete;
+        pointer_state.axes[axis].valid = true;
+        pointer_state.axes[axis].discrete = discrete;
+    }
+
+    void Host_Linux_Wayland::pointer_axis_value120_callback(void* data, wl_pointer* pointer, uint32_t axis, int32_t value120)
+    {
+        //auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
+        //host->pointer_axis_value120(pointer, axis, value120);
+    }
+
+    void Host_Linux_Wayland::pointer_axis_relative_direction_callback(void* data, wl_pointer* pointer, uint32_t axis, uint32_t direction)
+    {
+        //auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
+        //host->pointer_axis_relative_direction(pointer, axis, direction);
+    }
+
+    // XDG Callbacks
+    void Host_Linux_Wayland::xdg_wm_ping_callback(void* data, xdg_wm_base* wm, uint32_t serial) {
         xdg_wm_base_pong(wm, serial);
     }
 
     void Host_Linux_Wayland::xdg_surface_configure_callback(void* data, xdg_surface* surface, uint32_t serial)
     {
-        std::cout << __FUNCTION__ << std::endl;
-
         xdg_surface_ack_configure(surface, serial);
     }
+
     void Host_Linux_Wayland::xdg_toplevel_configure_callback(void* data, xdg_toplevel* toplevel, int32_t width, int32_t height, wl_array* states)
     {
-        std::cout << __FUNCTION__ << std::endl;
-
         auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
         host->xdg_toplevel_configure(toplevel, width, height, states);
     }
+
     void Host_Linux_Wayland::xdg_toplevel_close_callback(void* data, xdg_toplevel* toplevel)
     {
-        std::cout << __FUNCTION__ << std::endl;
-
         auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
         host->xdg_toplevel_close(toplevel);
     }
 
     void Host_Linux_Wayland::xdg_toplevel_configure_bounds_callback(void* data, xdg_toplevel* toplevel, int32_t width, int32_t height) {
-        std::cout << __FUNCTION__ << std::endl;
-        
+        auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
+        host->xdg_toplevel_configure_bounds(toplevel, width, height);
         return;
     }
 
-    void Host_Linux_Wayland::xdg_toplevel_capabilities(void* data, xdg_toplevel* toplevel, wl_array* capabilities)
+    void Host_Linux_Wayland::xdg_toplevel_capabilities_callback(void* data, xdg_toplevel* toplevel, wl_array* capabilities)
     {
-        std::cout << __FUNCTION__ << std::endl;
-
         return;
+    }
+
+    void Host_Linux_Wayland::xdg_toplevel_decoration_configure_callback(void* data, zxdg_toplevel_decoration_v1* zxdg_toplevel_decoration_v1, uint32_t mode)
+    {
+        auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
+        fprintf(stderr, "zxdg_decoration_manager_v1 mode %d\n", mode);
     }
 
     std::vector<void*> Host_Linux_Wayland::GetHostWindowDescriptor(olc::Window* pWindow)
@@ -11521,7 +11761,6 @@ namespace olc
 
 	bool PGEWindow::olc_WindowUpdate(const float fElapsedTime)
 	{
-		total_time += fElapsedTime;
 		// Input Changes
 		mouse.UpdateState();
 		
@@ -11559,7 +11798,7 @@ namespace olc
 		// Take the window's completed "screen" and draw it as a textured quad to the backbuffer
 		pRenderer->AssignTextureTarget(0, 0);
 		pRenderer->SetViewport({ 0,0 }, GetWindowSize());
-		pRenderer->ClearViewport(olc::Colour::MAGENTA * fmodf(total_time, 1.0f), true, true);
+		pRenderer->ClearViewport(olc::Colour::MAGENTA, true, true);
 		
 		
 		draw.WorldReset();		
@@ -11712,7 +11951,7 @@ namespace olc
 		host = std::make_unique<olc::host::Host_Linux_X11>();
 		#endif
 		#if OLC_HOST == OLC_HOST_LINUX_WAYLAND
-		host = std::make_unique<olc::host::FRIENDLY_HOST>();
+		host = std::make_unique<olc::host::Host_Linux_Wayland>();
 		#endif
 		#if OLC_HOST == OLC_HOST_EMSCRIPTEN
 		host = std::make_unique<olc::host::Host_Web_Emscripten>();
