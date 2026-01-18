@@ -18,6 +18,12 @@
 #include "imload_lib_png.h"
 #endif
 
+#if OLC_HOST == OLC_HOST_LINUX_WAYLAND
+#include "host_lin_wayland.h"
+#include "imload_lib_png.h"
+#endif
+
+
 #if OLC_HOST == OLC_HOST_EMSCRIPTEN
 #include "host_web_emscripten.h"
 #include "imload_lib_png.h"
@@ -91,6 +97,7 @@ namespace olc
 		pRenderer->AssignTextureTarget(0, 0);
 		pRenderer->SetViewport({ 0,0 }, GetWindowSize());
 		pRenderer->ClearViewport(olc::Colour::MAGENTA, true, true);
+		
 		
 		draw.WorldReset();		
 		draw.ImageRect(GetDefaultImage().flipV(), {0.0,0.0}, GetWindowSize());
@@ -240,6 +247,9 @@ namespace olc
 		#endif
 		#if OLC_HOST == OLC_HOST_LINUX_X11
 		host = std::make_unique<olc::host::Host_Linux_X11>();
+		#endif
+		#if OLC_HOST == OLC_HOST_LINUX_WAYLAND
+		host = std::make_unique<olc::host::Host_Linux_Wayland>();
 		#endif
 		#if OLC_HOST == OLC_HOST_EMSCRIPTEN
 		host = std::make_unique<olc::host::Host_Web_Emscripten>();
@@ -404,6 +414,10 @@ namespace olc
 		#endif
 
 		#if OLC_HOST == OLC_HOST_LINUX_X11
+		imageloader = std::make_unique<olc::imload::ImageLoader_LibPNG>();
+		#endif
+
+		#if OLC_HOST == OLC_HOST_LINUX_WAYLAND
 		imageloader = std::make_unique<olc::imload::ImageLoader_LibPNG>();
 		#endif
 

@@ -25,11 +25,19 @@
 	#define OGL_LOAD(t) reinterpret_cast<t##_t*>(reinterpret_cast<void*>(wglGetProcAddress(#t)))
 #endif
 
-#if OLC_HOST == OLC_HOST_LINUX_X11 || OLC_HOST == OLC_HOST_LINUX_WAYLAND
+#if OLC_HOST == OLC_HOST_LINUX_X11
 	#include <GL/gl.h>
 	#if OLC_HOST == OLC_HOST_LINUX_X11
 		#define OGL_LOAD(t) reinterpret_cast<t##_t*>(X11::glXGetProcAddress(reinterpret_cast<const GLubyte*>(#t)))
 	#endif
+#endif
+
+#if OLC_HOST == OLC_HOST_LINUX_WAYLAND
+	#include <EGL/egl.h>
+	#include <GL/gl.h>
+
+	#define OGL_LOAD(t) reinterpret_cast<t##_t*>(eglGetProcAddress(#t))
+
 #endif
 
 #if OLC_HOST == OLC_HOST_MACOS
@@ -97,7 +105,7 @@ namespace olc
 		typedef X11::GLXContext glRenderContext_t;
 #endif
 
-#if OLC_HOST == OLC_HOST_EMSCRIPTEN
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN || OLC_HOST == OLC_HOST_LINUX_WAYLAND
 	typedef void CALLSTYLE glShaderSource_t(GLuint shader, GLsizei size, const GLchar *const * string, const GLint * length);
 	typedef void glDeviceContext_t;
 	typedef struct
