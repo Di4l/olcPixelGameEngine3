@@ -32,6 +32,36 @@ namespace olc
     {
         return nCompiledShaderID;
     }
+
+    std::string gpu::Shader::PS_DefaultHeader() 
+    {
+        return static_PS_DefaultHeader;
+    }
+
+    std::string gpu::Shader::PS_DefaultMain() 
+    {
+		return static_PS_DefaultMain;
+    }
+
+    std::string gpu::Shader::VS_DefaultHeader() 
+    {
+		return static_VS_DefaultHeader;        
+    }
+
+    std::string gpu::Shader::VS_DefaultMain() 
+    {
+		return static_VS_DefaultMain;      
+    }
+
+    std::string gpu::Shader::GS_DefaultHeader() 
+    {
+		return static_GS_DefaultHeader;
+    }
+
+    std::string gpu::Shader::GS_DefaultMain() 
+    {
+		return static_GS_DefaultMain;
+    }
 }
 
 //! END IMPLEMENTATION

@@ -443,6 +443,8 @@ void olc::Draw2D::swRasterTexturedTriangle(const olc::vi2d& v1, const olc::vi2d&
 	return;
 }
 
+
+
 void olc::Draw2D::swRasterShadedLine(const olc::vi2d& v1, const olc::vi2d& v2, const olc::Pixel c1, const olc::Pixel c2)
 {
 	PrepareTargetForSW();

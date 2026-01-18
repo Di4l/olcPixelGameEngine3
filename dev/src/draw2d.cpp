@@ -121,6 +121,36 @@ void Draw2D::PrepareImageForHW(olc::Image& image)
 	}
 }
 
+bool olc::Draw2D::SetShader(const olc::gpu::Shader& shader)
+{
+	// Finish all drawing with current shader
+	ProcessGPUTasks();
+	// Set new shader
+	return pRenderer->ApplyShader(shader);
+}
+
+bool olc::Draw2D::ResetShader()
+{
+	ProcessGPUTasks();
+	return pRenderer->ApplyDefaultShader();
+}
+
+bool olc::Draw2D::SetShaderUniform(const std::string& name, const float value)
+{
+
+	return pRenderer->SetUniform(name, value);
+}
+
+bool olc::Draw2D::SetShaderUniform(const std::string& name, const olc::vf2d& value)
+{
+	return pRenderer->SetUniform(name, value);	
+}
+
+bool olc::Draw2D::SetShaderUniform(const std::string& name, const olc::Pixel value)
+{
+	return pRenderer->SetUniform(name, value);
+}
+
 void olc::Draw2D::WorldReset()
 {
 	transformAffine = olc::tf2d();

@@ -54,6 +54,9 @@
     <ClCompile Include="..\..\..\examples\olcPGE3_ImageRegion.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\examples\olcPGE3_PixelShaders.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="olcPixelGameEngine3.h">
