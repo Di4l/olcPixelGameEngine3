@@ -46,9 +46,9 @@ namespace olc
 			void SetGeometryShaderSource(const std::string& src);
 
 			virtual std::string Compile() = 0;
-			virtual uint32_t CreateUniform(const std::string& name) = 0;
+			virtual int32_t CreateUniform(const std::string& name) = 0;
 
-			uint32_t GetUniform(const std::string& name)	const;
+			int32_t GetUniform(const std::string& name)	const;
 			uint32_t GetShaderID() const;
 
 
