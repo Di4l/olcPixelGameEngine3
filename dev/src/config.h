@@ -41,7 +41,7 @@
 
 	#if defined(__linux__) || defined(__FreeBSD__)
 		// Note: Assumes X11 atm
-		#define OLC_HOST OLC_HOST_LINUX_WAYLAND
+		#define OLC_HOST OLC_HOST_LINUX_X11
 	#endif
 
 	#if defined(__APPLE__)

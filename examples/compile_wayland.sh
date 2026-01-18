@@ -24,4 +24,4 @@ wayland-scanner client-header /usr/share/wayland-protocols/unstable/xdg-decorati
 gcc -c xdg-shell.c
 gcc -c xdg-decoration.c
 
-g++ -ggdb -fmax-errors=5 -std=c++20 -I. -lpng -lGL -lwayland-client -lwayland-egl -lEGL -Wall -lpthread $1.cpp xdg-shell.o xdg-decoration.o -o $1
+g++ -ggdb -fmax-errors=5 -std=c++20 -DOLC_HOST=3 -I. -lpng -lGL -lwayland-client -lwayland-egl -lEGL -Wall -lpthread $1.cpp xdg-shell.o xdg-decoration.o -o $1

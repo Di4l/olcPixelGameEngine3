@@ -447,8 +447,8 @@ namespace olc::host
 
     void Host_Linux_Wayland::xdg_toplevel_decoration_configure_callback(void* data, zxdg_toplevel_decoration_v1* zxdg_toplevel_decoration_v1, uint32_t mode)
     {
-        auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
-        fprintf(stderr, "zxdg_decoration_manager_v1 mode %d\n", mode);
+        // auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
+        // fprintf(stderr, "zxdg_decoration_manager_v1 mode %d\n", mode);
     }
 
     std::vector<void*> Host_Linux_Wayland::GetHostWindowDescriptor(olc::Window* pWindow)

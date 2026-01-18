@@ -151,7 +151,7 @@
 
 	#if defined(__linux__) || defined(__FreeBSD__)
 		// Note: Assumes X11 atm
-		#define OLC_HOST OLC_HOST_LINUX_WAYLAND
+		#define OLC_HOST OLC_HOST_LINUX_X11
 	#endif
 
 	#if defined(__APPLE__)
@@ -8280,8 +8280,8 @@ namespace olc::host
 
     void Host_Linux_Wayland::xdg_toplevel_decoration_configure_callback(void* data, zxdg_toplevel_decoration_v1* zxdg_toplevel_decoration_v1, uint32_t mode)
     {
-        auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
-        fprintf(stderr, "zxdg_decoration_manager_v1 mode %d\n", mode);
+        // auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
+        // fprintf(stderr, "zxdg_decoration_manager_v1 mode %d\n", mode);
     }
 
     std::vector<void*> Host_Linux_Wayland::GetHostWindowDescriptor(olc::Window* pWindow)
@@ -9316,12 +9316,12 @@ namespace olc::gpu
 
 #if OLC_HOST == OLC_HOST_EMSCRIPTEN || OLC_HOST == OLC_HOST_LINUX_WAYLAND
 #if OLC_HOST == OLC_HOST_EMSCRIPTEN
-	const auto window_handle = reinterpret_cast<std::string*>(os_win_id[0]);
-	void* native_display = EGL_DEFAULT_DISPLAY;
+	EGLNativeWindowType window_handle = NULL;
+	EGLNativeDisplayType display = EGL_DEFAULT_DISPLAY;
 #else
 	const auto wayland_window = reinterpret_cast<olc::host::WaylandWindow*>(os_win_id[0]);
-	auto* window_handle = wayland_window->window;
-	auto* display = reinterpret_cast<wl_display*>(os_win_id[1]);
+	EGLNativeWindowType window_handle = wayland_window->window;
+	EGLNativeDisplayType display = reinterpret_cast<EGLNativeDisplayType>(os_win_id[1]);
 #endif
 
 	const int samples = std::min(OLC_MSAA_SAMPLES, OLC_MSAA_EMSCRIPTEN_MAX_SAMPLES);
@@ -9338,7 +9338,6 @@ namespace olc::gpu
 	eglChooseConfig(glRenderContext.display, attribute_list, &glRenderContext.config, 1, &num_config);
 	
 	/* create an EGL rendering context */
-	eglBindAPI(EGL_OPENGL_API);
 	glRenderContext.context = eglCreateContext(glRenderContext.display, glRenderContext.config, EGL_NO_CONTEXT, context_config);
 	glRenderContext.surface = eglCreateWindowSurface(glRenderContext.display, glRenderContext.config, window_handle, nullptr);
 	if(glRenderContext.surface == EGL_NO_SURFACE) {
