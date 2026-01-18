@@ -56,7 +56,7 @@ public:
 		void main()
 		{
 			// 1) Horizontal Wobble
-			vec2 sample = vec2(
+			vec2 samplePos = vec2(
 				oTex.x + sin(oTex.y * frequency * pgeTargetSizeInPixels.y + pgeTotalTimeElapsed * 2.0) * amplitude, 
 				oTex.y
 			);
@@ -68,14 +68,14 @@ public:
 			// Sample 3x3 neighborhood for Sobel
 			vec2 pixelSize = pgeInverseTargetSizeInPixels;
 	
-			float tl = length(texture(pgeTexture0, sample + vec2(-pixelSize.x, -pixelSize.y)).rgb);
-			float t  = length(texture(pgeTexture0, sample + vec2(0.0, -pixelSize.y)).rgb);
-			float tr = length(texture(pgeTexture0, sample + vec2(pixelSize.x, -pixelSize.y)).rgb);
-			float l  = length(texture(pgeTexture0, sample + vec2(-pixelSize.x, 0.0)).rgb);
-			float r  = length(texture(pgeTexture0, sample + vec2(pixelSize.x, 0.0)).rgb);
-			float bl = length(texture(pgeTexture0, sample + vec2(-pixelSize.x, pixelSize.y)).rgb);
-			float b  = length(texture(pgeTexture0, sample + vec2(0.0, pixelSize.y)).rgb);
-			float br = length(texture(pgeTexture0, sample + vec2(pixelSize.x, pixelSize.y)).rgb);
+			float tl = length(texture(pgeTexture0, samplePos + vec2(-pixelSize.x, -pixelSize.y)).rgb);
+			float t  = length(texture(pgeTexture0, samplePos + vec2(0.0, -pixelSize.y)).rgb);
+			float tr = length(texture(pgeTexture0, samplePos + vec2(pixelSize.x, -pixelSize.y)).rgb);
+			float l  = length(texture(pgeTexture0, samplePos + vec2(-pixelSize.x, 0.0)).rgb);
+			float r  = length(texture(pgeTexture0, samplePos + vec2(pixelSize.x, 0.0)).rgb);
+			float bl = length(texture(pgeTexture0, samplePos + vec2(-pixelSize.x, pixelSize.y)).rgb);
+			float b  = length(texture(pgeTexture0, samplePos + vec2(0.0, pixelSize.y)).rgb);
+			float br = length(texture(pgeTexture0, samplePos + vec2(pixelSize.x, pixelSize.y)).rgb);
 
 			// Apply Sobel Kernels
 			float sobelX = -tl + tr - 2.0 * l + 2.0 * r - bl + br;
@@ -99,8 +99,8 @@ public:
 			// pgeTexture0 is the primary texture unit 
 			// pgeTexture1 is some other image
 	
-			vec4 texColour = texture(pgeTexture0, sample) * oCol;
-			vec4 otherColour = texture(pgeTexture1, sample);
+			vec4 texColour = texture(pgeTexture0, samplePos) * oCol;
+			vec4 otherColour = texture(pgeTexture1, samplePos);
 
 			vec4 edgeColour = vec4(newCol * edge) + otherColour * 0.5;
 			pixel = vec4(edgeColour.rgb * texColour.a, texColour.a);
