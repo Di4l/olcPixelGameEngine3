@@ -151,6 +151,12 @@ bool olc::Draw2D::SetShaderUniform(const std::string& name, const olc::Pixel val
 	return pRenderer->SetUniform(name, value);
 }
 
+bool olc::Draw2D::SetShaderTexture(const uint32_t nSlot, olc::Image& image)
+{
+	PrepareImageForHW(image);
+	return pRenderer->AssignTextureSource(nSlot, image.GetGPUID());	
+}
+
 void olc::Draw2D::WorldReset()
 {
 	transformAffine = olc::tf2d();

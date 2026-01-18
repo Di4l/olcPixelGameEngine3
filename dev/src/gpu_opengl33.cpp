@@ -22,7 +22,10 @@ layout(location = 0) out vec4 pixel;
 uniform vec2 pgeTargetSizeInPixels;			// Size of the target olc::Image in pixels
 uniform vec2 pgeInverseTargetSizeInPixels;  // 1.0 / Size of the target olc::Image in pixels
 uniform float pgeTotalTimeElapsed;			// Total time elapsed since application started
-uniform sampler2D pgeTexture;				// Current source olc::Image bound as texture
+uniform sampler2D pgeTexture0;				// Current source olc::Image bound as texture0
+uniform sampler2D pgeTexture1;				// Current source olc::Image bound as texture1
+uniform sampler2D pgeTexture2;				// Current source olc::Image bound as texture2
+uniform sampler2D pgeTexture3;				// Current source olc::Image bound as texture3
 
 // Inputs from Vertex Shader
 in vec2 oTex;
@@ -34,7 +37,7 @@ R"(
 void main()
 {
 	// We premultiply alpha here
-	vec4 texColor = texture(pgeTexture, oTex) * oCol;
+	vec4 texColor = texture(pgeTexture0, oTex) * oCol;
 	pixel = vec4(texColor.rgb * texColor.a, texColor.a);
 }
 )";
@@ -197,6 +200,11 @@ void main()
 		CreateUniform("pgeTargetSizeInPixels");
 		CreateUniform("pgeInverseTargetSizeInPixels");
 		CreateUniform("pgeTotalTimeElapsed");
+
+		CreateUniform("pgeTexture0");
+		CreateUniform("pgeTexture1");
+		CreateUniform("pgeTexture2");
+		CreateUniform("pgeTexture3");
 
 		return "OK";
 	}
@@ -845,6 +853,11 @@ void main()
 		auto& gl = olc::apis::opengl::gl::Get();
 		pCurrentShader = &shader;
 		gl.glUseProgram(pCurrentShader->GetShaderID());
+
+		gl.glUniform1i(pCurrentShader->GetUniform("pgeTexture0"), 0); // Texture slot 0
+		gl.glUniform1i(pCurrentShader->GetUniform("pgeTexture1"), 1); // Texture slot 1
+		gl.glUniform1i(pCurrentShader->GetUniform("pgeTexture2"), 2); // Texture slot 2
+		gl.glUniform1i(pCurrentShader->GetUniform("pgeTexture3"), 3); // Texture slot 3
 		return true;
 	}
 
@@ -933,6 +946,9 @@ void main()
 				gl.glUniform2fv(pCurrentShader->GetUniform("pgeTargetSizeInPixels"), 1, vTargetSize.a().data());
 				gl.glUniform2fv(pCurrentShader->GetUniform("pgeInverseTargetSizeInPixels"), 1, ((1.0f / vTargetSize)).a().data());
 				gl.glUniform1f(pCurrentShader->GetUniform("pgeTotalTimeElapsed"), fTotalTime);
+
+
+				
 
 				// Apply Culling modes
 				//if (task.cullmode == GPUTask::CullMode::None)

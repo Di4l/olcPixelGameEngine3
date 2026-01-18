@@ -68,14 +68,14 @@ public:
 			// Sample 3x3 neighborhood for Sobel
 			vec2 pixelSize = pgeInverseTargetSizeInPixels;
 	
-			float tl = length(texture(pgeTexture, sample + vec2(-pixelSize.x, -pixelSize.y)).rgb);
-			float t  = length(texture(pgeTexture, sample + vec2(0.0, -pixelSize.y)).rgb);
-			float tr = length(texture(pgeTexture, sample + vec2(pixelSize.x, -pixelSize.y)).rgb);
-			float l  = length(texture(pgeTexture, sample + vec2(-pixelSize.x, 0.0)).rgb);
-			float r  = length(texture(pgeTexture, sample + vec2(pixelSize.x, 0.0)).rgb);
-			float bl = length(texture(pgeTexture, sample + vec2(-pixelSize.x, pixelSize.y)).rgb);
-			float b  = length(texture(pgeTexture, sample + vec2(0.0, pixelSize.y)).rgb);
-			float br = length(texture(pgeTexture, sample + vec2(pixelSize.x, pixelSize.y)).rgb);
+			float tl = length(texture(pgeTexture0, sample + vec2(-pixelSize.x, -pixelSize.y)).rgb);
+			float t  = length(texture(pgeTexture0, sample + vec2(0.0, -pixelSize.y)).rgb);
+			float tr = length(texture(pgeTexture0, sample + vec2(pixelSize.x, -pixelSize.y)).rgb);
+			float l  = length(texture(pgeTexture0, sample + vec2(-pixelSize.x, 0.0)).rgb);
+			float r  = length(texture(pgeTexture0, sample + vec2(pixelSize.x, 0.0)).rgb);
+			float bl = length(texture(pgeTexture0, sample + vec2(-pixelSize.x, pixelSize.y)).rgb);
+			float b  = length(texture(pgeTexture0, sample + vec2(0.0, pixelSize.y)).rgb);
+			float br = length(texture(pgeTexture0, sample + vec2(pixelSize.x, pixelSize.y)).rgb);
 
 			// Apply Sobel Kernels
 			float sobelX = -tl + tr - 2.0 * l + 2.0 * r - bl + br;
@@ -94,9 +94,15 @@ public:
 			);
 
 
-			// 4) Combine effects			
-			vec4 texColour = texture(pgeTexture, sample) * oCol;
-			vec4 edgeColour = vec4(newCol * edge);
+			// 4) Combine effects		
+
+			// pgeTexture0 is the primary texture unit 
+			// pgeTexture1 is some other image
+	
+			vec4 texColour = texture(pgeTexture0, sample) * oCol;
+			vec4 otherColour = texture(pgeTexture1, sample);
+
+			vec4 edgeColour = vec4(newCol * edge) + otherColour * 0.5;
 			pixel = vec4(edgeColour.rgb * texColour.a, texColour.a);
 		}
 		)";
@@ -189,6 +195,10 @@ public:
 		float amplitude = (mouse.GetPosition().y / 240.0f) * 0.1f;
 		draw.SetShaderUniform("frequency", frequency);
 		draw.SetShaderUniform("amplitude", amplitude);
+
+		// Our shader uses 2 texture units so we need to bind them here
+		// By default, unit 0 is bound to the primary texture (imgWithoutFX)
+		draw.SetShaderTexture(1, imgMini); // Bind imgMini to texture unit 1
 				
 		// Present image with shader effect - this is required
 		// because here is where the shader is actually applied
