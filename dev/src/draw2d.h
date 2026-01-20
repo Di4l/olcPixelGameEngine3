@@ -709,6 +709,29 @@ namespace olc
 				const olc::vi2d& v1,
 				const olc::vi2d& v2,
 				const olc::vi2d& v3);
+
+
+		private:
+			// Simple dynamic buffer that only grows as needed
+			template<typename T>
+			struct buffer
+			{
+				std::vector<T> data;
+
+				void reserve(size_t n)
+				{
+					if (n > data.capacity())
+						data.reserve(n);
+
+					// Ensure size matches requested so we
+					// can index into it directly
+					data.resize(n);
+				}
+			};
+
+			// Thread local buffers to avoid repeated allocations
+			static thread_local buffer<olc::vf2d> buffPoints;
+			static thread_local buffer<olc::Pixel> buffColours;
 	
 	};
 }
