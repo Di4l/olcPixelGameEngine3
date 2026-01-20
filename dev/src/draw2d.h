@@ -731,7 +731,10 @@ namespace olc
 
 			// Thread local buffers to avoid repeated allocations
 			static thread_local buffer<olc::vf2d> buffPoints;
+			static thread_local buffer<olc::vf2d> buffUnitCirclePoints;
 			static thread_local buffer<olc::Pixel> buffColours;
+
+			void RedefineUnitCircleBuffer(const int32_t nFacets);
 	
 	};
 }
