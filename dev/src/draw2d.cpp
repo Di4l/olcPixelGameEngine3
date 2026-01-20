@@ -8,6 +8,7 @@ using namespace olc;
 // Some local pools to reduce allocations
 thread_local Draw2D::buffer<olc::vf2d> Draw2D::buffPoints;
 thread_local Draw2D::buffer<olc::Pixel> Draw2D::buffColours;
+thread_local Draw2D::buffer<olc::vf2d> Draw2D::buffUnitCirclePoints;
 
 Draw2D::Draw2D()
 {
@@ -412,16 +413,28 @@ const GPUTask& olc::Draw2D::FilledRect(const olc::vf2d& pos, const olc::vf2d& si
 		));
 }
 
+void olc::Draw2D::RedefineUnitCircleBuffer(const int32_t nFacets)
+{
+	buffUnitCirclePoints.reserve(nFacets + 1);
+	for (int32_t i = 0; i <= nFacets; i++)
+	{
+		float theta = float(i) / float(nFacets) * 2.0f * 3.14159265358979323846f;
+		buffUnitCirclePoints.data[i] = { cosf(theta), sinf(theta) };
+	}
+}
+
 const GPUTask& olc::Draw2D::Circle(const olc::vf2d& pos, const float& radius, const olc::Pixel col, const olc::Pixel tint, int32_t nFacets)
 {
 	PrepareTargetForHW();
+
+	if (nFacets != int32_t(buffUnitCirclePoints.data.size() - 1))
+		RedefineUnitCircleBuffer(nFacets);
 
 	buffPoints.reserve(nFacets + 1);
 
 	for (int32_t i = 0; i <= nFacets; i++)
 	{
-		float theta = float(i) / float(nFacets) * 2.0f * 3.14159265358979323846f;
-		buffPoints.data[i] = { pos.x + radius * cosf(theta), pos.y + radius * sinf(theta) };
+		buffPoints.data[i] = buffUnitCirclePoints.data[i] * radius + pos;
 	}
 
 	return vecGPUTasks.emplace_back(
@@ -436,14 +449,16 @@ const GPUTask& olc::Draw2D::Circle(const olc::vf2d& pos, const float& radius, co
 const GPUTask& olc::Draw2D::FilledCircle(const olc::vf2d& pos, const float& radius, const olc::Pixel col, const olc::Pixel tint, int32_t nFacets)
 {
 	PrepareTargetForHW();
+
+	if (nFacets != int32_t(buffUnitCirclePoints.data.size() - 1))
+		RedefineUnitCircleBuffer(nFacets);
 	
 	buffPoints.reserve(nFacets + 2);
+	
 	buffPoints.data[0] = pos;
-
 	for (int32_t i = 0; i <= nFacets; i++)
 	{
-		float theta = float(i) / float(nFacets) * 2.0f * 3.14159265358979323846f;
-		buffPoints.data[i + 1] = { pos.x + radius * cosf(theta), pos.y + radius * sinf(theta) };
+		buffPoints.data[i + 1] = buffUnitCirclePoints.data[i] * radius + pos;
 	}
 
 	return vecGPUTasks.emplace_back(
@@ -459,18 +474,18 @@ const GPUTask& olc::Draw2D::FilledCircle(const olc::vf2d& pos, const float& radi
 {
 	PrepareTargetForHW();
 
-
+	if (nFacets != int32_t(buffUnitCirclePoints.data.size() - 1))
+		RedefineUnitCircleBuffer(nFacets);
 	
 	buffPoints.reserve(nFacets + 2);
 	buffColours.reserve(nFacets + 2);
+
 	buffPoints.data[0] = pos;
 	buffColours.data[0] = colInner;
-
 	for (int32_t i = 0; i <= nFacets; i++)
 	{
-		float theta = float(i) / float(nFacets) * 2.0f * 3.14159265358979323846f;
-		buffPoints.data[i+1] = { pos.x + radius * cosf(theta), pos.y + radius * sinf(theta) };
-		buffColours.data[i+1] = colOuter;
+		buffPoints.data[i + 1] = buffUnitCirclePoints.data[i] * radius + pos;
+		buffColours.data[i + 1] = colOuter;
 	}
 	
 	return vecGPUTasks.emplace_back(
