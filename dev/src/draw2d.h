@@ -689,7 +689,7 @@ namespace olc
 			olc::gpu::Renderer* pRenderer = nullptr;
 			olc::tf2d transformAffine;
 
-			std::vector<olc::GPUTask> vecGPUTasks;
+			//std::vector<olc::GPUTask> vecGPUTasks;
 
 		protected: // SW Rasteriser Helpers
 			struct Scanline
@@ -733,6 +733,7 @@ namespace olc
 			static thread_local buffer<olc::vf2d> buffPoints;
 			static thread_local buffer<olc::vf2d> buffUnitCirclePoints;
 			static thread_local buffer<olc::Pixel> buffColours;
+			static thread_local buffer<olc::GPUTask> vecGPUTasks;
 
 			void RedefineUnitCircleBuffer(const int32_t nFacets);
 	
