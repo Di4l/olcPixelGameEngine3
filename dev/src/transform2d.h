@@ -78,6 +78,21 @@ namespace olc
 			return o;
 		}
 
+		// Transform a vector by this transform in place
+		template<typename Q>
+		inline constexpr auto forwardX(std::vector<olc::v_2d<Q>>&& v) const
+		{
+			std::transform(v.begin(), v.end(), v.begin(), [this](const olc::v_2d<Q>& i) {return (m_mForward * i); });
+			return v;
+		}
+
+		template<typename Q>
+		inline constexpr auto forwardRoundX(std::vector<olc::v_2d<Q>>&& v) const
+		{
+			std::transform(v.begin(), v.end(), v.begin(), [this](const olc::v_2d<Q>& i) {return (m_mForward * i).round(); });
+			return v;
+		}
+
 		// Transform a vector by the inverse of this transform
 		template<typename Q>
 		inline constexpr auto inverse(const olc::v_2d<Q>& v) const
@@ -92,6 +107,14 @@ namespace olc
 			std::vector<olc::v_2d<Q>> o(v.size());
 			std::transform(v.begin(), v.end(), o.begin(), [this](const olc::v_2d<Q>& i) {return m_mInverse * i; });
 			return o;
+		}
+
+		// Transform a vector by this transform in place
+		template<typename Q>
+		inline constexpr auto inverseX(std::vector<olc::v_2d<Q>>&& v) const
+		{
+			std::transform(v.begin(), v.end(), v.begin(), [this](const olc::v_2d<Q>& i) {return m_mInverse * i; });
+			return v;
 		}
 
 

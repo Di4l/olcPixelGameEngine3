@@ -1203,6 +1203,14 @@ namespace olc
 			return o;
 		}
 
+		// Transform a vector by this transform in place
+		template<typename Q>
+		inline constexpr auto forwardRoundX(std::vector<olc::v_2d<Q>>&& v) const
+		{
+			std::transform(v.begin(), v.end(), v.begin(), [this](const olc::v_2d<Q>& i) {return (m_mForward * i).round(); });
+			return v;
+		}
+
 		// Transform a vector by the inverse of this transform
 		template<typename Q>
 		inline constexpr auto inverse(const olc::v_2d<Q>& v) const
@@ -10978,7 +10986,7 @@ const GPUTask& Draw2D::Line(const olc::vf2d& p1, const olc::vf2d& p2, const olc:
 	
 	return vecGPUTasks.data.emplace_back(std::move(
 		TaskDrawLine(
-			transformAffine.forwardRound<float>({ p1, p2 }),			
+			transformAffine.forwardRoundX<float>({ p1, p2 }),			
 			{ col,col },
 			tint
 		)));
@@ -10991,7 +10999,7 @@ const GPUTask& Draw2D::Line(const olc::vf2d& p1, const olc::Pixel c1, const olc:
 	return vecGPUTasks.data.emplace_back(std::move(
 		TaskDrawPolygon(
 			olc::Structure::Line,
-			transformAffine.forwardRound<float>({ p1, p2 }),
+			transformAffine.forwardRoundX<float>({ p1, p2 }),
 			{ c1, c2 },
 			tint
 		)));		
@@ -11006,7 +11014,7 @@ const GPUTask& olc::Draw2D::Rect(const olc::vf2d& pos, const olc::vf2d& size, co
 
 	return vecGPUTasks.data.emplace_back(std::move(
 		TaskDrawLine(
-			transformAffine.forwardRound<float>({
+			transformAffine.forwardRoundX<float>({
 				olc::vf2d(pos.x, pos.y),
 				olc::vf2d(pos.x + size.x, pos.y),
 				olc::vf2d(pos.x + size.x, pos.y + size.y),
@@ -11024,7 +11032,7 @@ const GPUTask& olc::Draw2D::Rect(const olc::vf2d& pos, const olc::vf2d& size, co
 
 	return vecGPUTasks.data.emplace_back(std::move(
 		TaskDrawLine(
-			transformAffine.forwardRound<float>({
+			transformAffine.forwardRoundX<float>({
 				olc::vf2d(pos.x, pos.y),
 				olc::vf2d(pos.x + size.x, pos.y),
 				olc::vf2d(pos.x + size.x, pos.y + size.y),
@@ -11044,7 +11052,7 @@ const GPUTask& olc::Draw2D::FilledRect(const olc::vf2d& pos, const olc::vf2d& si
 	return vecGPUTasks.data.emplace_back(std::move(
 		TaskFillPolygon(
 			olc::Structure::Fan,
-			transformAffine.forwardRound<float>({ 
+			transformAffine.forwardRoundX<float>({ 
 				{ pos.x, pos.y }, 
 				{ pos.x + size.x, pos.y }, 
 				{ pos.x + size.x, pos.y + size.y },
@@ -11060,7 +11068,11 @@ const GPUTask& olc::Draw2D::FilledRect(const olc::vf2d& pos, const olc::vf2d& si
 	return vecGPUTasks.data.emplace_back(std::move(
 		TaskFillPolygon(
 			olc::Structure::Fan,
-			transformAffine.forwardRound<float>({ { pos.x, pos.y }, { pos.x + size.x, pos.y }, { pos.x + size.x, pos.y + size.y }, { pos.x, pos.y + size.y } }),
+			transformAffine.forwardRoundX<float>({ 
+				{ pos.x, pos.y }, 
+				{ pos.x + size.x, pos.y }, 
+				{ pos.x + size.x, pos.y + size.y }, 
+				{ pos.x, pos.y + size.y } }),
 			{ colTL, colTR, colBR, colBL },
 			tint
 		)));
@@ -11111,7 +11123,7 @@ const GPUTask& olc::Draw2D::FilledCircle(const olc::vf2d& pos, const float& radi
 	buffPoints.reserve(nFacets + 2);
 	buffColours.reserve(nFacets + 2);
 	
-	buffPoints.data[0] = pos;
+	buffPoints.data[0] = transformAffine.forwardRound<float>(pos);
 	buffColours.data[0] = col;
 	for (int32_t i = 0; i <= nFacets; i++)
 	{
@@ -11138,7 +11150,7 @@ const GPUTask& olc::Draw2D::FilledCircle(const olc::vf2d& pos, const float& radi
 	buffPoints.reserve(nFacets + 2);
 	buffColours.reserve(nFacets + 2);
 
-	buffPoints.data[0] = pos;
+	buffPoints.data[0] = transformAffine.forwardRound<float>(pos);
 	buffColours.data[0] = colInner;
 	for (int32_t i = 0; i <= nFacets; i++)
 	{
@@ -11184,7 +11196,7 @@ const GPUTask& olc::Draw2D::FilledEllipse(const olc::vf2d& pos, const float& rx,
 	buffPoints.reserve(nFacets + 2);
 	buffColours.reserve(nFacets + 2);
 
-	buffPoints.data[0] = pos;
+	buffPoints.data[0] = transformAffine.forwardRound<float>(pos);
 	buffColours.data[0] = col;
 	for (int32_t i = 0; i <= nFacets; i++)
 	{		
@@ -11207,7 +11219,7 @@ const GPUTask& olc::Draw2D::FilledEllipse(const olc::vf2d& pos, const float& rx,
 	
 	buffPoints.reserve(nFacets + 2);
 	buffColours.reserve(nFacets + 2);
-	buffPoints.data[0] = pos;
+	buffPoints.data[0] = transformAffine.forwardRound<float>(pos);
 	buffColours.data[0] = colInner;
 	
 	for (int32_t i = 0; i <= nFacets; i++)
@@ -11339,7 +11351,7 @@ const GPUTask& olc::Draw2D::Triangle(const olc::vf2d& p1, const olc::vf2d& p2, c
 	return vecGPUTasks.data.emplace_back(std::move(
 		TaskDrawPolygon(
 			olc::Structure::Fan,
-			transformAffine.forwardRound<float>({ p1, p2, p3 }),
+			transformAffine.forwardRoundX<float>({ p1, p2, p3 }),
 			{ c1, c2, c3 },
 			tint
 		)));
@@ -11357,7 +11369,7 @@ const GPUTask& olc::Draw2D::FilledTriangle(const olc::vf2d& p1, const olc::vf2d&
 	return vecGPUTasks.data.emplace_back(std::move(
 		TaskFillPolygon(
 			olc::Structure::Fan,
-			transformAffine.forwardRound<float>({ p1, p2, p3 }),
+			transformAffine.forwardRoundX<float>({ p1, p2, p3 }),
 			{ c1, c2, c3 },
 			tint
 		)));
@@ -11371,7 +11383,7 @@ const GPUTask& olc::Draw2D::TexturedTriangle(const olc::vf2d& p1, const olc::vf2
 	return vecGPUTasks.data.emplace_back(std::move(
 		TaskTexturedPolygon(
 			olc::Structure::Fan,
-			transformAffine.forwardRound<float>({ p1, p2, p3 }),
+			transformAffine.forwardRoundX<float>({ p1, p2, p3 }),
 			{ c1, c2, c3 },
 			{ t1, t2, t3 },
 			&texture,
@@ -11606,7 +11618,12 @@ const GPUTask& olc::Draw2D::Image(olc::ImageRegion image, const olc::vf2d& pos, 
 	return vecGPUTasks.data.emplace_back(std::move(
 		TaskTexturedPolygon(
 			olc::Structure::Fan,
-			transformAffine.forward<float>({ { pos.x, pos.y }, { pos.x + size.x, pos.y }, { pos.x + size.x, pos.y + size.y }, { pos.x, pos.y + size.y } }),
+			transformAffine.forwardRoundX<float>({
+				{ pos.x, pos.y }, 
+				{ pos.x + size.x, pos.y }, 
+				{ pos.x + size.x, pos.y + size.y }, 
+				{ pos.x, pos.y + size.y } 
+			}),
 			{ tint, tint, tint, tint },
 			// Tex coords are clockwise
 			{ 
@@ -11716,7 +11733,7 @@ const GPUTask& olc::Draw2D::ImageQuad(olc::ImageRegion image, const olc::vf2d& v
 		return vecGPUTasks.data.emplace_back(std::move(
 			TaskTexturedPolygon(
 				olc::Structure::Fan,
-				transformAffine.forwardRound<float>({ vTL, vTR, vBR, vBL }),
+				transformAffine.forwardRoundX<float>({ vTL, vTR, vBR, vBL }),
 				{ {q[0], 1.0f}, {q[1], 1.0f}, {q[2], 1.0f}, {q[3], 1.0f} },
 				{ tint, tint, tint, tint},
 				{ image.coords[0] * q[0], image.coords[1] * q[1], image.coords[2] * q[2], image.coords[3] * q[3] },
@@ -11729,7 +11746,7 @@ const GPUTask& olc::Draw2D::ImageQuad(olc::ImageRegion image, const olc::vf2d& v
 	return vecGPUTasks.data.emplace_back(std::move(
 		TaskTexturedPolygon(
 			olc::Structure::Fan,
-			transformAffine.forwardRound<float>({ vTL, vTR, vBR, vBL }),
+			transformAffine.forwardRoundX<float>({ vTL, vTR, vBR, vBL }),
 			{ tint, tint, tint, tint },
 			{ image.coords[0], image.coords[1], image.coords[2], image.coords[3] },
 			&image.image.get()
@@ -11805,7 +11822,7 @@ const GPUTask& olc::Draw2D::ImageRect(olc::ImageRegion image, const olc::vf2d& p
 	return vecGPUTasks.data.emplace_back(std::move(
 		TaskTexturedPolygon(
 			olc::Structure::Fan,
-			transformAffine.forwardRound<float>({ { pos.x, pos.y }, { pos.x + size.x, pos.y }, { pos.x + size.x, pos.y + size.y }, { pos.x, pos.y + size.y } }),
+			transformAffine.forwardRoundX<float>({ { pos.x, pos.y }, { pos.x + size.x, pos.y }, { pos.x + size.x, pos.y + size.y }, { pos.x, pos.y + size.y } }),
 			{ tint, tint, tint, tint },
 			// Tex coords are clockwise
 			{ image.coords[0], image.coords[1], image.coords[2], image.coords[3] },
