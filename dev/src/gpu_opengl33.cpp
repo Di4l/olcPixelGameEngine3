@@ -999,6 +999,8 @@ void main()
 					gl.glUniform1i(pCurrentShader->GetUniform("pgeDrawType"), 1);
 				else if (task.structure == olc::Structure::LineLoop)
 					gl.glUniform1i(pCurrentShader->GetUniform("pgeDrawType"), 1);
+				else if (task.structure == olc::Structure::LineList)
+					gl.glUniform1i(pCurrentShader->GetUniform("pgeDrawType"), 1);
 				else
 					gl.glUniform1i(pCurrentShader->GetUniform("pgeDrawType"), 0);
 
@@ -1010,6 +1012,8 @@ void main()
 					gl.glDrawArrays(GL_TRIANGLES, 0, (GLsizei)task.vertexBuffer.size());
 				else if (task.structure == olc::Structure::Line)
 					gl.glDrawArrays(GL_LINE_STRIP, 0, (GLsizei)task.vertexBuffer.size());
+				else if (task.structure == olc::Structure::LineList)
+					gl.glDrawArrays(GL_LINES, 0, (GLsizei)task.vertexBuffer.size());
 				else if (task.structure == olc::Structure::LineLoop)
 					gl.glDrawArrays(GL_LINE_LOOP, 0, (GLsizei)task.vertexBuffer.size());
 				else if (task.structure == olc::Structure::Point)
