@@ -54,6 +54,8 @@ namespace olc
 		bool bAllowChildWindows = true;
 		// Creates a "DefaultImage" with anti-aliased properties
 		bool bAntiAliasMainScreen = false;
+		// Default clear colour for the primary drawing surface
+		olc::Pixel colClear = olc::Colour::BLACK;
 	};
 
 	// A PGE Window is a window with drawing and input capabilities a la olc::PixelGameEngine
@@ -114,6 +116,12 @@ namespace olc
 		olc::Image imgPrimary;
 		olc::gpu::Renderer* pRenderer = nullptr;
 		olc::imload::ImageLoader* pImageLoader = nullptr;
+		olc::vi2d vViewPos = { 0,0 };
+		olc::vi2d vViewSize = { 0,0 };
+
+	protected:
+		// PGE Configuration
+		PGEConfig config;
 	};
 
 	// The olc::PixelGameEngine3 core, manages the main window, child windows, engine loop, timing and devices
@@ -158,8 +166,7 @@ namespace olc
 		std::chrono::duration<double> durationTotalElapsed{ 0 };
 		size_t frameCount = 0;
 
-		// PGE Configuration
-		PGEConfig config;
+
 
 		// Core Thread
 		std::thread coreThread;
