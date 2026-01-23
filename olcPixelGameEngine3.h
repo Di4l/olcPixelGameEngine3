@@ -1205,6 +1205,13 @@ namespace olc
 
 		// Transform a vector by this transform in place
 		template<typename Q>
+		inline constexpr auto forwardX(std::vector<olc::v_2d<Q>>&& v) const
+		{
+			std::transform(v.begin(), v.end(), v.begin(), [this](const olc::v_2d<Q>& i) {return (m_mForward * i); });
+			return v;
+		}
+
+		template<typename Q>
 		inline constexpr auto forwardRoundX(std::vector<olc::v_2d<Q>>&& v) const
 		{
 			std::transform(v.begin(), v.end(), v.begin(), [this](const olc::v_2d<Q>& i) {return (m_mForward * i).round(); });
@@ -1225,6 +1232,14 @@ namespace olc
 			std::vector<olc::v_2d<Q>> o(v.size());
 			std::transform(v.begin(), v.end(), o.begin(), [this](const olc::v_2d<Q>& i) {return m_mInverse * i; });
 			return o;
+		}
+
+		// Transform a vector by this transform in place
+		template<typename Q>
+		inline constexpr auto inverseX(std::vector<olc::v_2d<Q>>&& v) const
+		{
+			std::transform(v.begin(), v.end(), v.begin(), [this](const olc::v_2d<Q>& i) {return m_mInverse * i; });
+			return v;
 		}
 
 
@@ -2896,6 +2911,8 @@ namespace olc
 		// Input devices are handled by a regular olc::Window, but for convenience...
 		olc::hw::Mouse& GetMouse();
 		
+		// Returns the current size of the "screen" in pixels
+		const olc::vi2d& ScreenSize();
 
 	protected:
 		bool olc_OnMouseMove(const olc::vi2d& vMousePos) override;
@@ -12545,6 +12562,11 @@ namespace olc
 	olc::hw::Mouse& PGEWindow::GetMouse()
 	{
 		return mouse;
+	}
+
+	const olc::vi2d& PGEWindow::ScreenSize()
+	{
+		return GetDefaultImage().Size();
 	}
 
 	bool PGEWindow::olc_OnMouseMove(const olc::vi2d& vMousePos)

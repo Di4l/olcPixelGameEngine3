@@ -206,6 +206,11 @@ namespace olc
 		return mouse;
 	}
 
+	const olc::vi2d& PGEWindow::ScreenSize()
+	{
+		return GetDefaultImage().Size();
+	}
+
 	bool PGEWindow::olc_OnMouseMove(const olc::vi2d& vMousePos)
 	{
 		mouse.SetPosition(olc::vf2d(vMousePos) / olc::vf2d(GetWindowSize()) * GetDefaultImage().Size());
