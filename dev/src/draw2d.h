@@ -104,6 +104,13 @@ namespace olc
 			const olc::Pixel col = olc::Colour::WHITE,
 			const olc::Pixel tint = olc::Colour::WHITE);
 
+		// Draws a single pixel wide line into a batch
+		const LineBatch& Line(
+			olc::LineBatch& batch,
+			const olc::vf2d& p1,
+			const olc::vf2d& p2,
+			const olc::Pixel col = olc::Colour::WHITE);
+
 		// Draws a single pixel wide line with a gradient		
 		const GPUTask& Line(
 			const olc::vf2d& p1, 
@@ -111,6 +118,14 @@ namespace olc
 			const olc::vf2d& p2, 
 			const olc::Pixel c2,
 			const olc::Pixel tint = olc::Colour::WHITE);
+
+		// Draws a single pixel wide line with a gradient into a batch	
+		const LineBatch& Line(
+			olc::LineBatch& batch,
+			const olc::vf2d& p1,
+			const olc::Pixel c1,
+			const olc::vf2d& p2,
+			const olc::Pixel c2);
 
 // === Rectangles ===
 
@@ -120,6 +135,13 @@ namespace olc
 			const olc::vf2d& size, 
 			const olc::Pixel col = olc::Colour::WHITE,
 			const olc::Pixel tint = olc::Colour::WHITE);
+
+		// Draws a rectangle outline into a batch
+		const LineBatch& Rect(
+			olc::LineBatch& batch,
+			const olc::vf2d& pos,
+			const olc::vf2d& size,
+			const olc::Pixel col = olc::Colour::WHITE);
 
 		// Draws a multiple colour rectangle, with linear colour interpolation
 		const GPUTask& Rect(
@@ -131,6 +153,16 @@ namespace olc
 			const olc::Pixel colBR,
 			const olc::Pixel tint = olc::Colour::WHITE);
 
+		// Draws a multiple colour rectangle, with linear colour interpolation, into a batch
+		const LineBatch& Rect(
+			olc::LineBatch& batch,
+			const olc::vf2d& pos,
+			const olc::vf2d& size,
+			const olc::Pixel colTL,
+			const olc::Pixel colTR,
+			const olc::Pixel colBL,
+			const olc::Pixel colBR);
+			
 		// Draws a filled, single colour rectangle
 		const GPUTask& FilledRect(
 			const olc::vf2d& pos, 
@@ -156,6 +188,14 @@ namespace olc
 			const float& radius,
 			const olc::Pixel col = olc::Colour::WHITE,
 			const olc::Pixel tint = olc::Colour::WHITE,
+			int32_t nFacets = 32);
+
+		// Draws a circle outline with a single colour into a batch
+		const LineBatch& Circle(
+			olc::LineBatch& batch,
+			const olc::vf2d& pos,
+			const float& radius,
+			const olc::Pixel col = olc::Colour::WHITE,
 			int32_t nFacets = 32);
 
 		// Draws a filled circle with a single colour
@@ -184,6 +224,15 @@ namespace olc
 			const float& ry,
 			const olc::Pixel col = olc::Colour::WHITE,
 			const olc::Pixel tint = olc::Colour::WHITE,
+			int32_t nFacets = 32);
+
+		// Draws an ellipse outline with a single colour into a batch
+		const LineBatch& Ellipse(
+			olc::LineBatch& batch,
+			const olc::vf2d& pos,
+			const float& rx,
+			const float& ry,
+			const olc::Pixel col = olc::Colour::WHITE,
 			int32_t nFacets = 32);
 
 		// Draws a filled ellipse with a single colour
@@ -216,6 +265,15 @@ namespace olc
 			const olc::Pixel tint = olc::Colour::WHITE,
 			int32_t nFacets = 8);
 
+		// Draws a rounded rectangle outline with a single colour into a batch
+		const LineBatch& RoundedRect(
+			olc::LineBatch& batch,
+			const olc::vf2d& pos,						// Top left of bounding rectangle
+			const olc::vf2d& size,						// Size of bounding rectangle
+			const float& radius,
+			const olc::Pixel col = olc::Colour::WHITE,
+			int32_t nFacets = 8);
+
 		// Draws a filled rounded rectangle with a single colour
 		const GPUTask& FilledRoundedRect(
 			const olc::vf2d& pos,						// Top left of bounding rectangle
@@ -236,6 +294,14 @@ namespace olc
 			const olc::Pixel col = olc::Colour::WHITE,
 			const olc::Pixel tint = olc::Colour::WHITE);
 
+		// Draws a triangle outline with a single colour into a batch
+		const LineBatch& Triangle(
+			olc::LineBatch& batch,
+			const olc::vf2d& p1,
+			const olc::vf2d& p2,
+			const olc::vf2d& p3,
+			const olc::Pixel col = olc::Colour::WHITE);
+
 		// Draws a multiple colour triangle outline
 		const GPUTask& Triangle(
 			const olc::vf2d& p1,
@@ -245,6 +311,16 @@ namespace olc
 			const olc::Pixel c2,
 			const olc::Pixel c3,
 			const olc::Pixel tint = olc::Colour::WHITE);
+
+		// Draws a multiple colour triangle outline into a batch
+		const LineBatch& Triangle(
+			olc::LineBatch& batch,
+			const olc::vf2d& p1,
+			const olc::vf2d& p2,
+			const olc::vf2d& p3,
+			const olc::Pixel c1,
+			const olc::Pixel c2,
+			const olc::Pixel c3);
 
 		// Draws a filled, single colour triangle
 		const GPUTask& FilledTriangle(
@@ -278,7 +354,7 @@ namespace olc
 			olc::Image& texture,
 			const olc::Pixel tint = olc::Colour::WHITE);
 
-// === Polygons ===
+// === Polygon Outlines ===
 
 		// Draws a polygon outline with a single colour
 		const GPUTask& Polygon(
@@ -286,11 +362,25 @@ namespace olc
 			const olc::Pixel col = olc::Colour::WHITE,
 			const olc::Pixel tint = olc::Colour::WHITE);
 
+		// Draws a polygon outline with a single colour into a batch
+		const LineBatch& Polygon(
+			olc::LineBatch& batch,
+			const std::vector<olc::vf2d>& vecPoints,
+			const olc::Pixel col = olc::Colour::WHITE);
+
 		// Draws a polygon outline with multiple colours
 		const GPUTask& Polygon(
 			const std::vector<olc::vf2d>& vecPoints,
 			const std::vector<olc::Pixel>& vecColours,
 			const olc::Pixel tint = olc::Colour::WHITE);
+
+		// Draws a polygon outline with multiple colours into a batch
+		const LineBatch& Polygon(
+			olc::LineBatch& batch,
+			const std::vector<olc::vf2d>& vecPoints,
+			const std::vector<olc::Pixel>& vecColours);
+
+	// === Structured Polygons (Outlines & Fills) ===
 
 		// Draws a polygon outline with a single colour
 		const GPUTask& Polygon(
@@ -445,21 +535,21 @@ namespace olc
 		ImageBatch CreateImageBatch(olc::Image& image);
 
 		// Draws an image batch to the current target
-		const GPUTask& Batch(const olc::ImageBatch& batch);
+		const GPUTask& Batch(olc::ImageBatch& batch, const olc::Pixel tint = olc::Colour::WHITE);
 
 		// Create a filled shape batch for efficient repeated drawing 
 		// of primitive filled shapes
 		FilledBatch CreateFilledBatch();
 
 		// Draws a filled shape batch to the current target
-		const GPUTask& Batch(const olc::FilledBatch& batch);
+		const GPUTask& Batch(olc::FilledBatch& batch, const olc::Pixel tint = olc::Colour::WHITE);
 
 		// Create a line shape batch for efficient repeated drawing
 		// of primitive line shapes
 		LineBatch CreateLineBatch();
 
 		// Draws a line shape batch to the current target
-		const GPUTask& Batch(const olc::LineBatch& batch);
+		const GPUTask& Batch(olc::LineBatch& batch, const olc::Pixel tint = olc::Colour::WHITE);
 
 
 	public: // GPU Task Creator Functions (not normally called by user)

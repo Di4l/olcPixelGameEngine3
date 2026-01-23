@@ -1638,10 +1638,12 @@ namespace olc
 	{
 		// Vertex buffer is a series of points	
 		Point = 0,
-		// Vertex buffer is a series of line segments
+		// Vertex buffer is a series of connected line segments
 		Line,
-		// Vertex buffer is a series of line segments, that close to form a loop
+		// Vertex buffer is a series of connected line segments, that close to form a loop
 		LineLoop,
+		// Vertex buffer is a series of individual line segments
+		LineList,
 		// Vertex buffer is a fan of triangles
 		Fan,
 		// Vertex buffer is a strip of adjacent triangles
@@ -1942,6 +1944,13 @@ namespace olc
 			const olc::Pixel col = olc::Colour::WHITE,
 			const olc::Pixel tint = olc::Colour::WHITE);
 
+		// Draws a single pixel wide line into a batch
+		const LineBatch& Line(
+			olc::LineBatch& batch,
+			const olc::vf2d& p1,
+			const olc::vf2d& p2,
+			const olc::Pixel col = olc::Colour::WHITE);
+
 		// Draws a single pixel wide line with a gradient		
 		const GPUTask& Line(
 			const olc::vf2d& p1, 
@@ -1949,6 +1958,14 @@ namespace olc
 			const olc::vf2d& p2, 
 			const olc::Pixel c2,
 			const olc::Pixel tint = olc::Colour::WHITE);
+
+		// Draws a single pixel wide line with a gradient into a batch	
+		const LineBatch& Line(
+			olc::LineBatch& batch,
+			const olc::vf2d& p1,
+			const olc::Pixel c1,
+			const olc::vf2d& p2,
+			const olc::Pixel c2);
 
 // === Rectangles ===
 
@@ -1958,6 +1975,13 @@ namespace olc
 			const olc::vf2d& size, 
 			const olc::Pixel col = olc::Colour::WHITE,
 			const olc::Pixel tint = olc::Colour::WHITE);
+
+		// Draws a rectangle outline into a batch
+		const LineBatch& Rect(
+			olc::LineBatch& batch,
+			const olc::vf2d& pos,
+			const olc::vf2d& size,
+			const olc::Pixel col = olc::Colour::WHITE);
 
 		// Draws a multiple colour rectangle, with linear colour interpolation
 		const GPUTask& Rect(
@@ -1969,6 +1993,16 @@ namespace olc
 			const olc::Pixel colBR,
 			const olc::Pixel tint = olc::Colour::WHITE);
 
+		// Draws a multiple colour rectangle, with linear colour interpolation, into a batch
+		const LineBatch& Rect(
+			olc::LineBatch& batch,
+			const olc::vf2d& pos,
+			const olc::vf2d& size,
+			const olc::Pixel colTL,
+			const olc::Pixel colTR,
+			const olc::Pixel colBL,
+			const olc::Pixel colBR);
+			
 		// Draws a filled, single colour rectangle
 		const GPUTask& FilledRect(
 			const olc::vf2d& pos, 
@@ -1994,6 +2028,14 @@ namespace olc
 			const float& radius,
 			const olc::Pixel col = olc::Colour::WHITE,
 			const olc::Pixel tint = olc::Colour::WHITE,
+			int32_t nFacets = 32);
+
+		// Draws a circle outline with a single colour into a batch
+		const LineBatch& Circle(
+			olc::LineBatch& batch,
+			const olc::vf2d& pos,
+			const float& radius,
+			const olc::Pixel col = olc::Colour::WHITE,
 			int32_t nFacets = 32);
 
 		// Draws a filled circle with a single colour
@@ -2022,6 +2064,15 @@ namespace olc
 			const float& ry,
 			const olc::Pixel col = olc::Colour::WHITE,
 			const olc::Pixel tint = olc::Colour::WHITE,
+			int32_t nFacets = 32);
+
+		// Draws an ellipse outline with a single colour into a batch
+		const LineBatch& Ellipse(
+			olc::LineBatch& batch,
+			const olc::vf2d& pos,
+			const float& rx,
+			const float& ry,
+			const olc::Pixel col = olc::Colour::WHITE,
 			int32_t nFacets = 32);
 
 		// Draws a filled ellipse with a single colour
@@ -2054,6 +2105,15 @@ namespace olc
 			const olc::Pixel tint = olc::Colour::WHITE,
 			int32_t nFacets = 8);
 
+		// Draws a rounded rectangle outline with a single colour into a batch
+		const LineBatch& RoundedRect(
+			olc::LineBatch& batch,
+			const olc::vf2d& pos,						// Top left of bounding rectangle
+			const olc::vf2d& size,						// Size of bounding rectangle
+			const float& radius,
+			const olc::Pixel col = olc::Colour::WHITE,
+			int32_t nFacets = 8);
+
 		// Draws a filled rounded rectangle with a single colour
 		const GPUTask& FilledRoundedRect(
 			const olc::vf2d& pos,						// Top left of bounding rectangle
@@ -2074,6 +2134,14 @@ namespace olc
 			const olc::Pixel col = olc::Colour::WHITE,
 			const olc::Pixel tint = olc::Colour::WHITE);
 
+		// Draws a triangle outline with a single colour into a batch
+		const LineBatch& Triangle(
+			olc::LineBatch& batch,
+			const olc::vf2d& p1,
+			const olc::vf2d& p2,
+			const olc::vf2d& p3,
+			const olc::Pixel col = olc::Colour::WHITE);
+
 		// Draws a multiple colour triangle outline
 		const GPUTask& Triangle(
 			const olc::vf2d& p1,
@@ -2083,6 +2151,16 @@ namespace olc
 			const olc::Pixel c2,
 			const olc::Pixel c3,
 			const olc::Pixel tint = olc::Colour::WHITE);
+
+		// Draws a multiple colour triangle outline into a batch
+		const LineBatch& Triangle(
+			olc::LineBatch& batch,
+			const olc::vf2d& p1,
+			const olc::vf2d& p2,
+			const olc::vf2d& p3,
+			const olc::Pixel c1,
+			const olc::Pixel c2,
+			const olc::Pixel c3);
 
 		// Draws a filled, single colour triangle
 		const GPUTask& FilledTriangle(
@@ -2116,7 +2194,7 @@ namespace olc
 			olc::Image& texture,
 			const olc::Pixel tint = olc::Colour::WHITE);
 
-// === Polygons ===
+// === Polygon Outlines ===
 
 		// Draws a polygon outline with a single colour
 		const GPUTask& Polygon(
@@ -2124,11 +2202,25 @@ namespace olc
 			const olc::Pixel col = olc::Colour::WHITE,
 			const olc::Pixel tint = olc::Colour::WHITE);
 
+		// Draws a polygon outline with a single colour into a batch
+		const LineBatch& Polygon(
+			olc::LineBatch& batch,
+			const std::vector<olc::vf2d>& vecPoints,
+			const olc::Pixel col = olc::Colour::WHITE);
+
 		// Draws a polygon outline with multiple colours
 		const GPUTask& Polygon(
 			const std::vector<olc::vf2d>& vecPoints,
 			const std::vector<olc::Pixel>& vecColours,
 			const olc::Pixel tint = olc::Colour::WHITE);
+
+		// Draws a polygon outline with multiple colours into a batch
+		const LineBatch& Polygon(
+			olc::LineBatch& batch,
+			const std::vector<olc::vf2d>& vecPoints,
+			const std::vector<olc::Pixel>& vecColours);
+
+	// === Structured Polygons (Outlines & Fills) ===
 
 		// Draws a polygon outline with a single colour
 		const GPUTask& Polygon(
@@ -2283,21 +2375,21 @@ namespace olc
 		ImageBatch CreateImageBatch(olc::Image& image);
 
 		// Draws an image batch to the current target
-		const GPUTask& Batch(const olc::ImageBatch& batch);
+		const GPUTask& Batch(olc::ImageBatch& batch, const olc::Pixel tint = olc::Colour::WHITE);
 
 		// Create a filled shape batch for efficient repeated drawing 
 		// of primitive filled shapes
 		FilledBatch CreateFilledBatch();
 
 		// Draws a filled shape batch to the current target
-		const GPUTask& Batch(const olc::FilledBatch& batch);
+		const GPUTask& Batch(olc::FilledBatch& batch, const olc::Pixel tint = olc::Colour::WHITE);
 
 		// Create a line shape batch for efficient repeated drawing
 		// of primitive line shapes
 		LineBatch CreateLineBatch();
 
 		// Draws a line shape batch to the current target
-		const GPUTask& Batch(const olc::LineBatch& batch);
+		const GPUTask& Batch(olc::LineBatch& batch, const olc::Pixel tint = olc::Colour::WHITE);
 
 
 	public: // GPU Task Creator Functions (not normally called by user)
@@ -10580,6 +10672,8 @@ void main()
 					gl.glUniform1i(pCurrentShader->GetUniform("pgeDrawType"), 1);
 				else if (task.structure == olc::Structure::LineLoop)
 					gl.glUniform1i(pCurrentShader->GetUniform("pgeDrawType"), 1);
+				else if (task.structure == olc::Structure::LineList)
+					gl.glUniform1i(pCurrentShader->GetUniform("pgeDrawType"), 1);
 				else
 					gl.glUniform1i(pCurrentShader->GetUniform("pgeDrawType"), 0);
 
@@ -10591,6 +10685,8 @@ void main()
 					gl.glDrawArrays(GL_TRIANGLES, 0, (GLsizei)task.vertexBuffer.size());
 				else if (task.structure == olc::Structure::Line)
 					gl.glDrawArrays(GL_LINE_STRIP, 0, (GLsizei)task.vertexBuffer.size());
+				else if (task.structure == olc::Structure::LineList)
+					gl.glDrawArrays(GL_LINES, 0, (GLsizei)task.vertexBuffer.size());
 				else if (task.structure == olc::Structure::LineLoop)
 					gl.glDrawArrays(GL_LINE_LOOP, 0, (GLsizei)task.vertexBuffer.size());
 				else if (task.structure == olc::Structure::Point)
@@ -11016,6 +11112,12 @@ const GPUTask& Draw2D::Line(const olc::vf2d& p1, const olc::vf2d& p2, const olc:
 		)));
 }
 
+const LineBatch& olc::Draw2D::Line(olc::LineBatch& batch, const olc::vf2d& p1, const olc::vf2d& p2, const olc::Pixel col)
+{
+	
+	return Line(batch, p1, col, p2, col);
+}
+
 const GPUTask& Draw2D::Line(const olc::vf2d& p1, const olc::Pixel c1, const olc::vf2d& p2, const olc::Pixel c2, const olc::Pixel tint)
 {
 	PrepareTargetForHW();
@@ -11027,6 +11129,17 @@ const GPUTask& Draw2D::Line(const olc::vf2d& p1, const olc::Pixel c1, const olc:
 			{ c1, c2 },
 			tint
 		)));		
+}
+
+const LineBatch& olc::Draw2D::Line(olc::LineBatch& batch, const olc::vf2d& p1, const olc::Pixel c1, const olc::vf2d& p2, const olc::Pixel c2)
+{
+	batch.task.vertexBuffer.resize(batch.task.vertexBuffer.size() + 2);
+	size_t idx = batch.task.vertexBuffer.size() - 2;
+	const olc::vf2d a1 = transformAffine.forwardRound(p1);
+	const olc::vf2d a2 = transformAffine.forwardRound(p2);
+	batch.task.vertexBuffer[idx + 0] = { {a1.x, a1.y, 1.0f, 1.0f}, c1, {0, 0}, {0, 0}, {0, 0}, {0, 0} };
+	batch.task.vertexBuffer[idx + 1] = { {a2.x, a2.y, 1.0f, 1.0f}, c2, {0, 0}, {0, 0}, {0, 0}, {0, 0} };
+	return batch;
 }
 
 const GPUTask& olc::Draw2D::Rect(const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel col, const olc::Pixel tint)
@@ -11050,6 +11163,11 @@ const GPUTask& olc::Draw2D::Rect(const olc::vf2d& pos, const olc::vf2d& size, co
 		)));
 }
 
+const LineBatch& olc::Draw2D::Rect(olc::LineBatch& batch, const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel col)
+{
+	return Rect(batch, pos, size, col, col, col, col);
+}
+
 const GPUTask& olc::Draw2D::Rect(const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel colTL, const olc::Pixel colTR, const olc::Pixel colBL, const olc::Pixel colBR, const olc::Pixel tint)
 {
 	PrepareTargetForHW();
@@ -11066,6 +11184,22 @@ const GPUTask& olc::Draw2D::Rect(const olc::vf2d& pos, const olc::vf2d& size, co
 			{ colTL, colTR,  colBR,  colBL,  colTL },
 			tint
 				)));
+}
+
+const LineBatch& olc::Draw2D::Rect(olc::LineBatch& batch, const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel colTL, const olc::Pixel colTR, const olc::Pixel colBL, const olc::Pixel colBR)
+{
+	const olc::vf2d pTL = olc::vf2d(pos.x, pos.y);
+	const olc::vf2d pTR = olc::vf2d(pos.x + size.x, pos.y);
+	const olc::vf2d pBR = olc::vf2d(pos.x + size.x, pos.y + size.y);
+	const olc::vf2d pBL = olc::vf2d(pos.x, pos.y + size.y);
+
+	Line(batch, pTL, colTL, pTR, colTR);
+	Line(batch, pTR, colTR, pBR, colBR);
+	Line(batch, pBR, colBR, pBL, colBL);
+	Line(batch, pBL, colBL, pTL, colTL);
+
+	return batch;
+
 }
 
 
@@ -11135,6 +11269,19 @@ const GPUTask& olc::Draw2D::Circle(const olc::vf2d& pos, const float& radius, co
 			buffColours.data,
 			tint
 		)));
+}
+
+const LineBatch& olc::Draw2D::Circle(olc::LineBatch& batch, const olc::vf2d& pos, const float& radius, const olc::Pixel col, int32_t nFacets)
+{
+	if (nFacets != int32_t(buffUnitCirclePoints.data.size() - 1))
+		RedefineUnitCircleBuffer(nFacets);
+
+	for (int32_t i = 0; i <= nFacets; i++)
+	{
+		Line(batch, buffUnitCirclePoints.data[i] * radius + pos, col, buffUnitCirclePoints.data[(i + 1) % buffUnitCirclePoints.data.size()] * radius + pos, col);
+	}
+
+	return batch;
 }
 
 const GPUTask& olc::Draw2D::FilledCircle(const olc::vf2d& pos, const float& radius, const olc::Pixel col, const olc::Pixel tint, int32_t nFacets)
@@ -11214,6 +11361,23 @@ const GPUTask& olc::Draw2D::Ellipse(const olc::vf2d& pos, const float& rx, const
 			buffColours.data,
 			tint
 		)));
+}
+
+const LineBatch& olc::Draw2D::Ellipse(olc::LineBatch& batch, const olc::vf2d& pos, const float& rx, const float& ry, const olc::Pixel col, int32_t nFacets)
+{
+	if (nFacets != int32_t(buffUnitCirclePoints.data.size() - 1))
+		RedefineUnitCircleBuffer(nFacets);
+
+	for (int32_t i = 0; i <= nFacets; i++)
+	{
+		const olc::vf2d a1 = { buffUnitCirclePoints.data[i].x * rx + pos.x, buffUnitCirclePoints.data[i].y * ry + pos.y };
+		const olc::vf2d a2 = { buffUnitCirclePoints.data[(i + 1) % buffUnitCirclePoints.data.size()].x * rx + pos.x, 
+			buffUnitCirclePoints.data[(i + 1) % buffUnitCirclePoints.data.size()].y * ry + pos.y };
+		
+		Line(batch, a1, col, a2, col);
+	}
+
+	return batch;
 }
 
 const GPUTask& olc::Draw2D::FilledEllipse(const olc::vf2d& pos, const float& rx, const float& ry, const olc::Pixel col, const olc::Pixel tint, int32_t nFacets)
@@ -11320,6 +11484,52 @@ const GPUTask& olc::Draw2D::RoundedRect(const olc::vf2d& pos, const olc::vf2d& s
 		)));
 }
 
+const LineBatch& olc::Draw2D::RoundedRect(olc::LineBatch& batch, const olc::vf2d& pos, const olc::vf2d& size, const float& radius, const olc::Pixel col, int32_t nFacets)
+{
+	buffPoints.reserve((nFacets + 1) * 4 + 1);
+	buffPoints.data.clear();
+
+	olc::vf2d adjustedPos = pos + olc::vf2d(radius, radius);
+	olc::vf2d adjustedSize = size - olc::vf2d(2.0f * radius, 2.0f * radius);
+
+	// Top Left
+	for (int32_t i = 0; i <= nFacets; i++)
+	{
+		float theta = (float(i) / float(nFacets)) * (0.5f * 3.14159265358979323846f) - (1.0f * 3.14159265358979323846f);
+		buffPoints.data.push_back({ adjustedPos.x + radius * cosf(theta), adjustedPos.y + radius * sinf(theta) });
+	}
+
+	// Top Right
+	for (int32_t i = 0; i <= nFacets; i++)
+	{
+		float theta = (float(i) / float(nFacets)) * (0.5f * 3.14159265358979323846f) - (0.5f * 3.14159265358979323846f);
+		buffPoints.data.push_back({ adjustedPos.x + adjustedSize.x + radius * cosf(theta), adjustedPos.y + radius * sinf(theta) });
+	}
+
+	// Bottom Right
+	for (int32_t i = 0; i <= nFacets; i++)
+	{
+		float theta = (float(i) / float(nFacets)) * (0.5f * 3.14159265358979323846f) + (0.0f * 3.14159265358979323846f);
+		buffPoints.data.push_back({ adjustedPos.x + adjustedSize.x + radius * cosf(theta), adjustedPos.y + adjustedSize.y + radius * sinf(theta) });
+	}
+
+	// Bottom Left
+	for (int32_t i = 0; i <= nFacets; i++)
+	{
+		float theta = (float(i) / float(nFacets)) * (0.5f * 3.14159265358979323846f) + (0.5f * 3.14159265358979323846f);
+		buffPoints.data.push_back({ adjustedPos.x + radius * cosf(theta), adjustedPos.y + adjustedSize.y + radius * sinf(theta) });
+	}
+
+	buffPoints.data.push_back({ adjustedPos.x - radius, adjustedPos.y });
+
+	for (size_t i = 0; i < buffPoints.data.size() - 1; i++)
+	{
+		Line(batch, buffPoints.data[i], col, buffPoints.data[i + 1],  col);
+	}
+
+	return batch;
+}
+
 const GPUTask& olc::Draw2D::FilledRoundedRect(const olc::vf2d& pos, const olc::vf2d& size, const float& radius, const olc::Pixel col, const olc::Pixel tint, int32_t nFacets)
 {
 	PrepareTargetForHW();
@@ -11377,6 +11587,11 @@ const GPUTask& olc::Draw2D::Triangle(const olc::vf2d& p1, const olc::vf2d& p2, c
 	return Triangle(p1, p2, p3, col, col, col, tint);
 }
 
+const LineBatch& olc::Draw2D::Triangle(olc::LineBatch& batch, const olc::vf2d& p1, const olc::vf2d& p2, const olc::vf2d& p3, const olc::Pixel col)
+{
+	return Triangle(batch, p1, p2, p3, col, col, col);
+}
+
 const GPUTask& olc::Draw2D::Triangle(const olc::vf2d& p1, const olc::vf2d& p2, const olc::vf2d& p3, const olc::Pixel c1, const olc::Pixel c2, const olc::Pixel c3, const olc::Pixel tint)
 {
 	PrepareTargetForHW();
@@ -11388,6 +11603,14 @@ const GPUTask& olc::Draw2D::Triangle(const olc::vf2d& p1, const olc::vf2d& p2, c
 			{ c1, c2, c3 },
 			tint
 		)));
+}
+
+const LineBatch& olc::Draw2D::Triangle(olc::LineBatch& batch, const olc::vf2d& p1, const olc::vf2d& p2, const olc::vf2d& p3, const olc::Pixel c1, const olc::Pixel c2, const olc::Pixel c3)
+{
+	Line(batch, p1, c1, p2, c2);
+	Line(batch, p2, c2, p3, c3);
+	Line(batch, p3, c3, p1, c1);
+	return batch;	
 }
 
 const GPUTask& olc::Draw2D::FilledTriangle(const olc::vf2d& p1, const olc::vf2d& p2, const olc::vf2d& p3, const olc::Pixel col, const olc::Pixel tint)
@@ -11429,9 +11652,29 @@ const GPUTask& olc::Draw2D::Polygon(const std::vector<olc::vf2d>& vecPoints, con
 	return Polygon(olc::Structure::LineLoop, vecPoints, std::vector<olc::Pixel>(vecPoints.size(), col), tint);
 }
 
+const LineBatch& olc::Draw2D::Polygon(olc::LineBatch& batch, const std::vector<olc::vf2d>& vecPoints, const olc::Pixel col)
+{
+	for (size_t i = 0; i < vecPoints.size(); i++)
+	{
+		Line(batch, vecPoints[i], col, vecPoints[(i + 1) % vecPoints.size()], col);
+	}
+
+	return batch;
+}
+
 const GPUTask& olc::Draw2D::Polygon(const std::vector<olc::vf2d>& vecPoints, const std::vector<olc::Pixel>& vecColours, const olc::Pixel tint)
 {
 	return Polygon(olc::Structure::LineLoop, vecPoints, vecColours, tint);
+}
+
+const LineBatch& olc::Draw2D::Polygon(olc::LineBatch& batch, const std::vector<olc::vf2d>& vecPoints, const std::vector<olc::Pixel>& vecColours)
+{
+	for(size_t i = 0; i<vecPoints.size(); i++)
+	{
+		Line(batch, vecPoints[i], vecColours[i], vecPoints[(i + 1) % vecPoints.size()], vecColours[(i + 1) % vecColours.size()]);
+	}
+
+	return batch;
 }
 
 const GPUTask& olc::Draw2D::Polygon(const olc::Structure structure, const std::vector<olc::vf2d>& vecPoints, const olc::Pixel col, const olc::Pixel tint)
@@ -11591,8 +11834,9 @@ ImageBatch olc::Draw2D::CreateImageBatch(olc::Image &image)
 	return b;
 }
 
-const GPUTask& olc::Draw2D::Batch(const ImageBatch& batch)
+const GPUTask& olc::Draw2D::Batch(olc::ImageBatch& batch, const olc::Pixel tint)
 {
+	batch.task.tint = tint;
 	return vecGPUTasks.data.emplace_back(batch.task);
 }
 
@@ -11601,18 +11845,22 @@ FilledBatch olc::Draw2D::CreateFilledBatch()
 	return FilledBatch();
 }
 
-const GPUTask& olc::Draw2D::Batch(const olc::FilledBatch& batch)
+const GPUTask& olc::Draw2D::Batch(olc::FilledBatch& batch, const olc::Pixel tint)
 {
+	batch.task.tint = tint;
 	return vecGPUTasks.data.emplace_back(batch.task);
 }
 
 LineBatch olc::Draw2D::CreateLineBatch()
 {
-	return LineBatch();
+	LineBatch b;
+	b.task.structure = olc::Structure::LineList;	
+	return b;
 }
 
-const GPUTask& olc::Draw2D::Batch(const olc::LineBatch& batch)
+const GPUTask& olc::Draw2D::Batch(olc::LineBatch& batch, const olc::Pixel tint)
 {
+	batch.task.tint = tint;
 	return vecGPUTasks.data.emplace_back(batch.task);
 }
 
@@ -11633,9 +11881,6 @@ const ImageBatch& olc::Draw2D::Image(ImageBatch& batch, olc::ImageRegion image, 
 	batch.task.vertexBuffer.push_back({ {p0.x, p0.y, 1.0f, 1.0f}, tint, {image.coords[0].x, image.coords[0].y}, {0, 0}, {0, 0}, {0, 0} });
 	batch.task.vertexBuffer.push_back({ {p2.x, p2.y, 1.0f, 1.0f}, tint, {image.coords[2].x, image.coords[2].y}, {0, 0}, {0, 0}, {0, 0} });
 	batch.task.vertexBuffer.push_back({ {p3.x, p3.y, 1.0f, 1.0f}, tint, {image.coords[3].x, image.coords[3].y}, {0, 0}, {0, 0}, {0, 0} });
-	
-	batch.task.tint = tint;
-
 	return batch;
 }
 
@@ -11725,9 +11970,6 @@ const ImageBatch& olc::Draw2D::ImageRotated(olc::ImageBatch& batch, olc::ImageRe
 	batch.task.vertexBuffer.push_back({ {p0.x, p0.y, 1.0f, 1.0f}, tint, {image.coords[0].x, image.coords[0].y}, {0, 0}, {0, 0}, {0, 0} });
 	batch.task.vertexBuffer.push_back({ {p2.x, p2.y, 1.0f, 1.0f}, tint, {image.coords[2].x, image.coords[2].y}, {0, 0}, {0, 0}, {0, 0} });
 	batch.task.vertexBuffer.push_back({ {p3.x, p3.y, 1.0f, 1.0f}, tint, {image.coords[3].x, image.coords[3].y}, {0, 0}, {0, 0}, {0, 0} });
-
-	batch.task.tint = tint;
-
 	return batch;
 }
 
@@ -11825,8 +12067,6 @@ const ImageBatch& olc::Draw2D::ImageQuad(olc::ImageBatch& batch, olc::ImageRegio
 		batch.task.vertexBuffer.push_back({ {p0.x, p0.y, q[0], 1.0f}, tint, {q[0] * image.coords[0].x, q[0] * image.coords[0].y}, {0, 0}, {0, 0}, {0, 0}});
 		batch.task.vertexBuffer.push_back({ {p2.x, p2.y, q[2], 1.0f}, tint, {q[2] * image.coords[2].x, q[2] * image.coords[2].y}, {0, 0}, {0, 0}, {0, 0}});
 		batch.task.vertexBuffer.push_back({ {p3.x, p3.y, q[3], 1.0f}, tint, {q[3] * image.coords[3].x, q[3] * image.coords[3].y}, {0, 0}, {0, 0}, {0, 0}});
-
-		batch.task.tint = tint;
 		return batch;
 	}
 
