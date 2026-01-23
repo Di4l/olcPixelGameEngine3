@@ -3,6 +3,116 @@
 //! START IMPLEMENTATION
 namespace olc::gpu
 {
+
+	// === PIXEL SHADER PGE DEFAULTS ===
+	std::string Shader::static_PS_DefaultHeader =
+#if OLC_HOST != OLC_HOST_EMSCRIPTEN
+R"(#version 330 core
+)"
+#else
+R"(#version 300 es
+precision mediump float;
+)"
+#endif
+R"(
+// Pixel output to framebuffer
+layout(location = 0) out vec4 pixel;
+
+// PGE *REQUIRED* Uniforms - You must have these in your shader
+uniform vec2 pgeTargetSizeInPixels;			// Size of the target olc::Image in pixels
+uniform vec2 pgeInverseTargetSizeInPixels;  // 1.0 / Size of the target olc::Image in pixels
+uniform float pgeTotalTimeElapsed;			// Total time elapsed since application started
+uniform sampler2D pgeTexture0;				// Current source olc::Image bound as texture0
+uniform sampler2D pgeTexture1;				// Current source olc::Image bound as texture1
+uniform sampler2D pgeTexture2;				// Current source olc::Image bound as texture2
+uniform sampler2D pgeTexture3;				// Current source olc::Image bound as texture3
+
+// Inputs from Vertex Shader
+in vec2 oTex;
+in vec4 oCol;
+)";
+
+	std::string Shader::static_PS_DefaultMain =
+R"(
+void main()
+{
+	// We premultiply alpha here
+	vec4 texColor = texture(pgeTexture0, oTex) * oCol;
+	pixel = vec4(texColor.rgb * texColor.a, texColor.a);
+}
+)";
+	
+	
+	// === VERTEX SHADER PGE DEFAULTS ===
+	std::string Shader::static_VS_DefaultHeader =
+#if OLC_HOST != OLC_HOST_EMSCRIPTEN
+R"(#version 330 core
+)"
+#else
+R"(#version 300 es
+precision mediump float;
+)"
+#endif
+R"(
+// PGE *REQUIRED* Attributes - You must have these in your shader
+layout(location = 0) in vec4 aPos; // x, y, z, w
+layout(location = 1) in vec4 aCol; // r, g, b, a
+layout(location = 2) in vec2 aTex; // u, v
+
+// PGE *REQUIRED* Uniforms - You must have these in your shader
+uniform mat4 pgeMVP;						// Model-View-Projection matrix
+uniform int pgeDrawType;					// 0 = 2D Polygon, 1 = 2D Line, 2 = 3D
+uniform vec4 pgeGlobalTint;					// Global tint to apply to all vertices
+uniform vec2 pgeTargetSizeInPixels;			// Size of the target olc::Image in pixels
+uniform vec2 pgeInverseTargetSizeInPixels;  // 1.0 / Size of the target olc::Image in pixels
+uniform float pgeTotalTimeElapsed;			// Total time elapsed since application started
+
+// Outputs to Pixel Shader
+out vec2 oTex;
+out vec4 oCol;
+)";
+
+	std::string Shader::static_VS_DefaultMain =
+R"(
+void main()
+{
+	if (pgeDrawType == 2) // 3D																																  
+	{
+		gl_Position = pgeMVP * vec4(aPos.x, aPos.y, aPos.z, 1.0);
+		oTex = aTex;
+	}
+
+	else if (pgeDrawType == 1) // 2D Line																																		  
+	{
+		float p = 1.0 / aPos.z;
+		gl_Position = p * vec4(vec2(2.0 * (floor(aPos.xy) + 0.5) * pgeInverseTargetSizeInPixels - 1.0), 0.0, 1.0);
+		oTex = aTex;
+	}
+
+	else if (pgeDrawType == 0) // 2D Polygon																																		  
+	{
+		float p = 1.0 / aPos.z; 
+		gl_Position = p * vec4(vec2(2.0 * (aPos.xy + 0.25) * pgeInverseTargetSizeInPixels - 1.0), 0.0, 1.0);
+		oTex = p * vec2(aTex.x, aTex.y);
+	}
+
+	else  // Balanced default
+	{
+		gl_Position = aPos;
+		oTex = aTex;
+	}
+
+	oCol = aCol * pgeGlobalTint;
+}
+)";
+
+	
+	// === GEOMETRY SHADER PGE DEFAULTS ===
+	std::string Shader::static_GS_DefaultHeader = "";
+	std::string Shader::static_GS_DefaultMain = "";
+
+
+
 	std::string Shader_GLSL33::Compile()
 	{
 		auto& gl = olc::apis::opengl::gl::Get();
@@ -16,7 +126,19 @@ namespace olc::gpu
 			const char* s = srcPixelShader.c_str();
 			gl.glShaderSource(nPixelShaderID, 1, &s, nullptr);
 			gl.glCompileShader(nPixelShaderID);
-			// TODO: Error Check
+			
+			// Display Fragment Shader Compile Errors
+			int32_t nCompileStatus = 0;
+			gl.glGetShaderiv(nPixelShaderID, gl.GL_COMPILE_STATUS_X, &nCompileStatus);
+			if (nCompileStatus == 0)
+			{
+				int32_t nInfoLogLength = 0;
+				gl.glGetShaderiv(nPixelShaderID, gl.GL_INFO_LOG_LENGTH_X, &nInfoLogLength);
+				std::vector<char> vInfoLog(nInfoLogLength);
+				gl.glGetShaderInfoLog(nPixelShaderID, nInfoLogLength, nullptr, vInfoLog.data());
+				return std::string("Fragment Shader Compile Error:\n") + std::string(vInfoLog.data());				
+			}
+
 			gl.glAttachShader(nCompiledShaderID, nPixelShaderID);
 		}
 
@@ -27,7 +149,19 @@ namespace olc::gpu
 			const char* s = srcVertexShader.c_str();
 			gl.glShaderSource(nVertexShaderID, 1, &s, nullptr);
 			gl.glCompileShader(nVertexShaderID);
-			// TODO: Error Check
+			
+			// Display Vertex Shader Compile Errors
+			int32_t nCompileStatus = 0;
+			gl.glGetShaderiv(nVertexShaderID, gl.GL_COMPILE_STATUS_X, &nCompileStatus);
+			if (nCompileStatus == 0)
+			{
+				int32_t nInfoLogLength = 0;
+				gl.glGetShaderiv(nVertexShaderID, gl.GL_INFO_LOG_LENGTH_X, &nInfoLogLength);
+				std::vector<char> vInfoLog(nInfoLogLength);
+				gl.glGetShaderInfoLog(nVertexShaderID, nInfoLogLength, nullptr, vInfoLog.data());
+				return std::string("Vertex Shader Compile Error:\n") + std::string(vInfoLog.data());				
+			}
+
 			gl.glAttachShader(nCompiledShaderID, nVertexShaderID);
 		}
 
@@ -39,23 +173,55 @@ namespace olc::gpu
 			const char* s = srcGeometryShader.c_str();
 			gl.glShaderSource(nGeometryShaderID, 1, &s, nullptr);
 			gl.glCompileShader(nGeometryShaderID);
-			// TODO: Error Check
+			
+			// Display Vertex Shader Compile Errors
+			int32_t nCompileStatus = 0;
+			gl.glGetShaderiv(nGeometryShaderID, gl.GL_COMPILE_STATUS_X, &nCompileStatus);
+			if (nCompileStatus == 0)
+			{
+				int32_t nInfoLogLength = 0;
+				gl.glGetShaderiv(nGeometryShaderID, gl.GL_INFO_LOG_LENGTH_X, &nInfoLogLength);
+				std::vector<char> vInfoLog(nInfoLogLength);
+				gl.glGetShaderInfoLog(nGeometryShaderID, nInfoLogLength, nullptr, vInfoLog.data());
+				return std::string("Geometry Shader Compile Error:\n") + std::string(vInfoLog.data());
+				
+			}
+
+
 			gl.glAttachShader(nCompiledShaderID, nGeometryShaderID);
 		}
 
 		gl.glLinkProgram(nCompiledShaderID);
 
+		// Required PGE3 Uniforms
+		CreateUniform("pgeMVP");
+		CreateUniform("pgeDrawType");
+		CreateUniform("pgeGlobalTint");
+		CreateUniform("pgeTargetSizeInPixels");
+		CreateUniform("pgeInverseTargetSizeInPixels");
+		CreateUniform("pgeTotalTimeElapsed");
+
+		CreateUniform("pgeTexture0");
+		CreateUniform("pgeTexture1");
+		CreateUniform("pgeTexture2");
+		CreateUniform("pgeTexture3");
+
 		return "OK";
 	}
 
-	uint32_t Shader_GLSL33::CreateUniform(const std::string& name)
+	int32_t Shader_GLSL33::CreateUniform(const std::string& name)
 	{
 		auto& gl = olc::apis::opengl::gl::Get();
 		const char* s = name.c_str();
-		mapUniforms.insert({ name, gl.glGetUniformLocation(nCompiledShaderID, s) });
-		return GetUniform(name);
+		int32_t nID = gl.glGetUniformLocation(nCompiledShaderID, s);
+		if (nID != -1)
+		{
+			mapUniforms.insert({ name, nID });
+			return GetUniform(name);
+		}
+		else
+			return -1;
 	}
-
 
 
 	bool Renderer_OGL33::CreateDevice(std::vector<void*> os_win_id, const RendererConfig& cfg)
@@ -111,29 +277,40 @@ namespace olc::gpu
         
 		// os_win_id[0] is the OLC OpenGL Device Context      
         glRenderContext = (olc::apis::opengl::glRenderContext_t)os_win_id[0];
-        if (!glRenderContext) {
-            lastError = RendererError::FailedToCreateRenderContext;
-            return false;
-        }
+        if (CGLSetCurrentContext((CGLContextObj)glRenderContext) != kCGLNoError) {
+			lastError = RendererError::FailedToSwitchRenderContext;
+			return false;
+		}
 
 #endif
 
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN || OLC_HOST == OLC_HOST_LINUX_WAYLAND
 #if OLC_HOST == OLC_HOST_EMSCRIPTEN
-	const auto canvasId = reinterpret_cast<std::string*>(os_win_id[0]);
+	EGLNativeWindowType window_handle = NULL;
+	EGLNativeDisplayType display = EGL_DEFAULT_DISPLAY;
+#else
+	const auto wayland_window = reinterpret_cast<olc::host::WaylandWindow*>(os_win_id[0]);
+	EGLNativeWindowType window_handle = wayland_window->window;
+	EGLNativeDisplayType display = reinterpret_cast<EGLNativeDisplayType>(os_win_id[1]);
+#endif
 
-	const int samples = std::min(OLC_MSAA_SAMPLES, OLC_MSAA_EMSCRIPTEN_MAX_SAMPLES);
-
-	EGLint const attribute_list[] = {EGL_RED_SIZE, 8, EGL_GREEN_SIZE, 8, EGL_BLUE_SIZE, 8, EGL_ALPHA_SIZE, 8, EGL_DEPTH_SIZE, 16, EGL_SAMPLE_BUFFERS, 1, EGL_SAMPLES, samples, EGL_NONE};
+	EGLint const attribute_list[] = {EGL_RED_SIZE, 8, EGL_GREEN_SIZE, 8, EGL_BLUE_SIZE, 8, EGL_ALPHA_SIZE, 8, EGL_DEPTH_SIZE, 16, EGL_SAMPLE_BUFFERS, 1, EGL_SAMPLES, OLC_MSAA_SAMPLES, EGL_NONE};
 	EGLint const context_config[] = {EGL_CONTEXT_CLIENT_VERSION, 2, EGL_NONE};
 	EGLint num_config;
 
-	glRenderContext.display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
+	glRenderContext.display = eglGetDisplay(display);
+	if(glRenderContext.display == EGL_NO_DISPLAY) {
+		std::cout << "Could not create EGL Display" << std::endl;
+	}
 	eglInitialize(glRenderContext.display, nullptr, nullptr);
 	eglChooseConfig(glRenderContext.display, attribute_list, &glRenderContext.config, 1, &num_config);
 	
 	/* create an EGL rendering context */
 	glRenderContext.context = eglCreateContext(glRenderContext.display, glRenderContext.config, EGL_NO_CONTEXT, context_config);
-	glRenderContext.surface = eglCreateWindowSurface(glRenderContext.display, glRenderContext.config, NULL, nullptr);
+	glRenderContext.surface = eglCreateWindowSurface(glRenderContext.display, glRenderContext.config, window_handle, nullptr);
+	if(glRenderContext.surface == EGL_NO_SURFACE) {
+		std::cout << "Could not create EGL Surface" << std::endl;
+	}
 	if(!eglMakeCurrent(glRenderContext.display, glRenderContext.surface, glRenderContext.surface, glRenderContext.context))
 	{
 		lastError = RendererError::FailedToCreateRenderContext;
@@ -153,89 +330,21 @@ namespace olc::gpu
 
 		// Create "Default" Shader
 		shaderDefault.SetPixelShaderSource(
-#if OLC_HOST != OLC_HOST_EMSCRIPTEN
-			R"(#version 330 core
-)"
-#else
-			R"(#version 300 es
-			precision mediump float;
-)"
-#endif
-
-			R"(layout(location = 0) out vec4 pixel;
-			in vec2 oTex;
-			in vec4 oCol;
-			uniform sampler2D sprTex;
-
-			void main()
-			{
-				// Was just this
-				//pixel = texture(sprTex, oTex) * oCol;
-
-				// But to premultiply alpha correctly, we now do this:	
-				vec4 texColor = texture(sprTex, oTex) * oCol;
-				pixel = vec4(texColor.rgb * texColor.a, texColor.a);
-			}
-		)");
+			Shader_GLSL33::PS_DefaultHeader() + Shader_GLSL33::PS_DefaultMain());
 
 		shaderDefault.SetVertexShaderSource(
-#if OLC_HOST != OLC_HOST_EMSCRIPTEN
-			R"(#version 330 core
-)"
-#else
-			R"(#version 300 es
-			precision mediump float;
-)"
-#endif
-			R"(layout(location = 0) in vec4 aPos;
-			layout(location = 1) in vec4 aCol;
-			layout(location = 2) in vec2 aTex;
-			uniform mat4 mvp;
-			uniform int drawtype;
-			uniform vec4 tint;
-			uniform vec2 target;
-			uniform vec2 invtarget;
-			out vec2 oTex;
-			out vec4 oCol;
+			Shader_GLSL33::VS_DefaultHeader() + Shader_GLSL33::VS_DefaultMain());
 
-			void main()
-			{ 																																				  
-				if(drawtype == 2) // 3D																																  
-				{																																			  
-					gl_Position = mvp * vec4(aPos.x, aPos.y, aPos.z, 1.0); 																					  
-					oTex = aTex;																															  
-				} 				 
-			
-				else if(drawtype == 1) // 2D Line																																		  
-				{																																			  
-					float p = 1.0 / aPos.z; 																												  
-					gl_Position = p * vec4(vec2(2.0 * (floor(aPos.xy) + 0.5) * invtarget - 1.0), 0.0, 1.0);	  
-					oTex = aTex;																										  
-				} 			  
-			
-				else if(drawtype == 0) // 2D Polygon																																		  
-				{																																			  
-					float p = 1.0 / aPos.z; 																												  
-					gl_Position = p * vec4(vec2(2.0 * (aPos.xy + 0.25) * invtarget - 1.0), 0.0, 1.0);	 
-					oTex = p * vec2(aTex.x, aTex.y);																										  
-				} 
-				
-				else  // Balanced default
-				{
-					gl_Position = aPos;
-					oTex = aTex;
-				} 																																			  
-																																			  
-				oCol = aCol * tint;																															  
-			}
-		)");
+		shaderDefault.SetGeometryShaderSource(
+			Shader_GLSL33::GS_DefaultHeader() + Shader_GLSL33::GS_DefaultMain());
 
-		shaderDefault.Compile();
-		shaderDefault.CreateUniform("mvp");
-		shaderDefault.CreateUniform("drawtype");
-		shaderDefault.CreateUniform("tint");
-		shaderDefault.CreateUniform("target");
-		shaderDefault.CreateUniform("invtarget");
+		std::string sResult = shaderDefault.Compile();
+		if (sResult != "OK")
+		{
+			std::cout << "Error compiling default shader: " << sResult << std::endl;
+			lastError = RendererError::FailedToCompileShader;
+			return false;
+		}
 
 		// Create "Default" Vertex Buffer / Vertex Attributes. This buffer is reused
 		// for all drawing operations. It's possible future versions may allow the
@@ -323,14 +432,15 @@ namespace olc::gpu
 		wglDeleteContext(glRenderContext);
 #endif
 #if OLC_HOST == OLC_HOST_MACOS
-        //TODO: Add MacOS destroy context code
+		CGLSetCurrentContext(NULL);
+		CGLDestroyContext((CGLContextObj)glRenderContext);
 #endif
 #if OLC_HOST == OLC_HOST_LINUX_X11
 		auto* display = X11::XOpenDisplay(nullptr);
 		X11::glXMakeCurrent(display, 0, NULL);
 		X11::glXDestroyContext(display, glRenderContext);
 #endif
-#if OLC_HOST == OLC_HOST_EMSCRIPTEN
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN || OLC_HOST == OLC_HOST_LINUX_WAYLAND
 		eglMakeCurrent(glRenderContext.display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
 		eglDestroyContext(glRenderContext.display, glRenderContext.context);
 		eglDestroySurface(glRenderContext.display, glRenderContext.surface);
@@ -355,10 +465,9 @@ namespace olc::gpu
 		ReleaseDC((HWND)(os_win_id[0]), glDeviceContext);
 #endif
 #if OLC_HOST == OLC_HOST_MACOS
-
-		CGLContextObj cglContext = (CGLContextObj)glRenderContext;
-		if (!CGLSetCurrentContext(cglContext))
-		{
+    
+        auto glDeviceContext = (olc::apis::opengl::glRenderContext_t)os_win_id[0];
+		if (CGLSetCurrentContext((CGLContextObj)glDeviceContext) != kCGLNoError) {
 			lastError = RendererError::FailedToSwitchRenderContext;
 			return false;
 		}
@@ -372,7 +481,7 @@ namespace olc::gpu
 			return false;
 		}
 #endif
-#if OLC_HOST == OLC_HOST_EMSCRIPTEN
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN || OLC_HOST == OLC_HOST_LINUX_WAYLAND
 	if(!eglMakeCurrent(glRenderContext.display, glRenderContext.surface, glRenderContext.surface, glRenderContext.context))
 	{
 		lastError = RendererError::FailedToSwitchRenderContext;
@@ -410,13 +519,13 @@ namespace olc::gpu
 		ReleaseDC((HWND)(os_win_id[0]), glDeviceContext);
 #endif
 #if OLC_HOST == OLC_HOST_MACOS
-        
-		// params[0] is the OLC OpenGL Device Context      
+             
+        // params[0] is the OLC OpenGL Device Context      
         glRenderContext = (olc::apis::opengl::glRenderContext_t)os_win_id[0];
-        if (!glRenderContext) {
-            lastError = RendererError::FailedToCreateRenderContext;
-            return false;
-        }
+		if (CGLSetCurrentContext((CGLContextObj)glRenderContext) != kCGLNoError) {
+			lastError = RendererError::FailedToSwitchRenderContext;
+			return false;
+		}
 
 #endif
 		return true;
@@ -506,23 +615,15 @@ namespace olc::gpu
 			int32_t maxSamples = 0;
 			gl.glGetInternalformativ(gl.GL_RENDERBUFFER_X, GL_RGBA8, gl.GL_SAMPLES_X, 1, &maxSamples);
 
-#if OLC_HOST == OLC_HOST_EMSCRIPTEN
-			maxSamples = std::min<int32_t>(OLC_MSAA_EMSCRIPTEN_MAX_SAMPLES, maxSamples);
-			const int samples = std::min((int)image.GetConfig().MSAASamples, maxSamples);
-#else
-			maxSamples = std::min<int32_t>(OLC_MSAA_SAMPLES, maxSamples);
-			const int samples = std::min<int32_t>(image.GetConfig().MSAASamples, maxSamples);
-#endif
-
 			// Allocate MSAA renderbuffer storage
 			gl.glRenderbufferStorageMultisample(
-				gl.GL_RENDERBUFFER_X, 
-				samples,
-				GL_RGBA8, 
-				image.Size().x, 
+				gl.GL_RENDERBUFFER_X,
+				std::min<int32_t>(image.GetConfig().MSAASamples, maxSamples),
+				GL_RGBA8,
+				image.Size().x,
 				image.Size().y
 			);
-			
+
 			// Unbind renderbuffer
 			gl.glBindRenderbuffer(gl.GL_RENDERBUFFER_X, 0);
 		}
@@ -759,14 +860,55 @@ namespace olc::gpu
 	bool Renderer_OGL33::ApplyShader(const Shader& shader)
 	{
 		auto& gl = olc::apis::opengl::gl::Get();
-		gl.glUseProgram(shader.GetShaderID());
+		pCurrentShader = &shader;
+		gl.glUseProgram(pCurrentShader->GetShaderID());
+
+		// Set default texture slots if they exist in the shader
+		int32_t loc0 = pCurrentShader->GetUniform("pgeTexture0");
+		if (loc0 != -1) { gl.glUniform1i(loc0, 0); } // Texture slot 0
+		int32_t loc1 = pCurrentShader->GetUniform("pgeTexture1");
+		if (loc1 != -1) { gl.glUniform1i(loc1, 1); } // Texture slot 1
+		int32_t loc2 = pCurrentShader->GetUniform("pgeTexture2");
+		if (loc2 != -1) { gl.glUniform1i(loc2, 2); } // Texture slot 2
+		int32_t loc3 = pCurrentShader->GetUniform("pgeTexture3");
+		if (loc3 != -1) { gl.glUniform1i(loc3, 3); } // Texture slot 3
+		
 		return true;
 	}
 
 	bool Renderer_OGL33::ApplyDefaultShader()
+	{	
+		return ApplyShader(shaderDefault);
+	}
+
+	bool Renderer_OGL33::SetUniform(const std::string& name, const float value)
 	{
 		auto& gl = olc::apis::opengl::gl::Get();
-		gl.glUseProgram(shaderDefault.GetShaderID());
+		int loc = pCurrentShader->GetUniform(name);
+		gl.glUniform1f(loc, value);
+		return true;
+	}
+
+	bool Renderer_OGL33::SetUniform(const std::string& name, const olc::vf2d& value)
+	{
+		auto& gl = olc::apis::opengl::gl::Get();
+		int loc = pCurrentShader->GetUniform(name);
+		gl.glUniform2fv(loc, 1, value.a().data());
+		return true;
+	}
+
+	bool Renderer_OGL33::SetUniform(const std::string& name, const olc::Pixel value)
+	{
+		float f[4] = {
+			float(value.r) / 255.0f,
+			float(value.g) / 255.0f,
+			float(value.b) / 255.0f,
+			float(value.a) / 255.0f
+		};
+
+		auto& gl = olc::apis::opengl::gl::Get();
+		int loc = pCurrentShader->GetUniform(name);
+		gl.glUniform4fv(loc, 1, f);
 		return true;
 	}
 
@@ -797,6 +939,9 @@ namespace olc::gpu
 				gl.glBufferData(gl.GL_ARRAY_BUFFER_X, sizeof(GPUTask::Vertex) * task.vertexBuffer.size(), task.vertexBuffer.data(), gl.GL_STREAM_DRAW_X);
 				
 				
+				// Configure shader with expected values
+
+
 
 				// Shader: Apply MVP Matrix
 				//gl.glUniformMatrix4fv(shaderDefault.GetUniform("mvp"), 1, true, task.mvpMatrix.data());
@@ -808,12 +953,17 @@ namespace olc::gpu
 					float(task.tint.b) / 255.0f, 
 					float(task.tint.a) / 255.0f 
 				};
-				gl.glUniform4fv(shaderDefault.GetUniform("tint"), 1, f);
+				
+				gl.glUniform4fv(pCurrentShader->GetUniform("pgeGlobalTint"), 1, f);
 
 				f[0] = 64.0f;
 				f[1] = 64.0f;
-				gl.glUniform2fv(shaderDefault.GetUniform("target"), 1, vTargetSize.a().data());
-				gl.glUniform2fv(shaderDefault.GetUniform("invtarget"), 1, ((1.0f / vTargetSize)).a().data());
+				gl.glUniform2fv(pCurrentShader->GetUniform("pgeTargetSizeInPixels"), 1, vTargetSize.a().data());
+				gl.glUniform2fv(pCurrentShader->GetUniform("pgeInverseTargetSizeInPixels"), 1, ((1.0f / vTargetSize)).a().data());
+				gl.glUniform1f(pCurrentShader->GetUniform("pgeTotalTimeElapsed"), fTotalTime);
+
+
+				
 
 				// Apply Culling modes
 				//if (task.cullmode == GPUTask::CullMode::None)
@@ -844,13 +994,13 @@ namespace olc::gpu
 					gl.glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
 				if (task.structure == olc::Structure::Point)
-					gl.glUniform1i(shaderDefault.GetUniform("drawtype"), 1);
+					gl.glUniform1i(pCurrentShader->GetUniform("pgeDrawType"), 1);
 				else if (task.structure == olc::Structure::Line)
-					gl.glUniform1i(shaderDefault.GetUniform("drawtype"), 1);
+					gl.glUniform1i(pCurrentShader->GetUniform("pgeDrawType"), 1);
 				else if (task.structure == olc::Structure::LineLoop)
-					gl.glUniform1i(shaderDefault.GetUniform("drawtype"), 1);
+					gl.glUniform1i(pCurrentShader->GetUniform("pgeDrawType"), 1);
 				else
-					gl.glUniform1i(shaderDefault.GetUniform("drawtype"), 0);
+					gl.glUniform1i(pCurrentShader->GetUniform("pgeDrawType"), 0);
 
 				if (task.structure == olc::Structure::Fan)
 					gl.glDrawArrays(GL_TRIANGLE_FAN, 0, (GLsizei)task.vertexBuffer.size());
@@ -895,8 +1045,11 @@ namespace olc::gpu
 		return true;
 	}
 
-	bool Renderer_OGL33::DisplayPrepare()
+	bool Renderer_OGL33::DisplayPrepare(const float fFrameElapsedTime, const float fTotalElapsedTime)
 	{
+		fFrameTime = fFrameElapsedTime;
+		fTotalTime = fTotalElapsedTime;
+
 		auto& gl = olc::apis::opengl::gl::Get();
 
 		gl.glEnable(GL_BLEND);
@@ -917,8 +1070,11 @@ namespace olc::gpu
 #endif	
 
 #if OLC_HOST == OLC_HOST_MACOS
-        glFlushRenderAPPLE();
-        glSwapAPPLE();
+		// The pointer value in os_win_id[1] will be set to true, when the OS requests to skip the frame swap
+        const bool* bSkipFrame = static_cast<const bool*>(os_win_id[1]);
+		if (*bSkipFrame) return true;
+		CGLContextObj cglContext = static_cast<CGLContextObj>(os_win_id[0]);
+		CGLFlushDrawable(cglContext);
        
 #endif
 
@@ -926,6 +1082,13 @@ namespace olc::gpu
 		const auto window_handle = reinterpret_cast<X11::Window>(os_win_id[0]);
 		auto* display = reinterpret_cast<X11::Display*>(os_win_id[1]);
 		X11::glXSwapBuffers(display, window_handle);
+#endif
+
+#if OLC_HOST == OLC_HOST_LINUX_WAYLAND
+	const auto* wayland_window = reinterpret_cast<olc::host::WaylandWindow*>(os_win_id[0]);
+	//auto* window_handle = wayland_window->window;
+	//auto* display = reinterpret_cast<wl_display*>(os_win_id[1]);
+	eglSwapBuffers(glRenderContext.display, glRenderContext.surface);
 #endif
 
 #if OLC_HOST == OLC_HOST_EMSCRIPTEN

@@ -33,6 +33,10 @@
 	#define FRIENDLY_HOST Host_Linux_X11
 #endif
 
+#if OLC_HOST == OLC_HOST_LINUX_WAYLAND
+	#define FRIENDLY_HOST Host_Linux_Wayland
+#endif
+
 #if OLC_HOST == OLC_HOST_EMSCRIPTEN
 	#define FRIENDLY_HOST Host_Web_Emscripten
 #endif

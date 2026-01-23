@@ -13,7 +13,7 @@ namespace olc
 		{
 		public:
 			std::string Compile() override;
-			uint32_t CreateUniform(const std::string& name) override;
+			int32_t CreateUniform(const std::string& name) override;
 		};
 
 		class Renderer_OGL33 : public olc::gpu::Renderer
@@ -46,8 +46,16 @@ namespace olc
 			virtual bool ResolveMSAA(const uint32_t msaaTexId) override;
 
 		public: // Shader Construction Stuff
+			// Change the shader used for subsequent GPU drawing tasks
 			bool ApplyShader(const Shader& shader) override;
+			// Reset to default shader for subsequent GPU drawing tasks
 			bool ApplyDefaultShader() override;
+			// Set uniform variable for subsequent GPU drawing tasks
+			bool SetUniform(const std::string& name, const float value) override;
+			// Set uniform variable for subsequent GPU drawing tasks
+			bool SetUniform(const std::string& name, const olc::vf2d& value) override;
+			// Set uniform variable for subsequent GPU drawing tasks
+			bool SetUniform(const std::string& name, const olc::Pixel value) override;
 
 		public: // GPU Task Stuff
 			virtual bool DoGPUTask(const olc::GPUTask& task) override;
@@ -58,17 +66,17 @@ namespace olc
 			// Sets the viewport area of the drawing space
 			virtual bool SetViewport(const olc::vf2d& pos, const olc::vf2d& size) override;
 			// Configures defaults prior to drawing
-			virtual bool DisplayPrepare() override;
+			virtual bool DisplayPrepare(const float fFrameElapsedTime, const float fTotalElapsedTime) override;
 			// Displays the final output
 			virtual bool DisplayDraw(std::vector<void*> os_win_id, bool bVerticalSyncNow) override;
 
 		
 		protected: // These may need some thinking about re multiple window
 			//olc::apis::opengl::glDeviceContext_t glDeviceContext = 0;
-#if OLC_HOST != OLC_HOST_EMSCRIPTEN
-			olc::apis::opengl::glRenderContext_t glRenderContext = 0;
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN || OLC_HOST == OLC_HOST_LINUX_WAYLAND
+	olc::apis::opengl::glRenderContext_t glRenderContext;
 #else
-			olc::apis::opengl::glRenderContext_t glRenderContext;
+	olc::apis::opengl::glRenderContext_t glRenderContext = 0;
 #endif
 
 			Shader_GLSL33 shaderDefault;
@@ -88,6 +96,8 @@ namespace olc
 			std::unordered_map<uint32_t, olc::vi2d> mapTextureSizes;
 
 			std::unordered_map<uint32_t, uint32_t> mapTextureToRenderbuffer;
+
+			const Shader* pCurrentShader = nullptr;
 
 		};
 	}

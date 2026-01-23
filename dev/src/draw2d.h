@@ -26,6 +26,7 @@ namespace olc
 	namespace gpu
 	{
 		class Renderer;
+		class Shader;
 	}
 	
 	// These "opaque" structs are merely to help with
@@ -657,8 +658,19 @@ namespace olc
 
 
 
-		
-
+		public:
+			// Change the shader used for subsequent GPU drawing tasks
+			bool SetShader(const olc::gpu::Shader& shader);
+			// Reset to default shader for subsequent GPU drawing tasks
+			bool ResetShader();
+			// Set uniform variable for subsequent GPU drawing tasks
+			bool SetShaderUniform(const std::string& name, const float value);
+			// Set uniform variable for subsequent GPU drawing tasks
+			bool SetShaderUniform(const std::string& name, const olc::vf2d& value);
+			// Set uniform variable for subsequent GPU drawing tasks
+			bool SetShaderUniform(const std::string& name, const olc::Pixel value);
+			// Assign an image to a texture slot for subsequent GPU drawing tasks
+			bool SetShaderTexture(const uint32_t nSlot, olc::Image& image);
 
 
 
@@ -677,7 +689,7 @@ namespace olc
 			olc::gpu::Renderer* pRenderer = nullptr;
 			olc::tf2d transformAffine;
 
-			std::vector<olc::GPUTask> vecGPUTasks;
+			//std::vector<olc::GPUTask> vecGPUTasks;
 
 		protected: // SW Rasteriser Helpers
 			struct Scanline
@@ -697,6 +709,33 @@ namespace olc
 				const olc::vi2d& v1,
 				const olc::vi2d& v2,
 				const olc::vi2d& v3);
+
+
+		private:
+			// Simple dynamic buffer that only grows as needed
+			template<typename T>
+			struct buffer
+			{
+				std::vector<T> data;
+
+				void reserve(size_t n)
+				{
+					if (n > data.capacity())
+						data.reserve(n);
+
+					// Ensure size matches requested so we
+					// can index into it directly
+					data.resize(n);
+				}
+			};
+
+			// Thread local buffers to avoid repeated allocations
+			static thread_local buffer<olc::vf2d> buffPoints;
+			static thread_local buffer<olc::vf2d> buffUnitCirclePoints;
+			static thread_local buffer<olc::Pixel> buffColours;
+			static thread_local buffer<olc::GPUTask> vecGPUTasks;
+
+			void RedefineUnitCircleBuffer(const int32_t nFacets);
 	
 	};
 }

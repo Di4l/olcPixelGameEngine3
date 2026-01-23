@@ -18,6 +18,12 @@
 #include "imload_lib_png.h"
 #endif
 
+#if OLC_HOST == OLC_HOST_LINUX_WAYLAND
+#include "host_lin_wayland.h"
+#include "imload_lib_png.h"
+#endif
+
+
 #if OLC_HOST == OLC_HOST_EMSCRIPTEN
 #include "host_web_emscripten.h"
 #include "imload_lib_png.h"
@@ -51,13 +57,16 @@ namespace olc
 		return true;
 	}
 
-	bool PGEWindow::olc_WindowUpdate(const float fElapsedTime)
+	bool PGEWindow::olc_WindowUpdate(const float fElapsedTime, const float fTotalElapsedTime)
 	{
 		// Input Changes
 		mouse.UpdateState();
 		
 		draw.SetGPU(pRenderer);
 		draw.SetTarget(GetDefaultImage());
+
+		pRenderer->DisplayPrepare(fElapsedTime, fTotalElapsedTime);
+
 #if OLC_MULTIWINDOW == OLC_MULTIWINDOW_YES
 		pRenderer->RetargetDevice(pHost->GetHostWindowDescriptor(this));
 #endif
@@ -87,10 +96,13 @@ namespace olc
 			pRenderer->ResolveMSAA(uint32_t(GetDefaultImage().GetGPUID()));
 		}
 
+		draw.ResetShader();
+
 		// Take the window's completed "screen" and draw it as a textured quad to the backbuffer
 		pRenderer->AssignTextureTarget(0, 0);
 		pRenderer->SetViewport({ 0,0 }, GetWindowSize());
 		pRenderer->ClearViewport(olc::Colour::MAGENTA, true, true);
+		
 		
 		draw.WorldReset();		
 		draw.ImageRect(GetDefaultImage().flipV(), {0.0,0.0}, GetWindowSize());
@@ -241,6 +253,9 @@ namespace olc
 		#if OLC_HOST == OLC_HOST_LINUX_X11
 		host = std::make_unique<olc::host::Host_Linux_X11>();
 		#endif
+		#if OLC_HOST == OLC_HOST_LINUX_WAYLAND
+		host = std::make_unique<olc::host::Host_Linux_Wayland>();
+		#endif
 		#if OLC_HOST == OLC_HOST_EMSCRIPTEN
 		host = std::make_unique<olc::host::Host_Web_Emscripten>();
 		#endif
@@ -268,6 +283,16 @@ namespace olc
 #endif
 		
 		return true;
+	}
+
+	float PixelGameEngine::FrameTimeElapsed() const
+	{
+		return durationFrame.count();
+	}
+
+	double PixelGameEngine::TotalTimeElapsed() const
+	{
+		return durationTotalElapsed.count();
 	}
 
 	bool PixelGameEngine::AddChildWindow(std::shared_ptr<olc::PGEWindow> window, const olc::vi2d& vScreenSize, const olc::vi2d& vPixelSize)
@@ -319,8 +344,13 @@ namespace olc
 			pge->durationFrame = pge->timeFrame1 - pge->timeFrame2;
 			pge->timeFrame2 = pge->timeFrame1;
 
+			pge->durationTotalElapsed += pge->durationFrame;
+
 			// Our time per frame coefficient
 			float fDT = pge->durationFrame.count();
+			
+			// Our Total Time accumulator
+			float fTT = float(pge->durationTotalElapsed.count());
 
 			pge->frameCount++;
 			pge->durationFrameCount += pge->durationFrame;
@@ -333,7 +363,7 @@ namespace olc
 				pge->frameCount = 0;
 			}
 				
-
+			
 			
 			// Primary Window
 			if (pge->olc_ShouldRemove())
@@ -349,7 +379,7 @@ namespace olc
 #if OLC_MULTIWINDOW == OLC_MULTIWINDOW_YES
 				// Update Child Windows (if any)
 				for (auto& winChild : deqChildWindows)
-					winChild->olc_WindowUpdate(fDT);
+					winChild->olc_WindowUpdate(fDT, fTT);
 
 				// Remove child windows that have requested closure
 				if (!deqChildWindows.empty())
@@ -368,7 +398,7 @@ namespace olc
 #endif
 
 				// Update Primary Window
-				pge->olc_WindowUpdate(fDT);
+				pge->olc_WindowUpdate(fDT, fTT);
 
 				// Wait for vertical sync if required. 
 				// Note: Child windows will never vsync as waiting for each buffer swap with vsync
@@ -404,6 +434,10 @@ namespace olc
 		#endif
 
 		#if OLC_HOST == OLC_HOST_LINUX_X11
+		imageloader = std::make_unique<olc::imload::ImageLoader_LibPNG>();
+		#endif
+
+		#if OLC_HOST == OLC_HOST_LINUX_WAYLAND
 		imageloader = std::make_unique<olc::imload::ImageLoader_LibPNG>();
 		#endif
 

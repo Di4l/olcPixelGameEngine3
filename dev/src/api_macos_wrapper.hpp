@@ -544,7 +544,20 @@ namespace olc {
                     }
                 }
                 
+                bool resetContextSize(int32_t width, int32_t height) noexcept {
+                    return resetContextSize(static_cast<double>(width), static_cast<double>(height));
+                }
 
+                bool resetContextSize(float width, float height) noexcept {
+                    return resetContextSize(static_cast<double>(width), static_cast<double>(height));
+                }
+
+                bool resetContextSize(double width, double height) noexcept {
+                    if (renderer_) {
+                        return opengl_resetContextForSize(renderer_, width, height);
+                    }
+                    return false;
+                }
                 
                 void* getOpenGLContext() const noexcept {
                     return renderer_ ? opengl_getOpenGLContext(renderer_) : nullptr;

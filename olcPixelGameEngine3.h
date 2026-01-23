@@ -34,7 +34,7 @@
 	License (OLC-3)
 	~~~~~~~~~~~~~~~
 
-	Copyright 2018 - 2025 OneLoneCoder.com
+	Copyright 2018 - 2026 OneLoneCoder.com
 
 	Redistribution and use in source and binary forms, with or without modification,
 	are permitted provided that the following conditions are met:
@@ -79,6 +79,30 @@
 	GitHub:		https://www.github.com/onelonecoder
 	Homepage:	https://www.onelonecoder.com
 	Patreon:	https://www.patreon.com/javidx9
+
+	AI Disclosure
+	~~~~~~~~~~~~~
+	Parts of this code may have been generated with the assistance of AI tools. Instances
+	of such usage have typically been restricted to the tedious and repetitious through 
+	the use of auto-completion and other small code generation helpers. This community
+	driven project has been developed on numerous platforms, across countless tools and
+	environments, by different people over a number of years. As such, it is impossible
+	to categorically state which sections of code may have had AI assistance. Regardless,
+	the entire codebase has been architected, reviewed and tested by human developers
+	mostly for fun and learning purposes, and is intended to be used in that spirit.
+
+	Primary Contributors
+	~~~~~~~~~~~~~~~~~~~~
+	@javidx9 (aka David Barr, OneLoneCoder)
+	@Moros1198, @dandistine, @johnnyg63, @iCiaran
+
+	With assistance from all of the developers of olc::PixelGameEngine 2 over the years,
+	and the many community contributors that have provided bug fixes, suggestions,
+	criticisms, and encouragement from the OneLoneCoder Discord server, YouTube & GitHub.
+
+	Version History
+	~~~~~~~~~~~~~~~
+	v3.00: It begins...
 */
 
 
@@ -106,6 +130,7 @@
 #include <mutex>
 #include <stdexcept>
 #include <exception>
+#include <condition_variable>
 #include <atomic>
 #include <sstream>
 #include <source_location>
@@ -193,7 +218,7 @@
 	#define OLC_IMAGELOADER OLC_IMAGELOADER_MACOS
 #endif
 
-#if OLC_HOST == OLC_HOST_LINUX_X11
+#if OLC_HOST == OLC_HOST_LINUX_X11 || OLC_HOST == OLC_HOST_LINUX_WAYLAND
 	#undef OLC_IMAGELOADER
 	#define OLC_IMAGELOADER OLC_IMAGELOADER_LIB_PNG
 #endif
@@ -221,7 +246,6 @@
 #define OLC_GPU_MAX_VERTICES 8192
 #define OLC_GPU_ERRORCHECK 0
 #define OLC_MSAA_SAMPLES 4
-#define OLC_MSAA_EMSCRIPTEN_MAX_SAMPLES 4
 
 #define LICENCE_DEFAULT "OneLoneCoder.com - Pixel Game Engine 3 - "
 
@@ -1179,6 +1203,14 @@ namespace olc
 			return o;
 		}
 
+		// Transform a vector by this transform in place
+		template<typename Q>
+		inline constexpr auto forwardRoundX(std::vector<olc::v_2d<Q>>&& v) const
+		{
+			std::transform(v.begin(), v.end(), v.begin(), [this](const olc::v_2d<Q>& i) {return (m_mForward * i).round(); });
+			return v;
+		}
+
 		// Transform a vector by the inverse of this transform
 		template<typename Q>
 		inline constexpr auto inverse(const olc::v_2d<Q>& v) const
@@ -1685,6 +1717,7 @@ namespace olc
 			FailedToSetDCPixelFormat,
 			FailedToCreateRenderContext,
 			FailedToSwitchRenderContext,
+			FailedToCompileShader,
 		};
 
 		class Shader
@@ -1698,10 +1731,22 @@ namespace olc
 			void SetGeometryShaderSource(const std::string& src);
 
 			virtual std::string Compile() = 0;
-			virtual uint32_t CreateUniform(const std::string& name) = 0;
+			virtual int32_t CreateUniform(const std::string& name) = 0;
 
-			uint32_t GetUniform(const std::string& name)	const;
+			int32_t GetUniform(const std::string& name)	const;
 			uint32_t GetShaderID() const;
+
+
+		public:
+			static std::string PS_DefaultHeader();
+			static std::string PS_DefaultMain();
+			
+			static std::string VS_DefaultHeader();
+			static std::string VS_DefaultMain();
+			
+			static std::string GS_DefaultHeader();
+			static std::string GS_DefaultMain();
+
 
 		protected:
 			std::string srcPixelShader;
@@ -1712,6 +1757,13 @@ namespace olc
 			uint32_t nGeometryShaderID = 0;
 			uint32_t nCompiledShaderID = 0 ;
 			std::unordered_map<std::string, uint32_t> mapUniforms;
+
+			static std::string static_PS_DefaultHeader;
+			static std::string static_PS_DefaultMain;
+			static std::string static_VS_DefaultHeader;
+			static std::string static_VS_DefaultMain;
+			static std::string static_GS_DefaultHeader;
+			static std::string static_GS_DefaultMain;			
 		};
 
 		class Renderer
@@ -1755,8 +1807,16 @@ namespace olc
 
 		public: // Shader Construction Stuff
 
+			// Change the shader used for subsequent GPU drawing tasks
 			virtual bool ApplyShader(const Shader& shader) = 0;
+			// Reset to default shader for subsequent GPU drawing tasks
 			virtual bool ApplyDefaultShader() = 0;
+			// Set uniform variable for subsequent GPU drawing tasks
+			virtual bool SetUniform(const std::string& name, const float value) = 0;
+			// Set uniform variable for subsequent GPU drawing tasks
+			virtual bool SetUniform(const std::string& name, const olc::vf2d& value) = 0;
+			// Set uniform variable for subsequent GPU drawing tasks
+			virtual bool SetUniform(const std::string& name, const olc::Pixel value) = 0;
 
 		public: // GPU Task Processing Stuff
 			virtual bool DoGPUTask(const olc::GPUTask& task) = 0;
@@ -1767,7 +1827,7 @@ namespace olc
 			// Sets the viewport area of the drawing space
 			virtual bool SetViewport(const olc::vf2d& pos, const olc::vf2d& size) = 0;
 			// Configures defaults prior to drawing
-			virtual bool DisplayPrepare() = 0;
+			virtual bool DisplayPrepare(const float fFrameElapsedTime, const float fTotalElapsedTime) = 0;
 			// Displays the final output
 			virtual bool DisplayDraw(std::vector<void*> os_win_id, bool bVerticalSyncNow = false) = 0;
 
@@ -1775,6 +1835,8 @@ namespace olc
 		protected:
 			RendererConfig config;
 			RendererError lastError = RendererError::NoError;
+			float fFrameTime = 0;
+			float fTotalTime = 0;
 		};
 	}
 }
@@ -1787,6 +1849,7 @@ namespace olc
 	namespace gpu
 	{
 		class Renderer;
+		class Shader;
 	}
 	
 	// These "opaque" structs are merely to help with
@@ -2418,8 +2481,19 @@ namespace olc
 
 
 
-		
-
+		public:
+			// Change the shader used for subsequent GPU drawing tasks
+			bool SetShader(const olc::gpu::Shader& shader);
+			// Reset to default shader for subsequent GPU drawing tasks
+			bool ResetShader();
+			// Set uniform variable for subsequent GPU drawing tasks
+			bool SetShaderUniform(const std::string& name, const float value);
+			// Set uniform variable for subsequent GPU drawing tasks
+			bool SetShaderUniform(const std::string& name, const olc::vf2d& value);
+			// Set uniform variable for subsequent GPU drawing tasks
+			bool SetShaderUniform(const std::string& name, const olc::Pixel value);
+			// Assign an image to a texture slot for subsequent GPU drawing tasks
+			bool SetShaderTexture(const uint32_t nSlot, olc::Image& image);
 
 
 
@@ -2438,7 +2512,7 @@ namespace olc
 			olc::gpu::Renderer* pRenderer = nullptr;
 			olc::tf2d transformAffine;
 
-			std::vector<olc::GPUTask> vecGPUTasks;
+			//std::vector<olc::GPUTask> vecGPUTasks;
 
 		protected: // SW Rasteriser Helpers
 			struct Scanline
@@ -2458,6 +2532,33 @@ namespace olc
 				const olc::vi2d& v1,
 				const olc::vi2d& v2,
 				const olc::vi2d& v3);
+
+
+		private:
+			// Simple dynamic buffer that only grows as needed
+			template<typename T>
+			struct buffer
+			{
+				std::vector<T> data;
+
+				void reserve(size_t n)
+				{
+					if (n > data.capacity())
+						data.reserve(n);
+
+					// Ensure size matches requested so we
+					// can index into it directly
+					data.resize(n);
+				}
+			};
+
+			// Thread local buffers to avoid repeated allocations
+			static thread_local buffer<olc::vf2d> buffPoints;
+			static thread_local buffer<olc::vf2d> buffUnitCirclePoints;
+			static thread_local buffer<olc::Pixel> buffColours;
+			static thread_local buffer<olc::GPUTask> vecGPUTasks;
+
+			void RedefineUnitCircleBuffer(const int32_t nFacets);
 	
 	};
 }
@@ -2535,6 +2636,10 @@ namespace olc
 
 #if OLC_HOST == OLC_HOST_LINUX_X11
 	#define FRIENDLY_HOST Host_Linux_X11
+#endif
+
+#if OLC_HOST == OLC_HOST_LINUX_WAYLAND
+	#define FRIENDLY_HOST Host_Linux_Wayland
 #endif
 
 #if OLC_HOST == OLC_HOST_EMSCRIPTEN
@@ -2644,6 +2749,12 @@ namespace olc
 		}
 		#endif
 		#if OLC_HOST == OLC_HOST_LINUX_X11
+		inline size_t CreateUID()
+		{
+			return uuid++;
+		}
+		#endif
+		#if OLC_HOST == OLC_HOST_LINUX_WAYLAND
 		inline size_t CreateUID()
 		{
 			return uuid++;
@@ -2777,7 +2888,6 @@ namespace olc
 		void LinkToRenderer(olc::gpu::Renderer* gpu);
 		void LinkToImageLoader(olc::imload::ImageLoader* imload);
 
-
 	public:
 		// Returns the image that represents the primary drawing surface
 		olc::Image& GetDefaultImage();
@@ -2791,7 +2901,7 @@ namespace olc
 		bool olc_OnMouseMove(const olc::vi2d& vMousePos) override;
 
 	public:
-		virtual bool olc_WindowUpdate(const float fElapsedTime);
+		virtual bool olc_WindowUpdate(const float fElapsedTime, const float fTotalElapsedTime);
 
 	protected:
 		olc::Draw2D draw;
@@ -2822,6 +2932,11 @@ namespace olc
 		// Start the PGE main engine loop (on its own thread)
 		bool Start();
 
+
+	public:
+		float FrameTimeElapsed() const;
+		double TotalTimeElapsed() const;
+
 	public: // Child Windows
 		bool AddChildWindow(std::shared_ptr<olc::PGEWindow> window, const olc::vi2d& vScreenSize, const olc::vi2d& vPixelSize);
 	
@@ -2837,6 +2952,7 @@ namespace olc
 		std::chrono::steady_clock::time_point timeFrame2;
 		std::chrono::duration<float> durationFrame{ 0 };
 		std::chrono::duration<float> durationFrameCount{ 0 };
+		std::chrono::duration<double> durationTotalElapsed{ 0 };
 		size_t frameCount = 0;
 
 		// PGE Configuration
@@ -3008,6 +3124,7 @@ extern "C" {
     void opengl_makeCurrentContext        (struct OpenGLRenderer* self);        // Make OpenGL context current
     void opengl_setVsync                  (struct OpenGLRenderer* self, BOOL enabled); // Enable/disable vsync
     void opengl_destroy                   (struct OpenGLRenderer* self);
+    bool opengl_resetContextForSize       (struct OpenGLRenderer* self, double width, double height);
 
     // Image Loader API - as implemented in api_macos.c
     struct ImageLoader* imageloader_init        (void);
@@ -3615,7 +3732,20 @@ namespace olc {
                     }
                 }
                 
+                bool resetContextSize(int32_t width, int32_t height) noexcept {
+                    return resetContextSize(static_cast<double>(width), static_cast<double>(height));
+                }
 
+                bool resetContextSize(float width, float height) noexcept {
+                    return resetContextSize(static_cast<double>(width), static_cast<double>(height));
+                }
+
+                bool resetContextSize(double width, double height) noexcept {
+                    if (renderer_) {
+                        return opengl_resetContextForSize(renderer_, width, height);
+                    }
+                    return false;
+                }
                 
                 void* getOpenGLContext() const noexcept {
                     return renderer_ ? opengl_getOpenGLContext(renderer_) : nullptr;
@@ -4046,7 +4176,7 @@ namespace olc
 			HostError lastError = HostError::None;
 
         public:
-            // Internal Mac OS functions
+          
             // MacOS Application and Window pointers
             std::unique_ptr<olc::apis::macos::Application> pMacApplication = nullptr;
             std::unique_ptr<olc::apis::macos::Window> pMacOSWindow = nullptr;
@@ -4058,14 +4188,36 @@ namespace olc
     
             
         private:
-                        
-            bool bApplicationInitialized = false;       // Flag to indicate application has initialized
-            bool bWindowInitialized = false;            // Flag to indicate window has initialized
-            bool bEventHandlerInitialized = false;      // Flag to indicate event handler has initialized
-            bool bInitializeOpenGLRenderer = false;     // Flag to indicate OpenGL renderer should be initialized
+                       
+            enum MAINTASKS{
+                NONE,
+                CREATE_OPENGL_RENDERER,
+                RESIZE_WINDOW,
+                BECOME_ACTIVE,
+                RESIGN_ACTIVE,
+                MINIMIZE_WINDOW,
+                DEMINIMIZE_WINDOW
+            };
+            
+            // Internal Mac OS functions
+            bool ExecutePendingMainThreadTasks(void);       // Execute pending tasks on main thread
+            bool MainThreadTasks(void);                     // Handle main thread tasks
+            bool AddPendingMainThreadTask(MAINTASKS task);  // Add a pending task to main thread. Note: You should ever add tasks that require main thread execution only from the PGE thread
+            bool CreateCGLContextObj();                     // Create CGL Context Object
+            std::vector<MAINTASKS> vPendingMainThreadTasks; // Vector of pending main thread tasks
+            
             std::vector<void*> vMacOSWindowDescriptors; // Vector to hold window descriptors
             bool enableVSync = false;                   // VSync enabled flag
-            const uint16_t raceConditionTimeoutMS = 1;  // Race condition sleep time in milliseconds
+            bool bSkipFrame = false;                     // Flag to indicate if frame should be skipped 
+
+            // Thread synchronization for PGE Thread V Main thread
+            mutable std::mutex      mainThreadPendingTasksMutex;    // Mutex for main thread pending tasks
+            std::condition_variable mainThreadResetCondition;       // Condition variable for main thread reset
+            std::atomic<bool>       isMainThreadResetting{false};   // Atomic flag for resetting main thread 
+
+            mutable std::mutex      pgeThreadPendingTasksMutex;    // Mutex for PGE thread pending tasks
+            std::condition_variable pgeThreadResetCondition;       // Condition variable for PGE thread reset
+            std::atomic<bool>       isPGEThreadResetting{true};    // Atomic flag for resetting PGE thread
 
             struct sFrameBounds
             {
@@ -4125,6 +4277,157 @@ namespace olc::host
     private:
         std::unordered_map<size_t, X11::Window> mapUID2X11Window;
         std::unordered_map<X11::Window, olc::Window*> mapX11Window2PTR;
+        std::atomic<bool> terminate {false};
+    };
+}
+
+#endif
+
+#if OLC_HOST == OLC_HOST_LINUX_WAYLAND
+
+#include <wayland-client.h>
+#include <wayland-egl.h>
+#include "xdg-shell.h"
+#include "xdg-decoration.h"
+#include <linux/input-event-codes.h>
+
+#include <EGL/egl.h>
+#include <EGL/eglplatform.h>
+
+namespace olc::host
+{
+    struct WaylandWindow  {
+        wl_surface* surface{nullptr};
+        xdg_surface* surface_xdg{nullptr};
+        xdg_toplevel* toplevel{nullptr};
+        zxdg_toplevel_decoration_v1* decorations{nullptr};
+        wl_egl_window* window{nullptr};
+        size_t olc_window_uid{0};
+        int32_t bounds_x{0};
+        int32_t bounds_y{0};
+    };
+
+    namespace wayland {
+        enum PointerEventMask {
+            PointerEventEnter = 1 << 0,
+            PointerEventLeave = 1 << 1,
+            PointerEventMotion = 1 << 2,
+            PointerEventButton = 1 << 3,
+            PointerEventAxis = 1 << 4, 
+            PointerEventAxisSource = 1 << 5,
+            PointerEventAxisStop = 1 << 6,
+            PointerEventDiscrete = 1 << 7
+        };
+
+        struct PointerState {
+            uint32_t event_mask{0};
+            wl_surface* surface{nullptr};
+            wl_fixed_t surface_x{};
+            wl_fixed_t surface_y{};
+            uint32_t button{0};
+            uint32_t state{0};
+            uint32_t time{0};
+            uint32_t serial{0};
+
+            struct Axis {
+                wl_fixed_t value{};
+                int32_t discrete{0};
+                bool valid{false};
+            };
+
+            std::array<Axis, 2> axes{};
+            uint32_t axis_source{0};
+        };
+    }
+
+    class Host_Linux_Wayland : public olc::host::Host
+    {
+	private:
+		wl_display* display{nullptr};
+        wl_registry* registry{nullptr};
+        wl_compositor* compositor{nullptr};
+        wl_seat* seat{nullptr};
+        wl_pointer* pointer{nullptr};
+        xdg_wm_base* xdg_wm{nullptr};
+        zxdg_decoration_manager_v1* decoration_manager{nullptr};
+
+        wayland::PointerState pointer_state;
+
+        size_t active_window_id;
+
+    public:
+        Host_Linux_Wayland();
+        ~Host_Linux_Wayland();
+
+        bool StartSystemEventLoop(bool bBlockIfPossible = false) override;
+        bool AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen) override;
+        bool CloseWindowFrame(olc::Window* pWindow) override;
+        bool UpdateWindowFrameTitle(olc::Window* pWindow) override;
+
+        std::vector<void*> GetHostWindowDescriptor(olc::Window* pWindow) override;
+        
+        
+        bool ConnectHostResourceToRenderer() override;
+
+        // Wait for entire host desktop refresh (for smooooth vsync)
+        bool SyncWithDesktopComposite() override;
+
+        // Various callbacks from the wayland protocol
+        static void registry_handle_global_callback(void* data, wl_registry* registry, uint32_t name, const char* interface, uint32_t version);
+        static void registry_handle_global_remove_callback(void* data, wl_registry* registry, uint32_t name);
+
+        static void seat_capabilities_callback(void* data, wl_seat* seat, uint32_t capabilities);
+        static void seat_name_callback(void* data, wl_seat* wl_seat, const char* name);
+
+        // pointer callbacks
+        static void pointer_enter_callback(void* data, wl_pointer* pointer, uint32_t serial, wl_surface* surface, wl_fixed_t surface_x, wl_fixed_t surface_y);
+        static void pointer_leave_callback(void* data, wl_pointer* pointer, uint32_t serial, wl_surface* surface);
+        static void pointer_motion_callback(void* data, wl_pointer* pointer, uint32_t time, wl_fixed_t surface_x, wl_fixed_t surface_y);
+        static void pointer_button_callback(void* data, wl_pointer* pointer, uint32_t serial, uint32_t time, uint32_t button, uint32_t state);
+        static void pointer_axis_callback(void* data, wl_pointer* pointer, uint32_t time, uint32_t axis, wl_fixed_t value);
+        static void pointer_frame_callback(void* data, wl_pointer* pointer);
+        static void pointer_axis_source_callback(void* data, wl_pointer* pointer, uint32_t axis_source);
+        static void pointer_axis_stop_callback(void* data, wl_pointer* pointer, uint32_t time, uint32_t axis);
+        static void pointer_axis_discrete_callback(void* data, wl_pointer* pointer, uint32_t axis, int32_t discrete);
+        static void pointer_axis_value120_callback(void* data, wl_pointer* pointer, uint32_t axis, int32_t value120);
+        static void pointer_axis_relative_direction_callback(void* data, wl_pointer* pointer, uint32_t axis, uint32_t direction);
+
+        // xdg callbacks
+        static void xdg_wm_ping_callback(void* data, xdg_wm_base* wm, uint32_t serial);
+        static void xdg_surface_configure_callback(void* data, xdg_surface* surface, uint32_t serial);
+        static void xdg_toplevel_configure_callback(void* data, xdg_toplevel* toplevel, int32_t width, int32_t height, wl_array* states);
+        static void xdg_toplevel_close_callback(void* data, xdg_toplevel* toplevel);
+        static void xdg_toplevel_configure_bounds_callback(void* data, xdg_toplevel* toplevel, int32_t width, int32_t height);
+        static void xdg_toplevel_capabilities_callback(void* data, xdg_toplevel* toplevel, wl_array* capabilities);
+        static void xdg_toplevel_decoration_configure_callback(void* data, zxdg_toplevel_decoration_v1* zxdg_toplevel_decoration_v1, uint32_t mode);
+    private:
+        // Wayland callback functions
+        void registry_handle_global(wl_registry* registry, uint32_t name, const char* interface, uint32_t version);
+        void registry_handle_global_remove(wl_registry* registry, uint32_t name);
+        void seat_capabilities(wl_seat* seat, uint32_t capabilities);
+
+        // Pointer callback functions
+        void pointer_enter(wl_pointer* pointer, uint32_t serial, wl_surface* surface, wl_fixed_t surface_x, wl_fixed_t surface_y);
+        void pointer_leave(wl_pointer* pointer, uint32_t serial, wl_surface* surface);
+        void pointer_motion(wl_pointer* pointer, uint32_t time, wl_fixed_t surface_x, wl_fixed_t surface_y);
+        void pointer_button(wl_pointer* pointer, uint32_t serial, uint32_t time, uint32_t button, uint32_t state);
+        void pointer_axis(wl_pointer* pointer, uint32_t time, uint32_t axis, wl_fixed_t value);
+        void pointer_frame(wl_pointer* pointer);
+        void pointer_axis_source(wl_pointer* pointer, uint32_t axis_source);
+        void pointer_axis_stop(wl_pointer* pointer, uint32_t time, uint32_t axis);
+        void pointer_axis_discrete(wl_pointer* pointer, uint32_t axis, int32_t discrete);
+        void pointer_axis_value120(wl_pointer* pointer, uint32_t axis, int32_t value120);
+        void pointer_axis_relative_direction(wl_pointer* pointer, uint32_t axis, uint32_t direction);
+
+        // XDG toplevel callback functions
+        void xdg_toplevel_configure(xdg_toplevel* toplevel, int32_t width, int32_t height, wl_array* states);
+        void xdg_toplevel_close(xdg_toplevel* toplevel);
+        void xdg_toplevel_configure_bounds(xdg_toplevel* toplevel, int32_t width, int32_t height);
+
+        bool CreateEGLContext(WaylandWindow* window);
+
+        std::unordered_map<size_t, WaylandWindow> mapUID2Window;
+        std::unordered_map<size_t, olc::Window*> mapUID2OlcWindow;
         std::atomic<bool> terminate {false};
     };
 }
@@ -4202,11 +4505,19 @@ namespace olc::host
 	#define OGL_LOAD(t) reinterpret_cast<t##_t*>(reinterpret_cast<void*>(wglGetProcAddress(#t)))
 #endif
 
-#if OLC_HOST == OLC_HOST_LINUX_X11 || OLC_HOST == OLC_HOST_LINUX_WAYLAND
+#if OLC_HOST == OLC_HOST_LINUX_X11
 	#include <GL/gl.h>
 	#if OLC_HOST == OLC_HOST_LINUX_X11
 		#define OGL_LOAD(t) reinterpret_cast<t##_t*>(X11::glXGetProcAddress(reinterpret_cast<const GLubyte*>(#t)))
 	#endif
+#endif
+
+#if OLC_HOST == OLC_HOST_LINUX_WAYLAND
+	#include <EGL/egl.h>
+	#include <GL/gl.h>
+
+	#define OGL_LOAD(t) reinterpret_cast<t##_t*>(eglGetProcAddress(#t))
+
 #endif
 
 #if OLC_HOST == OLC_HOST_MACOS
@@ -4272,7 +4583,7 @@ namespace olc
 		typedef X11::GLXContext glRenderContext_t;
 #endif
 
-#if OLC_HOST == OLC_HOST_EMSCRIPTEN
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN || OLC_HOST == OLC_HOST_LINUX_WAYLAND
 	typedef void CALLSTYLE glShaderSource_t(GLuint shader, GLsizei size, const GLchar *const * string, const GLint * length);
 	typedef void glDeviceContext_t;
 	typedef struct
@@ -4323,6 +4634,7 @@ namespace olc
 		typedef void CALLSTYLE glFramebufferRenderbuffer_t(GLenum target, GLenum attachment, GLenum renderbuffertarget, GLuint renderbuffer);
 		typedef void CALLSTYLE glDeleteRenderbuffers_t(GLsizei n, const GLuint* renderbuffers);
 		typedef void CALLSTYLE glGetInternalformativ_t(GLenum target, GLenum internalformat, GLenum pname, GLsizei bufSize, GLint* params);
+		typedef void CALLSTYLE glGetShaderiv_t(GLuint shader, GLenum pname, GLint* params);
 
 #if OLC_HOST == OLC_HOST_WINDOWS
 		typedef void CALLSTYLE glSwapInterval_t(GLsizei n);
@@ -4382,6 +4694,7 @@ namespace olc
 			glFramebufferRenderbuffer_t* _glFramebufferRenderbuffer = nullptr;
 			glDeleteRenderbuffers_t* _glDeleteRenderbuffers = nullptr;
 			glGetInternalformativ_t* _glGetInternalformativ = nullptr;
+			glGetShaderiv_t* _glGetShaderiv = nullptr;
 
 
 		public:
@@ -4428,6 +4741,7 @@ namespace olc
 			void glFramebufferRenderbuffer(GLenum target, GLenum attachment, GLenum renderbuffertarget, GLuint renderbuffer);
 			void glDeleteRenderbuffers(GLsizei n, const GLuint* renderbuffers);
 			void glGetInternalformativ(GLenum target, GLenum internalformat, GLenum pname, GLsizei bufSize, GLint* params);
+			void glGetShaderiv(GLuint shader, GLenum pname, GLint* params);
 
 
 
@@ -4469,6 +4783,9 @@ namespace olc
 			static constexpr GLenum GL_MULTISAMPLE_X = 0x809D;
 			static constexpr GLenum GL_RENDERBUFFER_X = 0x8D41;
 			static constexpr GLenum GL_SAMPLES_X = 0x80A9;
+			static constexpr GLenum GL_COMPILE_STATUS_X = 0x8B81;
+			static constexpr GLenum GL_INFO_LOG_LENGTH_X = 0x8B84;
+
 
 		private:
 			bool CheckError(const std::source_location loc = std::source_location::current());
@@ -4476,19 +4793,6 @@ namespace olc
 		};
 	}
 	
-
-
-//#if defined(OLC_PLATFORM_X11)
-//	typedef int(locSwapInterval_t)(X11::Display* dpy, X11::GLXDrawable drawable, int interval);
-//#endif
-//
-//#if defined(OLC_PLATFORM_EMSCRIPTEN)
-//	typedef void CALLSTYLE locShaderSource_t(GLuint shader, GLsizei count, const GLchar* const* string, const GLint* length);
-//	typedef EGLBoolean(locSwapInterval_t)(EGLDisplay display, EGLint interval);
-//#else
-//	typedef void CALLSTYLE locShaderSource_t(GLuint shader, GLsizei count, const GLchar** string, const GLint* length);
-//#endif
-
 } // olc namespace
 
 #if !defined(PGE_RENDERER_OPENGL33_DECLARED)
@@ -4500,7 +4804,7 @@ namespace olc
 		{
 		public:
 			std::string Compile() override;
-			uint32_t CreateUniform(const std::string& name) override;
+			int32_t CreateUniform(const std::string& name) override;
 		};
 
 		class Renderer_OGL33 : public olc::gpu::Renderer
@@ -4533,8 +4837,16 @@ namespace olc
 			virtual bool ResolveMSAA(const uint32_t msaaTexId) override;
 
 		public: // Shader Construction Stuff
+			// Change the shader used for subsequent GPU drawing tasks
 			bool ApplyShader(const Shader& shader) override;
+			// Reset to default shader for subsequent GPU drawing tasks
 			bool ApplyDefaultShader() override;
+			// Set uniform variable for subsequent GPU drawing tasks
+			bool SetUniform(const std::string& name, const float value) override;
+			// Set uniform variable for subsequent GPU drawing tasks
+			bool SetUniform(const std::string& name, const olc::vf2d& value) override;
+			// Set uniform variable for subsequent GPU drawing tasks
+			bool SetUniform(const std::string& name, const olc::Pixel value) override;
 
 		public: // GPU Task Stuff
 			virtual bool DoGPUTask(const olc::GPUTask& task) override;
@@ -4545,17 +4857,17 @@ namespace olc
 			// Sets the viewport area of the drawing space
 			virtual bool SetViewport(const olc::vf2d& pos, const olc::vf2d& size) override;
 			// Configures defaults prior to drawing
-			virtual bool DisplayPrepare() override;
+			virtual bool DisplayPrepare(const float fFrameElapsedTime, const float fTotalElapsedTime) override;
 			// Displays the final output
 			virtual bool DisplayDraw(std::vector<void*> os_win_id, bool bVerticalSyncNow) override;
 
 		
 		protected: // These may need some thinking about re multiple window
 			//olc::apis::opengl::glDeviceContext_t glDeviceContext = 0;
-#if OLC_HOST != OLC_HOST_EMSCRIPTEN
-			olc::apis::opengl::glRenderContext_t glRenderContext = 0;
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN || OLC_HOST == OLC_HOST_LINUX_WAYLAND
+	olc::apis::opengl::glRenderContext_t glRenderContext;
 #else
-			olc::apis::opengl::glRenderContext_t glRenderContext;
+	olc::apis::opengl::glRenderContext_t glRenderContext = 0;
 #endif
 
 			Shader_GLSL33 shaderDefault;
@@ -4575,6 +4887,8 @@ namespace olc
 			std::unordered_map<uint32_t, olc::vi2d> mapTextureSizes;
 
 			std::unordered_map<uint32_t, uint32_t> mapTextureToRenderbuffer;
+
+			const Shader* pCurrentShader = nullptr;
 
 		};
 	}
@@ -5048,7 +5362,7 @@ namespace olc::host
 #endif
 #if OLC_HOST == OLC_HOST_MACOS
 namespace olc::host {
-    
+
     bool Host_Apple_MacOS::StartSystemEventLoop(bool bBlockIfPossible)
     {
         (void)(bBlockIfPossible); // Remove unused variable warning
@@ -5066,9 +5380,7 @@ namespace olc::host {
         
         // Initialize the MacOS Window
         pMacOSWindow = std::make_unique<olc::apis::macos::Window>(frameBounds.width, frameBounds.height, "OLC PGE 3 MacOS Demo");
-        
         pMacOSWindow->setPosition(frameBounds.x, frameBounds.y);
-        
         pMacOSWindow->setContentViewPosition(0, 0);
         
         // Set up window event handlers
@@ -5083,9 +5395,6 @@ namespace olc::host {
         // Create the window
         pMacOSWindow->show();
         pMacOSEventHandler->enable();
-        
-        // Tell the PGE engine we have an OpenGL context ready
-        bInitializeOpenGLRenderer = true;
         
         // Start the main event loop (this will block)
         pMacApplication->run();
@@ -5131,35 +5440,13 @@ namespace olc::host {
 
     std::vector<void*> Host_Apple_MacOS::GetHostWindowDescriptor(olc::Window* pWindow)
     {
-        // We need to manage a race condition here. The window is created on the main thread
-        while(!bInitializeOpenGLRenderer)
-        {
-            std::this_thread::sleep_for(std::chrono::milliseconds(raceConditionTimeoutMS));
-        }
+               
+        // While the PGE is running, if there are pending main thread tasks, process them, this causes PGE to wait
+        bSkipFrame = ExecutePendingMainThreadTasks();
         
+        // Ensure OpenGL renderer is created
         if(pMacOSOpenGLRenderer == nullptr)
-        {
-            vMacOSWindowDescriptors.clear(); // ensure we are starting fresh
-            pMacOSOpenGLRenderer = std::make_shared<olc::apis::macos::OpenGLRenderer>();
-            
-            dispatch_sync(dispatch_get_main_queue(), ^{
-                 // Edge case for when the window is auto resize due to MacOS clamping to screen size
-                pMacOSWindow->getContentViewSize(frameBounds.width, frameBounds.height);
-                pPGEwindow->olc_OnWindowSize({static_cast<int>(frameBounds.width), static_cast<int>(frameBounds.height)});
-
-                pMacOSOpenGLRenderer->attachToWindow(*pMacOSWindow);
-                pMacOSOpenGLRenderer->setupContext();
-            });
-            
-            pMacGLConextObj = pMacOSOpenGLRenderer->getCGLContextObj();
-            
-            pMacOSOpenGLRenderer->setVsync(false);
-            
-            vMacOSWindowDescriptors.push_back(pMacGLConextObj);
-
-             // Set up OpenGL renderer for visual feedback
-            pMacOSOpenGLRenderer->makeCurrentContext();
-        }
+            CreateCGLContextObj();
 
         return vMacOSWindowDescriptors;
        
@@ -5172,6 +5459,12 @@ namespace olc::host {
 
     bool Host_Apple_MacOS::SyncWithDesktopComposite()
     {
+        /*
+         core.h SyncWithDesktopComposite is only called when vSync is enabled on each frame,
+         the method of enabling vSync varies between platforms, For macos we use a local var enableVSync,
+         set to false and toggle it on first call, so that vSync is only enabled once
+         */
+        
         if(!enableVSync)
         {
             pMacOSOpenGLRenderer->enableVsync();
@@ -5181,6 +5474,147 @@ namespace olc::host {
         return enableVSync;
     }
 
+// ------- Priavate Main Thread Task Handling for MacOS Host -------
+
+    bool Host_Apple_MacOS::CreateCGLContextObj()
+    {
+        // This method should only be called on the PGE thread, use AddPendingMainThreadTask(CREATE_OPENGL_RENDERER); to queue it if needed
+        if(pMacOSOpenGLRenderer == nullptr)
+       {
+           vMacOSWindowDescriptors.clear(); // ensure we are starting fresh
+           pMacOSOpenGLRenderer = std::make_shared<olc::apis::macos::OpenGLRenderer>();
+           
+           dispatch_sync(dispatch_get_main_queue(), ^{
+                // Edge case for when the window is auto resize due to MacOS clamping to screen size
+               pMacOSWindow->getContentViewSize(frameBounds.width, frameBounds.height);
+               pPGEwindow->olc_OnWindowSize({static_cast<int>(frameBounds.width), static_cast<int>(frameBounds.height)});
+
+               pMacOSOpenGLRenderer->attachToWindow(*pMacOSWindow);
+               pMacOSOpenGLRenderer->setupContext();
+           });
+           
+           pMacGLConextObj = pMacOSOpenGLRenderer->getCGLContextObj();
+           
+           pMacOSOpenGLRenderer->setVsync(false);
+           
+           vMacOSWindowDescriptors.push_back(pMacGLConextObj); // Pointer to CGLContextObj
+           vMacOSWindowDescriptors.push_back(&bSkipFrame);     // Pointer to skip frame flag
+
+            // Set up OpenGL renderer for visual feedback
+           pMacOSOpenGLRenderer->makeCurrentContext();
+       }
+        
+        return true;
+    }
+
+    bool Host_Apple_MacOS::ExecutePendingMainThreadTasks()
+    {
+        // 1: Check if main thread wants us to wait
+        std::unique_lock<std::mutex> lock(pgeThreadPendingTasksMutex);
+        
+        if (isPGEThreadResetting.load()) {
+            
+            // 2. PGE Thread signals it's waiting
+            {
+                std::lock_guard<std::mutex> mainLock(mainThreadPendingTasksMutex);
+                isMainThreadResetting = true;  // Signal to main thread we're waiting
+            }
+            mainThreadResetCondition.notify_all();  // Wake up main thread
+
+            // Note: MainThreadTasks(); will be called by the main thread to process tasks
+            
+            // 3. PGE Thread waits for main thread to finish
+            pgeThreadResetCondition.wait(lock, [this] { 
+                return !isPGEThreadResetting.load(); 
+            });
+
+            //4: return true indicating we processed tasks
+            return true;
+        }
+        else
+        {
+            // No pending tasks, just return
+            return false;
+        }
+    }
+
+    bool Host_Apple_MacOS::AddPendingMainThreadTask(MAINTASKS task)
+    {
+        // NOTE: Note: You should only add tasks that require main thread execution
+        vPendingMainThreadTasks.push_back(task);
+        MainThreadTasks();
+            
+        return true;
+    }
+    
+    bool Host_Apple_MacOS::MainThreadTasks()
+    {
+        bool res = false;
+        if(vPendingMainThreadTasks.empty())
+            return res;         // edge case
+        
+        // 1. Main Thread locks PGE Thread
+        {
+            std::lock_guard<std::mutex> lock(pgeThreadPendingTasksMutex);
+            isPGEThreadResetting = true;  // Signal PGE to stop
+        }
+        pgeThreadResetCondition.notify_all();  // Wake up PGE thread to check flag
+        
+        // 2. Main Thread waits for PGE Thread to acknowledge and wait
+        std::unique_lock<std::mutex> lock(mainThreadPendingTasksMutex);
+        mainThreadResetCondition.wait(lock, [this] {
+            return isMainThreadResetting.load(); // Wait until PGE signals it's waiting
+        });
+        
+        // Process any pending main thread tasks
+        for (const auto& task : vPendingMainThreadTasks)
+        {
+            switch (task)
+            {
+                case CREATE_OPENGL_RENDERER:
+                {
+                    // In this case, the PGE will be waiting for main thread to singal, so the ContextOBJ can be created
+                    res = false; // No need to skip frame
+                    break;
+                }
+                case RESIZE_WINDOW:
+                {
+                    // Resize window on main thread
+                    pMacOSWindow->getContentViewSize(frameBounds.width, frameBounds.height);
+                    pPGEwindow->olc_OnWindowSize({static_cast<int>(frameBounds.width), static_cast<int>(frameBounds.height)});
+                    pMacOSOpenGLRenderer->resetContextSize(frameBounds.width, frameBounds.height);
+                    res = true; // Skip frame to allow resize to take effect
+                    break;
+                }
+                case MINIMIZE_WINDOW:
+                case DEMINIMIZE_WINDOW:
+                case BECOME_ACTIVE:
+                case RESIGN_ACTIVE:
+                case NONE:
+                default:
+                {
+                    res = false;
+                    break;
+                }
+                    
+            }
+        }
+        vPendingMainThreadTasks.clear();
+        
+        // Release any locks on the PGE
+        // 4. Main Thread unlocks PGE Thread
+        {
+            std::lock_guard<std::mutex> lock(pgeThreadPendingTasksMutex);
+            isPGEThreadResetting = false;  // Release PGE thread
+            isMainThreadResetting = false; // Reset main thread flag
+        }
+        pgeThreadResetCondition.notify_all();  // Wake up PGE thread
+
+        return res;
+        
+    }
+
+//------ Events Handlers -----
 
     void Host_Apple_MacOS::MacApplicationEventsHandler()
     {
@@ -5192,13 +5626,13 @@ namespace olc::host {
        
        pMacApplication->setDidFinishLaunchingCallback([&]() {
            //std::cout << "--> Application delegate: Did finish launching" << std::endl;
-           // Tell the PGE 3.0 we have looded the application
-           bApplicationInitialized = true;
+           // Queue the Create OpenGL context task
+           vPendingMainThreadTasks.push_back(CREATE_OPENGL_RENDERER);
        });
        
        pMacApplication->setWillTerminateCallback([&]() {
            //std::cout << "--> Application delegate: Will terminate" << std::endl;
-           // TODO: Johnngy63 - Implement olc_OnApplicationTerminate in window.h/cpp
+           // TODO: Johnngy63 - Implement olc_OnDestory in window.h/cpp
            
        });
        
@@ -5216,13 +5650,8 @@ namespace olc::host {
     {
         // Window event handling code here
         pMacOSWindow->setWindowDidResizeCallback([&]() {
-            dispatch_async(dispatch_get_main_queue(), ^{
-                double width, height;
-                pMacOSWindow->getContentViewSize(width, height);
-                //pPGEwindow->olc_OnWindowSize({static_cast<int>(width), static_cast<int>(height)});
-            });
-          
-
+            AddPendingMainThreadTask(RESIZE_WINDOW);
+            
         });
 
         pMacOSWindow->setWindowWillCloseCallback([&]() {
@@ -5233,28 +5662,30 @@ namespace olc::host {
 
         pMacOSWindow->setWindowDidBecomeKeyCallback([&]() {
             //TODO: Johnngy63 - Implement olc_OnWindowFocus in window.h/cpp
+            AddPendingMainThreadTask(BECOME_ACTIVE);
         });
 
         pMacOSWindow->setWindowDidResignKeyCallback([&]() {
             //TODO: Johnngy63 - Implement olc_OnWindowFocus in window.h/cpp
+            
         });
        
-        pMacOSWindow->setWindowDidMiniaturizeCallback([]() {
-            //todo: Johnngy63 - Implement olc_OnWindowMinimize in window.h/cpp if needed
+        pMacOSWindow->setWindowDidMiniaturizeCallback([&]() {
+            //TODO: Johnngy63 - Implement olc_OnWindowMinimize in window.h/cpp if needed
+            AddPendingMainThreadTask(MINIMIZE_WINDOW);
         });
        
-        pMacOSWindow->setWindowDidDeminiaturizeCallback([]() {
+        pMacOSWindow->setWindowDidDeminiaturizeCallback([&]() {
             //TODO: Johnngy63 - Implement olc_OnWindowFocus in window.h/cpp if needed
+            AddPendingMainThreadTask(DEMINIMIZE_WINDOW);
         });
         
-        // Tell the PGE engine we have a window initialized
-        bWindowInitialized = true;
     }
 
 
     void Host_Apple_MacOS::MacEventsHandler()
     {
-        // General MacOS event handling code here
+        // General MacOS key event handling code here
         // Reference: https://eastmanreference.com/complete-list-of-applescript-key-codes
 
         // Set up keyboard event handlers
@@ -5343,16 +5774,11 @@ namespace olc::host {
             pPGEwindow->olc_OnMouseMove({static_cast<int>(event.x), static_cast<int>(event.y)});
         });
 
-       
-
         pMacOSEventHandler->onScrollWheel([&](const olc::apis::macos::ScrollWheelEvent& event) {
             // Although MacOS provides both deltaX and deltaY, we will only use deltaY for vertical scrolling
             pPGEwindow->olc_OnMouseWheel(static_cast<int>(event.deltaY));
         });
         
-        // Tell the PGE engine we have an event handler initialized
-        bEventHandlerInitialized = true;
-
     }
 
 
@@ -5834,6 +6260,10 @@ static constexpr int NSOpenGLPFAColorSize     = static_cast<int>(NSOpenGLPixelFo
 static constexpr int NSOpenGLPFADepthSize     = static_cast<int>(NSOpenGLPixelFormatAttribute::DepthSize);
 static constexpr int NSOpenGLPFAAccelerated   = static_cast<int>(NSOpenGLPixelFormatAttribute::Accelerated);
 static constexpr int NSOpenGLPFAOpenGLProfile = static_cast<int>(NSOpenGLPixelFormatAttribute::OpenGLProfile);
+static constexpr int NSOpenGLPFASampleBuffers = static_cast<int>(NSOpenGLPixelFormatAttribute::SampleBuffers);
+static constexpr int NSOpenGLPFAMultisample        = static_cast<int>(NSOpenGLPixelFormatAttribute::Multisample);
+static constexpr int NSOpenGLAllowOfflineRenderers = static_cast<int>(NSOpenGLPixelFormatAttribute::AllowOfflineRenderers);
+static constexpr int NSOpenGLPFAAcceleratedCompute = static_cast<int>(NSOpenGLPixelFormatAttribute::AcceleratedCompute);
 
 // enum for OpenGL profile versions
 enum class NSOpenGLProfile : int {
@@ -5987,7 +6417,8 @@ struct Application {
 struct Window {
     id nsWindow{nullptr};           // NSWindow instance
     id delegate{nullptr};           // Window delegate instance
-    NSRect windowFrame{};                 // Window frame rectangle
+    OpenGLRenderer* renderer{nullptr}; // Associated OpenGL renderer
+    NSRect windowFrame{};           // Window frame rectangle
     NSRect contentViewFrame{};      // Content view frame rectangle
     const char* title{nullptr};     // Window title string
 
@@ -6044,11 +6475,12 @@ struct Window {
 
 // Modern OpenGL context management and rendering operations
 struct OpenGLRenderer {
-    id pixelFormat{nullptr};          // NSOpenGLPixelFormat instance
-    id glView{nullptr};               // NSOpenGLView instance
-    id glContext{nullptr};            // NSOpenGLContext instance
-    Window* window{nullptr};          // Associated window pointer
-    
+    id pixelFormat{nullptr};                     // NSOpenGLPixelFormat instance
+    id glView{nullptr};                          // NSOpenGLView instance
+    id glContext{nullptr};                       // NSOpenGLContext instance
+    unsigned int MSAA_Samples{OLC_MSAA_SAMPLES}; // Multisample anti-aliasing samples
+    Window* window{nullptr};                     // Associated window pointer
+
     // Method function pointers with nullptr initialization
     void (*initialize)            (struct OpenGLRenderer* self, Window* window){nullptr};
     void (*setupContext)          (struct OpenGLRenderer* self){nullptr};
@@ -6060,6 +6492,8 @@ struct OpenGLRenderer {
     void (*makeCurrentContext)    (struct OpenGLRenderer* self){nullptr};
     void (*setVsync)              (struct OpenGLRenderer* self, BOOL enabled){nullptr};
     void (*destroy)               (struct OpenGLRenderer* self){nullptr};
+    bool (*resetContextForSize)   (struct OpenGLRenderer* self, double width, double height){nullptr};
+
 };
 
 // Modern image loading and pixel data extraction
@@ -6491,6 +6925,11 @@ void windowDidResize(id self, SEL _cmd, id notification) {
     if (gptrWindowDelegate && gptrWindowDelegate->nsWindow) {
         // Safely update frame data only - no OpenGL operations
         window_updateFrameFromOSX(gptrWindowDelegate);
+
+         // Get the new content view size
+        double width, height;
+        window_getContentViewFrame(gptrWindowDelegate, nullptr, nullptr, &width, &height);
+
         if (gptrWindowDelegate->windowDidResizeCallback) {
             gptrWindowDelegate->windowDidResizeCallback(gptrWindowDelegate->windowDidResizeUserData);
         }
@@ -6887,25 +7326,47 @@ extern "C" {
     // Initialize OpenGL renderer
     void opengl_initialize(OpenGLRenderer* self, Window* window) {
         self->window = window;
+        window->renderer = self;
         
         // Get classes using const strings
         Class NSOpenGLPixelFormatClass  = objc_getClass(kNSOpenGLPixelFormatClass);
         Class CustomOpenGLViewClass     = createCustomOpenGLViewClass(); // Use our custom class
         
-        // Create pixel format attributes array using enum values
-        const unsigned int attrs[] = {
-            NSOpenGLPFADoubleBuffer,                                        // Enable double buffering
-            NSOpenGLPFADepthSize,        32,                                // 32-bit depth buffer
-            NSOpenGLPFAColorSize,        24,                                // 24-bit color
-            NSOpenGLPFAAccelerated,                                         // Hardware acceleration
-            NSOpenGLPFAOpenGLProfile,    NSOpenGLProfileVersion4_1Core,     // OpenGL 4.1 Core Profile
-            0                                                               // null terminator
-        };
-        
-        // Create pixel format
-        self->pixelFormat = ((id(*)(id, SEL, const unsigned int*))objc_msgSend)(
-            ((id(*)(Class, SEL))objc_msgSend)(NSOpenGLPixelFormatClass, ObjectiveCSEL::allocSel),
-            ObjectiveCSEL::initWithAttributesSel, attrs);
+        unsigned int sampleBuffers = (self->MSAA_Samples > 0) ? 1 : 0;
+        std::vector<unsigned int> preferredSamples = {32, 16, 8, 4, 2, 0};
+        if(self->MSAA_Samples <= 0) {
+            // If no multisampling requested, only try 0 samples
+            preferredSamples.clear();
+            preferredSamples.resize(1);
+            preferredSamples.push_back(0);
+        }
+
+        for(unsigned int samples: preferredSamples)
+        {
+            // Create pixel format attributes array using enum values
+            const unsigned int attrs[] = {
+                NSOpenGLPFADoubleBuffer,                                        // Enable double buffering
+                NSOpenGLPFADepthSize,        32,                                // 32-bit depth buffer
+                NSOpenGLPFAColorSize,        24,                                // 24-bit color
+                NSOpenGLPFAAccelerated,                                         // Hardware acceleration
+                NSOpenGLAllowOfflineRenderers,                                  // Allow offline renderers
+                NSOpenGLPFAOpenGLProfile,    NSOpenGLProfileVersion4_1Core,     // OpenGL 4.1 Core Profile
+                NSOpenGLPFAMultisample,      samples,                           // 0x --> 32X Multisampling
+                NSOpenGLPFASampleBuffers,    sampleBuffers,                     // Number of sample buffers
+                0                                                               // null terminator
+            };
+            
+            // Create pixel format
+            self->pixelFormat = ((id(*)(id, SEL, const unsigned int*))objc_msgSend)(
+                ((id(*)(Class, SEL))objc_msgSend)(NSOpenGLPixelFormatClass, ObjectiveCSEL::allocSel),
+                ObjectiveCSEL::initWithAttributesSel, attrs);
+            
+            // Check if pixel format was created successfully
+            if (self->pixelFormat) {
+                self->MSAA_Samples = samples;
+                break; // Successfully created pixel format
+            }
+        }
         
         // Create custom OpenGL view with event handling
         NSRect glViewFrame = {0.0, 0.0, window->contentViewFrame.width, window->contentViewFrame.height};
@@ -6945,6 +7406,33 @@ extern "C" {
             // Handle error if needed
             //printf("Warning: OpenGL view cannot become key view.\n");
         }
+
+    }
+
+    // Implementation function
+    bool opengl_resetContextForSize(OpenGLRenderer* self, double width, double height) {
+        if (!self || !self->glContext || !self->glView) {
+            return false;
+        }
+        
+        // Make context current
+        ((void(*)(id, SEL))objc_msgSend)(self->glContext, ObjectiveCSEL::makeCurrentContextSel);
+        
+        // Update the view frame
+        NSRect newFrame = {0.0, 0.0, width, height};
+        ((void(*)(id, SEL, NSRect))objc_msgSend)(self->glView, ObjectiveCSEL::setFrameSel, newFrame);
+        
+        // Force context to reshape
+        ((void(*)(id, SEL))objc_msgSend)(self->glView, ObjectiveCSEL::reshapeSel);
+        ((void(*)(id, SEL))objc_msgSend)(self->glContext, ObjectiveCSEL::updateSel);
+        
+        // Update viewport
+        glViewport(0, 0, (GLsizei)width, (GLsizei)height);
+        
+        // Clear buffers
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        return true;
 
     }
 
@@ -7023,6 +7511,7 @@ extern "C" {
         renderer->makeCurrentContext     = opengl_makeCurrentContext;
         renderer->setVsync               = opengl_setVsync;
         renderer->destroy                = opengl_destroy;
+        renderer->resetContextForSize    = opengl_resetContextForSize;
 
         return renderer;
     }
@@ -7614,7 +8103,7 @@ namespace olc::host
         
         XMapWindow(olc_Display, olc_Window);
         XStoreName(olc_Display, olc_Window, "OneLoneCoder.com - Pixel Game Engine");
-            pWindow->SetWindowSize(vWindowSize);
+        pWindow->SetWindowSize(vWindowSize);
             
         mapUID2X11Window.insert_or_assign(pWindow->GetUID(), olc_Window);
 		mapX11Window2PTR.insert_or_assign(olc_Window, pWindow);
@@ -7663,6 +8152,480 @@ namespace olc::host
     {
         return true;
     }
+}
+#endif
+
+#if OLC_HOST == OLC_HOST_LINUX_WAYLAND
+namespace olc::host
+{
+    namespace wayland {
+        static const wl_registry_listener registry_listener {
+            .global = Host_Linux_Wayland::registry_handle_global_callback,
+            .global_remove = Host_Linux_Wayland::registry_handle_global_remove_callback,
+        };
+
+        static const wl_seat_listener seat_listener {
+            .capabilities = Host_Linux_Wayland::seat_capabilities_callback,
+            .name = Host_Linux_Wayland::seat_name_callback
+        };
+
+        static const wl_pointer_listener pointer_listener {
+            .enter = Host_Linux_Wayland::pointer_enter_callback,
+            .leave = Host_Linux_Wayland::pointer_leave_callback,
+            .motion = Host_Linux_Wayland::pointer_motion_callback,
+            .button = Host_Linux_Wayland::pointer_button_callback,
+            .axis = Host_Linux_Wayland::pointer_axis_callback,
+            .frame = Host_Linux_Wayland::pointer_frame_callback,
+            .axis_source = Host_Linux_Wayland::pointer_axis_source_callback,
+            .axis_stop = Host_Linux_Wayland::pointer_axis_stop_callback,
+            .axis_discrete = Host_Linux_Wayland::pointer_axis_discrete_callback,
+            .axis_value120 = Host_Linux_Wayland::pointer_axis_value120_callback,
+            .axis_relative_direction = Host_Linux_Wayland::pointer_axis_relative_direction_callback
+        };
+    }
+
+    namespace xdg {
+        static const xdg_wm_base_listener xdg_base_listener {
+            .ping = Host_Linux_Wayland::xdg_wm_ping_callback
+        };
+
+        static const xdg_surface_listener surface_listener {
+            .configure = Host_Linux_Wayland::xdg_surface_configure_callback
+        };
+
+        static const xdg_toplevel_listener xdg_top_listener {
+            .configure = Host_Linux_Wayland::xdg_toplevel_configure_callback,
+            .close = Host_Linux_Wayland::xdg_toplevel_close_callback,
+            .configure_bounds = Host_Linux_Wayland::xdg_toplevel_configure_bounds_callback,
+            .wm_capabilities = Host_Linux_Wayland::xdg_toplevel_capabilities_callback
+        };
+
+        static const zxdg_toplevel_decoration_v1_listener toplevel_decoration_listener {
+            .configure = Host_Linux_Wayland::xdg_toplevel_decoration_configure_callback
+        };
+    }
+
+    Host_Linux_Wayland::Host_Linux_Wayland()
+    {
+        
+        display = wl_display_connect(NULL);
+        registry = wl_display_get_registry(display);
+
+        wl_registry_add_listener(registry, &wayland::registry_listener, this);
+        wl_display_roundtrip(display);
+
+        if(compositor == nullptr || xdg_wm == nullptr || seat == nullptr || decoration_manager == nullptr) {
+            throw;
+        }
+        
+        xdg_wm_base_add_listener(xdg_wm, &xdg::xdg_base_listener, this);
+        wl_seat_add_listener(seat, &wayland::seat_listener, this);
+    }
+
+    Host_Linux_Wayland::~Host_Linux_Wayland()
+    {
+        for (auto& itr : mapUID2Window) {
+            auto& wayland_window = itr.second;
+            wl_egl_window_destroy(wayland_window.window);
+            xdg_toplevel_destroy(wayland_window.toplevel);
+            xdg_surface_destroy(wayland_window.surface_xdg);
+            wl_surface_destroy(wayland_window.surface);
+        }
+
+        wl_display_disconnect(display);
+    }
+
+    bool Host_Linux_Wayland::StartSystemEventLoop(bool bBlockIfPossible)
+    {
+        if(bBlockIfPossible) {
+            while(!terminate && wl_display_dispatch_pending(display) != -1) {
+
+            }
+        }
+
+        return true;
+    }
+
+    bool Host_Linux_Wayland::AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen)
+    {
+        // Create a window
+        WaylandWindow w;
+        wl_region* region = wl_compositor_create_region(compositor);
+        wl_region_add(region, vWindowPos.x, vWindowPos.y, vWindowSize.x, vWindowSize.y);
+        
+        w.surface = wl_compositor_create_surface(compositor);
+        w.surface_xdg = xdg_wm_base_get_xdg_surface(xdg_wm, w.surface);
+
+        xdg_surface_add_listener(w.surface_xdg, &xdg::surface_listener, this);
+        w.toplevel = xdg_surface_get_toplevel(w.surface_xdg);
+        xdg_toplevel_set_title(w.toplevel, "OneLoneCoder.com - Pixel Game Engine");
+        xdg_toplevel_add_listener(w.toplevel, &xdg::xdg_top_listener, this);
+        wl_surface_set_opaque_region(w.surface, region);
+        w.window = wl_egl_window_create(w.surface, vWindowSize.x, vWindowSize.y);
+        w.olc_window_uid = pWindow->GetUID();
+        wl_surface_commit(w.surface);
+        wl_region_destroy(region);
+
+        w.decorations = zxdg_decoration_manager_v1_get_toplevel_decoration(decoration_manager, w.toplevel);
+        zxdg_toplevel_decoration_v1_add_listener(w.decorations, &xdg::toplevel_decoration_listener, this);
+        zxdg_toplevel_decoration_v1_set_mode(w.decorations, 2);
+
+        pWindow->SetWindowPosition(vWindowPos);
+        pWindow->SetWindowSize(vWindowSize);
+
+        mapUID2Window.insert_or_assign(pWindow->GetUID(), w);
+        mapUID2OlcWindow.insert_or_assign(pWindow->GetUID(), pWindow);
+        return true;
+    }
+
+    bool Host_Linux_Wayland::CloseWindowFrame(olc::Window* pWindow)
+    {
+        auto itr = mapUID2Window.find(pWindow->GetUID());
+        if(itr != mapUID2Window.end()) {
+            auto& wayland_window = itr->second;
+            wl_egl_window_destroy(wayland_window.window);
+            zxdg_toplevel_decoration_v1_destroy(wayland_window.decorations);
+            xdg_toplevel_destroy(wayland_window.toplevel);
+            xdg_surface_destroy(wayland_window.surface_xdg);
+            wl_surface_destroy(wayland_window.surface);
+            auto uid = wayland_window.olc_window_uid;
+            mapUID2Window.erase(uid);
+            mapUID2OlcWindow.erase(uid);
+        }
+
+        return true;
+    }
+    bool Host_Linux_Wayland::UpdateWindowFrameTitle(olc::Window* pWindow)
+    {
+        auto itr = mapUID2Window.find(pWindow->GetUID());
+        if(itr != mapUID2Window.end()) {
+            xdg_toplevel_set_title(itr->second.toplevel, pWindow->GetWindowTitle().c_str());
+        }
+        return true;
+    }
+
+    void Host_Linux_Wayland::registry_handle_global(wl_registry* registry, uint32_t name, const char* interface, uint32_t version)
+    {
+        if(std::strcmp(interface, wl_compositor_interface.name) == 0) {
+            compositor = static_cast<wl_compositor*>(wl_registry_bind(registry, name, &wl_compositor_interface, version));
+        }
+        if(std::strcmp(interface, xdg_wm_base_interface.name) == 0) {
+            xdg_wm = static_cast<xdg_wm_base*>(wl_registry_bind(registry, name, &xdg_wm_base_interface, version));
+        }
+        if(std::strcmp(interface, wl_seat_interface.name) == 0) {
+            seat = static_cast<wl_seat*>(wl_registry_bind(registry, name, &wl_seat_interface, version));
+        }
+        if(std::strcmp(interface, zxdg_decoration_manager_v1_interface.name) == 0) {
+            decoration_manager = static_cast<zxdg_decoration_manager_v1*>(wl_registry_bind(registry, name, &zxdg_decoration_manager_v1_interface, version));
+        }
+    }
+    
+    void Host_Linux_Wayland::registry_handle_global_remove(wl_registry* registry, uint32_t name)
+    {
+
+    }
+
+    void Host_Linux_Wayland::seat_capabilities(wl_seat* seat, uint32_t capabilities)
+    {
+        if (capabilities & WL_SEAT_CAPABILITY_POINTER && pointer == nullptr) {
+            pointer = wl_seat_get_pointer(seat);
+            wl_pointer_add_listener(pointer, &wayland::pointer_listener, this);
+        }
+    }
+
+    void Host_Linux_Wayland::xdg_toplevel_configure(xdg_toplevel* toplevel, int32_t width, int32_t height, wl_array* states)
+    {
+        for(auto& i : mapUID2Window) {
+            auto& w = i.second;
+            if(w.toplevel == toplevel) {
+                // Attempt to constrain the window size to what the compositor may have told us earlier
+                // in a bounds_configure message
+                if(w.bounds_x != 0) {
+                    width = std::min<int32_t>(width, w.bounds_x);
+                }
+
+                if(w.bounds_y != 0) {
+                    height = std::min<int32_t>(height, w.bounds_y);
+                }
+                
+                mapUID2OlcWindow[i.first]->olc_OnWindowSize({width, height});
+                wl_egl_window_resize(i.second.window, width, height, 0, 0);
+                wl_surface_commit(i.second.surface);
+            }
+        }
+    }
+
+    void Host_Linux_Wayland::xdg_toplevel_close(xdg_toplevel* toplevel)
+    {
+        for(auto& i : mapUID2Window) {
+            if(i.second.toplevel == toplevel) {
+                auto itr = mapUID2OlcWindow.find(i.second.olc_window_uid);
+                if(itr != mapUID2OlcWindow.end()) {
+                    auto* ptr = itr->second;
+                    ptr->olc_OnWindowClose();
+                    terminate = true;
+                }
+            }
+        }
+    }
+
+    void Host_Linux_Wayland::xdg_toplevel_configure_bounds(xdg_toplevel* toplevel, int32_t width, int32_t height)
+    {
+        for(auto& i : mapUID2Window) {
+            if(i.second.toplevel == toplevel) {
+                i.second.bounds_x = width;
+                i.second.bounds_y = height;
+            }
+        }
+    }
+
+    void Host_Linux_Wayland::registry_handle_global_callback(void* data, wl_registry* registry, uint32_t name, const char* interface, uint32_t version)
+    {
+        auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
+        host->registry_handle_global(registry, name, interface, version);
+    }
+    void Host_Linux_Wayland::registry_handle_global_remove_callback(void* data, wl_registry* registry, uint32_t name)
+    {
+        auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
+        host->registry_handle_global_remove(registry, name);
+    }
+
+    void Host_Linux_Wayland::seat_capabilities_callback(void* data, wl_seat* seat, uint32_t capabilities)
+    {
+        auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
+        host->seat_capabilities(seat, capabilities);
+    }
+
+    void Host_Linux_Wayland::seat_name_callback(void* data, wl_seat* wl_seat, const char* name)
+    {
+
+    }
+
+    // Pointer Callbacks
+    void Host_Linux_Wayland::pointer_enter_callback(void* data, wl_pointer* pointer, uint32_t serial, wl_surface* surface, wl_fixed_t surface_x, wl_fixed_t surface_y)
+    {
+        auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
+        host->pointer_enter(pointer, serial, surface, surface_x, surface_y);
+    }
+
+    void Host_Linux_Wayland::pointer_enter(wl_pointer* pointer, uint32_t serial, wl_surface* surface, wl_fixed_t surface_x, wl_fixed_t surface_y)
+    {
+        pointer_state.event_mask |= wayland::PointerEventMask::PointerEventEnter;
+        pointer_state.serial = serial;
+        pointer_state.surface_x = surface_x;
+        pointer_state.surface_y = surface_y;
+    }
+
+    void Host_Linux_Wayland::pointer_leave_callback(void* data, wl_pointer* pointer, uint32_t serial, wl_surface* surface)
+    {
+        auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
+        host->pointer_leave(pointer, serial, surface);
+    }
+
+    void Host_Linux_Wayland::pointer_leave(wl_pointer* pointer, uint32_t serial, wl_surface* surface)
+    {
+        pointer_state.event_mask |= wayland::PointerEventMask::PointerEventLeave;
+        pointer_state.serial = serial;
+    }
+
+    void Host_Linux_Wayland::pointer_motion_callback(void* data, wl_pointer* pointer, uint32_t time, wl_fixed_t surface_x, wl_fixed_t surface_y)
+    {
+        auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
+        host->pointer_motion(pointer, time, surface_x, surface_y);
+    }
+
+    void Host_Linux_Wayland::pointer_motion(wl_pointer* pointer, uint32_t time, wl_fixed_t surface_x, wl_fixed_t surface_y)
+    {
+        pointer_state.event_mask |= wayland::PointerEventMask::PointerEventMotion;
+        pointer_state.time = time;
+        pointer_state.surface_x = surface_x;
+        pointer_state.surface_y = surface_y;   
+    }
+
+    void Host_Linux_Wayland::pointer_button_callback(void* data, wl_pointer* pointer, uint32_t serial, uint32_t time, uint32_t button, uint32_t state)
+    {
+        auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
+        host->pointer_button(pointer, serial, time, button, state);
+    }
+
+    void Host_Linux_Wayland::pointer_button(wl_pointer* pointer, uint32_t serial, uint32_t time, uint32_t button, uint32_t state)
+    {
+        pointer_state.event_mask |= wayland::PointerEventMask::PointerEventButton;
+        pointer_state.time = time;
+        pointer_state.serial = serial;
+        pointer_state.button = button;
+        pointer_state.state = state;
+    }
+
+    void Host_Linux_Wayland::pointer_axis_callback(void* data, wl_pointer* pointer, uint32_t time, uint32_t axis, wl_fixed_t value)
+    {
+        auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
+        host->pointer_axis(pointer, time, axis, value);
+    }
+
+    void Host_Linux_Wayland::pointer_axis(wl_pointer* pointer, uint32_t time, uint32_t axis, wl_fixed_t value)
+    {
+        pointer_state.event_mask |= wayland::PointerEventMask::PointerEventAxis;
+        pointer_state.time = time;
+        pointer_state.axes[axis].valid = true;
+        pointer_state.axes[axis].value = value;
+    }
+
+    void Host_Linux_Wayland::pointer_frame_callback(void* data, wl_pointer* pointer)
+    {
+        auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
+        host->pointer_frame(pointer);
+    }
+
+    void Host_Linux_Wayland::pointer_frame(wl_pointer* pointer)
+    {
+        wayland::PointerState *event = &pointer_state;
+
+        if (pointer_state.event_mask & wayland::PointerEventMask::PointerEventEnter) {
+            for(auto& itr : mapUID2Window) {
+                if (itr.second.surface == event->surface) {
+                    active_window_id = itr.first;
+                }
+            }
+        }
+
+        auto* pge_window = mapUID2OlcWindow[active_window_id];
+
+        if (pointer_state.event_mask & wayland::PointerEventMask::PointerEventMotion) {
+                pge_window->olc_OnMouseMove(olc::vi2d{
+                    wl_fixed_to_int(pointer_state.surface_x), 
+                    wl_fixed_to_int(pointer_state.surface_y)
+                });
+        }
+
+        if (pointer_state.event_mask & wayland::PointerEventMask::PointerEventButton) {
+            switch (pointer_state.button) {
+                case BTN_LEFT: pge_window->olc_OnMouseButton(0, pointer_state.state == WL_POINTER_BUTTON_STATE_PRESSED); break;
+                case BTN_MIDDLE: pge_window->olc_OnMouseButton(2, pointer_state.state == WL_POINTER_BUTTON_STATE_PRESSED); break;
+                case BTN_RIGHT: pge_window->olc_OnMouseButton(1, pointer_state.state == WL_POINTER_BUTTON_STATE_PRESSED); break;
+                default: break;
+            }
+        }
+
+        if(pointer_state.event_mask & wayland::PointerEventMask::PointerEventAxis
+            && pointer_state.axes[WL_POINTER_AXIS_VERTICAL_SCROLL].valid)
+        {
+            pge_window->olc_OnMouseWheel(-wl_fixed_to_int(pointer_state.axes[WL_POINTER_AXIS_VERTICAL_SCROLL].value));
+        }
+
+        memset(event, 0, sizeof(*event));     
+    }
+
+    void Host_Linux_Wayland::pointer_axis_source_callback(void* data, wl_pointer* pointer, uint32_t axis_source)
+    {
+        auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
+        host->pointer_axis_source(pointer, axis_source);
+    }
+
+    void Host_Linux_Wayland::pointer_axis_source(wl_pointer* pointer, uint32_t axis_source)
+    {
+        pointer_state.event_mask |= wayland::PointerEventMask::PointerEventAxisSource;
+        pointer_state.axis_source = axis_source;
+    }
+
+    void Host_Linux_Wayland::pointer_axis_stop_callback(void* data, wl_pointer* pointer, uint32_t time, uint32_t axis)
+    {
+        auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
+        host->pointer_axis_stop(pointer, time, axis);
+    }
+
+    void Host_Linux_Wayland::pointer_axis_stop(wl_pointer* pointer, uint32_t time, uint32_t axis)
+    {
+        pointer_state.event_mask |= wayland::PointerEventMask::PointerEventAxisStop;
+        pointer_state.time = time;
+        pointer_state.axes[axis].valid = true;
+    }
+
+    void Host_Linux_Wayland::pointer_axis_discrete_callback(void* data, wl_pointer* pointer, uint32_t axis, int32_t discrete)
+    {
+        auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
+        host->pointer_axis_discrete(pointer, axis, discrete);
+    }
+
+    void Host_Linux_Wayland::pointer_axis_discrete(wl_pointer* pointer, uint32_t axis, int32_t discrete)
+    {
+        pointer_state.event_mask |= wayland::PointerEventMask::PointerEventDiscrete;
+        pointer_state.axes[axis].valid = true;
+        pointer_state.axes[axis].discrete = discrete;
+    }
+
+    void Host_Linux_Wayland::pointer_axis_value120_callback(void* data, wl_pointer* pointer, uint32_t axis, int32_t value120)
+    {
+        //auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
+        //host->pointer_axis_value120(pointer, axis, value120);
+    }
+
+    void Host_Linux_Wayland::pointer_axis_relative_direction_callback(void* data, wl_pointer* pointer, uint32_t axis, uint32_t direction)
+    {
+        //auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
+        //host->pointer_axis_relative_direction(pointer, axis, direction);
+    }
+
+    // XDG Callbacks
+    void Host_Linux_Wayland::xdg_wm_ping_callback(void* data, xdg_wm_base* wm, uint32_t serial) {
+        xdg_wm_base_pong(wm, serial);
+    }
+
+    void Host_Linux_Wayland::xdg_surface_configure_callback(void* data, xdg_surface* surface, uint32_t serial)
+    {
+        xdg_surface_ack_configure(surface, serial);
+    }
+
+    void Host_Linux_Wayland::xdg_toplevel_configure_callback(void* data, xdg_toplevel* toplevel, int32_t width, int32_t height, wl_array* states)
+    {
+        auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
+        host->xdg_toplevel_configure(toplevel, width, height, states);
+    }
+
+    void Host_Linux_Wayland::xdg_toplevel_close_callback(void* data, xdg_toplevel* toplevel)
+    {
+        auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
+        host->xdg_toplevel_close(toplevel);
+    }
+
+    void Host_Linux_Wayland::xdg_toplevel_configure_bounds_callback(void* data, xdg_toplevel* toplevel, int32_t width, int32_t height) {
+        auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
+        host->xdg_toplevel_configure_bounds(toplevel, width, height);
+        return;
+    }
+
+    void Host_Linux_Wayland::xdg_toplevel_capabilities_callback(void* data, xdg_toplevel* toplevel, wl_array* capabilities)
+    {
+        return;
+    }
+
+    void Host_Linux_Wayland::xdg_toplevel_decoration_configure_callback(void* data, zxdg_toplevel_decoration_v1* zxdg_toplevel_decoration_v1, uint32_t mode)
+    {
+        // auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
+        // fprintf(stderr, "zxdg_decoration_manager_v1 mode %d\n", mode);
+    }
+
+    std::vector<void*> Host_Linux_Wayland::GetHostWindowDescriptor(olc::Window* pWindow)
+    {
+        const auto window_handle = mapUID2Window.find(pWindow->GetUID());
+        if (window_handle != mapUID2Window.end()) {
+            return {reinterpret_cast<void*>(&window_handle->second),
+                reinterpret_cast<void*>(display)
+            };
+        }
+        return {};
+    }
+
+    bool Host_Linux_Wayland::ConnectHostResourceToRenderer()
+    {
+        return true;
+    }
+
+    bool Host_Linux_Wayland::SyncWithDesktopComposite()
+    {
+        return true;
+    }
+
 }
 #endif
 
@@ -8086,14 +9049,47 @@ namespace olc
         srcGeometryShader = src;
     }
 
-    uint32_t gpu::Shader::GetUniform(const std::string& name) const
+    int32_t gpu::Shader::GetUniform(const std::string& name) const
     {
-        return mapUniforms.at(name);
+        if (mapUniforms.contains(name))
+            return int32_t(mapUniforms.at(name));
+        else
+            return -1;
     }
 
     uint32_t gpu::Shader::GetShaderID() const
     {
         return nCompiledShaderID;
+    }
+
+    std::string gpu::Shader::PS_DefaultHeader() 
+    {
+        return static_PS_DefaultHeader;
+    }
+
+    std::string gpu::Shader::PS_DefaultMain() 
+    {
+		return static_PS_DefaultMain;
+    }
+
+    std::string gpu::Shader::VS_DefaultHeader() 
+    {
+		return static_VS_DefaultHeader;        
+    }
+
+    std::string gpu::Shader::VS_DefaultMain() 
+    {
+		return static_VS_DefaultMain;      
+    }
+
+    std::string gpu::Shader::GS_DefaultHeader() 
+    {
+		return static_GS_DefaultHeader;
+    }
+
+    std::string gpu::Shader::GS_DefaultMain() 
+    {
+		return static_GS_DefaultMain;
     }
 }
 
@@ -8159,6 +9155,7 @@ namespace olc::apis::opengl
 		bLoaded &= (_glFramebufferRenderbuffer = OGL_LOAD(glFramebufferRenderbuffer)) != nullptr;
 		bLoaded &= (_glDeleteRenderbuffers = OGL_LOAD(glDeleteRenderbuffers)) != nullptr;
 		bLoaded &= (_glGetInternalformativ = OGL_LOAD(glGetInternalformativ)) != nullptr;
+		bLoaded &= (_glGetShaderiv = OGL_LOAD(glGetShaderiv)) != nullptr;
 
 		
 		return bLoaded;
@@ -8554,9 +9551,125 @@ namespace olc::apis::opengl
 		_glGetInternalformativ(target, internalformat, pname, bufSize, params);
 		CheckError();
 	}
+
+	void gl::glGetShaderiv(GLuint shader, GLenum pname, GLint* params)
+	{
+		_glGetShaderiv(shader, pname, params);
+		CheckError();
+	}
 }
 namespace olc::gpu
 {
+
+	// === PIXEL SHADER PGE DEFAULTS ===
+	std::string Shader::static_PS_DefaultHeader =
+#if OLC_HOST != OLC_HOST_EMSCRIPTEN
+R"(#version 330 core
+)"
+#else
+R"(#version 300 es
+precision mediump float;
+)"
+#endif
+R"(
+// Pixel output to framebuffer
+layout(location = 0) out vec4 pixel;
+
+// PGE *REQUIRED* Uniforms - You must have these in your shader
+uniform vec2 pgeTargetSizeInPixels;			// Size of the target olc::Image in pixels
+uniform vec2 pgeInverseTargetSizeInPixels;  // 1.0 / Size of the target olc::Image in pixels
+uniform float pgeTotalTimeElapsed;			// Total time elapsed since application started
+uniform sampler2D pgeTexture0;				// Current source olc::Image bound as texture0
+uniform sampler2D pgeTexture1;				// Current source olc::Image bound as texture1
+uniform sampler2D pgeTexture2;				// Current source olc::Image bound as texture2
+uniform sampler2D pgeTexture3;				// Current source olc::Image bound as texture3
+
+// Inputs from Vertex Shader
+in vec2 oTex;
+in vec4 oCol;
+)";
+
+	std::string Shader::static_PS_DefaultMain =
+R"(
+void main()
+{
+	// We premultiply alpha here
+	vec4 texColor = texture(pgeTexture0, oTex) * oCol;
+	pixel = vec4(texColor.rgb * texColor.a, texColor.a);
+}
+)";
+	
+	
+	// === VERTEX SHADER PGE DEFAULTS ===
+	std::string Shader::static_VS_DefaultHeader =
+#if OLC_HOST != OLC_HOST_EMSCRIPTEN
+R"(#version 330 core
+)"
+#else
+R"(#version 300 es
+precision mediump float;
+)"
+#endif
+R"(
+// PGE *REQUIRED* Attributes - You must have these in your shader
+layout(location = 0) in vec4 aPos; // x, y, z, w
+layout(location = 1) in vec4 aCol; // r, g, b, a
+layout(location = 2) in vec2 aTex; // u, v
+
+// PGE *REQUIRED* Uniforms - You must have these in your shader
+uniform mat4 pgeMVP;						// Model-View-Projection matrix
+uniform int pgeDrawType;					// 0 = 2D Polygon, 1 = 2D Line, 2 = 3D
+uniform vec4 pgeGlobalTint;					// Global tint to apply to all vertices
+uniform vec2 pgeTargetSizeInPixels;			// Size of the target olc::Image in pixels
+uniform vec2 pgeInverseTargetSizeInPixels;  // 1.0 / Size of the target olc::Image in pixels
+uniform float pgeTotalTimeElapsed;			// Total time elapsed since application started
+
+// Outputs to Pixel Shader
+out vec2 oTex;
+out vec4 oCol;
+)";
+
+	std::string Shader::static_VS_DefaultMain =
+R"(
+void main()
+{
+	if (pgeDrawType == 2) // 3D																																  
+	{
+		gl_Position = pgeMVP * vec4(aPos.x, aPos.y, aPos.z, 1.0);
+		oTex = aTex;
+	}
+
+	else if (pgeDrawType == 1) // 2D Line																																		  
+	{
+		float p = 1.0 / aPos.z;
+		gl_Position = p * vec4(vec2(2.0 * (floor(aPos.xy) + 0.5) * pgeInverseTargetSizeInPixels - 1.0), 0.0, 1.0);
+		oTex = aTex;
+	}
+
+	else if (pgeDrawType == 0) // 2D Polygon																																		  
+	{
+		float p = 1.0 / aPos.z; 
+		gl_Position = p * vec4(vec2(2.0 * (aPos.xy + 0.25) * pgeInverseTargetSizeInPixels - 1.0), 0.0, 1.0);
+		oTex = p * vec2(aTex.x, aTex.y);
+	}
+
+	else  // Balanced default
+	{
+		gl_Position = aPos;
+		oTex = aTex;
+	}
+
+	oCol = aCol * pgeGlobalTint;
+}
+)";
+
+	
+	// === GEOMETRY SHADER PGE DEFAULTS ===
+	std::string Shader::static_GS_DefaultHeader = "";
+	std::string Shader::static_GS_DefaultMain = "";
+
+
+
 	std::string Shader_GLSL33::Compile()
 	{
 		auto& gl = olc::apis::opengl::gl::Get();
@@ -8570,7 +9683,19 @@ namespace olc::gpu
 			const char* s = srcPixelShader.c_str();
 			gl.glShaderSource(nPixelShaderID, 1, &s, nullptr);
 			gl.glCompileShader(nPixelShaderID);
-			// TODO: Error Check
+			
+			// Display Fragment Shader Compile Errors
+			int32_t nCompileStatus = 0;
+			gl.glGetShaderiv(nPixelShaderID, gl.GL_COMPILE_STATUS_X, &nCompileStatus);
+			if (nCompileStatus == 0)
+			{
+				int32_t nInfoLogLength = 0;
+				gl.glGetShaderiv(nPixelShaderID, gl.GL_INFO_LOG_LENGTH_X, &nInfoLogLength);
+				std::vector<char> vInfoLog(nInfoLogLength);
+				gl.glGetShaderInfoLog(nPixelShaderID, nInfoLogLength, nullptr, vInfoLog.data());
+				return std::string("Fragment Shader Compile Error:\n") + std::string(vInfoLog.data());				
+			}
+
 			gl.glAttachShader(nCompiledShaderID, nPixelShaderID);
 		}
 
@@ -8581,7 +9706,19 @@ namespace olc::gpu
 			const char* s = srcVertexShader.c_str();
 			gl.glShaderSource(nVertexShaderID, 1, &s, nullptr);
 			gl.glCompileShader(nVertexShaderID);
-			// TODO: Error Check
+			
+			// Display Vertex Shader Compile Errors
+			int32_t nCompileStatus = 0;
+			gl.glGetShaderiv(nVertexShaderID, gl.GL_COMPILE_STATUS_X, &nCompileStatus);
+			if (nCompileStatus == 0)
+			{
+				int32_t nInfoLogLength = 0;
+				gl.glGetShaderiv(nVertexShaderID, gl.GL_INFO_LOG_LENGTH_X, &nInfoLogLength);
+				std::vector<char> vInfoLog(nInfoLogLength);
+				gl.glGetShaderInfoLog(nVertexShaderID, nInfoLogLength, nullptr, vInfoLog.data());
+				return std::string("Vertex Shader Compile Error:\n") + std::string(vInfoLog.data());				
+			}
+
 			gl.glAttachShader(nCompiledShaderID, nVertexShaderID);
 		}
 
@@ -8593,23 +9730,55 @@ namespace olc::gpu
 			const char* s = srcGeometryShader.c_str();
 			gl.glShaderSource(nGeometryShaderID, 1, &s, nullptr);
 			gl.glCompileShader(nGeometryShaderID);
-			// TODO: Error Check
+			
+			// Display Vertex Shader Compile Errors
+			int32_t nCompileStatus = 0;
+			gl.glGetShaderiv(nGeometryShaderID, gl.GL_COMPILE_STATUS_X, &nCompileStatus);
+			if (nCompileStatus == 0)
+			{
+				int32_t nInfoLogLength = 0;
+				gl.glGetShaderiv(nGeometryShaderID, gl.GL_INFO_LOG_LENGTH_X, &nInfoLogLength);
+				std::vector<char> vInfoLog(nInfoLogLength);
+				gl.glGetShaderInfoLog(nGeometryShaderID, nInfoLogLength, nullptr, vInfoLog.data());
+				return std::string("Geometry Shader Compile Error:\n") + std::string(vInfoLog.data());
+				
+			}
+
+
 			gl.glAttachShader(nCompiledShaderID, nGeometryShaderID);
 		}
 
 		gl.glLinkProgram(nCompiledShaderID);
 
+		// Required PGE3 Uniforms
+		CreateUniform("pgeMVP");
+		CreateUniform("pgeDrawType");
+		CreateUniform("pgeGlobalTint");
+		CreateUniform("pgeTargetSizeInPixels");
+		CreateUniform("pgeInverseTargetSizeInPixels");
+		CreateUniform("pgeTotalTimeElapsed");
+
+		CreateUniform("pgeTexture0");
+		CreateUniform("pgeTexture1");
+		CreateUniform("pgeTexture2");
+		CreateUniform("pgeTexture3");
+
 		return "OK";
 	}
 
-	uint32_t Shader_GLSL33::CreateUniform(const std::string& name)
+	int32_t Shader_GLSL33::CreateUniform(const std::string& name)
 	{
 		auto& gl = olc::apis::opengl::gl::Get();
 		const char* s = name.c_str();
-		mapUniforms.insert({ name, gl.glGetUniformLocation(nCompiledShaderID, s) });
-		return GetUniform(name);
+		int32_t nID = gl.glGetUniformLocation(nCompiledShaderID, s);
+		if (nID != -1)
+		{
+			mapUniforms.insert({ name, nID });
+			return GetUniform(name);
+		}
+		else
+			return -1;
 	}
-
 
 
 	bool Renderer_OGL33::CreateDevice(std::vector<void*> os_win_id, const RendererConfig& cfg)
@@ -8665,29 +9834,40 @@ namespace olc::gpu
         
 		// os_win_id[0] is the OLC OpenGL Device Context      
         glRenderContext = (olc::apis::opengl::glRenderContext_t)os_win_id[0];
-        if (!glRenderContext) {
-            lastError = RendererError::FailedToCreateRenderContext;
-            return false;
-        }
+        if (CGLSetCurrentContext((CGLContextObj)glRenderContext) != kCGLNoError) {
+			lastError = RendererError::FailedToSwitchRenderContext;
+			return false;
+		}
 
 #endif
 
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN || OLC_HOST == OLC_HOST_LINUX_WAYLAND
 #if OLC_HOST == OLC_HOST_EMSCRIPTEN
-	const auto canvasId = reinterpret_cast<std::string*>(os_win_id[0]);
+	EGLNativeWindowType window_handle = NULL;
+	EGLNativeDisplayType display = EGL_DEFAULT_DISPLAY;
+#else
+	const auto wayland_window = reinterpret_cast<olc::host::WaylandWindow*>(os_win_id[0]);
+	EGLNativeWindowType window_handle = wayland_window->window;
+	EGLNativeDisplayType display = reinterpret_cast<EGLNativeDisplayType>(os_win_id[1]);
+#endif
 
-	const int samples = std::min(OLC_MSAA_SAMPLES, OLC_MSAA_EMSCRIPTEN_MAX_SAMPLES);
-
-	EGLint const attribute_list[] = {EGL_RED_SIZE, 8, EGL_GREEN_SIZE, 8, EGL_BLUE_SIZE, 8, EGL_ALPHA_SIZE, 8, EGL_DEPTH_SIZE, 16, EGL_SAMPLE_BUFFERS, 1, EGL_SAMPLES, samples, EGL_NONE};
+	EGLint const attribute_list[] = {EGL_RED_SIZE, 8, EGL_GREEN_SIZE, 8, EGL_BLUE_SIZE, 8, EGL_ALPHA_SIZE, 8, EGL_DEPTH_SIZE, 16, EGL_SAMPLE_BUFFERS, 1, EGL_SAMPLES, OLC_MSAA_SAMPLES, EGL_NONE};
 	EGLint const context_config[] = {EGL_CONTEXT_CLIENT_VERSION, 2, EGL_NONE};
 	EGLint num_config;
 
-	glRenderContext.display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
+	glRenderContext.display = eglGetDisplay(display);
+	if(glRenderContext.display == EGL_NO_DISPLAY) {
+		std::cout << "Could not create EGL Display" << std::endl;
+	}
 	eglInitialize(glRenderContext.display, nullptr, nullptr);
 	eglChooseConfig(glRenderContext.display, attribute_list, &glRenderContext.config, 1, &num_config);
 	
 	/* create an EGL rendering context */
 	glRenderContext.context = eglCreateContext(glRenderContext.display, glRenderContext.config, EGL_NO_CONTEXT, context_config);
-	glRenderContext.surface = eglCreateWindowSurface(glRenderContext.display, glRenderContext.config, NULL, nullptr);
+	glRenderContext.surface = eglCreateWindowSurface(glRenderContext.display, glRenderContext.config, window_handle, nullptr);
+	if(glRenderContext.surface == EGL_NO_SURFACE) {
+		std::cout << "Could not create EGL Surface" << std::endl;
+	}
 	if(!eglMakeCurrent(glRenderContext.display, glRenderContext.surface, glRenderContext.surface, glRenderContext.context))
 	{
 		lastError = RendererError::FailedToCreateRenderContext;
@@ -8707,89 +9887,21 @@ namespace olc::gpu
 
 		// Create "Default" Shader
 		shaderDefault.SetPixelShaderSource(
-#if OLC_HOST != OLC_HOST_EMSCRIPTEN
-			R"(#version 330 core
-)"
-#else
-			R"(#version 300 es
-			precision mediump float;
-)"
-#endif
-
-			R"(layout(location = 0) out vec4 pixel;
-			in vec2 oTex;
-			in vec4 oCol;
-			uniform sampler2D sprTex;
-
-			void main()
-			{
-				// Was just this
-				//pixel = texture(sprTex, oTex) * oCol;
-
-				// But to premultiply alpha correctly, we now do this:	
-				vec4 texColor = texture(sprTex, oTex) * oCol;
-				pixel = vec4(texColor.rgb * texColor.a, texColor.a);
-			}
-		)");
+			Shader_GLSL33::PS_DefaultHeader() + Shader_GLSL33::PS_DefaultMain());
 
 		shaderDefault.SetVertexShaderSource(
-#if OLC_HOST != OLC_HOST_EMSCRIPTEN
-			R"(#version 330 core
-)"
-#else
-			R"(#version 300 es
-			precision mediump float;
-)"
-#endif
-			R"(layout(location = 0) in vec4 aPos;
-			layout(location = 1) in vec4 aCol;
-			layout(location = 2) in vec2 aTex;
-			uniform mat4 mvp;
-			uniform int drawtype;
-			uniform vec4 tint;
-			uniform vec2 target;
-			uniform vec2 invtarget;
-			out vec2 oTex;
-			out vec4 oCol;
+			Shader_GLSL33::VS_DefaultHeader() + Shader_GLSL33::VS_DefaultMain());
 
-			void main()
-			{ 																																				  
-				if(drawtype == 2) // 3D																																  
-				{																																			  
-					gl_Position = mvp * vec4(aPos.x, aPos.y, aPos.z, 1.0); 																					  
-					oTex = aTex;																															  
-				} 				 
-			
-				else if(drawtype == 1) // 2D Line																																		  
-				{																																			  
-					float p = 1.0 / aPos.z; 																												  
-					gl_Position = p * vec4(vec2(2.0 * (floor(aPos.xy) + 0.5) * invtarget - 1.0), 0.0, 1.0);	  
-					oTex = aTex;																										  
-				} 			  
-			
-				else if(drawtype == 0) // 2D Polygon																																		  
-				{																																			  
-					float p = 1.0 / aPos.z; 																												  
-					gl_Position = p * vec4(vec2(2.0 * (aPos.xy + 0.25) * invtarget - 1.0), 0.0, 1.0);	 
-					oTex = p * vec2(aTex.x, aTex.y);																										  
-				} 
-				
-				else  // Balanced default
-				{
-					gl_Position = aPos;
-					oTex = aTex;
-				} 																																			  
-																																			  
-				oCol = aCol * tint;																															  
-			}
-		)");
+		shaderDefault.SetGeometryShaderSource(
+			Shader_GLSL33::GS_DefaultHeader() + Shader_GLSL33::GS_DefaultMain());
 
-		shaderDefault.Compile();
-		shaderDefault.CreateUniform("mvp");
-		shaderDefault.CreateUniform("drawtype");
-		shaderDefault.CreateUniform("tint");
-		shaderDefault.CreateUniform("target");
-		shaderDefault.CreateUniform("invtarget");
+		std::string sResult = shaderDefault.Compile();
+		if (sResult != "OK")
+		{
+			std::cout << "Error compiling default shader: " << sResult << std::endl;
+			lastError = RendererError::FailedToCompileShader;
+			return false;
+		}
 
 		// Create "Default" Vertex Buffer / Vertex Attributes. This buffer is reused
 		// for all drawing operations. It's possible future versions may allow the
@@ -8877,14 +9989,15 @@ namespace olc::gpu
 		wglDeleteContext(glRenderContext);
 #endif
 #if OLC_HOST == OLC_HOST_MACOS
-        //TODO: Add MacOS destroy context code
+		CGLSetCurrentContext(NULL);
+		CGLDestroyContext((CGLContextObj)glRenderContext);
 #endif
 #if OLC_HOST == OLC_HOST_LINUX_X11
 		auto* display = X11::XOpenDisplay(nullptr);
 		X11::glXMakeCurrent(display, 0, NULL);
 		X11::glXDestroyContext(display, glRenderContext);
 #endif
-#if OLC_HOST == OLC_HOST_EMSCRIPTEN
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN || OLC_HOST == OLC_HOST_LINUX_WAYLAND
 		eglMakeCurrent(glRenderContext.display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
 		eglDestroyContext(glRenderContext.display, glRenderContext.context);
 		eglDestroySurface(glRenderContext.display, glRenderContext.surface);
@@ -8909,10 +10022,9 @@ namespace olc::gpu
 		ReleaseDC((HWND)(os_win_id[0]), glDeviceContext);
 #endif
 #if OLC_HOST == OLC_HOST_MACOS
-
-		CGLContextObj cglContext = (CGLContextObj)glRenderContext;
-		if (!CGLSetCurrentContext(cglContext))
-		{
+    
+        auto glDeviceContext = (olc::apis::opengl::glRenderContext_t)os_win_id[0];
+		if (CGLSetCurrentContext((CGLContextObj)glDeviceContext) != kCGLNoError) {
 			lastError = RendererError::FailedToSwitchRenderContext;
 			return false;
 		}
@@ -8926,7 +10038,7 @@ namespace olc::gpu
 			return false;
 		}
 #endif
-#if OLC_HOST == OLC_HOST_EMSCRIPTEN
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN || OLC_HOST == OLC_HOST_LINUX_WAYLAND
 	if(!eglMakeCurrent(glRenderContext.display, glRenderContext.surface, glRenderContext.surface, glRenderContext.context))
 	{
 		lastError = RendererError::FailedToSwitchRenderContext;
@@ -8964,13 +10076,13 @@ namespace olc::gpu
 		ReleaseDC((HWND)(os_win_id[0]), glDeviceContext);
 #endif
 #if OLC_HOST == OLC_HOST_MACOS
-        
-		// params[0] is the OLC OpenGL Device Context      
+             
+        // params[0] is the OLC OpenGL Device Context      
         glRenderContext = (olc::apis::opengl::glRenderContext_t)os_win_id[0];
-        if (!glRenderContext) {
-            lastError = RendererError::FailedToCreateRenderContext;
-            return false;
-        }
+		if (CGLSetCurrentContext((CGLContextObj)glRenderContext) != kCGLNoError) {
+			lastError = RendererError::FailedToSwitchRenderContext;
+			return false;
+		}
 
 #endif
 		return true;
@@ -9060,23 +10172,15 @@ namespace olc::gpu
 			int32_t maxSamples = 0;
 			gl.glGetInternalformativ(gl.GL_RENDERBUFFER_X, GL_RGBA8, gl.GL_SAMPLES_X, 1, &maxSamples);
 
-#if OLC_HOST == OLC_HOST_EMSCRIPTEN
-			maxSamples = std::min<int32_t>(OLC_MSAA_EMSCRIPTEN_MAX_SAMPLES, maxSamples);
-			const int samples = std::min((int)image.GetConfig().MSAASamples, maxSamples);
-#else
-			maxSamples = std::min<int32_t>(OLC_MSAA_SAMPLES, maxSamples);
-			const int samples = std::min<int32_t>(image.GetConfig().MSAASamples, maxSamples);
-#endif
-
 			// Allocate MSAA renderbuffer storage
 			gl.glRenderbufferStorageMultisample(
-				gl.GL_RENDERBUFFER_X, 
-				samples,
-				GL_RGBA8, 
-				image.Size().x, 
+				gl.GL_RENDERBUFFER_X,
+				std::min<int32_t>(image.GetConfig().MSAASamples, maxSamples),
+				GL_RGBA8,
+				image.Size().x,
 				image.Size().y
 			);
-			
+
 			// Unbind renderbuffer
 			gl.glBindRenderbuffer(gl.GL_RENDERBUFFER_X, 0);
 		}
@@ -9313,14 +10417,55 @@ namespace olc::gpu
 	bool Renderer_OGL33::ApplyShader(const Shader& shader)
 	{
 		auto& gl = olc::apis::opengl::gl::Get();
-		gl.glUseProgram(shader.GetShaderID());
+		pCurrentShader = &shader;
+		gl.glUseProgram(pCurrentShader->GetShaderID());
+
+		// Set default texture slots if they exist in the shader
+		int32_t loc0 = pCurrentShader->GetUniform("pgeTexture0");
+		if (loc0 != -1) { gl.glUniform1i(loc0, 0); } // Texture slot 0
+		int32_t loc1 = pCurrentShader->GetUniform("pgeTexture1");
+		if (loc1 != -1) { gl.glUniform1i(loc1, 1); } // Texture slot 1
+		int32_t loc2 = pCurrentShader->GetUniform("pgeTexture2");
+		if (loc2 != -1) { gl.glUniform1i(loc2, 2); } // Texture slot 2
+		int32_t loc3 = pCurrentShader->GetUniform("pgeTexture3");
+		if (loc3 != -1) { gl.glUniform1i(loc3, 3); } // Texture slot 3
+		
 		return true;
 	}
 
 	bool Renderer_OGL33::ApplyDefaultShader()
+	{	
+		return ApplyShader(shaderDefault);
+	}
+
+	bool Renderer_OGL33::SetUniform(const std::string& name, const float value)
 	{
 		auto& gl = olc::apis::opengl::gl::Get();
-		gl.glUseProgram(shaderDefault.GetShaderID());
+		int loc = pCurrentShader->GetUniform(name);
+		gl.glUniform1f(loc, value);
+		return true;
+	}
+
+	bool Renderer_OGL33::SetUniform(const std::string& name, const olc::vf2d& value)
+	{
+		auto& gl = olc::apis::opengl::gl::Get();
+		int loc = pCurrentShader->GetUniform(name);
+		gl.glUniform2fv(loc, 1, value.a().data());
+		return true;
+	}
+
+	bool Renderer_OGL33::SetUniform(const std::string& name, const olc::Pixel value)
+	{
+		float f[4] = {
+			float(value.r) / 255.0f,
+			float(value.g) / 255.0f,
+			float(value.b) / 255.0f,
+			float(value.a) / 255.0f
+		};
+
+		auto& gl = olc::apis::opengl::gl::Get();
+		int loc = pCurrentShader->GetUniform(name);
+		gl.glUniform4fv(loc, 1, f);
 		return true;
 	}
 
@@ -9351,6 +10496,9 @@ namespace olc::gpu
 				gl.glBufferData(gl.GL_ARRAY_BUFFER_X, sizeof(GPUTask::Vertex) * task.vertexBuffer.size(), task.vertexBuffer.data(), gl.GL_STREAM_DRAW_X);
 				
 				
+				// Configure shader with expected values
+
+
 
 				// Shader: Apply MVP Matrix
 				//gl.glUniformMatrix4fv(shaderDefault.GetUniform("mvp"), 1, true, task.mvpMatrix.data());
@@ -9362,12 +10510,17 @@ namespace olc::gpu
 					float(task.tint.b) / 255.0f, 
 					float(task.tint.a) / 255.0f 
 				};
-				gl.glUniform4fv(shaderDefault.GetUniform("tint"), 1, f);
+				
+				gl.glUniform4fv(pCurrentShader->GetUniform("pgeGlobalTint"), 1, f);
 
 				f[0] = 64.0f;
 				f[1] = 64.0f;
-				gl.glUniform2fv(shaderDefault.GetUniform("target"), 1, vTargetSize.a().data());
-				gl.glUniform2fv(shaderDefault.GetUniform("invtarget"), 1, ((1.0f / vTargetSize)).a().data());
+				gl.glUniform2fv(pCurrentShader->GetUniform("pgeTargetSizeInPixels"), 1, vTargetSize.a().data());
+				gl.glUniform2fv(pCurrentShader->GetUniform("pgeInverseTargetSizeInPixels"), 1, ((1.0f / vTargetSize)).a().data());
+				gl.glUniform1f(pCurrentShader->GetUniform("pgeTotalTimeElapsed"), fTotalTime);
+
+
+				
 
 				// Apply Culling modes
 				//if (task.cullmode == GPUTask::CullMode::None)
@@ -9398,13 +10551,13 @@ namespace olc::gpu
 					gl.glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
 				if (task.structure == olc::Structure::Point)
-					gl.glUniform1i(shaderDefault.GetUniform("drawtype"), 1);
+					gl.glUniform1i(pCurrentShader->GetUniform("pgeDrawType"), 1);
 				else if (task.structure == olc::Structure::Line)
-					gl.glUniform1i(shaderDefault.GetUniform("drawtype"), 1);
+					gl.glUniform1i(pCurrentShader->GetUniform("pgeDrawType"), 1);
 				else if (task.structure == olc::Structure::LineLoop)
-					gl.glUniform1i(shaderDefault.GetUniform("drawtype"), 1);
+					gl.glUniform1i(pCurrentShader->GetUniform("pgeDrawType"), 1);
 				else
-					gl.glUniform1i(shaderDefault.GetUniform("drawtype"), 0);
+					gl.glUniform1i(pCurrentShader->GetUniform("pgeDrawType"), 0);
 
 				if (task.structure == olc::Structure::Fan)
 					gl.glDrawArrays(GL_TRIANGLE_FAN, 0, (GLsizei)task.vertexBuffer.size());
@@ -9449,8 +10602,11 @@ namespace olc::gpu
 		return true;
 	}
 
-	bool Renderer_OGL33::DisplayPrepare()
+	bool Renderer_OGL33::DisplayPrepare(const float fFrameElapsedTime, const float fTotalElapsedTime)
 	{
+		fFrameTime = fFrameElapsedTime;
+		fTotalTime = fTotalElapsedTime;
+
 		auto& gl = olc::apis::opengl::gl::Get();
 
 		gl.glEnable(GL_BLEND);
@@ -9471,8 +10627,11 @@ namespace olc::gpu
 #endif	
 
 #if OLC_HOST == OLC_HOST_MACOS
-        glFlushRenderAPPLE();
-        glSwapAPPLE();
+		// The pointer value in os_win_id[1] will be set to true, when the OS requests to skip the frame swap
+        const bool* bSkipFrame = static_cast<const bool*>(os_win_id[1]);
+		if (*bSkipFrame) return true;
+		CGLContextObj cglContext = static_cast<CGLContextObj>(os_win_id[0]);
+		CGLFlushDrawable(cglContext);
        
 #endif
 
@@ -9480,6 +10639,13 @@ namespace olc::gpu
 		const auto window_handle = reinterpret_cast<X11::Window>(os_win_id[0]);
 		auto* display = reinterpret_cast<X11::Display*>(os_win_id[1]);
 		X11::glXSwapBuffers(display, window_handle);
+#endif
+
+#if OLC_HOST == OLC_HOST_LINUX_WAYLAND
+	const auto* wayland_window = reinterpret_cast<olc::host::WaylandWindow*>(os_win_id[0]);
+	//auto* window_handle = wayland_window->window;
+	//auto* display = reinterpret_cast<wl_display*>(os_win_id[1]);
+	eglSwapBuffers(glRenderContext.display, glRenderContext.surface);
 #endif
 
 #if OLC_HOST == OLC_HOST_EMSCRIPTEN
@@ -9498,8 +10664,15 @@ namespace olc::gpu
 #if defined(OLC_PGE3_APPLICATION) && !defined(PGE_DRAW2D_IMPLEMENTED)
 using namespace olc;
 
+// Some local pools to reduce allocations
+thread_local Draw2D::buffer<olc::vf2d> Draw2D::buffPoints;
+thread_local Draw2D::buffer<olc::Pixel> Draw2D::buffColours;
+thread_local Draw2D::buffer<olc::vf2d> Draw2D::buffUnitCirclePoints;
+thread_local Draw2D::buffer<olc::GPUTask> Draw2D::vecGPUTasks;
+
 Draw2D::Draw2D()
 {
+	vecGPUTasks.reserve(256);
 }
 
 void Draw2D::SetGPU(olc::gpu::Renderer* const renderer)
@@ -9544,10 +10717,10 @@ olc::vi2d olc::Draw2D::GetTargetSize()
 
 void olc::Draw2D::ProcessGPUTasks()
 {
-	for (const auto& task : vecGPUTasks)
+	for (const auto& task : vecGPUTasks.data)
 		pRenderer->DoGPUTask(task);
 
-	vecGPUTasks.clear();
+	vecGPUTasks.data.clear();
 }
 
 void Draw2D::PrepareTargetForSW()
@@ -9612,6 +10785,42 @@ void Draw2D::PrepareImageForHW(olc::Image& image)
 	{
 		pRenderer->ResolveMSAA(uint32_t(image.GetGPUID()));
 	}
+}
+
+bool olc::Draw2D::SetShader(const olc::gpu::Shader& shader)
+{
+	// Finish all drawing with current shader
+	ProcessGPUTasks();
+	// Set new shader
+	return pRenderer->ApplyShader(shader);
+}
+
+bool olc::Draw2D::ResetShader()
+{
+	ProcessGPUTasks();
+	return pRenderer->ApplyDefaultShader();
+}
+
+bool olc::Draw2D::SetShaderUniform(const std::string& name, const float value)
+{
+
+	return pRenderer->SetUniform(name, value);
+}
+
+bool olc::Draw2D::SetShaderUniform(const std::string& name, const olc::vf2d& value)
+{
+	return pRenderer->SetUniform(name, value);	
+}
+
+bool olc::Draw2D::SetShaderUniform(const std::string& name, const olc::Pixel value)
+{
+	return pRenderer->SetUniform(name, value);
+}
+
+bool olc::Draw2D::SetShaderTexture(const uint32_t nSlot, olc::Image& image)
+{
+	PrepareImageForHW(image);
+	return pRenderer->AssignTextureSource(nSlot, image.GetGPUID());	
 }
 
 void olc::Draw2D::WorldReset()
@@ -9689,10 +10898,11 @@ GPUTask olc::Draw2D::TaskDrawLine(const std::vector<olc::vf2d>& vPoints, const s
 {
 	GPUTask task;
 	task.structure = olc::Structure::Line;
+	task.vertexBuffer.resize((vPoints.size()-1) * 2);
 	for (size_t i = 0; i < vPoints.size() - 1; i++)
 	{
-		task.vertexBuffer.push_back({ {vPoints[i].x, vPoints[i].y, 1.0f, 1.0f}, vColours[i], {0, 0}, {0, 0}, {0, 0}, {0, 0} });
-		task.vertexBuffer.push_back({ {vPoints[i + 1].x, vPoints[i + 1].y, 1.0f, 1.0f}, vColours[i + 1], {0, 0}, {0, 0}, {0, 0}, {0, 0} });
+		task.vertexBuffer[i*2+0] = { {vPoints[i].x, vPoints[i].y, 1.0f, 1.0f}, vColours[i], {0, 0}, {0, 0}, {0, 0}, {0, 0} };
+		task.vertexBuffer[i*2+1] = { {vPoints[i + 1].x, vPoints[i + 1].y, 1.0f, 1.0f}, vColours[i + 1], {0, 0}, {0, 0}, {0, 0}, {0, 0} };
 	}
 	task.tint = tint;
 	return task;
@@ -9703,8 +10913,9 @@ GPUTask olc::Draw2D::TaskDrawPolygon(olc::Structure structure, const std::vector
 	GPUTask task;
 	task.structure = structure;
 	task.bWireframe = true;
+	task.vertexBuffer.resize(vPoints.size());
 	for (size_t i = 0; i < vPoints.size(); i++)
-		task.vertexBuffer.push_back({ {vPoints[i].x, vPoints[i].y, 1.0f, 1.0f}, vColours[i], {0, 0}, {0, 0}, {0, 0}, {0, 0} });
+		task.vertexBuffer[i] = { {vPoints[i].x, vPoints[i].y, 1.0f, 1.0f}, vColours[i], {0, 0}, {0, 0}, {0, 0}, {0, 0} };
 	task.tint = tint;
 	return task;
 }
@@ -9714,8 +10925,9 @@ GPUTask olc::Draw2D::TaskDrawPolygon(olc::Structure structure, const std::vector
 	GPUTask task;
 	task.structure = structure;
 	task.bWireframe = true;
-	for (const auto& v : vPoints)
-		task.vertexBuffer.push_back({ {v.x, v.y, 1.0f, 1.0f}, colour, {0, 0}, {0, 0}, {0, 0}, {0, 0} });
+	task.vertexBuffer.resize(vPoints.size());
+	for (size_t i = 0; i < vPoints.size(); i++)
+		task.vertexBuffer[i] = {{vPoints[i].x, vPoints[i].y, 1.0f, 1.0f}, colour, {0, 0}, {0, 0}, {0, 0}, {0, 0}};
 	task.tint = tint;
 	return task;
 }
@@ -9724,8 +10936,9 @@ GPUTask olc::Draw2D::TaskFillPolygon(olc::Structure structure, const std::vector
 {
 	GPUTask task;
 	task.structure = structure;
+	task.vertexBuffer.resize(vPoints.size());
 	for (size_t i = 0; i < vPoints.size(); i++)
-		task.vertexBuffer.push_back({ {vPoints[i].x, vPoints[i].y, 1.0f, 1.0f}, vColours[i], {0, 0}, {0, 0}, {0, 0}, {0, 0} });
+		task.vertexBuffer[i] = { {vPoints[i].x, vPoints[i].y, 1.0f, 1.0f}, vColours[i], {0, 0}, {0, 0}, {0, 0}, {0, 0} };
 	task.tint = tint;
 	return task;
 }
@@ -9734,8 +10947,9 @@ GPUTask olc::Draw2D::TaskFillPolygon(olc::Structure structure, const std::vector
 {
 	GPUTask task;
 	task.structure = structure;
-	for (const auto& v : vPoints)
-		task.vertexBuffer.push_back({ {v.x, v.y, 1.0f, 1.0f}, colour, {0, 0}, {0, 0}, {0, 0}, {0, 0} });
+	task.vertexBuffer.resize(vPoints.size());
+	for (size_t i = 0; i < vPoints.size(); i++)
+		task.vertexBuffer[i] = { {vPoints[i].x, vPoints[i].y, 1.0f, 1.0f}, colour, {0, 0}, {0, 0}, {0, 0}, {0, 0} };
 	task.tint = tint;
 	return task;	
 }
@@ -9744,8 +10958,9 @@ GPUTask olc::Draw2D::TaskTexturedPolygon(olc::Structure structure, const std::ve
 {
 	GPUTask task;
 	task.structure = structure;
+	task.vertexBuffer.resize(vPoints.size());
 	for (size_t i = 0; i<vPoints.size(); i++)
-		task.vertexBuffer.push_back({ {vPoints[i].x, vPoints[i].y, 1.0f, 1.0f}, vColours[i], {vTexCoords[i].x, vTexCoords[i].y}, {0, 0}, {0, 0}, {0, 0} });
+		task.vertexBuffer[i] = { {vPoints[i].x, vPoints[i].y, 1.0f, 1.0f}, vColours[i], {vTexCoords[i].x, vTexCoords[i].y}, {0, 0}, {0, 0}, {0, 0} };
 	task.pImage = image;
 	task.tint = tint;
 	return task;
@@ -9755,8 +10970,9 @@ GPUTask olc::Draw2D::TaskTexturedPolygon(olc::Structure structure, const std::ve
 {
 	GPUTask task;
 	task.structure = structure;
+	task.vertexBuffer.resize(vPoints.size());
 	for (size_t i = 0; i < vPoints.size(); i++)
-		task.vertexBuffer.push_back({ {vPoints[i].x, vPoints[i].y, vZWs[i].x, vZWs[i].y}, vColours[i], {vTexCoords[i].x, vTexCoords[i].y}, {0, 0}, {0, 0}, {0, 0} });
+		task.vertexBuffer[i] = { {vPoints[i].x, vPoints[i].y, vZWs[i].x, vZWs[i].y}, vColours[i], {vTexCoords[i].x, vTexCoords[i].y}, {0, 0}, {0, 0}, {0, 0} };
 	task.pImage = image;
 	task.tint = tint;
 	return task;
@@ -9768,25 +10984,25 @@ const GPUTask& Draw2D::Line(const olc::vf2d& p1, const olc::vf2d& p2, const olc:
 {
 	PrepareTargetForHW();
 	
-	return vecGPUTasks.emplace_back(
+	return vecGPUTasks.data.emplace_back(std::move(
 		TaskDrawLine(
-			transformAffine.forwardRound<float>({ p1, p2 }),			
+			transformAffine.forwardRoundX<float>({ p1, p2 }),			
 			{ col,col },
 			tint
-		));
+		)));
 }
 
 const GPUTask& Draw2D::Line(const olc::vf2d& p1, const olc::Pixel c1, const olc::vf2d& p2, const olc::Pixel c2, const olc::Pixel tint)
 {
 	PrepareTargetForHW();
 
-	return vecGPUTasks.emplace_back(
+	return vecGPUTasks.data.emplace_back(std::move(
 		TaskDrawPolygon(
 			olc::Structure::Line,
-			transformAffine.forwardRound<float>({ p1, p2 }),
+			transformAffine.forwardRoundX<float>({ p1, p2 }),
 			{ c1, c2 },
 			tint
-		));		
+		)));		
 }
 
 const GPUTask& olc::Draw2D::Rect(const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel col, const olc::Pixel tint)
@@ -9796,9 +11012,9 @@ const GPUTask& olc::Draw2D::Rect(const olc::vf2d& pos, const olc::vf2d& size, co
 
 	PrepareTargetForHW();
 
-	return vecGPUTasks.emplace_back(
+	return vecGPUTasks.data.emplace_back(std::move(
 		TaskDrawLine(
-			transformAffine.forwardRound<float>({
+			transformAffine.forwardRoundX<float>({
 				olc::vf2d(pos.x, pos.y),
 				olc::vf2d(pos.x + size.x, pos.y),
 				olc::vf2d(pos.x + size.x, pos.y + size.y),
@@ -9807,16 +11023,16 @@ const GPUTask& olc::Draw2D::Rect(const olc::vf2d& pos, const olc::vf2d& size, co
 				}),
 			{ col, col,  col,  col,  col },
 			tint
-		));
+		)));
 }
 
 const GPUTask& olc::Draw2D::Rect(const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel colTL, const olc::Pixel colTR, const olc::Pixel colBL, const olc::Pixel colBR, const olc::Pixel tint)
 {
 	PrepareTargetForHW();
 
-	return vecGPUTasks.emplace_back(
+	return vecGPUTasks.data.emplace_back(std::move(
 		TaskDrawLine(
-			transformAffine.forwardRound<float>({
+			transformAffine.forwardRoundX<float>({
 				olc::vf2d(pos.x, pos.y),
 				olc::vf2d(pos.x + size.x, pos.y),
 				olc::vf2d(pos.x + size.x, pos.y + size.y),
@@ -9825,7 +11041,7 @@ const GPUTask& olc::Draw2D::Rect(const olc::vf2d& pos, const olc::vf2d& size, co
 				}),
 			{ colTL, colTR,  colBR,  colBL,  colTL },
 			tint
-				));
+				)));
 }
 
 
@@ -9833,168 +11049,200 @@ const GPUTask& olc::Draw2D::FilledRect(const olc::vf2d& pos, const olc::vf2d& si
 {
 	PrepareTargetForHW();
 
-	return vecGPUTasks.emplace_back(
+	return vecGPUTasks.data.emplace_back(std::move(
 		TaskFillPolygon(
 			olc::Structure::Fan,
-			transformAffine.forwardRound<float>({ 
+			transformAffine.forwardRoundX<float>({ 
 				{ pos.x, pos.y }, 
 				{ pos.x + size.x, pos.y }, 
 				{ pos.x + size.x, pos.y + size.y },
 				{ pos.x, pos.y + size.y } }),
 			col,
 			tint
-		));
+		)));
 }
 
 const GPUTask& olc::Draw2D::FilledRect(const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel colTL, const olc::Pixel colTR, const olc::Pixel colBL, const olc::Pixel colBR, const olc::Pixel tint)
 {
 	PrepareTargetForHW();
-	return vecGPUTasks.emplace_back(
+	return vecGPUTasks.data.emplace_back(std::move(
 		TaskFillPolygon(
 			olc::Structure::Fan,
-			transformAffine.forwardRound<float>({ { pos.x, pos.y }, { pos.x + size.x, pos.y }, { pos.x + size.x, pos.y + size.y }, { pos.x, pos.y + size.y } }),
+			transformAffine.forwardRoundX<float>({ 
+				{ pos.x, pos.y }, 
+				{ pos.x + size.x, pos.y }, 
+				{ pos.x + size.x, pos.y + size.y }, 
+				{ pos.x, pos.y + size.y } }),
 			{ colTL, colTR, colBR, colBL },
 			tint
-		));
+		)));
+}
+
+void olc::Draw2D::RedefineUnitCircleBuffer(const int32_t nFacets)
+{
+	buffUnitCirclePoints.reserve(nFacets + 1);
+	for (int32_t i = 0; i <= nFacets; i++)
+	{
+		float theta = float(i) / float(nFacets) * 2.0f * 3.14159265358979323846f;
+		buffUnitCirclePoints.data[i] = { cosf(theta), sinf(theta) };
+	}
 }
 
 const GPUTask& olc::Draw2D::Circle(const olc::vf2d& pos, const float& radius, const olc::Pixel col, const olc::Pixel tint, int32_t nFacets)
 {
 	PrepareTargetForHW();
-	
-	std::vector<olc::vf2d> points;
+
+	if (nFacets != int32_t(buffUnitCirclePoints.data.size() - 1))
+		RedefineUnitCircleBuffer(nFacets);
+
+	buffPoints.reserve(nFacets + 1);
+	buffColours.reserve(nFacets + 1);
+
 	for (int32_t i = 0; i <= nFacets; i++)
 	{
-		float theta = float(i) / float(nFacets) * 2.0f * 3.14159265358979323846f;
-		points.push_back({ pos.x + radius * cosf(theta), pos.y + radius * sinf(theta) });
+		buffPoints.data[i] = transformAffine.forwardRound<float>(buffUnitCirclePoints.data[i] * radius + pos);
+		buffColours.data[i] = col;
 	}
 
-	return vecGPUTasks.emplace_back(
+	return vecGPUTasks.data.emplace_back(std::move(
 		TaskDrawPolygon(
 			olc::Structure::Line,
-			transformAffine.forwardRound<float>(points),
-			std::vector<olc::Pixel>(points.size(), col),
+			buffPoints.data,
+			buffColours.data,
 			tint
-		));
+		)));
 }
 
 const GPUTask& olc::Draw2D::FilledCircle(const olc::vf2d& pos, const float& radius, const olc::Pixel col, const olc::Pixel tint, int32_t nFacets)
 {
 	PrepareTargetForHW();
 
-	std::vector<olc::vf2d> points;
-	points.push_back(pos);
+	if (nFacets != int32_t(buffUnitCirclePoints.data.size() - 1))
+		RedefineUnitCircleBuffer(nFacets);
+	
+	buffPoints.reserve(nFacets + 2);
+	buffColours.reserve(nFacets + 2);
+	
+	buffPoints.data[0] = transformAffine.forwardRound<float>(pos);
+	buffColours.data[0] = col;
 	for (int32_t i = 0; i <= nFacets; i++)
 	{
-		float theta = float(i) / float(nFacets) * 2.0f * 3.14159265358979323846f;
-		points.push_back({ pos.x + radius * cosf(theta), pos.y + radius * sinf(theta) });
+		buffPoints.data[i + 1] = transformAffine.forwardRound<float>(buffUnitCirclePoints.data[i] * radius + pos);
+		buffColours.data[i + 1] = col;
 	}
 
-	return vecGPUTasks.emplace_back(
+	return vecGPUTasks.data.emplace_back(std::move(
 		TaskFillPolygon(
 			olc::Structure::Fan,
-			transformAffine.forwardRound<float>(points),
-			std::vector<olc::Pixel>(points.size(), col),
+			buffPoints.data,
+			buffColours.data,
 			tint
-		));
+		)));
 }
 
 const GPUTask& olc::Draw2D::FilledCircle(const olc::vf2d& pos, const float& radius, const olc::Pixel colInner, const olc::Pixel colOuter, const olc::Pixel tint, int32_t nFacets)
 {
 	PrepareTargetForHW();
 
-	std::vector<olc::vf2d> points;
-	std::vector<olc::Pixel> colours;
-	points.push_back(pos);
-	colours.push_back(colInner);
+	if (nFacets != int32_t(buffUnitCirclePoints.data.size() - 1))
+		RedefineUnitCircleBuffer(nFacets);
+	
+	buffPoints.reserve(nFacets + 2);
+	buffColours.reserve(nFacets + 2);
 
+	buffPoints.data[0] = transformAffine.forwardRound<float>(pos);
+	buffColours.data[0] = colInner;
 	for (int32_t i = 0; i <= nFacets; i++)
 	{
-		float theta = float(i) / float(nFacets) * 2.0f * 3.14159265358979323846f;
-		points.push_back({ pos.x + radius * cosf(theta), pos.y + radius * sinf(theta) });
-		colours.push_back(colOuter);
+		buffPoints.data[i + 1] = transformAffine.forwardRound<float>(buffUnitCirclePoints.data[i] * radius + pos);
+		buffColours.data[i + 1] = colOuter;
 	}
 	
-	return vecGPUTasks.emplace_back(
+	return vecGPUTasks.data.emplace_back(std::move(
 		TaskFillPolygon(
 			olc::Structure::Fan,
-			transformAffine.forwardRound<float>(points),
-			colours,
+			buffPoints.data,
+			buffColours.data,
 			tint
-		));
+		)));
 }
 
 const GPUTask& olc::Draw2D::Ellipse(const olc::vf2d& pos, const float& rx, const float& ry, const olc::Pixel col, const olc::Pixel tint, int32_t nFacets)
 {
 	PrepareTargetForHW();
 
-	std::vector<olc::vf2d> points;
+	buffPoints.reserve(nFacets + 1);
+	buffColours.reserve(nFacets + 1);
+
 	for (int32_t i = 0; i <= nFacets; i++)
 	{
-		float theta = float(i) / float(nFacets) * 2.0f * 3.14159265358979323846f;
-		points.push_back({ pos.x + rx * cosf(theta), pos.y + ry * sinf(theta) });
+		buffPoints.data[i] = transformAffine.forwardRound<float>({ pos.x + rx * buffUnitCirclePoints.data[i].x, pos.y + ry * buffUnitCirclePoints.data[i].y });
+		buffColours.data[i] = col;
 	}
 
-	return vecGPUTasks.emplace_back(
+	return vecGPUTasks.data.emplace_back(std::move(
 		TaskDrawPolygon(
 			olc::Structure::Line,
-			transformAffine.forwardRound<float>(points),
-			std::vector<olc::Pixel>(points.size(), col),
+			buffPoints.data,
+			buffColours.data,
 			tint
-		));
+		)));
 }
 
 const GPUTask& olc::Draw2D::FilledEllipse(const olc::vf2d& pos, const float& rx, const float& ry, const olc::Pixel col, const olc::Pixel tint, int32_t nFacets)
 {
 	PrepareTargetForHW();
-	
-	std::vector<olc::vf2d> points;
-	points.push_back(pos);
+		
+	buffPoints.reserve(nFacets + 2);
+	buffColours.reserve(nFacets + 2);
+
+	buffPoints.data[0] = transformAffine.forwardRound<float>(pos);
+	buffColours.data[0] = col;
 	for (int32_t i = 0; i <= nFacets; i++)
-	{
-		float theta = float(i) / float(nFacets) * 2.0f * 3.14159265358979323846f;
-		points.push_back({ pos.x + rx * cosf(theta), pos.y + ry * sinf(theta) });
+	{		
+		buffPoints.data[i + 1] = transformAffine.forwardRound<float>({ pos.x + rx * buffUnitCirclePoints.data[i].x, pos.y + ry * buffUnitCirclePoints.data[i].y});
+		buffColours.data[i + 1] = col;	
 	}
 
-	return vecGPUTasks.emplace_back(
+	return vecGPUTasks.data.emplace_back(std::move(
 		TaskFillPolygon(
 			olc::Structure::Fan,
-			transformAffine.forwardRound<float>(points),
-			std::vector<olc::Pixel>(points.size(), col),
+			buffPoints.data,
+			buffColours.data,
 			tint
-		));
+		)));
 }
 
 const GPUTask& olc::Draw2D::FilledEllipse(const olc::vf2d& pos, const float& rx, const float& ry, const olc::Pixel colInner, const olc::Pixel colOuter, const olc::Pixel tint, int32_t nFacets)
 {
 	PrepareTargetForHW();
 	
-	std::vector<olc::vf2d> points;
-	std::vector<olc::Pixel> colours;
-	points.push_back(pos);
-	colours.push_back(colInner);
-
+	buffPoints.reserve(nFacets + 2);
+	buffColours.reserve(nFacets + 2);
+	buffPoints.data[0] = transformAffine.forwardRound<float>(pos);
+	buffColours.data[0] = colInner;
+	
 	for (int32_t i = 0; i <= nFacets; i++)
 	{
-		float theta = float(i) / float(nFacets) * 2.0f * 3.14159265358979323846f;
-		points.push_back({ pos.x + rx * cosf(theta), pos.y + ry * sinf(theta) });
-		colours.push_back(colOuter);
+		buffPoints.data[i + 1] = transformAffine.forwardRound<float>({ pos.x + rx * buffUnitCirclePoints.data[i].x, pos.y + ry * buffUnitCirclePoints.data[i].y });
+		buffColours.data[i + 1] = colOuter;
 	}
 
-	return vecGPUTasks.emplace_back(
+	return vecGPUTasks.data.emplace_back(std::move(
 		TaskFillPolygon(
 			olc::Structure::Fan,
-			transformAffine.forwardRound<float>(points),
-			colours,
+			buffPoints.data,
+			buffColours.data,
 			tint
-		));
+		)));
 }
 
 const GPUTask& olc::Draw2D::RoundedRect(const olc::vf2d& pos, const olc::vf2d& size, const float& radius, const olc::Pixel col, const olc::Pixel tint, int32_t nFacets)
 {
 	PrepareTargetForHW();
 
-	std::vector<olc::vf2d> points;
+	buffPoints.reserve((nFacets + 1) * 4 + 1);
+	buffPoints.data.clear();
 
 	olc::vf2d adjustedPos = pos + olc::vf2d(radius, radius);
 	olc::vf2d adjustedSize = size - olc::vf2d(2.0f * radius, 2.0f * radius);
@@ -10003,89 +11251,90 @@ const GPUTask& olc::Draw2D::RoundedRect(const olc::vf2d& pos, const olc::vf2d& s
 	for (int32_t i = 0; i <= nFacets; i++)
 	{
 		float theta = (float(i) / float(nFacets)) * (0.5f * 3.14159265358979323846f) - (1.0f * 3.14159265358979323846f);
-		points.push_back({ adjustedPos.x + radius * cosf(theta), adjustedPos.y + radius * sinf(theta) });
+		buffPoints.data.push_back({ adjustedPos.x + radius * cosf(theta), adjustedPos.y + radius * sinf(theta) });
 	}
 
 	// Top Right
 	for (int32_t i = 0; i <= nFacets; i++)
 	{
 		float theta = (float(i) / float(nFacets)) * (0.5f * 3.14159265358979323846f) - (0.5f * 3.14159265358979323846f);
-		points.push_back({ adjustedPos.x + adjustedSize.x + radius * cosf(theta), adjustedPos.y + radius * sinf(theta) });
+		buffPoints.data.push_back({ adjustedPos.x + adjustedSize.x + radius * cosf(theta), adjustedPos.y + radius * sinf(theta) });
 	}
 
 	// Bottom Right
 	for (int32_t i = 0; i <= nFacets; i++)
 	{
 		float theta = (float(i) / float(nFacets)) * (0.5f * 3.14159265358979323846f) + (0.0f * 3.14159265358979323846f);
-		points.push_back({ adjustedPos.x + adjustedSize.x + radius * cosf(theta), adjustedPos.y + adjustedSize.y + radius * sinf(theta) });
+		buffPoints.data.push_back({ adjustedPos.x + adjustedSize.x + radius * cosf(theta), adjustedPos.y + adjustedSize.y + radius * sinf(theta) });
 	}
 
 	// Bottom Left
 	for (int32_t i = 0; i <= nFacets; i++)
 	{
 		float theta = (float(i) / float(nFacets)) * (0.5f * 3.14159265358979323846f) + (0.5f * 3.14159265358979323846f);
-		points.push_back({ adjustedPos.x + radius * cosf(theta), adjustedPos.y + adjustedSize.y + radius * sinf(theta) });
+		buffPoints.data.push_back({ adjustedPos.x + radius * cosf(theta), adjustedPos.y + adjustedSize.y + radius * sinf(theta) });
 	}
 
-	points.push_back({ adjustedPos.x - radius, adjustedPos.y});
+	buffPoints.data.push_back({ adjustedPos.x - radius, adjustedPos.y});
 
 
-	return vecGPUTasks.emplace_back(
+	return vecGPUTasks.data.emplace_back(std::move(
 		TaskDrawPolygon(
 			olc::Structure::Line,
-			transformAffine.forwardRound<float>(points),
-			std::vector<olc::Pixel>(points.size(), col),
+			transformAffine.forwardRound<float>(buffPoints.data),
+			std::vector<olc::Pixel>(buffPoints.data.size(), col),
 			tint
-		));
+		)));
 }
 
 const GPUTask& olc::Draw2D::FilledRoundedRect(const olc::vf2d& pos, const olc::vf2d& size, const float& radius, const olc::Pixel col, const olc::Pixel tint, int32_t nFacets)
 {
 	PrepareTargetForHW();
 
-	std::vector<olc::vf2d> points;
+	buffPoints.reserve((nFacets + 1) * 4 + 1);
+	buffPoints.data.clear();
 
 	olc::vf2d adjustedPos = pos + olc::vf2d(radius, radius);
 	olc::vf2d adjustedSize = size - olc::vf2d(2.0f * radius, 2.0f * radius);
 	
 	// Top Left
-	points.push_back({ adjustedPos.x, adjustedPos.y });
+	buffPoints.data.push_back({ adjustedPos.x, adjustedPos.y });
 	for (int32_t i = 0; i <= nFacets; i++)
 	{
 		float theta = (float(i) / float(nFacets)) * (0.5f * 3.14159265358979323846f) - (1.0f * 3.14159265358979323846f);
-		points.push_back({ adjustedPos.x + radius * cosf(theta), adjustedPos.y + radius * sinf(theta) });
+		buffPoints.data.push_back({ adjustedPos.x + radius * cosf(theta), adjustedPos.y + radius * sinf(theta) });
 	}
 	
 	// Top Right
 	for (int32_t i = 0; i <= nFacets; i++)
 	{
 		float theta = (float(i) / float(nFacets)) * (0.5f * 3.14159265358979323846f) - (0.5f * 3.14159265358979323846f);
-		points.push_back({ adjustedPos.x + adjustedSize.x + radius * cosf(theta), adjustedPos.y + radius * sinf(theta) });
+		buffPoints.data.push_back({ adjustedPos.x + adjustedSize.x + radius * cosf(theta), adjustedPos.y + radius * sinf(theta) });
 	}
 	
 	// Bottom Right
 	for (int32_t i = 0; i <= nFacets; i++)
 	{
 		float theta = (float(i) / float(nFacets)) * (0.5f * 3.14159265358979323846f) + (0.0f * 3.14159265358979323846f);
-		points.push_back({ adjustedPos.x + adjustedSize.x + radius * cosf(theta), adjustedPos.y + adjustedSize.y + radius * sinf(theta) });
+		buffPoints.data.push_back({ adjustedPos.x + adjustedSize.x + radius * cosf(theta), adjustedPos.y + adjustedSize.y + radius * sinf(theta) });
 	}
 	
 	// Bottom Left
 	for (int32_t i = 0; i <= nFacets; i++)
 	{
 		float theta = (float(i) / float(nFacets)) * (0.5f * 3.14159265358979323846f) + (0.5f * 3.14159265358979323846f);
-		points.push_back({ adjustedPos.x + radius * cosf(theta), adjustedPos.y + adjustedSize.y + radius * sinf(theta) });
+		buffPoints.data.push_back({ adjustedPos.x + radius * cosf(theta), adjustedPos.y + adjustedSize.y + radius * sinf(theta) });
 	}
 	
-	points.push_back({ adjustedPos.x - radius, adjustedPos.y });
+	buffPoints.data.push_back({ adjustedPos.x - radius, adjustedPos.y });
 	
-	return vecGPUTasks.emplace_back(
+	return vecGPUTasks.data.emplace_back(std::move(
 		TaskFillPolygon(
 			olc::Structure::Fan,
-			transformAffine.forwardRound<float>(points),
-			std::vector<olc::Pixel>(points.size(), col),
+			transformAffine.forwardRound<float>(buffPoints.data),
+			std::vector<olc::Pixel>(buffPoints.data.size(), col),
 			tint
-		));
+		)));
 }
 
 
@@ -10099,13 +11348,13 @@ const GPUTask& olc::Draw2D::Triangle(const olc::vf2d& p1, const olc::vf2d& p2, c
 {
 	PrepareTargetForHW();
 
-	return vecGPUTasks.emplace_back(
+	return vecGPUTasks.data.emplace_back(std::move(
 		TaskDrawPolygon(
 			olc::Structure::Fan,
-			transformAffine.forwardRound<float>({ p1, p2, p3 }),
+			transformAffine.forwardRoundX<float>({ p1, p2, p3 }),
 			{ c1, c2, c3 },
 			tint
-		));
+		)));
 }
 
 const GPUTask& olc::Draw2D::FilledTriangle(const olc::vf2d& p1, const olc::vf2d& p2, const olc::vf2d& p3, const olc::Pixel col, const olc::Pixel tint)
@@ -10117,13 +11366,13 @@ const GPUTask& olc::Draw2D::FilledTriangle(const olc::vf2d& p1, const olc::vf2d&
 {
 	PrepareTargetForHW();
 
-	return vecGPUTasks.emplace_back(
+	return vecGPUTasks.data.emplace_back(std::move(
 		TaskFillPolygon(
 			olc::Structure::Fan,
-			transformAffine.forwardRound<float>({ p1, p2, p3 }),
+			transformAffine.forwardRoundX<float>({ p1, p2, p3 }),
 			{ c1, c2, c3 },
 			tint
-		));
+		)));
 }
 
 const GPUTask& olc::Draw2D::TexturedTriangle(const olc::vf2d& p1, const olc::vf2d& p2, const olc::vf2d& p3, const olc::Pixel c1, const olc::Pixel c2, const olc::Pixel c3, const olc::vf2d& t1, const olc::vf2d& t2, const olc::vf2d& t3, olc::Image& texture, const olc::Pixel tint)
@@ -10131,15 +11380,15 @@ const GPUTask& olc::Draw2D::TexturedTriangle(const olc::vf2d& p1, const olc::vf2
 	PrepareTargetForHW();
 	PrepareImageForHW(texture);
 
-	return vecGPUTasks.emplace_back(
+	return vecGPUTasks.data.emplace_back(std::move(
 		TaskTexturedPolygon(
 			olc::Structure::Fan,
-			transformAffine.forwardRound<float>({ p1, p2, p3 }),
+			transformAffine.forwardRoundX<float>({ p1, p2, p3 }),
 			{ c1, c2, c3 },
 			{ t1, t2, t3 },
 			&texture,
 			tint
-		));
+		)));
 }
 
 const GPUTask& olc::Draw2D::Polygon(const std::vector<olc::vf2d>& vecPoints, const olc::Pixel col, const olc::Pixel tint)
@@ -10161,13 +11410,13 @@ const GPUTask& olc::Draw2D::Polygon(const olc::Structure structure, const std::v
 {
 	PrepareTargetForHW();
 
-	return vecGPUTasks.emplace_back(
+	return vecGPUTasks.data.emplace_back(std::move(
 		TaskDrawPolygon(
 			structure,
 			transformAffine.forwardRound<float>(vecPoints),
 			vecColours,
 			tint
-		));
+		)));
 }
 
 const GPUTask& olc::Draw2D::FilledPolygon(const olc::Structure structure, const std::vector<olc::vf2d>& vecPoints, const olc::Pixel col, const olc::Pixel tint)
@@ -10179,13 +11428,13 @@ const GPUTask& olc::Draw2D::FilledPolygon(const olc::Structure structure, const 
 {
 	PrepareTargetForHW();
 
-	return vecGPUTasks.emplace_back(
+	return vecGPUTasks.data.emplace_back(std::move(
 		TaskFillPolygon(
 			structure,
 			transformAffine.forwardRound<float>(vecPoints),
 			vecColours,
 			tint
-		));
+		)));
 }
 
 const GPUTask& olc::Draw2D::TexturedPolygon(const olc::Structure structure, const std::vector<olc::vf2d>& vecPoints, const std::vector<olc::Pixel>& vecColours, const std::vector<olc::vf2d>& vecTexCoords, olc::Image& texture, const olc::Pixel tint)
@@ -10193,7 +11442,7 @@ const GPUTask& olc::Draw2D::TexturedPolygon(const olc::Structure structure, cons
 	PrepareTargetForHW();
 	PrepareImageForHW(texture);
 
-	return vecGPUTasks.emplace_back(
+	return vecGPUTasks.data.emplace_back(std::move(
 		TaskTexturedPolygon(
 			structure,
 			transformAffine.forwardRound<float>(vecPoints),
@@ -10201,7 +11450,7 @@ const GPUTask& olc::Draw2D::TexturedPolygon(const olc::Structure structure, cons
 			vecTexCoords,
 			&texture,
 			tint
-		));
+		)));
 }
 
 const GPUTask& olc::Draw2D::String(const olc::vf2d& pos, const std::string& text, const olc::Pixel col, const olc::vf2d& scale, olc::Font& font)
@@ -10311,7 +11560,7 @@ ImageBatch olc::Draw2D::CreateImageBatch(olc::Image &image)
 
 const GPUTask& olc::Draw2D::Batch(const ImageBatch& batch)
 {
-	return vecGPUTasks.emplace_back(batch.task);
+	return vecGPUTasks.data.emplace_back(batch.task);
 }
 
 FilledBatch olc::Draw2D::CreateFilledBatch()
@@ -10321,7 +11570,7 @@ FilledBatch olc::Draw2D::CreateFilledBatch()
 
 const GPUTask& olc::Draw2D::Batch(const olc::FilledBatch& batch)
 {
-	return vecGPUTasks.emplace_back(batch.task);
+	return vecGPUTasks.data.emplace_back(batch.task);
 }
 
 LineBatch olc::Draw2D::CreateLineBatch()
@@ -10331,7 +11580,7 @@ LineBatch olc::Draw2D::CreateLineBatch()
 
 const GPUTask& olc::Draw2D::Batch(const olc::LineBatch& batch)
 {
-	return vecGPUTasks.emplace_back(batch.task);
+	return vecGPUTasks.data.emplace_back(batch.task);
 }
 
 const ImageBatch& olc::Draw2D::Image(ImageBatch& batch, olc::ImageRegion image, const olc::vf2d& pos, const olc::vf2d& scale, const olc::Pixel tint)
@@ -10344,6 +11593,7 @@ const ImageBatch& olc::Draw2D::Image(ImageBatch& batch, olc::ImageRegion image, 
 	olc::vf2d p2 = transformAffine.forward(olc::vf2d{ pos.x + size.x, pos.y + size.y });
 	olc::vf2d p3 = transformAffine.forward(olc::vf2d{ pos.x, pos.y + size.y });
 
+	//batch.task.vertexBuffer.reserve(batch.task.vertexBuffer.size() + 6); // NOTE!! This tanked performance on large batches
 	batch.task.vertexBuffer.push_back({ {p0.x, p0.y, 1.0f, 1.0f}, tint, {image.coords[0].x, image.coords[0].y}, {0, 0}, {0, 0}, {0, 0} });
 	batch.task.vertexBuffer.push_back({ {p1.x, p1.y, 1.0f, 1.0f}, tint, {image.coords[1].x, image.coords[1].y}, {0, 0}, {0, 0}, {0, 0} });
 	batch.task.vertexBuffer.push_back({ {p2.x, p2.y, 1.0f, 1.0f}, tint, {image.coords[2].x, image.coords[2].y}, {0, 0}, {0, 0}, {0, 0} });
@@ -10365,10 +11615,15 @@ const GPUTask& olc::Draw2D::Image(olc::ImageRegion image, const olc::vf2d& pos, 
 
 	olc::vf2d size = image.regionsize * scale;
 
-	return vecGPUTasks.emplace_back(
+	return vecGPUTasks.data.emplace_back(std::move(
 		TaskTexturedPolygon(
 			olc::Structure::Fan,
-			transformAffine.forward<float>({ { pos.x, pos.y }, { pos.x + size.x, pos.y }, { pos.x + size.x, pos.y + size.y }, { pos.x, pos.y + size.y } }),
+			transformAffine.forwardRoundX<float>({
+				{ pos.x, pos.y }, 
+				{ pos.x + size.x, pos.y }, 
+				{ pos.x + size.x, pos.y + size.y }, 
+				{ pos.x, pos.y + size.y } 
+			}),
 			{ tint, tint, tint, tint },
 			// Tex coords are clockwise
 			{ 
@@ -10378,7 +11633,7 @@ const GPUTask& olc::Draw2D::Image(olc::ImageRegion image, const olc::vf2d& pos, 
 				image.coords[3],
 			},
 			&image.image.get()
-		));
+		)));
 
 }
 
@@ -10400,14 +11655,14 @@ const GPUTask& olc::Draw2D::ImageRotated(olc::ImageRegion image, const olc::vf2d
 	for (size_t i = 0; i < 4; i++)
 		vPoints[i] = pos + olc::vf2d(vPoints[i].x * c - vPoints[i].y * s, vPoints[i].x * s + vPoints[i].y * c);
 
-	return vecGPUTasks.emplace_back(
+	return vecGPUTasks.data.emplace_back(std::move(
 		TaskTexturedPolygon(
 			olc::Structure::Fan,
 			transformAffine.forward<float>(vPoints),
 			{ tint, tint, tint, tint},
 			{ image.coords[0], image.coords[1], image.coords[2], image.coords[3] },
 			&image.image.get()
-		));
+		)));
 }
 
 const ImageBatch& olc::Draw2D::ImageRotated(olc::ImageBatch& batch, olc::ImageRegion image, const olc::vf2d& pos, const float theta, const olc::vf2d& center, const olc::vf2d& scale, const olc::Pixel tint)
@@ -10430,6 +11685,7 @@ const ImageBatch& olc::Draw2D::ImageRotated(olc::ImageBatch& batch, olc::ImageRe
 	olc::vf2d p2 = transformAffine.forward(vPoints[2]);
 	olc::vf2d p3 = transformAffine.forward(vPoints[3]);
 
+	//batch.task.vertexBuffer.reserve(batch.task.vertexBuffer.size() + 6);
 	batch.task.vertexBuffer.push_back({ {p0.x, p0.y, 1.0f, 1.0f}, tint, {image.coords[0].x, image.coords[0].y}, {0, 0}, {0, 0}, {0, 0} });
 	batch.task.vertexBuffer.push_back({ {p1.x, p1.y, 1.0f, 1.0f}, tint, {image.coords[1].x, image.coords[1].y}, {0, 0}, {0, 0}, {0, 0} });
 	batch.task.vertexBuffer.push_back({ {p2.x, p2.y, 1.0f, 1.0f}, tint, {image.coords[2].x, image.coords[2].y}, {0, 0}, {0, 0}, {0, 0} });
@@ -10474,27 +11730,27 @@ const GPUTask& olc::Draw2D::ImageQuad(olc::ImageRegion image, const olc::vf2d& v
 			d[3] == 0.0f ? 1.0f : (d[3] + d[1]) / d[1],
 		} };
 	
-		return vecGPUTasks.emplace_back(
+		return vecGPUTasks.data.emplace_back(std::move(
 			TaskTexturedPolygon(
 				olc::Structure::Fan,
-				transformAffine.forwardRound<float>({ vTL, vTR, vBR, vBL }),
+				transformAffine.forwardRoundX<float>({ vTL, vTR, vBR, vBL }),
 				{ {q[0], 1.0f}, {q[1], 1.0f}, {q[2], 1.0f}, {q[3], 1.0f} },
 				{ tint, tint, tint, tint},
 				{ image.coords[0] * q[0], image.coords[1] * q[1], image.coords[2] * q[2], image.coords[3] * q[3] },
 				&image.image.get()
-			));		
+			)));		
 		
 	}
 
 	// Default is just return a textured quad
-	return vecGPUTasks.emplace_back(
+	return vecGPUTasks.data.emplace_back(std::move(
 		TaskTexturedPolygon(
 			olc::Structure::Fan,
-			transformAffine.forwardRound<float>({ vTL, vTR, vBR, vBL }),
+			transformAffine.forwardRoundX<float>({ vTL, vTR, vBR, vBL }),
 			{ tint, tint, tint, tint },
 			{ image.coords[0], image.coords[1], image.coords[2], image.coords[3] },
 			&image.image.get()
-		));
+		)));
 }
 
 const ImageBatch& olc::Draw2D::ImageQuad(olc::ImageBatch& batch, olc::ImageRegion image, const olc::vf2d& vTL, const olc::vf2d& vTR, const olc::vf2d& vBR, const olc::vf2d& vBL, const olc::Pixel tint)
@@ -10529,6 +11785,7 @@ const ImageBatch& olc::Draw2D::ImageQuad(olc::ImageBatch& batch, olc::ImageRegio
 		olc::vf2d p2 = transformAffine.forward(vBR);
 		olc::vf2d p3 = transformAffine.forward(vBL);
 
+		//batch.task.vertexBuffer.reserve(batch.task.vertexBuffer.size() + 6);
 		batch.task.vertexBuffer.push_back({ {p0.x, p0.y, q[0], 1.0f}, tint, {q[0] * image.coords[0].x, q[0] * image.coords[0].y}, {0, 0}, {0, 0}, {0, 0}});
 		batch.task.vertexBuffer.push_back({ {p1.x, p1.y, q[1], 1.0f}, tint, {q[1] * image.coords[1].x, q[1] * image.coords[1].y}, {0, 0}, {0, 0}, {0, 0}});
 		batch.task.vertexBuffer.push_back({ {p2.x, p2.y, q[2], 1.0f}, tint, {q[2] * image.coords[2].x, q[2] * image.coords[2].y}, {0, 0}, {0, 0}, {0, 0}});
@@ -10562,15 +11819,15 @@ const GPUTask& olc::Draw2D::ImageRect(olc::ImageRegion image, const olc::vf2d& p
 
 	PrepareTargetForHW();
 
-	return vecGPUTasks.emplace_back(
+	return vecGPUTasks.data.emplace_back(std::move(
 		TaskTexturedPolygon(
 			olc::Structure::Fan,
-			transformAffine.forwardRound<float>({ { pos.x, pos.y }, { pos.x + size.x, pos.y }, { pos.x + size.x, pos.y + size.y }, { pos.x, pos.y + size.y } }),
+			transformAffine.forwardRoundX<float>({ { pos.x, pos.y }, { pos.x + size.x, pos.y }, { pos.x + size.x, pos.y + size.y }, { pos.x, pos.y + size.y } }),
 			{ tint, tint, tint, tint },
 			// Tex coords are clockwise
 			{ image.coords[0], image.coords[1], image.coords[2], image.coords[3] },
 			&image.image.get()
-		));
+		)));
 }
 
 const ImageBatch& olc::Draw2D::ImageRect(olc::ImageBatch& batch, olc::ImageRegion image, const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel tint)
@@ -11018,6 +12275,8 @@ void olc::Draw2D::swRasterTexturedTriangle(const olc::vi2d& v1, const olc::vi2d&
 	return;
 }
 
+
+
 void olc::Draw2D::swRasterShadedLine(const olc::vi2d& v1, const olc::vi2d& v2, const olc::Pixel c1, const olc::Pixel c2)
 {
 	PrepareTargetForSW();
@@ -11139,13 +12398,16 @@ namespace olc
 		return true;
 	}
 
-	bool PGEWindow::olc_WindowUpdate(const float fElapsedTime)
+	bool PGEWindow::olc_WindowUpdate(const float fElapsedTime, const float fTotalElapsedTime)
 	{
 		// Input Changes
 		mouse.UpdateState();
 		
 		draw.SetGPU(pRenderer);
 		draw.SetTarget(GetDefaultImage());
+
+		pRenderer->DisplayPrepare(fElapsedTime, fTotalElapsedTime);
+
 #if OLC_MULTIWINDOW == OLC_MULTIWINDOW_YES
 		pRenderer->RetargetDevice(pHost->GetHostWindowDescriptor(this));
 #endif
@@ -11175,10 +12437,13 @@ namespace olc
 			pRenderer->ResolveMSAA(uint32_t(GetDefaultImage().GetGPUID()));
 		}
 
+		draw.ResetShader();
+
 		// Take the window's completed "screen" and draw it as a textured quad to the backbuffer
 		pRenderer->AssignTextureTarget(0, 0);
 		pRenderer->SetViewport({ 0,0 }, GetWindowSize());
 		pRenderer->ClearViewport(olc::Colour::MAGENTA, true, true);
+		
 		
 		draw.WorldReset();		
 		draw.ImageRect(GetDefaultImage().flipV(), {0.0,0.0}, GetWindowSize());
@@ -11329,6 +12594,9 @@ namespace olc
 		#if OLC_HOST == OLC_HOST_LINUX_X11
 		host = std::make_unique<olc::host::Host_Linux_X11>();
 		#endif
+		#if OLC_HOST == OLC_HOST_LINUX_WAYLAND
+		host = std::make_unique<olc::host::Host_Linux_Wayland>();
+		#endif
 		#if OLC_HOST == OLC_HOST_EMSCRIPTEN
 		host = std::make_unique<olc::host::Host_Web_Emscripten>();
 		#endif
@@ -11356,6 +12624,16 @@ namespace olc
 #endif
 		
 		return true;
+	}
+
+	float PixelGameEngine::FrameTimeElapsed() const
+	{
+		return durationFrame.count();
+	}
+
+	double PixelGameEngine::TotalTimeElapsed() const
+	{
+		return durationTotalElapsed.count();
 	}
 
 	bool PixelGameEngine::AddChildWindow(std::shared_ptr<olc::PGEWindow> window, const olc::vi2d& vScreenSize, const olc::vi2d& vPixelSize)
@@ -11407,8 +12685,13 @@ namespace olc
 			pge->durationFrame = pge->timeFrame1 - pge->timeFrame2;
 			pge->timeFrame2 = pge->timeFrame1;
 
+			pge->durationTotalElapsed += pge->durationFrame;
+
 			// Our time per frame coefficient
 			float fDT = pge->durationFrame.count();
+			
+			// Our Total Time accumulator
+			float fTT = float(pge->durationTotalElapsed.count());
 
 			pge->frameCount++;
 			pge->durationFrameCount += pge->durationFrame;
@@ -11421,7 +12704,7 @@ namespace olc
 				pge->frameCount = 0;
 			}
 				
-
+			
 			
 			// Primary Window
 			if (pge->olc_ShouldRemove())
@@ -11437,7 +12720,7 @@ namespace olc
 #if OLC_MULTIWINDOW == OLC_MULTIWINDOW_YES
 				// Update Child Windows (if any)
 				for (auto& winChild : deqChildWindows)
-					winChild->olc_WindowUpdate(fDT);
+					winChild->olc_WindowUpdate(fDT, fTT);
 
 				// Remove child windows that have requested closure
 				if (!deqChildWindows.empty())
@@ -11456,7 +12739,7 @@ namespace olc
 #endif
 
 				// Update Primary Window
-				pge->olc_WindowUpdate(fDT);
+				pge->olc_WindowUpdate(fDT, fTT);
 
 				// Wait for vertical sync if required. 
 				// Note: Child windows will never vsync as waiting for each buffer swap with vsync
@@ -11492,6 +12775,10 @@ namespace olc
 		#endif
 
 		#if OLC_HOST == OLC_HOST_LINUX_X11
+		imageloader = std::make_unique<olc::imload::ImageLoader_LibPNG>();
+		#endif
+
+		#if OLC_HOST == OLC_HOST_LINUX_WAYLAND
 		imageloader = std::make_unique<olc::imload::ImageLoader_LibPNG>();
 		#endif
 
@@ -12231,4 +13518,22 @@ namespace olc::imload
 #endif
 #define PGE_IMAGELOADER_IMPLEMENTED 1
 #endif
+
+/*
+
+So you scrolled all this way huh ? In that case:
+
+28 04 56 02 0D   16 5D            4A 15 19 49 01 
+19 5A 02 41 19   1D 0C            1D 4B 4A 4C 56
+0A 0B    1C 50   04 06            56 00 
+17 58    51 0B   13 12            49 01 
+16 56    1F 06   1E 49            13 11 
+4D 02    0E 03   1D 44            1A 5C 
+06 08    02 1D   08 11            57 0D 
+41 13 08 07 10   19 05 15 1E 0C   16 5F 4A 4A 00 
+14 00 08 11 4D   03 04 05 48 44   55 19 00 19 4F 
+
+*/
+
+// Thank you for using olcPixelGameEngine! :)
 

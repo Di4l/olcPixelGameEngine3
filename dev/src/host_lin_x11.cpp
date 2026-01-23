@@ -154,7 +154,7 @@ namespace olc::host
         
         XMapWindow(olc_Display, olc_Window);
         XStoreName(olc_Display, olc_Window, "OneLoneCoder.com - Pixel Game Engine");
-            pWindow->SetWindowSize(vWindowSize);
+        pWindow->SetWindowSize(vWindowSize);
             
         mapUID2X11Window.insert_or_assign(pWindow->GetUID(), olc_Window);
 		mapX11Window2PTR.insert_or_assign(olc_Window, pWindow);

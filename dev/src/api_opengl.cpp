@@ -64,6 +64,7 @@ namespace olc::apis::opengl
 		bLoaded &= (_glFramebufferRenderbuffer = OGL_LOAD(glFramebufferRenderbuffer)) != nullptr;
 		bLoaded &= (_glDeleteRenderbuffers = OGL_LOAD(glDeleteRenderbuffers)) != nullptr;
 		bLoaded &= (_glGetInternalformativ = OGL_LOAD(glGetInternalformativ)) != nullptr;
+		bLoaded &= (_glGetShaderiv = OGL_LOAD(glGetShaderiv)) != nullptr;
 
 		
 		return bLoaded;
@@ -457,6 +458,12 @@ namespace olc::apis::opengl
 	void gl::glGetInternalformativ(GLenum target, GLenum internalformat, GLenum pname, GLsizei bufSize, GLint* params)
 	{
 		_glGetInternalformativ(target, internalformat, pname, bufSize, params);
+		CheckError();
+	}
+
+	void gl::glGetShaderiv(GLuint shader, GLenum pname, GLint* params)
+	{
+		_glGetShaderiv(shader, pname, params);
 		CheckError();
 	}
 }

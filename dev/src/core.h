@@ -89,7 +89,6 @@ namespace olc
 		void LinkToRenderer(olc::gpu::Renderer* gpu);
 		void LinkToImageLoader(olc::imload::ImageLoader* imload);
 
-
 	public:
 		// Returns the image that represents the primary drawing surface
 		olc::Image& GetDefaultImage();
@@ -103,7 +102,7 @@ namespace olc
 		bool olc_OnMouseMove(const olc::vi2d& vMousePos) override;
 
 	public:
-		virtual bool olc_WindowUpdate(const float fElapsedTime);
+		virtual bool olc_WindowUpdate(const float fElapsedTime, const float fTotalElapsedTime);
 
 	protected:
 		olc::Draw2D draw;
@@ -134,6 +133,11 @@ namespace olc
 		// Start the PGE main engine loop (on its own thread)
 		bool Start();
 
+
+	public:
+		float FrameTimeElapsed() const;
+		double TotalTimeElapsed() const;
+
 	public: // Child Windows
 		bool AddChildWindow(std::shared_ptr<olc::PGEWindow> window, const olc::vi2d& vScreenSize, const olc::vi2d& vPixelSize);
 	
@@ -149,6 +153,7 @@ namespace olc
 		std::chrono::steady_clock::time_point timeFrame2;
 		std::chrono::duration<float> durationFrame{ 0 };
 		std::chrono::duration<float> durationFrameCount{ 0 };
+		std::chrono::duration<double> durationTotalElapsed{ 0 };
 		size_t frameCount = 0;
 
 		// PGE Configuration

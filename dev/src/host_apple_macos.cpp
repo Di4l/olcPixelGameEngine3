@@ -5,7 +5,7 @@
 
 //! START IMPLEMENTATION
 namespace olc::host {
-    
+
     bool Host_Apple_MacOS::StartSystemEventLoop(bool bBlockIfPossible)
     {
         (void)(bBlockIfPossible); // Remove unused variable warning
@@ -23,9 +23,7 @@ namespace olc::host {
         
         // Initialize the MacOS Window
         pMacOSWindow = std::make_unique<olc::apis::macos::Window>(frameBounds.width, frameBounds.height, "OLC PGE 3 MacOS Demo");
-        
         pMacOSWindow->setPosition(frameBounds.x, frameBounds.y);
-        
         pMacOSWindow->setContentViewPosition(0, 0);
         
         // Set up window event handlers
@@ -40,9 +38,6 @@ namespace olc::host {
         // Create the window
         pMacOSWindow->show();
         pMacOSEventHandler->enable();
-        
-        // Tell the PGE engine we have an OpenGL context ready
-        bInitializeOpenGLRenderer = true;
         
         // Start the main event loop (this will block)
         pMacApplication->run();
@@ -88,35 +83,13 @@ namespace olc::host {
 
     std::vector<void*> Host_Apple_MacOS::GetHostWindowDescriptor(olc::Window* pWindow)
     {
-        // We need to manage a race condition here. The window is created on the main thread
-        while(!bInitializeOpenGLRenderer)
-        {
-            std::this_thread::sleep_for(std::chrono::milliseconds(raceConditionTimeoutMS));
-        }
+               
+        // While the PGE is running, if there are pending main thread tasks, process them, this causes PGE to wait
+        bSkipFrame = ExecutePendingMainThreadTasks();
         
+        // Ensure OpenGL renderer is created
         if(pMacOSOpenGLRenderer == nullptr)
-        {
-            vMacOSWindowDescriptors.clear(); // ensure we are starting fresh
-            pMacOSOpenGLRenderer = std::make_shared<olc::apis::macos::OpenGLRenderer>();
-            
-            dispatch_sync(dispatch_get_main_queue(), ^{
-                 // Edge case for when the window is auto resize due to MacOS clamping to screen size
-                pMacOSWindow->getContentViewSize(frameBounds.width, frameBounds.height);
-                pPGEwindow->olc_OnWindowSize({static_cast<int>(frameBounds.width), static_cast<int>(frameBounds.height)});
-
-                pMacOSOpenGLRenderer->attachToWindow(*pMacOSWindow);
-                pMacOSOpenGLRenderer->setupContext();
-            });
-            
-            pMacGLConextObj = pMacOSOpenGLRenderer->getCGLContextObj();
-            
-            pMacOSOpenGLRenderer->setVsync(false);
-            
-            vMacOSWindowDescriptors.push_back(pMacGLConextObj);
-
-             // Set up OpenGL renderer for visual feedback
-            pMacOSOpenGLRenderer->makeCurrentContext();
-        }
+            CreateCGLContextObj();
 
         return vMacOSWindowDescriptors;
        
@@ -129,6 +102,12 @@ namespace olc::host {
 
     bool Host_Apple_MacOS::SyncWithDesktopComposite()
     {
+        /*
+         core.h SyncWithDesktopComposite is only called when vSync is enabled on each frame,
+         the method of enabling vSync varies between platforms, For macos we use a local var enableVSync,
+         set to false and toggle it on first call, so that vSync is only enabled once
+         */
+        
         if(!enableVSync)
         {
             pMacOSOpenGLRenderer->enableVsync();
@@ -138,6 +117,147 @@ namespace olc::host {
         return enableVSync;
     }
 
+// ------- Priavate Main Thread Task Handling for MacOS Host -------
+
+    bool Host_Apple_MacOS::CreateCGLContextObj()
+    {
+        // This method should only be called on the PGE thread, use AddPendingMainThreadTask(CREATE_OPENGL_RENDERER); to queue it if needed
+        if(pMacOSOpenGLRenderer == nullptr)
+       {
+           vMacOSWindowDescriptors.clear(); // ensure we are starting fresh
+           pMacOSOpenGLRenderer = std::make_shared<olc::apis::macos::OpenGLRenderer>();
+           
+           dispatch_sync(dispatch_get_main_queue(), ^{
+                // Edge case for when the window is auto resize due to MacOS clamping to screen size
+               pMacOSWindow->getContentViewSize(frameBounds.width, frameBounds.height);
+               pPGEwindow->olc_OnWindowSize({static_cast<int>(frameBounds.width), static_cast<int>(frameBounds.height)});
+
+               pMacOSOpenGLRenderer->attachToWindow(*pMacOSWindow);
+               pMacOSOpenGLRenderer->setupContext();
+           });
+           
+           pMacGLConextObj = pMacOSOpenGLRenderer->getCGLContextObj();
+           
+           pMacOSOpenGLRenderer->setVsync(false);
+           
+           vMacOSWindowDescriptors.push_back(pMacGLConextObj); // Pointer to CGLContextObj
+           vMacOSWindowDescriptors.push_back(&bSkipFrame);     // Pointer to skip frame flag
+
+            // Set up OpenGL renderer for visual feedback
+           pMacOSOpenGLRenderer->makeCurrentContext();
+       }
+        
+        return true;
+    }
+
+    bool Host_Apple_MacOS::ExecutePendingMainThreadTasks()
+    {
+        // 1: Check if main thread wants us to wait
+        std::unique_lock<std::mutex> lock(pgeThreadPendingTasksMutex);
+        
+        if (isPGEThreadResetting.load()) {
+            
+            // 2. PGE Thread signals it's waiting
+            {
+                std::lock_guard<std::mutex> mainLock(mainThreadPendingTasksMutex);
+                isMainThreadResetting = true;  // Signal to main thread we're waiting
+            }
+            mainThreadResetCondition.notify_all();  // Wake up main thread
+
+            // Note: MainThreadTasks(); will be called by the main thread to process tasks
+            
+            // 3. PGE Thread waits for main thread to finish
+            pgeThreadResetCondition.wait(lock, [this] { 
+                return !isPGEThreadResetting.load(); 
+            });
+
+            //4: return true indicating we processed tasks
+            return true;
+        }
+        else
+        {
+            // No pending tasks, just return
+            return false;
+        }
+    }
+
+    bool Host_Apple_MacOS::AddPendingMainThreadTask(MAINTASKS task)
+    {
+        // NOTE: Note: You should only add tasks that require main thread execution
+        vPendingMainThreadTasks.push_back(task);
+        MainThreadTasks();
+            
+        return true;
+    }
+    
+    bool Host_Apple_MacOS::MainThreadTasks()
+    {
+        bool res = false;
+        if(vPendingMainThreadTasks.empty())
+            return res;         // edge case
+        
+        // 1. Main Thread locks PGE Thread
+        {
+            std::lock_guard<std::mutex> lock(pgeThreadPendingTasksMutex);
+            isPGEThreadResetting = true;  // Signal PGE to stop
+        }
+        pgeThreadResetCondition.notify_all();  // Wake up PGE thread to check flag
+        
+        // 2. Main Thread waits for PGE Thread to acknowledge and wait
+        std::unique_lock<std::mutex> lock(mainThreadPendingTasksMutex);
+        mainThreadResetCondition.wait(lock, [this] {
+            return isMainThreadResetting.load(); // Wait until PGE signals it's waiting
+        });
+        
+        // Process any pending main thread tasks
+        for (const auto& task : vPendingMainThreadTasks)
+        {
+            switch (task)
+            {
+                case CREATE_OPENGL_RENDERER:
+                {
+                    // In this case, the PGE will be waiting for main thread to singal, so the ContextOBJ can be created
+                    res = false; // No need to skip frame
+                    break;
+                }
+                case RESIZE_WINDOW:
+                {
+                    // Resize window on main thread
+                    pMacOSWindow->getContentViewSize(frameBounds.width, frameBounds.height);
+                    pPGEwindow->olc_OnWindowSize({static_cast<int>(frameBounds.width), static_cast<int>(frameBounds.height)});
+                    pMacOSOpenGLRenderer->resetContextSize(frameBounds.width, frameBounds.height);
+                    res = true; // Skip frame to allow resize to take effect
+                    break;
+                }
+                case MINIMIZE_WINDOW:
+                case DEMINIMIZE_WINDOW:
+                case BECOME_ACTIVE:
+                case RESIGN_ACTIVE:
+                case NONE:
+                default:
+                {
+                    res = false;
+                    break;
+                }
+                    
+            }
+        }
+        vPendingMainThreadTasks.clear();
+        
+        // Release any locks on the PGE
+        // 4. Main Thread unlocks PGE Thread
+        {
+            std::lock_guard<std::mutex> lock(pgeThreadPendingTasksMutex);
+            isPGEThreadResetting = false;  // Release PGE thread
+            isMainThreadResetting = false; // Reset main thread flag
+        }
+        pgeThreadResetCondition.notify_all();  // Wake up PGE thread
+
+        return res;
+        
+    }
+
+//------ Events Handlers -----
 
     void Host_Apple_MacOS::MacApplicationEventsHandler()
     {
@@ -149,13 +269,13 @@ namespace olc::host {
        
        pMacApplication->setDidFinishLaunchingCallback([&]() {
            //std::cout << "--> Application delegate: Did finish launching" << std::endl;
-           // Tell the PGE 3.0 we have looded the application
-           bApplicationInitialized = true;
+           // Queue the Create OpenGL context task
+           vPendingMainThreadTasks.push_back(CREATE_OPENGL_RENDERER);
        });
        
        pMacApplication->setWillTerminateCallback([&]() {
            //std::cout << "--> Application delegate: Will terminate" << std::endl;
-           // TODO: Johnngy63 - Implement olc_OnApplicationTerminate in window.h/cpp
+           // TODO: Johnngy63 - Implement olc_OnDestory in window.h/cpp
            
        });
        
@@ -173,13 +293,8 @@ namespace olc::host {
     {
         // Window event handling code here
         pMacOSWindow->setWindowDidResizeCallback([&]() {
-            dispatch_async(dispatch_get_main_queue(), ^{
-                double width, height;
-                pMacOSWindow->getContentViewSize(width, height);
-                //pPGEwindow->olc_OnWindowSize({static_cast<int>(width), static_cast<int>(height)});
-            });
-          
-
+            AddPendingMainThreadTask(RESIZE_WINDOW);
+            
         });
 
         pMacOSWindow->setWindowWillCloseCallback([&]() {
@@ -190,28 +305,30 @@ namespace olc::host {
 
         pMacOSWindow->setWindowDidBecomeKeyCallback([&]() {
             //TODO: Johnngy63 - Implement olc_OnWindowFocus in window.h/cpp
+            AddPendingMainThreadTask(BECOME_ACTIVE);
         });
 
         pMacOSWindow->setWindowDidResignKeyCallback([&]() {
             //TODO: Johnngy63 - Implement olc_OnWindowFocus in window.h/cpp
+            
         });
        
-        pMacOSWindow->setWindowDidMiniaturizeCallback([]() {
-            //todo: Johnngy63 - Implement olc_OnWindowMinimize in window.h/cpp if needed
+        pMacOSWindow->setWindowDidMiniaturizeCallback([&]() {
+            //TODO: Johnngy63 - Implement olc_OnWindowMinimize in window.h/cpp if needed
+            AddPendingMainThreadTask(MINIMIZE_WINDOW);
         });
        
-        pMacOSWindow->setWindowDidDeminiaturizeCallback([]() {
+        pMacOSWindow->setWindowDidDeminiaturizeCallback([&]() {
             //TODO: Johnngy63 - Implement olc_OnWindowFocus in window.h/cpp if needed
+            AddPendingMainThreadTask(DEMINIMIZE_WINDOW);
         });
         
-        // Tell the PGE engine we have a window initialized
-        bWindowInitialized = true;
     }
 
 
     void Host_Apple_MacOS::MacEventsHandler()
     {
-        // General MacOS event handling code here
+        // General MacOS key event handling code here
         // Reference: https://eastmanreference.com/complete-list-of-applescript-key-codes
 
         // Set up keyboard event handlers
@@ -300,16 +417,11 @@ namespace olc::host {
             pPGEwindow->olc_OnMouseMove({static_cast<int>(event.x), static_cast<int>(event.y)});
         });
 
-       
-
         pMacOSEventHandler->onScrollWheel([&](const olc::apis::macos::ScrollWheelEvent& event) {
             // Although MacOS provides both deltaX and deltaY, we will only use deltaY for vertical scrolling
             pPGEwindow->olc_OnMouseWheel(static_cast<int>(event.deltaY));
         });
         
-        // Tell the PGE engine we have an event handler initialized
-        bEventHandlerInitialized = true;
-
     }
 
 

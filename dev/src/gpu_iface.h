@@ -32,6 +32,7 @@ namespace olc
 			FailedToSetDCPixelFormat,
 			FailedToCreateRenderContext,
 			FailedToSwitchRenderContext,
+			FailedToCompileShader,
 		};
 
 		class Shader
@@ -45,10 +46,22 @@ namespace olc
 			void SetGeometryShaderSource(const std::string& src);
 
 			virtual std::string Compile() = 0;
-			virtual uint32_t CreateUniform(const std::string& name) = 0;
+			virtual int32_t CreateUniform(const std::string& name) = 0;
 
-			uint32_t GetUniform(const std::string& name)	const;
+			int32_t GetUniform(const std::string& name)	const;
 			uint32_t GetShaderID() const;
+
+
+		public:
+			static std::string PS_DefaultHeader();
+			static std::string PS_DefaultMain();
+			
+			static std::string VS_DefaultHeader();
+			static std::string VS_DefaultMain();
+			
+			static std::string GS_DefaultHeader();
+			static std::string GS_DefaultMain();
+
 
 		protected:
 			std::string srcPixelShader;
@@ -59,6 +72,13 @@ namespace olc
 			uint32_t nGeometryShaderID = 0;
 			uint32_t nCompiledShaderID = 0 ;
 			std::unordered_map<std::string, uint32_t> mapUniforms;
+
+			static std::string static_PS_DefaultHeader;
+			static std::string static_PS_DefaultMain;
+			static std::string static_VS_DefaultHeader;
+			static std::string static_VS_DefaultMain;
+			static std::string static_GS_DefaultHeader;
+			static std::string static_GS_DefaultMain;			
 		};
 
 		class Renderer
@@ -102,8 +122,16 @@ namespace olc
 
 		public: // Shader Construction Stuff
 
+			// Change the shader used for subsequent GPU drawing tasks
 			virtual bool ApplyShader(const Shader& shader) = 0;
+			// Reset to default shader for subsequent GPU drawing tasks
 			virtual bool ApplyDefaultShader() = 0;
+			// Set uniform variable for subsequent GPU drawing tasks
+			virtual bool SetUniform(const std::string& name, const float value) = 0;
+			// Set uniform variable for subsequent GPU drawing tasks
+			virtual bool SetUniform(const std::string& name, const olc::vf2d& value) = 0;
+			// Set uniform variable for subsequent GPU drawing tasks
+			virtual bool SetUniform(const std::string& name, const olc::Pixel value) = 0;
 
 		public: // GPU Task Processing Stuff
 			virtual bool DoGPUTask(const olc::GPUTask& task) = 0;
@@ -114,7 +142,7 @@ namespace olc
 			// Sets the viewport area of the drawing space
 			virtual bool SetViewport(const olc::vf2d& pos, const olc::vf2d& size) = 0;
 			// Configures defaults prior to drawing
-			virtual bool DisplayPrepare() = 0;
+			virtual bool DisplayPrepare(const float fFrameElapsedTime, const float fTotalElapsedTime) = 0;
 			// Displays the final output
 			virtual bool DisplayDraw(std::vector<void*> os_win_id, bool bVerticalSyncNow = false) = 0;
 
@@ -122,6 +150,8 @@ namespace olc
 		protected:
 			RendererConfig config;
 			RendererError lastError = RendererError::NoError;
+			float fFrameTime = 0;
+			float fTotalTime = 0;
 		};
 	}
 }
