@@ -38,6 +38,10 @@ namespace olc
 		pRenderer->PrepareWindowTarget(pHost->GetHostWindowDescriptor(this));
 		CreateImage(GetDefaultImage(), vScreenSize);
 		SetWindowSize(vScreenSize * vPixelSize);
+
+		// Assume 1:1 Relationship for now
+		vViewPos = { 0,0 };
+		vViewSize = vScreenSize * vPixelSize;
 		return true;
 	}
 
@@ -97,15 +101,44 @@ namespace olc
 		}
 
 		draw.ResetShader();
+		draw.WorldReset();		
 
 		// Take the window's completed "screen" and draw it as a textured quad to the backbuffer
 		pRenderer->AssignTextureTarget(0, 0);
-		pRenderer->SetViewport({ 0,0 }, GetWindowSize());
-		pRenderer->ClearViewport(olc::Colour::MAGENTA, true, true);
-		
-		
-		draw.WorldReset();		
-		draw.ImageRect(GetDefaultImage().flipV(), {0.0,0.0}, GetWindowSize());
+
+
+		// === Viewport Handling ===
+		if (config.bRetainAspectRatio)
+		{
+			// Set the viewport to maintain the aspect ratio of GetDefaultImage() and maximise to 
+			// fit within the window client area
+			float fAspectScreen = float(GetDefaultImage().Size().x) / float(GetDefaultImage().Size().y);
+
+			vViewSize.x = (int32_t)vWindowSize.x;
+			vViewSize.y = (int32_t)((float)vViewSize.x / fAspectScreen);
+
+			if (vViewSize.y > vWindowSize.y)
+			{
+				vViewSize.y = vWindowSize.y;
+				vViewSize.x = (int32_t)((float)vViewSize.y * fAspectScreen);
+			}
+
+			vViewPos = (vWindowSize - vViewSize) / 2;			
+		}
+		else
+		{
+			// Stretch to fit window (or 1:1 pixel mapping)
+			vViewPos = { 0,0 };
+			vViewSize = vWindowSize;	
+
+			// Note: Important to keep "View" updated as mouse will need to
+			// know for scaling
+		}
+
+		// Present final composite
+		pRenderer->SetViewport(vViewPos, vViewSize);
+		pRenderer->ClearViewport(config.colClear, true, true);
+		draw.ImageRect(GetDefaultImage().flipV(), { 0.0,0.0 }, vViewSize);
 		draw.ProcessGPUTasks();
 
 		// Update Window's primary surface
@@ -213,7 +246,17 @@ namespace olc
 
 	bool PGEWindow::olc_OnMouseMove(const olc::vi2d& vMousePos)
 	{
-		mouse.SetPosition(olc::vf2d(vMousePos) / olc::vf2d(GetWindowSize()) * GetDefaultImage().Size());
+		olc::vi2d pos = vMousePos;
+
+		// TODO: Concept in v2d prevents this from being cleaner
+		// Full screen windows may have different scaling
+		pos.x -= vViewPos.x;
+		pos.y -= vViewPos.y;
+
+		// Scale mouse into view coordinates
+		mouse.SetPosition(
+			(olc::vf2d(pos) / olc::vf2d(vWindowSize - (vViewPos * 2)) * GetDefaultImage().Size())
+			.clamp({ 0.0f, 0.0f }, olc::vf2d(GetDefaultImage().Size()-1)));
 		return true;
 	}
 
@@ -306,6 +349,8 @@ namespace olc
 		// Link this olc::Window to a host resource
 		if (host)
 		{
+			// TODO: Connect to config
+
 			host->AddWindowFrame(window.get(), { 30,30 }, vScreenSize * vPixelSize, false);
 			window->LinkToHost(host.get());
 			window->LinkToRenderer(gpu.get());
@@ -313,6 +358,7 @@ namespace olc
 
 			//gpu->RetargetDevice(host->GetHostWindowDescriptor(window.get()));
 			window->Create(vScreenSize, vPixelSize);
+			
 			deqChildWindows.push_back(window);
 		}
 		return true;

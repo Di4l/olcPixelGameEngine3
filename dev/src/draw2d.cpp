@@ -512,6 +512,9 @@ const GPUTask& olc::Draw2D::Ellipse(const olc::vf2d& pos, const float& rx, const
 {
 	PrepareTargetForHW();
 
+	if (nFacets != int32_t(buffUnitCirclePoints.data.size() - 1))
+		RedefineUnitCircleBuffer(nFacets);
+
 	buffPoints.reserve(nFacets + 1);
 	buffColours.reserve(nFacets + 1);
 
@@ -533,6 +536,9 @@ const GPUTask& olc::Draw2D::Ellipse(const olc::vf2d& pos, const float& rx, const
 const GPUTask& olc::Draw2D::FilledEllipse(const olc::vf2d& pos, const float& rx, const float& ry, const olc::Pixel col, const olc::Pixel tint, int32_t nFacets)
 {
 	PrepareTargetForHW();
+
+	if (nFacets != int32_t(buffUnitCirclePoints.data.size() - 1))
+		RedefineUnitCircleBuffer(nFacets);
 		
 	buffPoints.reserve(nFacets + 2);
 	buffColours.reserve(nFacets + 2);
@@ -557,6 +563,9 @@ const GPUTask& olc::Draw2D::FilledEllipse(const olc::vf2d& pos, const float& rx,
 const GPUTask& olc::Draw2D::FilledEllipse(const olc::vf2d& pos, const float& rx, const float& ry, const olc::Pixel colInner, const olc::Pixel colOuter, const olc::Pixel tint, int32_t nFacets)
 {
 	PrepareTargetForHW();
+
+	if (nFacets != int32_t(buffUnitCirclePoints.data.size() - 1))
+		RedefineUnitCircleBuffer(nFacets);
 	
 	buffPoints.reserve(nFacets + 2);
 	buffColours.reserve(nFacets + 2);
