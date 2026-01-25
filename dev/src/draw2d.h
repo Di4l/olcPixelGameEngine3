@@ -170,6 +170,13 @@ namespace olc
 			const olc::Pixel col = olc::Colour::WHITE,
 			const olc::Pixel tint = olc::Colour::WHITE);
 
+		// Draws a filled, single colour rectangle into a batch
+		const FilledBatch& FilledRect(
+			olc::FilledBatch& batch,
+			const olc::vf2d& pos,
+			const olc::vf2d& size,
+			const olc::Pixel col = olc::Colour::WHITE);
+
 		// Draws a filled, multiple colour rectangle, with linear colour interpolation
 		const GPUTask& FilledRect(
 			const olc::vf2d& pos, 
@@ -179,6 +186,16 @@ namespace olc
 			const olc::Pixel colBL, 
 			const olc::Pixel colBR,
 			const olc::Pixel tint = olc::Colour::WHITE);
+
+		// Draws a filled, multiple colour rectangle, with linear colour interpolation, into a batch
+		const FilledBatch& FilledRect(
+			olc::FilledBatch& batch,
+			const olc::vf2d& pos,
+			const olc::vf2d& size,
+			const olc::Pixel colTL,
+			const olc::Pixel colTR,
+			const olc::Pixel colBL,
+			const olc::Pixel colBR);
 
 // === Circles ===
 		
@@ -206,6 +223,14 @@ namespace olc
 			const olc::Pixel tint = olc::Colour::WHITE,
 			int32_t nFacets = 32);
 
+		// Draws a filled circle with a single colour into a batch
+		const FilledBatch& FilledCircle(
+			olc::FilledBatch& batch,
+			const olc::vf2d& pos,
+			const float& radius,
+			const olc::Pixel col = olc::Colour::WHITE,
+			int32_t nFacets = 32);
+
 		// Draws a shaded circle with a radial gradient
 		const GPUTask& FilledCircle(
 			const olc::vf2d& pos,
@@ -213,6 +238,15 @@ namespace olc
 			const olc::Pixel colInner,
 			const olc::Pixel colOuter,
 			const olc::Pixel tint = olc::Colour::WHITE,
+			int32_t nFacets = 32);
+
+		// Draws a shaded circle with a radial gradient into a batch
+		const FilledBatch& FilledCircle(
+			olc::FilledBatch& batch,
+			const olc::vf2d& pos,
+			const float& radius,
+			const olc::Pixel colInner,
+			const olc::Pixel colOuter,
 			int32_t nFacets = 32);
 
 // === Ellipses ===
@@ -244,6 +278,15 @@ namespace olc
 			const olc::Pixel tint = olc::Colour::WHITE,
 			int32_t nFacets = 32);
 
+		// Draws a filled ellipse with a single colour into a batch
+		const FilledBatch& FilledEllipse(
+			olc::FilledBatch& batch,
+			const olc::vf2d& pos,
+			const float& rx,
+			const float& ry,
+			const olc::Pixel col = olc::Colour::WHITE,
+			int32_t nFacets = 32);
+
 		// Draws a shaded ellipse with a radial gradient
 		const GPUTask& FilledEllipse(
 			const olc::vf2d& pos,
@@ -252,6 +295,16 @@ namespace olc
 			const olc::Pixel colInner,
 			const olc::Pixel colOuter,
 			const olc::Pixel tint = olc::Colour::WHITE,
+			int32_t nFacets = 32);
+
+		// Draws a shaded ellipse with a radial gradient into a batch
+		const FilledBatch& FilledEllipse(
+			olc::FilledBatch& batch,
+			const olc::vf2d& pos,
+			const float& rx,
+			const float& ry,
+			const olc::Pixel colInner,
+			const olc::Pixel colOuter,
 			int32_t nFacets = 32);
 
 // === Rounded Rectangles ===
@@ -330,6 +383,14 @@ namespace olc
 			const olc::Pixel col = olc::Colour::WHITE,
 			const olc::Pixel tint = olc::Colour::WHITE);
 
+		// Draws a filled, single colour triangle into a batch
+		const FilledBatch& FilledTriangle(
+			olc::FilledBatch& batch,
+			const olc::vf2d& p1,
+			const olc::vf2d& p2,
+			const olc::vf2d& p3,
+			const olc::Pixel col = olc::Colour::WHITE);
+
 		// Draws a filled, multiple colour triangle
 		const GPUTask& FilledTriangle(
 			const olc::vf2d& p1,
@@ -339,6 +400,16 @@ namespace olc
 			const olc::Pixel c2,
 			const olc::Pixel c3,
 			const olc::Pixel tint = olc::Colour::WHITE);
+
+		// Draws a filled, multiple colour triangle into a batch
+		const FilledBatch& FilledTriangle(
+			olc::FilledBatch& batch,
+			const olc::vf2d& p1,
+			const olc::vf2d& p2,
+			const olc::vf2d& p3,
+			const olc::Pixel c1,
+			const olc::Pixel c2,
+			const olc::Pixel c3);
 
 		// Draws a textured triangle, with per vertex colouring
 		const GPUTask& TexturedTriangle(
