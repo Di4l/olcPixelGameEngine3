@@ -970,7 +970,7 @@ void main()
 				// Shader: Apply Global Tint
 				SetUniform("pgeGlobalTint", task.tint);
 
-				SetUniform("pgeTileSizeInPixels", vTargetSize);
+				SetUniform("pgeTargetSizeInPixels", vTargetSize);
 				SetUniform("pgeInverseTargetSizeInPixels", (1.0f / vTargetSize));
 				SetUniform("pgeTotalTimeElapsed", fTotalTime);
 
