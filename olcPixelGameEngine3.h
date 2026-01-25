@@ -10558,6 +10558,13 @@ void main()
 	{
 		auto& gl = olc::apis::opengl::gl::Get();
 		int loc = pCurrentShader->GetUniform(name);
+		if (loc == -1)
+		{
+			#if OLC_GPU_ERRORCHECK == 1
+			std::cout << "Warning: Uniform '" << name << "' not found in current shader\n";
+			#endif
+			return false;
+		}
 		gl.glUniform1f(loc, value);
 		return true;
 	}
@@ -10566,6 +10573,13 @@ void main()
 	{
 		auto& gl = olc::apis::opengl::gl::Get();
 		int loc = pCurrentShader->GetUniform(name);
+		if (loc == -1)
+		{
+			#if OLC_GPU_ERRORCHECK == 1
+			std::cout << "Warning: Uniform '" << name << "' not found in current shader\n";
+			#endif
+			return false;
+		}
 		gl.glUniform2fv(loc, 1, value.a().data());
 		return true;
 	}
@@ -10581,6 +10595,13 @@ void main()
 
 		auto& gl = olc::apis::opengl::gl::Get();
 		int loc = pCurrentShader->GetUniform(name);
+		if (loc == -1)
+		{
+			#if OLC_GPU_ERRORCHECK == 1
+			std::cout << "Warning: Uniform '" << name << "' not found in current shader\n";
+			#endif
+			return false;
+		}
 		gl.glUniform4fv(loc, 1, f);
 		return true;
 	}
@@ -10620,23 +10641,11 @@ void main()
 				//gl.glUniformMatrix4fv(shaderDefault.GetUniform("mvp"), 1, true, task.mvpMatrix.data());
 
 				// Shader: Apply Global Tint
-				float f[4] = { 
-					float(task.tint.r) / 255.0f, 
-					float(task.tint.g) / 255.0f, 
-					float(task.tint.b) / 255.0f, 
-					float(task.tint.a) / 255.0f 
-				};
-				
-				gl.glUniform4fv(pCurrentShader->GetUniform("pgeGlobalTint"), 1, f);
+				SetUniform("pgeGlobalTint", task.tint);
 
-				f[0] = 64.0f;
-				f[1] = 64.0f;
-				gl.glUniform2fv(pCurrentShader->GetUniform("pgeTargetSizeInPixels"), 1, vTargetSize.a().data());
-				gl.glUniform2fv(pCurrentShader->GetUniform("pgeInverseTargetSizeInPixels"), 1, ((1.0f / vTargetSize)).a().data());
-				gl.glUniform1f(pCurrentShader->GetUniform("pgeTotalTimeElapsed"), fTotalTime);
-
-
-				
+				SetUniform("pgeTileSizeInPixels", vTargetSize);
+				SetUniform("pgeInverseTargetSizeInPixels", (1.0f / vTargetSize));
+				SetUniform("pgeTotalTimeElapsed", fTotalTime);
 
 				// Apply Culling modes
 				//if (task.cullmode == GPUTask::CullMode::None)
