@@ -246,6 +246,7 @@
 #define OLC_GPU_MAX_VERTICES 8192
 #define OLC_GPU_ERRORCHECK 0
 #define OLC_MSAA_SAMPLES 4
+#define OLC_DEFAULT_CIRCLE_FACETS 32
 
 #define LICENCE_DEFAULT "OneLoneCoder.com - Pixel Game Engine 3 - "
 
@@ -2045,7 +2046,7 @@ namespace olc
 			const float& radius,
 			const olc::Pixel col = olc::Colour::WHITE,
 			const olc::Pixel tint = olc::Colour::WHITE,
-			int32_t nFacets = 32);
+			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS);
 
 		// Draws a circle outline with a single colour into a batch
 		const LineBatch& Circle(
@@ -2053,7 +2054,7 @@ namespace olc
 			const olc::vf2d& pos,
 			const float& radius,
 			const olc::Pixel col = olc::Colour::WHITE,
-			int32_t nFacets = 32);
+			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS);
 
 		// Draws a filled circle with a single colour
 		const GPUTask& FilledCircle(
@@ -2061,7 +2062,7 @@ namespace olc
 			const float& radius,
 			const olc::Pixel col = olc::Colour::WHITE,
 			const olc::Pixel tint = olc::Colour::WHITE,
-			int32_t nFacets = 32);
+			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS);
 
 		// Draws a filled circle with a single colour into a batch
 		const FilledBatch& FilledCircle(
@@ -2069,7 +2070,7 @@ namespace olc
 			const olc::vf2d& pos,
 			const float& radius,
 			const olc::Pixel col = olc::Colour::WHITE,
-			int32_t nFacets = 32);
+			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS);
 
 		// Draws a shaded circle with a radial gradient
 		const GPUTask& FilledCircle(
@@ -2078,7 +2079,7 @@ namespace olc
 			const olc::Pixel colInner,
 			const olc::Pixel colOuter,
 			const olc::Pixel tint = olc::Colour::WHITE,
-			int32_t nFacets = 32);
+			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS);
 
 		// Draws a shaded circle with a radial gradient into a batch
 		const FilledBatch& FilledCircle(
@@ -2087,7 +2088,7 @@ namespace olc
 			const float& radius,
 			const olc::Pixel colInner,
 			const olc::Pixel colOuter,
-			int32_t nFacets = 32);
+			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS);
 
 // === Ellipses ===
 
@@ -2098,7 +2099,7 @@ namespace olc
 			const float& ry,
 			const olc::Pixel col = olc::Colour::WHITE,
 			const olc::Pixel tint = olc::Colour::WHITE,
-			int32_t nFacets = 32);
+			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS);
 
 		// Draws an ellipse outline with a single colour into a batch
 		const LineBatch& Ellipse(
@@ -2107,7 +2108,7 @@ namespace olc
 			const float& rx,
 			const float& ry,
 			const olc::Pixel col = olc::Colour::WHITE,
-			int32_t nFacets = 32);
+			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS);
 
 		// Draws a filled ellipse with a single colour
 		const GPUTask& FilledEllipse(
@@ -2116,7 +2117,7 @@ namespace olc
 			const float& ry,
 			const olc::Pixel col = olc::Colour::WHITE,
 			const olc::Pixel tint = olc::Colour::WHITE,
-			int32_t nFacets = 32);
+			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS);
 
 		// Draws a filled ellipse with a single colour into a batch
 		const FilledBatch& FilledEllipse(
@@ -2125,7 +2126,7 @@ namespace olc
 			const float& rx,
 			const float& ry,
 			const olc::Pixel col = olc::Colour::WHITE,
-			int32_t nFacets = 32);
+			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS);
 
 		// Draws a shaded ellipse with a radial gradient
 		const GPUTask& FilledEllipse(
@@ -2135,7 +2136,7 @@ namespace olc
 			const olc::Pixel colInner,
 			const olc::Pixel colOuter,
 			const olc::Pixel tint = olc::Colour::WHITE,
-			int32_t nFacets = 32);
+			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS);
 
 		// Draws a shaded ellipse with a radial gradient into a batch
 		const FilledBatch& FilledEllipse(
@@ -2145,7 +2146,7 @@ namespace olc
 			const float& ry,
 			const olc::Pixel colInner,
 			const olc::Pixel colOuter,
-			int32_t nFacets = 32);
+			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS);
 
 // === Rounded Rectangles ===
 
@@ -2156,7 +2157,7 @@ namespace olc
 			const float& radius,
 			const olc::Pixel col = olc::Colour::WHITE,
 			const olc::Pixel tint = olc::Colour::WHITE,
-			int32_t nFacets = 8);
+			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS / 4);
 
 		// Draws a rounded rectangle outline with a single colour into a batch
 		const LineBatch& RoundedRect(
@@ -2165,7 +2166,7 @@ namespace olc
 			const olc::vf2d& size,						// Size of bounding rectangle
 			const float& radius,
 			const olc::Pixel col = olc::Colour::WHITE,
-			int32_t nFacets = 8);
+			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS / 4);
 
 		// Draws a filled rounded rectangle with a single colour
 		const GPUTask& FilledRoundedRect(
@@ -2174,7 +2175,7 @@ namespace olc
 			const float& radius,
 			const olc::Pixel col = olc::Colour::WHITE,
 			const olc::Pixel tint = olc::Colour::WHITE,
-			int32_t nFacets = 8);
+			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS / 4);
 
 
 // === Triangles ===
@@ -11194,7 +11195,6 @@ const GPUTask& Draw2D::Line(const olc::vf2d& p1, const olc::vf2d& p2, const olc:
 
 const LineBatch& olc::Draw2D::Line(olc::LineBatch& batch, const olc::vf2d& p1, const olc::vf2d& p2, const olc::Pixel col)
 {
-	
 	return Line(batch, p1, col, p2, col);
 }
 
