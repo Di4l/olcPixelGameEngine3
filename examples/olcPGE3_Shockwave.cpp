@@ -57,7 +57,7 @@ public:
 
 		float wave(vec2 p) 
 		{
-			float waveAmplitude = 1;
+			float waveAmplitude = 1.;
 			float waveThickness = 0.025;
 			float waveRadius = sw_radius * 0.5;
 
@@ -71,7 +71,7 @@ public:
 			}
 			else 
 			{
-				return 0;
+				return 0.;
 			}
 		}
 
