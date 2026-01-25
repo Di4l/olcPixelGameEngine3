@@ -1,7 +1,7 @@
 /*
-	olc::PixelGameEngine3 Example - Circles & Ellipses
+	olc::PixelGameEngine3 Example - Batches of Filled Primitives
 
-	Demonstrates circle and ellipse drawing techniques
+	Demonstrates filled shapes drawn using batches for efficiency
 
 	Licenced under the OLC-3 License
 */
@@ -12,13 +12,13 @@
 #define OLC_PGE3_APPLICATION
 #include "../olcPixelGameEngine3.h"
 
-// Example application demonstrating circle & ellipse drawing. 
+// Example application demonstrating batches of fills drawing. 
 // This class overrides the olc::PixelGameEngine base class by 
 // implementing the OnUserCreate() and OnUserUpdate() functions
-class Example_RoundThings : public olc::PixelGameEngine
+class Example_BatchesOfFills : public olc::PixelGameEngine
 {
 public:
-	Example_RoundThings()
+	Example_BatchesOfFills()
 	{
 
 	}
@@ -59,11 +59,15 @@ public:
 		// Clear screen to dark blue
 		draw.Clear(olc::Colour::VERY_DARK_BLUE);
 
+		// Create the batch for filled shapes
 		auto batch = draw.CreateFilledBatch();
 
+		// For additiona ltest, spin the world around the center of the screen
 		draw.WorldRotate(float(TotalTimeElapsed()) * 0.5f, ScreenSize() * 0.5f);
 
-		// Draw a circle outline
+		// === Code mostly stolen form olcPGE3_CirclesEllipses.cpp ===
+
+		// Draw a circle outline - CANT DO THIS WITH FILLED BATCHES!!!
 		//draw.Circle({ 32.0f, 32.0f }, 20.0f, olc::Colour::WHITE);
 
 		// Draw a filled circle
@@ -142,8 +146,12 @@ public:
 			//draw.Circle(vecBubblePos[i].round(), 16, vecBubbleCol[i]);
 		}
 
+
+		// Test a filled rectangle
 		draw.FilledRect(batch, { 10.0f, 200.0f }, { 236.0f, 20.0f }, olc::Colour::DARK_GREY);
 
+		// Test a filled triangle that follows the mouse. Notice use of ScreenToWorld to
+		// convert from screen space to world space coordinates
 		olc::vf2d vMouse = draw.ScreenToWorld(mouse.GetPosition());
 		draw.FilledTriangle(batch, 
 			{ vMouse.x - 0.0f, vMouse.y - 50.0f },
@@ -151,7 +159,7 @@ public:
 			{ vMouse.x + 30.0f, vMouse.y + 30.0f },
 			olc::Colour::WHITE);
 		
-
+		// If mouse button held, change batch colour to green
 		if(mouse.GetButton(0).bHeld)
 			draw.Batch(batch, olc::Colour::GREEN);
 		else
@@ -168,7 +176,7 @@ public:
 int main()
 {
 	// Construct demo application
-	Example_RoundThings demo;
+	Example_BatchesOfFills demo;
 
 	// Create "screen" of 256x240 "pixels"
 	// with a pixel size of 4x4 actual screen pixels
