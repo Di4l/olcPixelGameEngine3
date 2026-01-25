@@ -60,6 +60,9 @@
     <ClCompile Include="..\..\..\examples\olcPGE3_BatchesOfLines.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\examples\olcPGE3_BatchesOfFills.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Image Include="..\..\..\examples\assets\minsanity_texture.png">

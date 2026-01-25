@@ -246,6 +246,7 @@
 #define OLC_GPU_MAX_VERTICES 8192
 #define OLC_GPU_ERRORCHECK 0
 #define OLC_MSAA_SAMPLES 4
+#define OLC_DEFAULT_CIRCLE_FACETS 32
 
 #define LICENCE_DEFAULT "OneLoneCoder.com - Pixel Game Engine 3 - "
 
@@ -2010,6 +2011,13 @@ namespace olc
 			const olc::Pixel col = olc::Colour::WHITE,
 			const olc::Pixel tint = olc::Colour::WHITE);
 
+		// Draws a filled, single colour rectangle into a batch
+		const FilledBatch& FilledRect(
+			olc::FilledBatch& batch,
+			const olc::vf2d& pos,
+			const olc::vf2d& size,
+			const olc::Pixel col = olc::Colour::WHITE);
+
 		// Draws a filled, multiple colour rectangle, with linear colour interpolation
 		const GPUTask& FilledRect(
 			const olc::vf2d& pos, 
@@ -2020,6 +2028,16 @@ namespace olc
 			const olc::Pixel colBR,
 			const olc::Pixel tint = olc::Colour::WHITE);
 
+		// Draws a filled, multiple colour rectangle, with linear colour interpolation, into a batch
+		const FilledBatch& FilledRect(
+			olc::FilledBatch& batch,
+			const olc::vf2d& pos,
+			const olc::vf2d& size,
+			const olc::Pixel colTL,
+			const olc::Pixel colTR,
+			const olc::Pixel colBL,
+			const olc::Pixel colBR);
+
 // === Circles ===
 		
 		// Draws a circle outline with a single colour
@@ -2028,7 +2046,7 @@ namespace olc
 			const float& radius,
 			const olc::Pixel col = olc::Colour::WHITE,
 			const olc::Pixel tint = olc::Colour::WHITE,
-			int32_t nFacets = 32);
+			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS);
 
 		// Draws a circle outline with a single colour into a batch
 		const LineBatch& Circle(
@@ -2036,7 +2054,7 @@ namespace olc
 			const olc::vf2d& pos,
 			const float& radius,
 			const olc::Pixel col = olc::Colour::WHITE,
-			int32_t nFacets = 32);
+			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS);
 
 		// Draws a filled circle with a single colour
 		const GPUTask& FilledCircle(
@@ -2044,7 +2062,15 @@ namespace olc
 			const float& radius,
 			const olc::Pixel col = olc::Colour::WHITE,
 			const olc::Pixel tint = olc::Colour::WHITE,
-			int32_t nFacets = 32);
+			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS);
+
+		// Draws a filled circle with a single colour into a batch
+		const FilledBatch& FilledCircle(
+			olc::FilledBatch& batch,
+			const olc::vf2d& pos,
+			const float& radius,
+			const olc::Pixel col = olc::Colour::WHITE,
+			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS);
 
 		// Draws a shaded circle with a radial gradient
 		const GPUTask& FilledCircle(
@@ -2053,7 +2079,16 @@ namespace olc
 			const olc::Pixel colInner,
 			const olc::Pixel colOuter,
 			const olc::Pixel tint = olc::Colour::WHITE,
-			int32_t nFacets = 32);
+			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS);
+
+		// Draws a shaded circle with a radial gradient into a batch
+		const FilledBatch& FilledCircle(
+			olc::FilledBatch& batch,
+			const olc::vf2d& pos,
+			const float& radius,
+			const olc::Pixel colInner,
+			const olc::Pixel colOuter,
+			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS);
 
 // === Ellipses ===
 
@@ -2064,7 +2099,7 @@ namespace olc
 			const float& ry,
 			const olc::Pixel col = olc::Colour::WHITE,
 			const olc::Pixel tint = olc::Colour::WHITE,
-			int32_t nFacets = 32);
+			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS);
 
 		// Draws an ellipse outline with a single colour into a batch
 		const LineBatch& Ellipse(
@@ -2073,7 +2108,7 @@ namespace olc
 			const float& rx,
 			const float& ry,
 			const olc::Pixel col = olc::Colour::WHITE,
-			int32_t nFacets = 32);
+			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS);
 
 		// Draws a filled ellipse with a single colour
 		const GPUTask& FilledEllipse(
@@ -2082,7 +2117,16 @@ namespace olc
 			const float& ry,
 			const olc::Pixel col = olc::Colour::WHITE,
 			const olc::Pixel tint = olc::Colour::WHITE,
-			int32_t nFacets = 32);
+			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS);
+
+		// Draws a filled ellipse with a single colour into a batch
+		const FilledBatch& FilledEllipse(
+			olc::FilledBatch& batch,
+			const olc::vf2d& pos,
+			const float& rx,
+			const float& ry,
+			const olc::Pixel col = olc::Colour::WHITE,
+			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS);
 
 		// Draws a shaded ellipse with a radial gradient
 		const GPUTask& FilledEllipse(
@@ -2092,7 +2136,17 @@ namespace olc
 			const olc::Pixel colInner,
 			const olc::Pixel colOuter,
 			const olc::Pixel tint = olc::Colour::WHITE,
-			int32_t nFacets = 32);
+			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS);
+
+		// Draws a shaded ellipse with a radial gradient into a batch
+		const FilledBatch& FilledEllipse(
+			olc::FilledBatch& batch,
+			const olc::vf2d& pos,
+			const float& rx,
+			const float& ry,
+			const olc::Pixel colInner,
+			const olc::Pixel colOuter,
+			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS);
 
 // === Rounded Rectangles ===
 
@@ -2103,7 +2157,7 @@ namespace olc
 			const float& radius,
 			const olc::Pixel col = olc::Colour::WHITE,
 			const olc::Pixel tint = olc::Colour::WHITE,
-			int32_t nFacets = 8);
+			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS / 4);
 
 		// Draws a rounded rectangle outline with a single colour into a batch
 		const LineBatch& RoundedRect(
@@ -2112,7 +2166,7 @@ namespace olc
 			const olc::vf2d& size,						// Size of bounding rectangle
 			const float& radius,
 			const olc::Pixel col = olc::Colour::WHITE,
-			int32_t nFacets = 8);
+			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS / 4);
 
 		// Draws a filled rounded rectangle with a single colour
 		const GPUTask& FilledRoundedRect(
@@ -2121,7 +2175,7 @@ namespace olc
 			const float& radius,
 			const olc::Pixel col = olc::Colour::WHITE,
 			const olc::Pixel tint = olc::Colour::WHITE,
-			int32_t nFacets = 8);
+			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS / 4);
 
 
 // === Triangles ===
@@ -2170,6 +2224,14 @@ namespace olc
 			const olc::Pixel col = olc::Colour::WHITE,
 			const olc::Pixel tint = olc::Colour::WHITE);
 
+		// Draws a filled, single colour triangle into a batch
+		const FilledBatch& FilledTriangle(
+			olc::FilledBatch& batch,
+			const olc::vf2d& p1,
+			const olc::vf2d& p2,
+			const olc::vf2d& p3,
+			const olc::Pixel col = olc::Colour::WHITE);
+
 		// Draws a filled, multiple colour triangle
 		const GPUTask& FilledTriangle(
 			const olc::vf2d& p1,
@@ -2179,6 +2241,16 @@ namespace olc
 			const olc::Pixel c2,
 			const olc::Pixel c3,
 			const olc::Pixel tint = olc::Colour::WHITE);
+
+		// Draws a filled, multiple colour triangle into a batch
+		const FilledBatch& FilledTriangle(
+			olc::FilledBatch& batch,
+			const olc::vf2d& p1,
+			const olc::vf2d& p2,
+			const olc::vf2d& p3,
+			const olc::Pixel c1,
+			const olc::Pixel c2,
+			const olc::Pixel c3);
 
 		// Draws a textured triangle, with per vertex colouring
 		const GPUTask& TexturedTriangle(
@@ -11123,7 +11195,6 @@ const GPUTask& Draw2D::Line(const olc::vf2d& p1, const olc::vf2d& p2, const olc:
 
 const LineBatch& olc::Draw2D::Line(olc::LineBatch& batch, const olc::vf2d& p1, const olc::vf2d& p2, const olc::Pixel col)
 {
-	
 	return Line(batch, p1, col, p2, col);
 }
 
@@ -11229,6 +11300,13 @@ const GPUTask& olc::Draw2D::FilledRect(const olc::vf2d& pos, const olc::vf2d& si
 		)));
 }
 
+const FilledBatch& olc::Draw2D::FilledRect(olc::FilledBatch& batch, const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel col)
+{
+	FilledTriangle(batch, pos, olc::vf2d(pos.x + size.x, pos.y), olc::vf2d(pos.x + size.x, pos.y + size.y), col, col, col);
+	FilledTriangle(batch, pos, olc::vf2d(pos.x + size.x, pos.y + size.y), olc::vf2d(pos.x, pos.y + size.y), col, col, col);
+	return batch;	
+}
+
 const GPUTask& olc::Draw2D::FilledRect(const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel colTL, const olc::Pixel colTR, const olc::Pixel colBL, const olc::Pixel colBR, const olc::Pixel tint)
 {
 	PrepareTargetForHW();
@@ -11245,6 +11323,13 @@ const GPUTask& olc::Draw2D::FilledRect(const olc::vf2d& pos, const olc::vf2d& si
 		)));
 }
 
+const FilledBatch& olc::Draw2D::FilledRect(olc::FilledBatch& batch, const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel colTL, const olc::Pixel colTR, const olc::Pixel colBL, const olc::Pixel colBR)
+{
+	FilledTriangle(batch, pos, olc::vf2d(pos.x + size.x, pos.y), olc::vf2d(pos.x + size.x, pos.y + size.y), colTL, colTR, colBR);
+	FilledTriangle(batch, pos, olc::vf2d(pos.x + size.x, pos.y + size.y), olc::vf2d(pos.x, pos.y + size.y), colTL, colBR, colBL);
+	return batch;
+}
+
 void olc::Draw2D::RedefineUnitCircleBuffer(const int32_t nFacets)
 {
 	buffUnitCirclePoints.reserve(nFacets + 1);
@@ -11257,98 +11342,37 @@ void olc::Draw2D::RedefineUnitCircleBuffer(const int32_t nFacets)
 
 const GPUTask& olc::Draw2D::Circle(const olc::vf2d& pos, const float& radius, const olc::Pixel col, const olc::Pixel tint, int32_t nFacets)
 {
-	PrepareTargetForHW();
-
-	if (nFacets != int32_t(buffUnitCirclePoints.data.size() - 1))
-		RedefineUnitCircleBuffer(nFacets);
-
-	buffPoints.reserve(nFacets + 1);
-	buffColours.reserve(nFacets + 1);
-
-	for (int32_t i = 0; i <= nFacets; i++)
-	{
-		buffPoints.data[i] = transformAffine.forwardRound<float>(buffUnitCirclePoints.data[i] * radius + pos);
-		buffColours.data[i] = col;
-	}
-
-	return vecGPUTasks.data.emplace_back(std::move(
-		TaskDrawPolygon(
-			olc::Structure::Line,
-			buffPoints.data,
-			buffColours.data,
-			tint
-		)));
+	return Ellipse(pos, radius, radius, col, tint, nFacets);
 }
 
 const LineBatch& olc::Draw2D::Circle(olc::LineBatch& batch, const olc::vf2d& pos, const float& radius, const olc::Pixel col, int32_t nFacets)
 {
-	if (nFacets != int32_t(buffUnitCirclePoints.data.size() - 1))
-		RedefineUnitCircleBuffer(nFacets);
-
-	for (int32_t i = 0; i <= nFacets; i++)
-	{
-		Line(batch, buffUnitCirclePoints.data[i] * radius + pos, col, buffUnitCirclePoints.data[(i + 1) % buffUnitCirclePoints.data.size()] * radius + pos, col);
-	}
-
-	return batch;
+	return Ellipse(batch, pos, radius, radius, col, nFacets);
 }
 
 const GPUTask& olc::Draw2D::FilledCircle(const olc::vf2d& pos, const float& radius, const olc::Pixel col, const olc::Pixel tint, int32_t nFacets)
 {
-	PrepareTargetForHW();
+	return FilledEllipse(pos, radius, radius, col, tint, nFacets);
+}
 
-	if (nFacets != int32_t(buffUnitCirclePoints.data.size() - 1))
-		RedefineUnitCircleBuffer(nFacets);
-	
-	buffPoints.reserve(nFacets + 2);
-	buffColours.reserve(nFacets + 2);
-	
-	buffPoints.data[0] = transformAffine.forwardRound<float>(pos);
-	buffColours.data[0] = col;
-	for (int32_t i = 0; i <= nFacets; i++)
-	{
-		buffPoints.data[i + 1] = transformAffine.forwardRound<float>(buffUnitCirclePoints.data[i] * radius + pos);
-		buffColours.data[i + 1] = col;
-	}
-
-	return vecGPUTasks.data.emplace_back(std::move(
-		TaskFillPolygon(
-			olc::Structure::Fan,
-			buffPoints.data,
-			buffColours.data,
-			tint
-		)));
+const FilledBatch& olc::Draw2D::FilledCircle(olc::FilledBatch& batch, const olc::vf2d& pos, const float& radius, const olc::Pixel col, int32_t nFacets)
+{
+	return FilledEllipse(batch, pos, radius, radius, col, nFacets);
 }
 
 const GPUTask& olc::Draw2D::FilledCircle(const olc::vf2d& pos, const float& radius, const olc::Pixel colInner, const olc::Pixel colOuter, const olc::Pixel tint, int32_t nFacets)
 {
-	PrepareTargetForHW();
+	return FilledEllipse(pos, radius, radius, colInner, colOuter, tint, nFacets);
+}
 
-	if (nFacets != int32_t(buffUnitCirclePoints.data.size() - 1))
-		RedefineUnitCircleBuffer(nFacets);
-	
-	buffPoints.reserve(nFacets + 2);
-	buffColours.reserve(nFacets + 2);
-
-	buffPoints.data[0] = transformAffine.forwardRound<float>(pos);
-	buffColours.data[0] = colInner;
-	for (int32_t i = 0; i <= nFacets; i++)
-	{
-		buffPoints.data[i + 1] = transformAffine.forwardRound<float>(buffUnitCirclePoints.data[i] * radius + pos);
-		buffColours.data[i + 1] = colOuter;
-	}
-	
-	return vecGPUTasks.data.emplace_back(std::move(
-		TaskFillPolygon(
-			olc::Structure::Fan,
-			buffPoints.data,
-			buffColours.data,
-			tint
-		)));
+const FilledBatch& olc::Draw2D::FilledCircle(olc::FilledBatch& batch, const olc::vf2d& pos, const float& radius, const olc::Pixel colInner, const olc::Pixel colOuter, int32_t nFacets)
+{
+	return FilledEllipse(batch, pos, radius, radius, colInner, colOuter, nFacets);
 }
 
 const GPUTask& olc::Draw2D::Ellipse(const olc::vf2d& pos, const float& rx, const float& ry, const olc::Pixel col, const olc::Pixel tint, int32_t nFacets)
 {
+	// Fundamental for outline circle/ellipse with colour solid/gradient
 	PrepareTargetForHW();
 
 	if (nFacets != int32_t(buffUnitCirclePoints.data.size() - 1))
@@ -11374,6 +11398,8 @@ const GPUTask& olc::Draw2D::Ellipse(const olc::vf2d& pos, const float& rx, const
 
 const LineBatch& olc::Draw2D::Ellipse(olc::LineBatch& batch, const olc::vf2d& pos, const float& rx, const float& ry, const olc::Pixel col, int32_t nFacets)
 {
+	// Fundamental for batched outline circle/ellipse with colour solid/gradient
+
 	if (nFacets != int32_t(buffUnitCirclePoints.data.size() - 1))
 		RedefineUnitCircleBuffer(nFacets);
 
@@ -11391,33 +11417,18 @@ const LineBatch& olc::Draw2D::Ellipse(olc::LineBatch& batch, const olc::vf2d& po
 
 const GPUTask& olc::Draw2D::FilledEllipse(const olc::vf2d& pos, const float& rx, const float& ry, const olc::Pixel col, const olc::Pixel tint, int32_t nFacets)
 {
-	PrepareTargetForHW();
+	return FilledEllipse(pos, rx, ry, col, col, tint, nFacets);
+}
 
-	if (nFacets != int32_t(buffUnitCirclePoints.data.size() - 1))
-		RedefineUnitCircleBuffer(nFacets);
-		
-	buffPoints.reserve(nFacets + 2);
-	buffColours.reserve(nFacets + 2);
-
-	buffPoints.data[0] = transformAffine.forwardRound<float>(pos);
-	buffColours.data[0] = col;
-	for (int32_t i = 0; i <= nFacets; i++)
-	{		
-		buffPoints.data[i + 1] = transformAffine.forwardRound<float>({ pos.x + rx * buffUnitCirclePoints.data[i].x, pos.y + ry * buffUnitCirclePoints.data[i].y});
-		buffColours.data[i + 1] = col;	
-	}
-
-	return vecGPUTasks.data.emplace_back(std::move(
-		TaskFillPolygon(
-			olc::Structure::Fan,
-			buffPoints.data,
-			buffColours.data,
-			tint
-		)));
+const FilledBatch& olc::Draw2D::FilledEllipse(olc::FilledBatch& batch, const olc::vf2d& pos, const float& rx, const float& ry, const olc::Pixel col, int32_t nFacets)
+{
+	return FilledEllipse(batch, pos, rx, ry, col, col, nFacets);
 }
 
 const GPUTask& olc::Draw2D::FilledEllipse(const olc::vf2d& pos, const float& rx, const float& ry, const olc::Pixel colInner, const olc::Pixel colOuter, const olc::Pixel tint, int32_t nFacets)
 {
+	// Fundamental for filled circle/ellipse with colour solid/gradient
+
 	PrepareTargetForHW();
 
 	if (nFacets != int32_t(buffUnitCirclePoints.data.size() - 1))
@@ -11441,6 +11452,27 @@ const GPUTask& olc::Draw2D::FilledEllipse(const olc::vf2d& pos, const float& rx,
 			buffColours.data,
 			tint
 		)));
+}
+
+const FilledBatch& olc::Draw2D::FilledEllipse(olc::FilledBatch& batch, const olc::vf2d& pos, const float& rx, const float& ry, const olc::Pixel colInner, const olc::Pixel colOuter, int32_t nFacets)
+{
+	// Fundamental for batch filled circle/ellipse with colour solid/gradient
+
+	if (nFacets != int32_t(buffUnitCirclePoints.data.size() - 1))
+		RedefineUnitCircleBuffer(nFacets);
+
+	for (int32_t i = 0; i <= nFacets; i++)
+	{
+		olc::vf2d p1 = { pos.x + rx * buffUnitCirclePoints.data[i].x, 
+						 pos.y + ry * buffUnitCirclePoints.data[i].y };
+
+		olc::vf2d p2 = { pos.x + rx * buffUnitCirclePoints.data[(i + 1) % buffUnitCirclePoints.data.size()].x, 
+						 pos.y + ry * buffUnitCirclePoints.data[(i + 1) % buffUnitCirclePoints.data.size()].y };
+
+		FilledTriangle(batch, pos, p1, p2, colInner, colOuter, colOuter);
+	}
+
+	return batch;
 }
 
 const GPUTask& olc::Draw2D::RoundedRect(const olc::vf2d& pos, const olc::vf2d& size, const float& radius, const olc::Pixel col, const olc::Pixel tint, int32_t nFacets)
@@ -11627,6 +11659,11 @@ const GPUTask& olc::Draw2D::FilledTriangle(const olc::vf2d& p1, const olc::vf2d&
 	return FilledTriangle(p1, p2, p3, col, col, col, tint);
 }
 
+const FilledBatch& olc::Draw2D::FilledTriangle(olc::FilledBatch& batch, const olc::vf2d& p1, const olc::vf2d& p2, const olc::vf2d& p3, const olc::Pixel col)
+{
+	return FilledTriangle(batch, p1, p2, p3, col, col, col);
+}
+
 const GPUTask& olc::Draw2D::FilledTriangle(const olc::vf2d& p1, const olc::vf2d& p2, const olc::vf2d& p3, const olc::Pixel c1, const olc::Pixel c2, const olc::Pixel c3, const olc::Pixel tint)
 {
 	PrepareTargetForHW();
@@ -11638,6 +11675,19 @@ const GPUTask& olc::Draw2D::FilledTriangle(const olc::vf2d& p1, const olc::vf2d&
 			{ c1, c2, c3 },
 			tint
 		)));
+}
+
+const FilledBatch& olc::Draw2D::FilledTriangle(olc::FilledBatch& batch, const olc::vf2d& p1, const olc::vf2d& p2, const olc::vf2d& p3, const olc::Pixel c1, const olc::Pixel c2, const olc::Pixel c3)
+{
+	batch.task.vertexBuffer.resize(batch.task.vertexBuffer.size() + 3);
+	size_t idx = batch.task.vertexBuffer.size() - 3;
+	const olc::vf2d a1 = transformAffine.forwardRound(p1);
+	const olc::vf2d a2 = transformAffine.forwardRound(p2);
+	const olc::vf2d a3 = transformAffine.forwardRound(p3);
+	batch.task.vertexBuffer[idx + 0] = { {a1.x, a1.y, 1.0f, 1.0f}, c1, {0, 0}, {0, 0}, {0, 0}, {0, 0} };
+	batch.task.vertexBuffer[idx + 1] = { {a2.x, a2.y, 1.0f, 1.0f}, c2, {0, 0}, {0, 0}, {0, 0}, {0, 0} };
+	batch.task.vertexBuffer[idx + 2] = { {a3.x, a3.y, 1.0f, 1.0f}, c3, {0, 0}, {0, 0}, {0, 0}, {0, 0} };
+	return batch;
 }
 
 const GPUTask& olc::Draw2D::TexturedTriangle(const olc::vf2d& p1, const olc::vf2d& p2, const olc::vf2d& p3, const olc::Pixel c1, const olc::Pixel c2, const olc::Pixel c3, const olc::vf2d& t1, const olc::vf2d& t2, const olc::vf2d& t3, olc::Image& texture, const olc::Pixel tint)
@@ -11851,7 +11901,9 @@ const GPUTask& olc::Draw2D::Batch(olc::ImageBatch& batch, const olc::Pixel tint)
 
 FilledBatch olc::Draw2D::CreateFilledBatch()
 {
-	return FilledBatch();
+	FilledBatch b;
+	b.task.structure = olc::Structure::List;
+	return b;
 }
 
 const GPUTask& olc::Draw2D::Batch(olc::FilledBatch& batch, const olc::Pixel tint)
