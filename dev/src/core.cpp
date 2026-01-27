@@ -65,6 +65,7 @@ namespace olc
 	{
 		// Input Changes
 		mouse.UpdateState();
+		keyboard.UpdateState();
 		
 		draw.SetGPU(pRenderer);
 		draw.SetTarget(GetDefaultImage());
@@ -237,6 +238,11 @@ namespace olc
 	olc::hw::Mouse& PGEWindow::GetMouse()
 	{
 		return mouse;
+	}
+
+	olc::hw::Keyboard& PGEWindow::GetKeyboard()
+	{
+		return keyboard;
 	}
 
 	const olc::vi2d& PGEWindow::ScreenSize()
