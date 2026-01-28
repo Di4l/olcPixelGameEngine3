@@ -5,7 +5,7 @@ namespace olc::host
 {
     std::unordered_map<size_t, std::string> Host_Web_Emscripten::mapUID2CanvasId;
     std::unordered_map<std::string, olc::Window*> Host_Web_Emscripten::mapCanvasId2PTR;
-    std::unordered_map<size_t, Host_Web_Emscripten::CallbackData*> Host_Web_Emscripten::mapUID2CallbackData;
+    std::unordered_map<size_t, std::unique_ptr<Host_Web_Emscripten::CallbackData>> Host_Web_Emscripten::mapUID2CallbackData;
 
     Host_Web_Emscripten::Host_Web_Emscripten()
     {
@@ -143,14 +143,15 @@ namespace olc::host
 		olc::vi2d vWinSize = vWindowSize;
         
         // TODO: multi-window solutions
-        CallbackData* cbData = new CallbackData{
+        mapUID2CallbackData.insert_or_assign(pWindow->GetUID(), std::make_unique<CallbackData>(CallbackData{
             this,
             pWindow,
             std::string{"#canvas"}
-        };
+        }));
+        
+        auto cbData = mapUID2CallbackData.at(pWindow->GetUID()).get();
 
         mapUID2CanvasId.insert_or_assign(pWindow->GetUID(), cbData->canvasId);
-        mapUID2CallbackData.insert_or_assign(pWindow->GetUID(), cbData);
         mapCanvasId2PTR.insert_or_assign(cbData->canvasId, pWindow);
         
         emscripten_set_canvas_element_size(cbData->canvasId.c_str(), vWinSize.x, vWinSize.y);

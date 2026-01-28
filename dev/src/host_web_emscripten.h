@@ -70,10 +70,10 @@ namespace olc::host
 
     private:
         static std::unordered_map<size_t, std::string> mapUID2CanvasId;
-        static std::unordered_map<size_t, CallbackData*> mapUID2CallbackData;
+        static std::unordered_map<size_t, std::unique_ptr<CallbackData>> mapUID2CallbackData;
         static std::unordered_map<std::string, olc::Window*> mapCanvasId2PTR;
         std::atomic<bool> terminate {false};
-
+        
         // Map of system keycodes to olc::Keycodes
         std::unordered_map<int32_t, olc::Key> mapKeys;
     };
