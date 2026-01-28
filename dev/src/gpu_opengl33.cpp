@@ -1105,15 +1105,8 @@ void main()
 		X11::glXSwapBuffers(display, window_handle);
 #endif
 
-#if OLC_HOST == OLC_HOST_LINUX_WAYLAND
-	const auto* wayland_window = reinterpret_cast<olc::host::WaylandWindow*>(os_win_id[0]);
-	//auto* window_handle = wayland_window->window;
-	//auto* display = reinterpret_cast<wl_display*>(os_win_id[1]);
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN || OLC_HOST == OLC_HOST_LINUX_WAYLAND
 	eglSwapBuffers(glRenderContext.display, glRenderContext.surface);
-#endif
-
-#if OLC_HOST == OLC_HOST_EMSCRIPTEN
-		eglSwapInterval(glRenderContext.display, bVerticalSyncNow ? 1 : 0);
 #endif
 
 		return true;
