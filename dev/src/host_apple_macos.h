@@ -41,7 +41,7 @@ namespace olc
             olc::Window* pPGEwindow = nullptr;                  // Pointer to PGE Window
             
         public:
-            Host_Apple_MacOS() = default;
+            Host_Apple_MacOS();
             virtual ~Host_Apple_MacOS() {};
             
         public:
@@ -60,6 +60,8 @@ namespace olc
 			// Wait for entire host desktop refresh (for smooooth vsync),
 			virtual bool SyncWithDesktopComposite() override;
 
+            virtual olc::KeyboardLayout GetKeyboardLayout() const override;
+
         protected:
 			HostError lastError = HostError::None;
 
@@ -72,6 +74,9 @@ namespace olc
 
             void* pMacGLConextObj = nullptr;
             std::once_flag intialAppFlag;
+            
+            // Map of system keycodes to olc::Keycodes
+            std::unordered_map<int32_t, olc::Key> mapKeys;
     
         private:      
             enum MAINTASKS{
@@ -116,6 +121,12 @@ namespace olc
             void MacWindowEventsHandler();
             void MacEventsHandler();
             void MacOpenGLContextEventsHandler();
+            
+            /*
+             Note for Mac Users: Apple-branded extended keyboards often do not have a physical "NumLock" key; they act as "NumLock On" by default.
+             This behavior (where the key triggers the function flag) is more common when using third-party mechanical keyboards or specialized numpads on macOS.
+             */
+            void ModifiersFlagsHandler(const olc::apis::macos::KeyEvent& data, bool pressed);
             
         };
     }

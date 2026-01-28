@@ -50,6 +50,7 @@ extern "C" {
     void application_activate            (struct Application* self);
     void application_run                 (struct Application* self);
     void application_destroy             (struct Application* self);
+    const char* application_getSystemLocale (struct Application* self);
     
     // Window API - as implemented in api_macos.c
     struct Window* window_init           (double x, double y, double width, double height);
@@ -98,7 +99,7 @@ extern "C" {
     void glDeleteTextures(int n, const unsigned int* textures);
     
     // Event callback function types
-    typedef void (*KeyEventCallback)        (unsigned short keyCode, const char* characters, void* userData);
+    typedef void (*KeyEventCallback)        (unsigned short keyCode, const char* characters, unsigned int modifierFlags, void* userData);
     typedef void (*MouseEventCallback)      (double x, double y, int buttonNumber, unsigned int modifierFlags, void* userData);
     
     // Event handler setup

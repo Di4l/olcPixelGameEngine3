@@ -95,6 +95,12 @@ namespace olc {
                 void run() noexcept {
                     if (app_) application_run(app_);
                 }
+
+                // Add this method to get system locale
+                std::string getSystemLocale() const {
+                    const char* localeC = application_getSystemLocale(app_);
+                    return localeC ? std::string(localeC) : std::string("en_GB");
+                }
                 
                 // Get underlying C handle
                 struct ::Application* getCHandle() const noexcept { return app_; }
@@ -632,10 +638,11 @@ namespace olc {
             struct KeyEvent {
                 unsigned short keyCode;
                 std::string characters;
-                
-                KeyEvent(unsigned short code, const char* chars) noexcept
-                    : keyCode(code), characters(chars ? chars : "") {}
-                
+                unsigned int modifierFlags;
+
+                KeyEvent(unsigned short code, const char* chars, unsigned int mods) noexcept
+                    : keyCode(code), characters(chars ? chars : ""), modifierFlags(mods) {}
+
                 // Move constructor and assignment for better performance
                 KeyEvent(KeyEvent&&) noexcept = default;
                 KeyEvent& operator=(KeyEvent&&) noexcept = default;
@@ -689,10 +696,10 @@ namespace olc {
                
                 // Template helpers for static callbacks to reduce code duplication
                 template<typename EventType, typename HandlerType>
-                static void keyCallback(unsigned short keyCode, const char* characters, void* userData, HandlerType EventHandler::*handler) {
+                static void keyCallback(unsigned short keyCode, const char* characters, unsigned int modifierFlags, void* userData, HandlerType EventHandler::*handler) {
                     auto* eventHandler = static_cast<EventHandler*>(userData);
                     if (eventHandler && (eventHandler->*handler)) {
-                        (eventHandler->*handler)(KeyEvent(keyCode, characters));
+                        (eventHandler->*handler)(KeyEvent(keyCode, characters, modifierFlags));
                     }
                 }
                 
@@ -705,12 +712,12 @@ namespace olc {
                 }
                 
                 // Static callback functions for C API
-                static void keyDownCallback(unsigned short keyCode, const char* characters, void* userData) {
-                    keyCallback<KeyEvent>(keyCode, characters, userData, &EventHandler::keyDownHandler_);
+                static void keyDownCallback(unsigned short keyCode, const char* characters, unsigned int modifierFlags, void* userData) {
+                    keyCallback<KeyEvent>(keyCode, characters, modifierFlags, userData, &EventHandler::keyDownHandler_);
                 }
-                
-                static void keyUpCallback(unsigned short keyCode, const char* characters, void* userData) {
-                    keyCallback<KeyEvent>(keyCode, characters, userData, &EventHandler::keyUpHandler_);
+
+                static void keyUpCallback(unsigned short keyCode, const char* characters, unsigned int modifierFlags, void* userData) {
+                    keyCallback<KeyEvent>(keyCode, characters, modifierFlags, userData, &EventHandler::keyUpHandler_);
                 }
                 
                 static void mouseDownCallback(double x, double y, int buttonNumber, unsigned int modifierFlags, void* userData) {
