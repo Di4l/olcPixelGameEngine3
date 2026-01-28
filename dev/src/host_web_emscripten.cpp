@@ -444,7 +444,7 @@ namespace olc::host
     // Wait for entire host desktop refresh (for smooooth vsync)
     bool Host_Web_Emscripten::SyncWithDesktopComposite()
     {
-        std::cout << "Emscripten: SyncWithDesktopComposite not implemented.\n";
+        // SyncWithDesktopComposite not implemented on this platform
         return true;
     }
 	
