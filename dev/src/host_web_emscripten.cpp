@@ -11,6 +11,44 @@ namespace olc::host
     {
         std::cout << "Emscripten: host constructed.\n";
         
+        // Detect and Store Keyboard Layout
+        EM_ASM({
+            if (!navigator.keyboard || !navigator.keyboard.getLayoutMap)
+                return;
+
+            navigator.keyboard.getLayoutMap().then(function(map)
+            {
+                const keys = [map.get("KeyQ"), map.get("KeyW"), map.get("KeyE"), map.get("KeyR"), map.get("KeyT"), map.get("KeyY"), map.get("Backslash")];
+                
+                // QWERTY - UK/US
+                if(keys[0] == 'q' && keys[1] == 'w' && keys[2] == 'e' && keys[3] == 'r' && keys[4] == 't' && keys[5] == 'y') {
+                    if(keys[6] == '#' || keys[6] == '~')
+                    {
+                        Module.keyboardLayout = 0;
+                        return;
+                    }
+                    else
+                    {
+                        Module.keyboardLayout = 1;
+                        return;
+                    }
+                }
+
+                // QWERTZ - DE
+                if(keys[0] == 'q' && keys[1] == 'w' && keys[2] == 'e' && keys[3] == 'r' && keys[4] == 't' && keys[5] == 'z') {
+                    Module.keyboardLayout = 2; 
+                    return;
+                }
+                
+                // AZERTY - FR
+                if(keys[0] == 'q' && keys[1] == 'w' && keys[2] == 'e' && keys[3] == 'r' && keys[4] == 't' && keys[5] == 'z') {
+                    Module.keyboardLayout = 3;
+                    return;
+                }
+                
+            });
+        });
+
         // Map Emscripten Defined DOM_PK_ Codes to olc::KeyCodes
         mapKeys[DOM_PK_UNKNOWN] = Key::NONE;
         
@@ -348,7 +386,7 @@ namespace olc::host
     EM_BOOL Host_Web_Emscripten::focus_callback(int eventType, const EmscriptenFocusEvent* focusEvent, void* userData)
     {
         CallbackData* pCallbackData = reinterpret_cast<CallbackData*>(userData);
-
+ 
         if (eventType == EMSCRIPTEN_EVENT_BLUR)
         {
             // ptrPGE->olc_UpdateKeyFocus(false);
@@ -450,7 +488,7 @@ namespace olc::host
 	
     olc::KeyboardLayout Host_Web_Emscripten::GetKeyboardLayout() const
 	{
-        return OLC_DEFAULT_KEYBOARD_LAYOUT;
+		return static_cast<olc::KeyboardLayout>(EM_ASM_INT({ return Module.keyboardLayout || 0; }));
     }
 
     bool Host_Web_Emscripten::olc_OnMouseButton(olc::Window* pWindow, const uint8_t nButton, const bool bPressed)
