@@ -6,6 +6,135 @@
 //! START IMPLEMENTATION
 namespace olc::host {
 
+
+    // NSEventModifierFlags values
+    constexpr unsigned int NSEventModifierNoFlags        = 1 << 8;  // 0x100
+    constexpr unsigned int NSEventModifierFlagCapsLock   = 1 << 16; // 0x10000
+    constexpr unsigned int NSEventModifierFlagShift      = 1 << 17; // 0x20000
+    constexpr unsigned int NSEventModifierFlagControl    = 1 << 18; // 0x40000
+    constexpr unsigned int NSEventModifierFlagOption     = 1 << 19; // 0x80000
+    constexpr unsigned int NSEventModifierFlagCommand    = 1 << 20; // 0x100000
+    constexpr unsigned int NSEventModifierFlagNumericPad = 1 << 21; // 0x200000
+    constexpr unsigned int NSEventModifierFlagHelp       = 1 << 22; // 0x400000
+    constexpr unsigned int NSEventModifierFlagFunction   = 1 << 23; // 0x800000
+
+
+    Host_Apple_MacOS::Host_Apple_MacOS()
+    {
+         // Reference: https://eastmanreference.com/complete-list-of-applescript-key-codes
+        mapKeys[0x00] = Key::NONE;
+
+        // Map macOS key codes to olc::Key codes
+        mapKeys[0] = Key::A;
+        mapKeys[11] = Key::B;
+        mapKeys[8] = Key::C;
+        mapKeys[2] = Key::D;
+        mapKeys[14] = Key::E;
+        mapKeys[3] = Key::F;
+        mapKeys[5] = Key::G;
+        mapKeys[4] = Key::H;
+        mapKeys[34] = Key::I;
+        mapKeys[38] = Key::J;
+        mapKeys[40] = Key::K;
+        mapKeys[37] = Key::L;
+        mapKeys[46] = Key::M;
+        mapKeys[45] = Key::N;
+        mapKeys[31] = Key::O;
+        mapKeys[35] = Key::P;
+        mapKeys[12] = Key::Q;
+        mapKeys[15] = Key::R;
+        mapKeys[1] = Key::S;
+        mapKeys[17] = Key::T;
+        mapKeys[32] = Key::U;
+        mapKeys[9] = Key::V;
+        mapKeys[13] = Key::W;
+        mapKeys[7] = Key::X;
+        mapKeys[16] = Key::Y;
+        mapKeys[6] = Key::Z;
+
+        // Numeric keys
+        mapKeys[29] = Key::K0;
+        mapKeys[18] = Key::K1;
+        mapKeys[19] = Key::K2;
+        mapKeys[20] = Key::K3;
+        mapKeys[21] = Key::K4;
+        mapKeys[23] = Key::K5;
+        mapKeys[22] = Key::K6;
+        mapKeys[26] = Key::K7;
+        mapKeys[28] = Key::K8;
+        mapKeys[25] = Key::K9;
+
+        // Function Keys
+        mapKeys[122] = Key::F1;
+        mapKeys[120] = Key::F2;
+        mapKeys[99] = Key::F3;
+        mapKeys[118] = Key::F4;
+        mapKeys[96] = Key::F5;
+        mapKeys[97] = Key::F6;
+        mapKeys[98] = Key::F7;
+        mapKeys[100] = Key::F8;
+        mapKeys[101] = Key::F9;
+        mapKeys[109] = Key::F10;
+        mapKeys[103] = Key::F11;
+        mapKeys[111] = Key::F12;
+
+        // Arrow Keys
+        mapKeys[125] = Key::DOWN;
+        mapKeys[123] = Key::LEFT;
+        mapKeys[124] = Key::RIGHT;
+        mapKeys[126] = Key::UP;
+
+        // Other Keys
+        mapKeys[51] = Key::BACK;        // Delete (Backspace)
+        mapKeys[53] = Key::ESCAPE;      // Escape
+        mapKeys[36] = Key::ENTER;       // Return
+        mapKeys[113] = Key::PAUSE;      // F16 (often used as pause)
+        mapKeys[107] = Key::SCROLL;     // F14 (scroll lock equivalent)
+        mapKeys[48] = Key::TAB;         // Tab
+        mapKeys[117] = Key::DEL;        // Forward Delete
+        mapKeys[115] = Key::HOME;       // Home
+        mapKeys[119] = Key::END;        // End
+        mapKeys[116] = Key::PGUP;       // Page Up
+        mapKeys[121] = Key::PGDN;       // Page Down
+        mapKeys[114] = Key::INS;        // Help (Insert equivalent)
+        mapKeys[56] = Key::SHIFT;       // Left Shift
+        mapKeys[59] = Key::CTRL;        // Left Control
+        mapKeys[49] = Key::SPACE;       // Space
+        mapKeys[57] = Key::CAPS_LOCK;   // Caps Lock
+
+        // Numpad
+        mapKeys[82] = Key::NP0;
+        mapKeys[83] = Key::NP1;
+        mapKeys[84] = Key::NP2;
+        mapKeys[85] = Key::NP3;
+        mapKeys[86] = Key::NP4;
+        mapKeys[87] = Key::NP5;
+        mapKeys[88] = Key::NP6;
+        mapKeys[89] = Key::NP7;
+        mapKeys[91] = Key::NP8;
+        mapKeys[92] = Key::NP9;
+        mapKeys[67] = Key::NP_MUL;      // Numpad *
+        mapKeys[69] = Key::NP_ADD;      // Numpad +
+        mapKeys[75] = Key::NP_DIV;      // Numpad /
+        mapKeys[78] = Key::NP_SUB;      // Numpad -
+        mapKeys[65] = Key::NP_DECIMAL;  // Numpad .
+
+        // Symbol Keys (OEM equivalents)
+        mapKeys[41] = Key::OEM_1;       // On US and UK keyboards this is the ';:' key
+        mapKeys[44] = Key::OEM_2;       // On US and UK keyboards this is the '/?' key
+        mapKeys[50] = Key::OEM_3;       // On US and UK keyboards this is the '`~' key (Grave accent `)
+        mapKeys[33] = Key::OEM_4;       // On US and UK keyboards this is the '[{' key
+        mapKeys[42] = Key::OEM_5;       // On US keyboard this is '\|' key. 
+        mapKeys[30] = Key::OEM_6;       // On US and UK keyboards this is the ']}' key
+        mapKeys[39] = Key::OEM_7;       // On US keyboard this is the single/double quote key. On UK, this is the single quote/@ symbol key (TODO: I think MAC is always @)
+        mapKeys[10] = Key::OEM_8;       // Section sign § (varies by keyboard)
+        mapKeys[24] = Key::EQUALS;      // Equal sign =
+        mapKeys[43] = Key::COMMA;       // Comma ,
+        mapKeys[27] = Key::MINUS;       // Minus -
+        mapKeys[47] = Key::PERIOD;      // Period .
+
+    }
+
     bool Host_Apple_MacOS::StartSystemEventLoop(bool bBlockIfPossible){
         (void)(bBlockIfPossible); // Remove unused variable warning
 
@@ -106,6 +235,35 @@ namespace olc::host {
         
         return enableVSync;
     }
+
+    olc::KeyboardLayout Host_Apple_MacOS::GetKeyboardLayout() const
+    {
+        // Get system locale from MacOS Application
+        // We need to wait until the application has launched to get the keyboard layout
+        // Therefore this function is called again from setDidFinishLaunchingCallback event
+        if (pMacApplication)
+        {
+            std::string locale = pMacApplication->getSystemLocale();
+            if (locale == "en_GB")
+            {
+                return olc::KeyboardLayout::QWERTY_UK;
+            }
+            else if (locale == "en_US")
+            {
+                return olc::KeyboardLayout::QWERTY_US;
+            }
+            else if (locale == "fr_FR")
+            {
+                return olc::KeyboardLayout::AZERTY;
+            }
+            else if (locale == "de_DE")
+            {
+                return olc::KeyboardLayout::QWERTZ;
+            }
+        }
+        // Default to QWERTY if unknown
+        return olc::KeyboardLayout::QWERTY_UK;
+    }   
 
 // ------- Priavate Main Thread Task Handling for MacOS Host -------
 
@@ -253,6 +411,8 @@ namespace olc::host {
        pMacApplication->setDidFinishLaunchingCallback([&]() {
            // Queue the Create OpenGL context task
            vPendingMainThreadTasks.push_back(CREATE_OPENGL_RENDERER);
+           // We need to wait until the application has launched to get the keyboard layout
+           pPGEwindow->keyboard.UseKeyboardLayout(GetKeyboardLayout());
        });
        
        pMacApplication->setWillTerminateCallback([&]() {
@@ -296,6 +456,20 @@ namespace olc::host {
         
     }
 
+    void Host_Apple_MacOS::ModifiersFlagsHandler(const olc::apis::macos::KeyEvent& event, bool pressed) {
+        
+        if (event.modifierFlags & NSEventModifierFlagCapsLock) {
+            pPGEwindow->olc_OnKeyPress(Key::CAPS_LOCK, pressed);
+        }
+        if (event.modifierFlags & NSEventModifierFlagShift) {
+            pPGEwindow->olc_OnKeyPress(Key::SHIFT, pressed);
+        }
+        if (event.modifierFlags & NSEventModifierFlagControl) {
+            pPGEwindow->olc_OnKeyPress(Key::CTRL, pressed);
+        }
+        
+    }
+
 
     void Host_Apple_MacOS::MacEventsHandler()
     {
@@ -303,43 +477,15 @@ namespace olc::host {
         // Reference: https://eastmanreference.com/complete-list-of-applescript-key-codes
 
         // Set up keyboard event handlers
-        pMacOSEventHandler->onKeyDown([](const olc::apis::macos::KeyEvent& event) {
-            std::cout << "Key Down - Code: " << event.keyCode
-                        << ", Chars: '" << event.characters << "'" << std::endl;
-            
-            // Handle special keys
-            switch (event.keyCode) {
-                case 53: // Escape
-                    std::cout << "Escape key pressed!" << std::endl;
-                    break;
-                case 36: // Return
-                    std::cout << "Return key pressed!" << std::endl;
-                    break;
-                case 49: // Space
-                    std::cout << "Space key pressed!" << std::endl;
-                    break;
-                case 123: // Left arrow
-                    std::cout << "Left arrow pressed!" << std::endl;
-                    break;
-                case 124: // Right arrow
-                    std::cout << "Right arrow pressed!" << std::endl;
-                    break;
-                case 125: // Down arrow
-                    std::cout << "Down arrow pressed!" << std::endl;
-                    break;
-                case 126: // Up arrow
-                    std::cout << "Up arrow pressed!" << std::endl;
-                    break;
-                default:
-                    if (!event.characters.empty()) {
-                        std::cout << "Character key: '" << event.characters << "'" << std::endl;
-                    }
-                    break;
-            }
+        pMacOSEventHandler->onKeyDown([&](const olc::apis::macos::KeyEvent& event) {
+            ModifiersFlagsHandler(event, true);
+            pPGEwindow->olc_OnKeyPress(mapKeys[event.keyCode], true);
         });
         
-        pMacOSEventHandler->onKeyUp([](const olc::apis::macos::KeyEvent& event) {
-            std::cout << "Key Up - Code: " << event.keyCode << std::endl;
+        pMacOSEventHandler->onKeyUp([&](const olc::apis::macos::KeyEvent& event) {
+            ModifiersFlagsHandler(event, false);
+            pPGEwindow->olc_OnKeyPress(mapKeys[event.keyCode], false);
+
         });
         
         // Set up mouse event handlers

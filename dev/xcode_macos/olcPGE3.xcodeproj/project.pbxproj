@@ -27,6 +27,7 @@
 		46E85E0A2E39252200B74FA3 /* window.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 460495F22E300E000047E223 /* window.cpp */; };
 		46E85E0B2E39252B00B74FA3 /* gpu_opengl33.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 460495E12E300E000047E223 /* gpu_opengl33.cpp */; };
 		46FB045A2F02F7DF00BFA86D /* draw2d_sw.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 46FB04592F02F7DF00BFA86D /* draw2d_sw.cpp */; };
+		46FD95932F2AA035004EAEC5 /* hw_keyboard.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 46FD95922F2AA035004EAEC5 /* hw_keyboard.cpp */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -88,6 +89,7 @@
 		46E85DFA2E39136800B74FA3 /* QuartzCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QuartzCore.framework; path = System/Library/Frameworks/QuartzCore.framework; sourceTree = SDKROOT; };
 		46E85DFC2E39137100B74FA3 /* Metal.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Metal.framework; path = System/Library/Frameworks/Metal.framework; sourceTree = SDKROOT; };
 		46FB04592F02F7DF00BFA86D /* draw2d_sw.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = draw2d_sw.cpp; sourceTree = "<group>"; };
+		46FD95922F2AA035004EAEC5 /* hw_keyboard.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = hw_keyboard.cpp; sourceTree = "<group>"; };
 		8998CE202E057F4E007DDD96 /* olcPGE3 */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = olcPGE3; sourceTree = BUILT_PRODUCTS_DIR; };
 		8998CE2B2E057F85007DDD96 /* test_vector2d.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = test_vector2d.cpp; sourceTree = "<group>"; };
 		8998CE2C2E057F85007DDD96 /* CMakeLists.txt */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = CMakeLists.txt; sourceTree = "<group>"; };
@@ -164,6 +166,7 @@
 		8998CE322E057F92007DDD96 /* src */ = {
 			isa = PBXGroup;
 			children = (
+				46FD95922F2AA035004EAEC5 /* hw_keyboard.cpp */,
 				46FB04592F02F7DF00BFA86D /* draw2d_sw.cpp */,
 				467318B82EEC213700714D4C /* font.h */,
 				467318B92EEC213700714D4C /* font.cpp */,
@@ -280,6 +283,7 @@
 				469A92132E79B0F1007BB460 /* hw_mouse.cpp in Sources */,
 				46E85E062E3924CC00B74FA3 /* api_opengl.cpp in Sources */,
 				46964CE82EE5C23300B7BCF1 /* api_macos.cpp in Sources */,
+				46FD95932F2AA035004EAEC5 /* hw_keyboard.cpp in Sources */,
 				46C8F5B92E7DA67900C11019 /* imload_macos.cpp in Sources */,
 				460496082E362F190047E223 /* test_mh.cpp in Sources */,
 			);

@@ -120,6 +120,12 @@ static constexpr const char* kBytesPerRowSel                    = "bytesPerRow";
 static constexpr const char* kHasAlphaSel                       = "hasAlpha";
 static constexpr const char* kBitmapDataSel                     = "bitmapData";
 
+// NSLocale class and method names
+static constexpr const char* kNSLocaleClass                     = "NSLocale";
+static constexpr const char* kCurrentLocaleSel                  = "currentLocale";
+static constexpr const char* kLocaleIdentifierSel               = "localeIdentifier";
+
+
 // Default values and configuration settings 
 static constexpr const char* kWindowTitle                       = "C macOS OpenGL Framework";
 static constexpr double kDefaultWindowWidth                     = 800.0;
@@ -184,6 +190,9 @@ namespace ObjectiveCSEL {
     // NSImage, NSBitmapImageRep, and image data access selectors
     static SEL initWithContentsOfFileSel, representationsSel, countSel, objectAtIndexSel, pixelsWideSel, pixelsHighSel, bitsPerPixelSel, bytesPerRowSel, hasAlphaSel, bitmapDataSel = nullptr;
 
+    // NSLocale selectors
+    static SEL currentLocaleSel, localeIdentifierSel = nullptr;
+    
     // Initialize all selectors - called once at startup
     void initializeSelectors() {
         if (allocSel) return; // Already initialized
@@ -290,6 +299,10 @@ namespace ObjectiveCSEL {
         bytesPerRowSel                     = sel_registerName(kBytesPerRowSel);
         hasAlphaSel                        = sel_registerName(kHasAlphaSel);
         bitmapDataSel                      = sel_registerName(kBitmapDataSel);
+
+        // NSLocale selectors
+        currentLocaleSel                   = sel_registerName(kCurrentLocaleSel);
+        localeIdentifierSel                = sel_registerName(kLocaleIdentifierSel);
     }
 
     // Ensures we only initialize selectors once (Thread-safe)
@@ -540,6 +553,7 @@ struct Application {
     void (*activate)    (struct Application* self){nullptr};
     void (*run)         (struct Application* self){nullptr};
     void (*destroy)     (struct Application* self){nullptr};
+    const char* (*getSystemLocale)(struct Application* self){nullptr};
     
     Application() = default;
     
@@ -566,8 +580,8 @@ struct Window {
     const char* title{nullptr};     // Window title string
 
     // Event callback function pointers with nullptr initialization
-    void (*keyDownCallback)          (unsigned short keyCode, const char* characters, void* userData){nullptr};
-    void (*keyUpCallback)            (unsigned short keyCode, const char* characters, void* userData){nullptr};
+    void (*keyDownCallback)          (unsigned short keyCode, const char* characters, unsigned int modifierFlags, void* userData){nullptr};
+    void (*keyUpCallback)            (unsigned short keyCode, const char* characters, unsigned int modifierFlags, void* userData){nullptr};
     void (*mouseDownCallback)        (double x, double y, int buttonNumber,  unsigned int modifierFlags, void* userData){nullptr};
     void (*mouseUpCallback)          (double x, double y, int buttonNumber,  unsigned int modifierFlags, void* userData){nullptr};
     void (*mouseMovedCallback)       (double x, double y, int buttonNumber,  unsigned int modifierFlags, void* userData){nullptr};
@@ -732,6 +746,7 @@ id createApplicationDelegate() {
 struct KeyEventData {
     unsigned short keyCode = 0;
     const char* characters = nullptr;
+    unsigned int modifierFlags = 0;
 };
 
 // Extract common key event data from NSEvent
@@ -740,6 +755,7 @@ KeyEventData extractKeyEventData(id event) {
     data.keyCode = ((unsigned short(*)(id, SEL))objc_msgSend)(event, ObjectiveCSEL::keyCodeSel);
     id characters = ((id(*)(id, SEL))objc_msgSend)(event, ObjectiveCSEL::charactersSel);
     data.characters = ((const char*(*)(id, SEL))objc_msgSend)(characters, ObjectiveCSEL::utf8StringSel);
+    data.modifierFlags = ((unsigned int(*)(id, SEL))objc_msgSend)(event, ObjectiveCSEL::modifierFlagsSel);
     return data;
 }
 
@@ -750,7 +766,7 @@ void view_keyDown(id self, SEL _cmd, id event) {
     KeyEventData data = extractKeyEventData(event);
 
     if (gptrNSWindowEvents && gptrNSWindowEvents->acceptsInputEvents && gptrNSWindowEvents->keyDownCallback) [[likely]] {
-        gptrNSWindowEvents->keyDownCallback(data.keyCode, data.characters, gptrNSWindowEvents->eventUserData);
+        gptrNSWindowEvents->keyDownCallback(data.keyCode, data.characters, data.modifierFlags, gptrNSWindowEvents->eventUserData);
     }
 }
 
@@ -761,7 +777,7 @@ void view_keyUp(id self, SEL _cmd, id event) {
     KeyEventData data = extractKeyEventData(event);
     
     if (gptrNSWindowEvents && gptrNSWindowEvents->acceptsInputEvents && gptrNSWindowEvents->keyUpCallback) [[likely]] {
-        gptrNSWindowEvents->keyUpCallback(data.keyCode, data.characters, gptrNSWindowEvents->eventUserData);
+        gptrNSWindowEvents->keyUpCallback(data.keyCode, data.characters, data.modifierFlags, gptrNSWindowEvents->eventUserData);
     }
 }
 
@@ -1203,6 +1219,26 @@ extern "C" {
         }
     }
 
+     // Get system locale identifier
+    const char* application_getSystemLocale(Application* self) {
+        (void)self; 
+        
+        // Get NSLocale class
+        Class NSLocaleClass = objc_getClass(kNSLocaleClass);
+        
+        // Get current locale
+        id currentLocale = ((id(*)(Class, SEL))objc_msgSend)(NSLocaleClass, ObjectiveCSEL::currentLocaleSel);
+        
+        // Get locale identifier
+        id localeIdentifierNS = ((id(*)(id, SEL))objc_msgSend)(currentLocale, ObjectiveCSEL::localeIdentifierSel);
+        
+        // Convert to C string (en-US, en-GB, en-IE etc)
+        const char* localeIdentifier = ((const char*(*)(id, SEL))objc_msgSend)(localeIdentifierNS, ObjectiveCSEL::utf8StringSel);
+        
+        return localeIdentifier;
+    }
+
+
     // Ensure window has a delegate for window events
     void ensureWindowDelegate(struct Window* self) {
 
@@ -1225,10 +1261,11 @@ extern "C" {
         Application* app = new Application();
 
         // Assign the method pointers
-        app->initialize = application_initialize;
-        app->activate   = application_activate;
-        app->run        = application_run;
-        app->destroy    = application_destroy;
+        app->initialize      = application_initialize;
+        app->activate        = application_activate;
+        app->run             = application_run;
+        app->destroy         = application_destroy;
+        app->getSystemLocale = application_getSystemLocale;
 
         return app;
     }
@@ -1866,12 +1903,12 @@ extern "C" {
     }
 
     // Event callback setter functions
-    void window_setKeyDownCallback(Window* self, void (*callback)(unsigned short, const char*, void*), void* userData) {
+    void window_setKeyDownCallback(Window* self, void (*callback)(unsigned short, const char*, unsigned int, void*), void* userData) {
         self->keyDownCallback = callback;
         self->eventUserData = userData;
     }
 
-    void window_setKeyUpCallback(Window* self, void (*callback)(unsigned short, const char*, void*), void* userData) {
+    void window_setKeyUpCallback(Window* self, void (*callback)(unsigned short, const char*, unsigned int, void*), void* userData) {
         self->keyUpCallback = callback;
         self->eventUserData = userData;
     }
