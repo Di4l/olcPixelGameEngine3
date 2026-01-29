@@ -10449,18 +10449,25 @@ void main()
 
 		// Create a Frame Buffer Object for off-screen rendering things
 		gl.glGenFramebuffers(1, (GLuint*)&nDefaultFBO);
-		gl.glBindFramebuffer(36160U, nDefaultFBO); // GL_FRAMEBUFFER
+		gl.glBindFramebuffer(gl.GL_FRAMEBUFFER_X, nDefaultFBO); // GL_FRAMEBUFFER
 		// Attach 4 colour buffers
-		std::array<GLenum, 4> attachments = { {36064U, 36065U, 36066U, 36067U} };
+		std::array<GLenum, 4> attachments = 
+		{ {
+			gl.GL_COLOR_ATTACHMENT0_X,
+			gl.GL_COLOR_ATTACHMENT0_X + 1,
+			gl.GL_COLOR_ATTACHMENT0_X + 2,
+			gl.GL_COLOR_ATTACHMENT0_X + 3
+		} };
+
 		gl.glDrawBuffers(4, attachments.data());
 		// Unlink them from any existing image textures
-		//gl.glFramebufferTexture2D(36160U, attachments[0], GL_TEXTURE_2D, 0, 0);
-		//gl.glFramebufferTexture2D(36160U, attachments[1], GL_TEXTURE_2D, 0, 0);
-		//gl.glFramebufferTexture2D(36160U, attachments[2], GL_TEXTURE_2D, 0, 0);
-		//gl.glFramebufferTexture2D(36160U, attachments[3], GL_TEXTURE_2D, 0, 0);
-		// Unbind the FBO
-		gl.glBindFramebuffer(36160U, 0);
+		//gl.glFramebufferTexture2D(gl.GL_FRAMEBUFFER_X, attachments[0], GL_TEXTURE_2D, 0, 0);
+		//gl.glFramebufferTexture2D(gl.GL_FRAMEBUFFER_X, attachments[1], GL_TEXTURE_2D, 0, 0);
+		//gl.glFramebufferTexture2D(gl.GL_FRAMEBUFFER_X, attachments[2], GL_TEXTURE_2D, 0, 0);
+		//gl.glFramebufferTexture2D(gl.GL_FRAMEBUFFER_X, attachments[3], GL_TEXTURE_2D, 0, 0);
 
+		// Unbind the FBO
+		gl.glBindFramebuffer(gl.GL_FRAMEBUFFER_X, 0);
 
 		// Create FBOs for MSAA resolve operations
 		gl.glGenFramebuffers(1, &nResolveFBO_Draw);
