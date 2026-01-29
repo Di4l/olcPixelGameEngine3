@@ -1,5 +1,5 @@
 /*
-	OneLoneCoder - Animate2D v1.01
+	OneLoneCoder - Animate2D v3.0
 	~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	Handles animated Sprites efficiently
 
@@ -7,7 +7,7 @@
 	License (OLC-3)
 	~~~~~~~~~~~~~~~
 
-	Copyright 2018 - 2024 OneLoneCoder.com
+	Copyright 2018 - 2026 OneLoneCoder.com
 
 	Redistribution and use in source and binary forms, with or without
 	modification, are permitted provided that the following conditions
@@ -48,18 +48,18 @@
 
 	Author
 	~~~~~~
-	David Barr, aka javidx9, ©OneLoneCoder 2019, 2020, 2021, 2022, 2023, 2024
+	David Barr, aka javidx9, ©OneLoneCoder 2018 - 2026
 
 
 	Versions
 	~~~~~~~~
-	1.01	+PingPong Style Animation
+	3.0		+Initial Release
 */
 
 #pragma once
 
-#include "utilities/olcUTIL_Geometry2D.h"
-#include "olcPixelGameEngine.h"
+#include <utilities/olcUTIL3_Geometry2D.h>
+#include <olcPixelGameEngine3.h>
 #include <unordered_map>
 
 namespace olc::utils::Animate2D
@@ -70,32 +70,32 @@ namespace olc::utils::Animate2D
 	//
 	// "Sourceless" frames are valid too - this is useful if you have a particular animation set, but 
 	// want to apply it to a variety of sources, for example sprite maps with common layouts.
-	class Frame
-	{
-	public:
-		inline Frame(const olc::Renderable* gfxSource, const geom2d::rect<int32_t>& rectSource = { {0,0},{0,0} })
-			: gfxImageSource(gfxSource), rectFrameSource(rectSource)
-		{
-			// If no source rectangle specified then use whole image source. Ignore in the event 
-			// that a frame is set up as source-less
-			if(gfxSource && rectFrameSource.size.x == 0)
-				rectFrameSource.size = gfxSource->Sprite()->Size();
-		}
+	//class Frame
+	//{
+	//public:
+	//	inline Frame(const olc::Renderable* gfxSource, const geom2d::rect<int32_t>& rectSource = { {0,0},{0,0} })
+	//		: gfxImageSource(gfxSource), rectFrameSource(rectSource)
+	//	{
+	//		// If no source rectangle specified then use whole image source. Ignore in the event 
+	//		// that a frame is set up as source-less
+	//		if(gfxSource && rectFrameSource.size.x == 0)
+	//			rectFrameSource.size = gfxSource->Sprite()->Size();
+	//	}
 
-		inline const olc::Renderable* GetSourceImage() const
-		{
-			return gfxImageSource;
-		}
+	//	inline const olc::Renderable* GetSourceImage() const
+	//	{
+	//		return gfxImageSource;
+	//	}
 
-		inline const geom2d::rect<int32_t>& GetSourceRect() const
-		{
-			return rectFrameSource;
-		}
+	//	inline const geom2d::rect<int32_t>& GetSourceRect() const
+	//	{
+	//		return rectFrameSource;
+	//	}
 
-	private:
-		const olc::Renderable* gfxImageSource;
-		geom2d::rect<int32_t> rectFrameSource;
-	};
+	//private:
+	//	const olc::Renderable* gfxImageSource;
+	//	geom2d::rect<int32_t> rectFrameSource;
+	//};
 
 	// Animation styles decide how the frames should be traversed in time
 	enum class Style : uint8_t
@@ -123,13 +123,13 @@ namespace olc::utils::Animate2D
 		}
 
 		// Adds a frame to this sequence
-		inline void AddFrame(const Frame& frame)
+		inline void AddFrame(const olc::ImageRegion& frame)
 		{
 			m_vFrames.emplace_back(frame);
 		}
 
 		// Returns a Frame Object for a given time into an animation
-		inline const Frame& GetFrame(const float fTime) const
+		inline const olc::ImageRegion& GetFrame(const float fTime) const
 		{
 			size_t frame = ConvertTimeToFrame(fTime);
 			return m_vFrames[frame];
@@ -142,7 +142,7 @@ namespace olc::utils::Animate2D
 		
 	private:
 		Style m_nStyle;
-		std::vector<Frame> m_vFrames;
+		std::vector<olc::ImageRegion> m_vFrames;
 		float m_fFrameDuration = 0.1f;
 		float m_fFrameRate = 10.0f;
 
@@ -218,7 +218,7 @@ namespace olc::utils::Animate2D
 
 	public:
 		// Retrieve the frame information for a given animation state
-		inline const Frame& GetFrame(const AnimationState& state) const
+		inline const olc::ImageRegion& GetFrame(const AnimationState& state) const
 		{
 			return m_vSequences[state.nIndex].GetFrame(state.fTime);
 		}

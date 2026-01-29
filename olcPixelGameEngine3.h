@@ -106,13 +106,13 @@
 */
 
 
-#include <concepts>
 #include <cmath>
 #include <cstdint>
 #include <algorithm>
 #include <string>
 #include <unordered_map>
 #include <iostream>
+#include <concepts>
 #include <array>
 #include <vector>
 #include <memory>
@@ -259,13 +259,6 @@
 
 template<typename... Args>
 inline constexpr void olc_IgnoreUnused(Args&&...) noexcept {}
-
-
-namespace olc
-{
-	template <typename T>
-	concept numeric = std::integral<T> || std::floating_point<T>;
-}
 
 
 #if !defined(PGE_PIXEL_DECLARED)
@@ -582,6 +575,9 @@ namespace olc
 #if !defined(PGE_VECTOR2D_DECLARED)
 namespace olc
 {
+	template <typename T>
+	concept numeric = std::integral<T> || std::floating_point<T>;
+
 	/*
 		A complete 2D geometric vector structure, with a variety
 		of useful utility functions and operator overloads

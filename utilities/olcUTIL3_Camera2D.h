@@ -1,5 +1,5 @@
 /*
-	OneLoneCoder - Camera2D v1.01
+	OneLoneCoder - Camera2D v3.0
 	~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	A 2D world camera with various modes
 
@@ -7,7 +7,7 @@
 	License (OLC-3)
 	~~~~~~~~~~~~~~~
 
-	Copyright 2018 - 2025 OneLoneCoder.com
+	Copyright 2018 - 2026 OneLoneCoder.com
 
 	Redistribution and use in source and binary forms, with or without
 	modification, are permitted provided that the following conditions
@@ -48,18 +48,18 @@
 
 	Author
 	~~~~~~
-	David Barr, aka javidx9, ©OneLoneCoder 2019, 2020, 2021, 2022, 2023, 2024, 2025
+	David Barr, aka javidx9, ©OneLoneCoder 2019 - 2026
 
 	Version
 	~~~~~~~
 
-	1.01	+SlideScreens - Prompted by AtomizerZero
+	3.0		+Initial Release
 
 */
 
 #pragma once
 
-#include "olcPixelGameEngine.h"
+#include <olcPixelGameEngine3.h>
 
 namespace olc::utils
 {

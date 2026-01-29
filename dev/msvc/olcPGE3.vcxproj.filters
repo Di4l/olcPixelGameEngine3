@@ -126,9 +126,6 @@
     <ClInclude Include="..\src\imload_lib_png.h">
       <Filter>Hosts\Linux X11 Specific</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\concepts.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\utilities\olcUTIL3_GameMode.h">
       <Filter>Utilities</Filter>
     </ClInclude>

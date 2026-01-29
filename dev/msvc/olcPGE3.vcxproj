@@ -193,7 +193,6 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </ClInclude>
     <ClInclude Include="..\src\api_opengl.h" />
-    <ClInclude Include="..\src\concepts.h" />
     <ClInclude Include="..\src\config.h" />
     <ClInclude Include="..\src\core.h" />
     <ClInclude Include="..\src\draw2d.h" />
