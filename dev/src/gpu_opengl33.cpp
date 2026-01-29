@@ -327,12 +327,20 @@ void main()
 			// Enable VSync - lock to display refresh
 			// May also be governed by OS / driver settings
 			// and desktop compositor settings
+#if !((OLC_HOST == OLC_HOST_EMSCRIPTEN) || (OLC_HOST == OLC_HOST_LINUX_WAYLAND))
 			gl.glSwapInterval(1);
+#else
+			eglSwapInterval(glRenderContext.display, 1);
+#endif
 		}
 		else
 		{
 			// Disable VSync - run like the clappers!
+#if !((OLC_HOST == OLC_HOST_EMSCRIPTEN) || (OLC_HOST == OLC_HOST_LINUX_WAYLAND))
 			gl.glSwapInterval(0);
+#else
+			eglSwapInterval(glRenderContext.display, 0);
+#endif
 		}
 		
 
@@ -1112,15 +1120,8 @@ void main()
 		X11::glXSwapBuffers(display, window_handle);
 #endif
 
-#if OLC_HOST == OLC_HOST_LINUX_WAYLAND
-	const auto* wayland_window = reinterpret_cast<olc::host::WaylandWindow*>(os_win_id[0]);
-	//auto* window_handle = wayland_window->window;
-	//auto* display = reinterpret_cast<wl_display*>(os_win_id[1]);
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN || OLC_HOST == OLC_HOST_LINUX_WAYLAND
 	eglSwapBuffers(glRenderContext.display, glRenderContext.surface);
-#endif
-
-#if OLC_HOST == OLC_HOST_EMSCRIPTEN
-		eglSwapInterval(glRenderContext.display, bVerticalSyncNow ? 1 : 0);
 #endif
 
 		return true;
