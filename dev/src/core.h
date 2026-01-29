@@ -25,6 +25,7 @@
 
 //! START DECLARATION
 #if !defined(PGE_CORE_DECLARED)
+
 namespace olc
 {
 	// A grouping of all settable PGE properties
@@ -166,8 +167,6 @@ namespace olc
 		std::chrono::duration<float> durationFrameCount{ 0 };
 		std::chrono::duration<double> durationTotalElapsed{ 0 };
 		size_t frameCount = 0;
-
-
 
 		// Core Thread
 		std::thread coreThread;

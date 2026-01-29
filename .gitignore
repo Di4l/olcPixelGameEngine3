@@ -50,6 +50,13 @@ xcuserdata/
 /dev/msvc/olcPGE3_BuildSH/x64
 build/
 
+# Android
+/dev/android
+.idea/
+*.iml
+/local.properties
+/.gradle
+
 # wayland artifacts
 examples/olcPGE3_AntiAliasing
 examples/olcPGE3_BatchesOfFills

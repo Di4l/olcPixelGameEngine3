@@ -173,7 +173,7 @@
 		#define OLC_HOST OLC_HOST_WINDOWS
 	#endif
 
-	#if defined(__linux__) || defined(__FreeBSD__)
+	#if (defined(__linux__) || defined(__FreeBSD__)) && !defined(__ANDROID__)
 		// Note: Assumes X11 atm
 		#define OLC_HOST OLC_HOST_LINUX_X11
 	#endif
@@ -211,6 +211,7 @@
 #define OLC_IMAGELOADER_WINGDI 2
 #define OLC_IMAGELOADER_MACOS 3
 #define OLC_IMAGELOADER_LIB_PNG 4
+#define OLC_IMAGELOADER_NDK_IMAGEDECODER 5
 
 #if OLC_HOST == OLC_HOST_MACOS
 	#undef OLC_IMAGELOADER
@@ -225,6 +226,11 @@
 #if OLC_HOST == OLC_HOST_EMSCRIPTEN
 	#undef OLC_IMAGELOADER
 	#define OLC_IMAGELOADER OLC_IMAGELOADER_LIB_PNG
+#endif
+
+#if OLC_HOST == OLC_HOST_ANDROID
+    #undef OLC_IMAGELOADER
+    #define OLC_IMAGELOADER OLC_IMAGELOADER_NDK_IMAGEDECODER
 #endif
 
 #if !defined(OLC_IMAGELOADER)
@@ -2945,6 +2951,10 @@ namespace olc
 	#define FRIENDLY_HOST Host_Web_Emscripten
 #endif
 
+#if OLC_HOST == OLC_HOST_ANDROID
+    #define FRIENDLY_HOST Host_Android
+#endif
+
 namespace olc
 {
 	namespace host
@@ -3069,7 +3079,7 @@ namespace olc
 			return uuid++;
 		}
 		#endif
-		#if OLC_HOST == OLC_HOST_EMSCRIPTEN
+		#if OLC_HOST == OLC_HOST_EMSCRIPTEN || OLC_HOST == OLC_HOST_ANDROID
 		inline size_t CreateUID()
 		{
 			return uuid++;
@@ -3128,6 +3138,7 @@ namespace olc
 #endif
 
 #if !defined(PGE_CORE_DECLARED)
+
 namespace olc
 {
 	// A grouping of all settable PGE properties
@@ -3269,8 +3280,6 @@ namespace olc
 		std::chrono::duration<float> durationFrameCount{ 0 };
 		std::chrono::duration<double> durationTotalElapsed{ 0 };
 		size_t frameCount = 0;
-
-
 
 		// Core Thread
 		std::thread coreThread;
@@ -4695,8 +4704,6 @@ namespace olc::host
 {
     class Host_Web_Emscripten : public olc::host::Host
     {
-	private:
-        std::string canvasId;
     public:
         Host_Web_Emscripten();
         bool StartSystemEventLoop(bool bBlockIfPossible = false) override;
@@ -4710,6 +4717,8 @@ namespace olc::host
 
         // Wait for entire host desktop refresh (for smooooth vsync)
         bool SyncWithDesktopComposite() override;
+        olc::KeyboardLayout GetKeyboardLayout() const override;
+
     public: // event callbacks
         static EM_BOOL keyboard_callback(int eventType, const EmscriptenKeyboardEvent* e, void* userData);
         static EM_BOOL wheel_callback(int eventType, const EmscriptenWheelEvent* e, void* userData);
@@ -4726,6 +4735,9 @@ namespace olc::host
 		static bool olc_OnMouseWheel(olc::Window* pWindow, const int32_t nScroll);
 		static bool olc_OnMouseFocus(olc::Window* pWindow, const bool bHasFocus);
 		
+        // Set Keyboard Device State
+        static bool olc_OnKeyPress(olc::Window* pWindow, const olc::Key key, const bool bPressed);
+
 		// Set Window State
 		static bool olc_OnWindowPosition(olc::Window* pWindow, const olc::vi2d& vWindowPos);
 		static bool olc_OnWindowSize(olc::Window* pWindow, const olc::vi2d& vWindowSize);
@@ -4733,15 +4745,247 @@ namespace olc::host
     private: // helpers
         static olc::Window* GetWindowFromCanvasId(std::string canvasId);
         
+    public: // Callback data type
+        struct CallbackData {
+            Host_Web_Emscripten* pHost;
+            olc::Window* pWindow;
+            std::string canvasId;
+        };
+
     private:
         static std::unordered_map<size_t, std::string> mapUID2CanvasId;
+        static std::unordered_map<size_t, std::unique_ptr<CallbackData>> mapUID2CallbackData;
         static std::unordered_map<std::string, olc::Window*> mapCanvasId2PTR;
         std::atomic<bool> terminate {false};
+        
+        // Map of system keycodes to olc::Keycodes
+        std::unordered_map<int32_t, olc::Key> mapKeys;
     };
     
     
 }
 
+#endif
+
+#if OLC_HOST == OLC_HOST_ANDROID
+
+#include <android_native_app_glue.h>
+#include <android/log.h>
+#include <jni.h>
+
+// We allow users to create a normal main function for android apps
+extern int main(int argc, char** argv);
+
+namespace olc::host
+{
+    using AndroidApp = struct android_app;
+    class Host_Android : public olc::host::Host
+    {
+    public:
+        Host_Android();
+        bool StartSystemEventLoop(bool bBlockIfPossible) override;
+        bool AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen) override;
+        bool CloseWindowFrame(olc::Window* pWindow) override;
+        bool UpdateWindowFrameTitle(olc::Window* pWindow) override;
+
+        std::vector<void*> GetHostWindowDescriptor(olc::Window* pWindow) override;
+
+        bool ConnectHostResourceToRenderer() override;
+
+        // Wait for entire host desktop refresh (for smooooth vsync)
+        bool SyncWithDesktopComposite() override;
+
+        olc::KeyboardLayout GetKeyboardLayout() const override;
+
+        void OnAppCmd(AndroidApp* app, int32_t cmd);
+        int32_t OnInputEvent(AndroidApp* app, AInputEvent* event);
+
+        bool IsInitialized() const { return initialized.load(); }
+
+        void ShowKeyboard(bool bShow);
+
+        // TODO: file loading support (temporaru)
+        std::vector<uint8_t> OpenFile(const std::string& sFileName);
+        std::string OpenTextFile(const std::string& sFileName);
+
+        static AndroidApp* androidApp;
+    protected:
+        olc::Window* pgeWindow = nullptr;
+        std::atomic<bool> initialized{false};
+        bool shiftOn = false;
+    };
+
+    class JNI
+    {
+    public:
+        static void Init(AndroidApp* app);
+        static void Detach();
+
+        static JNIEnv* GetEnv();
+
+    private:
+        static JavaVM* jvm;
+    };
+
+    class JNIObject
+    {
+    public:
+        JNIObject() = default;
+        JNIObject(jobject obj);
+
+        ~JNIObject();
+
+        JNIObject(const JNIObject&) = delete;
+        JNIObject& operator=(const JNIObject&) = delete;
+
+        JNIObject(JNIObject&& other) noexcept;
+
+        JNIObject& operator=(JNIObject&& other) noexcept;
+
+        jobject Get() const { return obj; }
+        jobject operator *() const { return obj; }
+        operator bool() const { return obj != nullptr; }
+
+        template <typename R, typename... Args>
+        R Call(
+            const std::string& methodName,
+            const std::string& methodSig,
+            Args&&... args
+        )
+        {
+            JNIEnv* env = JNI::GetEnv();
+            jclass objClass = env->GetObjectClass(obj);
+            jmethodID methodID = env->GetMethodID(
+                objClass,
+                methodName.c_str(),
+                methodSig.c_str()
+            );
+            env->DeleteLocalRef(objClass);
+
+            R result{};
+            
+            if constexpr (std::is_same_v<R, void>)
+            {
+                env->CallVoidMethod(obj, methodID, std::forward<Args>(args)...);
+            }
+            else if constexpr (std::is_same_v<R, jint>)
+            {
+                result = env->CallIntMethod(obj, methodID,  std::forward<Args>(args)...);
+            }
+            else if constexpr (std::is_same_v<R, jboolean>)
+            {
+                result = env->CallBooleanMethod(obj, methodID,  std::forward<Args>(args)...);
+            }
+            else if constexpr (std::is_same_v<R, jbyte>)
+            {
+                result = env->CallByteMethod(obj, methodID,  std::forward<Args>(args)...);
+            }
+            else if constexpr (std::is_same_v<R, jchar>)
+            {
+                result = env->CallCharMethod(obj, methodID,  std::forward<Args>(args)...);
+            }
+            else if constexpr (std::is_same_v<R, jshort>)
+            {
+                result = env->CallShortMethod(obj, methodID,  std::forward<Args>(args)...);
+            }
+            else if constexpr (std::is_same_v<R, jlong>)
+            {
+                result = env->CallLongMethod(obj, methodID,  std::forward<Args>(args)...);
+            }
+            else if constexpr (std::is_same_v<R, jfloat>)
+            {
+                result = env->CallFloatMethod(obj, methodID,  std::forward<Args>(args)...);
+            }
+            else if constexpr (std::is_same_v<R, jdouble>)
+            {
+                result = env->CallDoubleMethod(obj, methodID,  std::forward<Args>(args)...);
+            }
+            else if constexpr (std::is_same_v<R, jobject> || std::is_same_v<R, JNIObject>)
+            {
+                jobject callResult = env->CallObjectMethod(obj, methodID, std::forward<Args>(args)...);
+                if (env->ExceptionCheck())
+                {
+                    env->ExceptionDescribe();
+                    env->ExceptionClear();
+                    return {};
+                }
+                if constexpr (std::is_same_v<R, jobject>)
+                {
+                    result = callResult;
+                }
+                else // JNIObject
+                {
+                    result = JNIObject(callResult);
+                }
+            }
+            else
+            {
+                static_assert(sizeof(R) == 0, "Unsupported return type in JNIObject::Call");
+            }
+            
+            if (env->ExceptionCheck())
+            {
+                env->ExceptionDescribe();
+                env->ExceptionClear();
+                return {};
+            }
+            return result;
+        }
+
+    private:
+        jobject obj = nullptr;
+    };
+
+    class JNIString
+    {
+    public:
+        JNIString(const std::string& str)
+        {
+            JNIEnv* env = JNI::GetEnv();
+            jstring local = env->NewStringUTF(str.c_str());
+            jstr = static_cast<jstring>(env->NewGlobalRef(local));
+            env->DeleteLocalRef(local);
+        }
+
+        JNIString(jstring jstr)
+        {
+            JNIEnv* env = JNI::GetEnv();
+            const char* chars = env->GetStringUTFChars(jstr, nullptr);
+            std::string str(chars);
+            env->ReleaseStringUTFChars(jstr, chars);
+            jstring local = env->NewStringUTF(str.c_str());
+            this->jstr = static_cast<jstring>(env->NewGlobalRef(local));
+            env->DeleteLocalRef(local);
+        }
+
+        ~JNIString()
+        {
+            if (jstr)
+            {
+                JNI::GetEnv()->DeleteGlobalRef(jstr);
+            }
+            jstr = nullptr;
+        }
+
+        operator std::string() const
+        {
+            JNIEnv* env = JNI::GetEnv();
+            const char* chars = env->GetStringUTFChars(jstr, nullptr);
+            std::string result(chars);
+            env->ReleaseStringUTFChars(jstr, chars);
+            return result;
+        }
+
+        jstring operator*() const
+        {
+            return jstr;
+        }
+
+    private:
+        jstring jstr = nullptr;
+    };
+
+}
 #endif
 
 #if OLC_GPU == OLC_GPU_OPENGL33
@@ -4768,7 +5012,6 @@ namespace olc::host
 	#include <GL/gl.h>
 
 	#define OGL_LOAD(t) reinterpret_cast<t##_t*>(eglGetProcAddress(#t))
-
 #endif
 
 #if OLC_HOST == OLC_HOST_MACOS
@@ -4797,6 +5040,19 @@ namespace olc::host
 	#define GL_CLAMP GL_CLAMP_TO_EDGE
 
 	#define OGL_LOAD(t) ::t
+#endif
+
+#if OLC_HOST == OLC_HOST_ANDROID
+    #include <EGL/egl.h>
+    #include <GLES3/gl3.h>
+    #define GL_GLEXT_PROTOTYPES
+    #include <GLES3/gl3ext.h>
+    #define CALLSTYLE
+    #undef GL_CLAMP
+    #define GL_CLAMP GL_CLAMP_TO_EDGE
+    #define GL_LINE 0
+    #define GL_FILL 0
+    #define OGL_LOAD(t) reinterpret_cast<t##_t*>(eglGetProcAddress(#t))
 #endif
 
 #if !defined(CALLSTYLE)
@@ -4834,7 +5090,7 @@ namespace olc
 		typedef X11::GLXContext glRenderContext_t;
 #endif
 
-#if OLC_HOST == OLC_HOST_EMSCRIPTEN || OLC_HOST == OLC_HOST_LINUX_WAYLAND
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN || OLC_HOST == OLC_HOST_LINUX_WAYLAND || OLC_HOST == OLC_HOST_ANDROID
 	typedef void CALLSTYLE glShaderSource_t(GLuint shader, GLsizei size, const GLchar *const * string, const GLint * length);
 	typedef void glDeviceContext_t;
 	typedef struct
@@ -5121,7 +5377,7 @@ namespace olc
 		
 		protected: // These may need some thinking about re multiple window
 			//olc::apis::opengl::glDeviceContext_t glDeviceContext = 0;
-#if OLC_HOST == OLC_HOST_EMSCRIPTEN || OLC_HOST == OLC_HOST_LINUX_WAYLAND
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN || OLC_HOST == OLC_HOST_LINUX_WAYLAND || OLC_HOST == OLC_HOST_ANDROID
 	olc::apis::opengl::glRenderContext_t glRenderContext;
 #else
 	olc::apis::opengl::glRenderContext_t glRenderContext = 0;
@@ -5146,6 +5402,10 @@ namespace olc
 			std::unordered_map<uint32_t, uint32_t> mapTextureToRenderbuffer;
 
 			const Shader* pCurrentShader = nullptr;
+
+#if OLC_HOST == OLC_HOST_ANDROID
+			EGLConfig FindBestConfig(EGLDisplay display, int desiredMultisamples = OLC_MSAA_SAMPLES);
+#endif
 
 		};
 	}
@@ -5280,6 +5540,43 @@ namespace olc::imload
 }
 
 #define PGE_IMAGELOADER_LIB_PNG_DECLARED 1
+#endif
+#endif
+
+#if OLC_HOST == OLC_HOST_ANDROID
+#include <android/asset_manager.h>
+
+#if !defined(PGE_IMAGELOADER_NDK_IMAGEDECODER_DECLARED)
+namespace olc::imload
+{
+
+    // Create an image resource based on an image file asset
+    class ImageLoader_NDKImageDecoder : public ImageLoader
+    {
+    public:
+        ImageLoader_NDKImageDecoder() = default;
+        ImageLoader_NDKImageDecoder(AAssetManager* assetManager) : assetManager(assetManager) {}
+
+        // Create an image resource based on an image file asset on disk
+        bool CreateImageFromFile(olc::Image& image, const std::string& sFileName) override;
+
+        // Create an image resource based on an image file asset in memory
+        bool CreateImageFromMemory(olc::Image& image, const uint8_t* data, const size_t bytes) override;
+
+        // Create an image resource based on an image file asset in memory
+        bool CreateImageFromMemory(olc::Image& image, const std::vector<uint8_t>& data) override;
+
+        // Store an image as a file asset on disk
+        bool WriteImageToFile(const olc::Image& image, const std::string& sFileName) override;
+
+        // Store an image as a file asset in memory
+        bool WriteImageToMemoryFile(olc::Image& image, const std::vector<uint8_t>& data) override;
+
+    protected:
+        AAssetManager* assetManager = nullptr;
+    };
+}
+#define PGE_IMAGELOADER_NDK_IMAGEDECODER_DECLARED 1
 #endif
 #endif
 
@@ -9106,50 +9403,164 @@ namespace olc::host
 {
     std::unordered_map<size_t, std::string> Host_Web_Emscripten::mapUID2CanvasId;
     std::unordered_map<std::string, olc::Window*> Host_Web_Emscripten::mapCanvasId2PTR;
+    std::unordered_map<size_t, std::unique_ptr<Host_Web_Emscripten::CallbackData>> Host_Web_Emscripten::mapUID2CallbackData;
 
     Host_Web_Emscripten::Host_Web_Emscripten()
     {
         std::cout << "Emscripten: host constructed.\n";
         
-        // mapKeys[DOM_PK_UNKNOWN] = Key::NONE;
-        // mapKeys[DOM_PK_A] = Key::A; mapKeys[DOM_PK_B] = Key::B; mapKeys[DOM_PK_C] = Key::C; mapKeys[DOM_PK_D] = Key::D;
-        // mapKeys[DOM_PK_E] = Key::E; mapKeys[DOM_PK_F] = Key::F; mapKeys[DOM_PK_G] = Key::G; mapKeys[DOM_PK_H] = Key::H;
-        // mapKeys[DOM_PK_I] = Key::I; mapKeys[DOM_PK_J] = Key::J; mapKeys[DOM_PK_K] = Key::K; mapKeys[DOM_PK_L] = Key::L;
-        // mapKeys[DOM_PK_M] = Key::M; mapKeys[DOM_PK_N] = Key::N; mapKeys[DOM_PK_O] = Key::O; mapKeys[DOM_PK_P] = Key::P;
-        // mapKeys[DOM_PK_Q] = Key::Q; mapKeys[DOM_PK_R] = Key::R; mapKeys[DOM_PK_S] = Key::S; mapKeys[DOM_PK_T] = Key::T;
-        // mapKeys[DOM_PK_U] = Key::U; mapKeys[DOM_PK_V] = Key::V; mapKeys[DOM_PK_W] = Key::W; mapKeys[DOM_PK_X] = Key::X;
-        // mapKeys[DOM_PK_Y] = Key::Y; mapKeys[DOM_PK_Z] = Key::Z;
-        // mapKeys[DOM_PK_0] = Key::K0; mapKeys[DOM_PK_1] = Key::K1; mapKeys[DOM_PK_2] = Key::K2;
-        // mapKeys[DOM_PK_3] = Key::K3; mapKeys[DOM_PK_4] = Key::K4; mapKeys[DOM_PK_5] = Key::K5;
-        // mapKeys[DOM_PK_6] = Key::K6; mapKeys[DOM_PK_7] = Key::K7; mapKeys[DOM_PK_8] = Key::K8;
-        // mapKeys[DOM_PK_9] = Key::K9;
-        // mapKeys[DOM_PK_F1] = Key::F1; mapKeys[DOM_PK_F2] = Key::F2; mapKeys[DOM_PK_F3] = Key::F3; mapKeys[DOM_PK_F4] = Key::F4;
-        // mapKeys[DOM_PK_F5] = Key::F5; mapKeys[DOM_PK_F6] = Key::F6; mapKeys[DOM_PK_F7] = Key::F7; mapKeys[DOM_PK_F8] = Key::F8;
-        // mapKeys[DOM_PK_F9] = Key::F9; mapKeys[DOM_PK_F10] = Key::F10; mapKeys[DOM_PK_F11] = Key::F11; mapKeys[DOM_PK_F12] = Key::F12;
-        // mapKeys[DOM_PK_ARROW_UP] = Key::UP; mapKeys[DOM_PK_ARROW_DOWN] = Key::DOWN;
-        // mapKeys[DOM_PK_ARROW_LEFT] = Key::LEFT; mapKeys[DOM_PK_ARROW_RIGHT] = Key::RIGHT;
-        // mapKeys[DOM_PK_SPACE] = Key::SPACE; mapKeys[DOM_PK_TAB] = Key::TAB;
-        // mapKeys[DOM_PK_SHIFT_LEFT] = Key::SHIFT; mapKeys[DOM_PK_SHIFT_RIGHT] = Key::SHIFT;
-        // mapKeys[DOM_PK_CONTROL_LEFT] = Key::CTRL; mapKeys[DOM_PK_CONTROL_RIGHT] = Key::CTRL;
-        // mapKeys[DOM_PK_INSERT] = Key::INS; mapKeys[DOM_PK_DELETE] = Key::DEL; mapKeys[DOM_PK_HOME] = Key::HOME;
-        // mapKeys[DOM_PK_END] = Key::END; mapKeys[DOM_PK_PAGE_UP] = Key::PGUP; mapKeys[DOM_PK_PAGE_DOWN] = Key::PGDN;
-        // mapKeys[DOM_PK_BACKSPACE] = Key::BACK; mapKeys[DOM_PK_ESCAPE] = Key::ESCAPE;
-        // mapKeys[DOM_PK_ENTER] = Key::ENTER; mapKeys[DOM_PK_NUMPAD_EQUAL] = Key::EQUALS;
-        // mapKeys[DOM_PK_NUMPAD_ENTER] = Key::ENTER; mapKeys[DOM_PK_PAUSE] = Key::PAUSE;
-        // mapKeys[DOM_PK_SCROLL_LOCK] = Key::SCROLL;
-        // mapKeys[DOM_PK_NUMPAD_0] = Key::NP0; mapKeys[DOM_PK_NUMPAD_1] = Key::NP1; mapKeys[DOM_PK_NUMPAD_2] = Key::NP2;
-        // mapKeys[DOM_PK_NUMPAD_3] = Key::NP3; mapKeys[DOM_PK_NUMPAD_4] = Key::NP4; mapKeys[DOM_PK_NUMPAD_5] = Key::NP5;
-        // mapKeys[DOM_PK_NUMPAD_6] = Key::NP6; mapKeys[DOM_PK_NUMPAD_7] = Key::NP7; mapKeys[DOM_PK_NUMPAD_8] = Key::NP8;
-        // mapKeys[DOM_PK_NUMPAD_9] = Key::NP9;
-        // mapKeys[DOM_PK_NUMPAD_MULTIPLY] = Key::NP_MUL; mapKeys[DOM_PK_NUMPAD_DIVIDE] = Key::NP_DIV;
-        // mapKeys[DOM_PK_NUMPAD_ADD] = Key::NP_ADD; mapKeys[DOM_PK_NUMPAD_SUBTRACT] = Key::NP_SUB;
-        // mapKeys[DOM_PK_NUMPAD_DECIMAL] = Key::NP_DECIMAL;
-        // mapKeys[DOM_PK_PERIOD] = Key::PERIOD; mapKeys[DOM_PK_EQUAL] = Key::EQUALS;
-        // mapKeys[DOM_PK_COMMA] = Key::COMMA; mapKeys[DOM_PK_MINUS] = Key::MINUS;
-        // mapKeys[DOM_PK_CAPS_LOCK] = Key::CAPS_LOCK;
-        // mapKeys[DOM_PK_SEMICOLON] = Key::OEM_1;	mapKeys[DOM_PK_SLASH] = Key::OEM_2; mapKeys[DOM_PK_BACKQUOTE] = Key::OEM_3;
-        // mapKeys[DOM_PK_BRACKET_LEFT] = Key::OEM_4; mapKeys[DOM_PK_BACKSLASH] = Key::OEM_5; mapKeys[DOM_PK_BRACKET_RIGHT] = Key::OEM_6;
-        // mapKeys[DOM_PK_QUOTE] = Key::OEM_7;
+        // Detect and Store Keyboard Layout
+        EM_ASM({
+            if (!navigator.keyboard || !navigator.keyboard.getLayoutMap)
+                return;
+
+            navigator.keyboard.getLayoutMap().then(function(map)
+            {
+                const keys = [map.get("KeyQ"), map.get("KeyW"), map.get("KeyE"), map.get("KeyR"), map.get("KeyT"), map.get("KeyY"), map.get("Backslash")];
+                
+                // QWERTY - UK/US
+                if(keys[0] == 'q' && keys[1] == 'w' && keys[2] == 'e' && keys[3] == 'r' && keys[4] == 't' && keys[5] == 'y') {
+                    if(keys[6] == '#' || keys[6] == '~')
+                    {
+                        Module.keyboardLayout = 0;
+                        return;
+                    }
+                    else
+                    {
+                        Module.keyboardLayout = 1;
+                        return;
+                    }
+                }
+
+                // QWERTZ - DE
+                if(keys[0] == 'q' && keys[1] == 'w' && keys[2] == 'e' && keys[3] == 'r' && keys[4] == 't' && keys[5] == 'z') {
+                    Module.keyboardLayout = 2; 
+                    return;
+                }
+                
+                // AZERTY - FR
+                if(keys[0] == 'q' && keys[1] == 'w' && keys[2] == 'e' && keys[3] == 'r' && keys[4] == 't' && keys[5] == 'z') {
+                    Module.keyboardLayout = 3;
+                    return;
+                }
+                
+            });
+        });
+
+        // Map Emscripten Defined DOM_PK_ Codes to olc::KeyCodes
+        mapKeys[DOM_PK_UNKNOWN] = Key::NONE;
+        
+        // A-Z
+        mapKeys[DOM_PK_A] = Key::A;
+        mapKeys[DOM_PK_B] = Key::B;
+        mapKeys[DOM_PK_C] = Key::C;
+        mapKeys[DOM_PK_D] = Key::D;
+        mapKeys[DOM_PK_E] = Key::E;
+        mapKeys[DOM_PK_F] = Key::F;
+        mapKeys[DOM_PK_G] = Key::G;
+        mapKeys[DOM_PK_H] = Key::H;
+        mapKeys[DOM_PK_I] = Key::I;
+        mapKeys[DOM_PK_J] = Key::J;
+        mapKeys[DOM_PK_K] = Key::K;
+        mapKeys[DOM_PK_L] = Key::L;
+        mapKeys[DOM_PK_M] = Key::M;
+        mapKeys[DOM_PK_N] = Key::N;
+        mapKeys[DOM_PK_O] = Key::O;
+        mapKeys[DOM_PK_P] = Key::P;
+        mapKeys[DOM_PK_Q] = Key::Q;
+        mapKeys[DOM_PK_R] = Key::R;
+        mapKeys[DOM_PK_S] = Key::S;
+        mapKeys[DOM_PK_T] = Key::T;
+        mapKeys[DOM_PK_U] = Key::U;
+        mapKeys[DOM_PK_V] = Key::V;
+        mapKeys[DOM_PK_W] = Key::W;
+        mapKeys[DOM_PK_X] = Key::X;
+        mapKeys[DOM_PK_Y] = Key::Y;
+        mapKeys[DOM_PK_Z] = Key::Z;
+        
+        // Numeric Keys
+        mapKeys[DOM_PK_0] = Key::K0;
+        mapKeys[DOM_PK_1] = Key::K1;
+        mapKeys[DOM_PK_2] = Key::K2;
+        mapKeys[DOM_PK_3] = Key::K3;
+        mapKeys[DOM_PK_4] = Key::K4;
+        mapKeys[DOM_PK_5] = Key::K5;
+        mapKeys[DOM_PK_6] = Key::K6;
+        mapKeys[DOM_PK_7] = Key::K7;
+        mapKeys[DOM_PK_8] = Key::K8;
+        mapKeys[DOM_PK_9] = Key::K9;
+        
+        // Function Keys
+        mapKeys[DOM_PK_F1] = Key::F1;
+        mapKeys[DOM_PK_F2] = Key::F2;
+        mapKeys[DOM_PK_F3] = Key::F3;
+        mapKeys[DOM_PK_F4] = Key::F4;
+        mapKeys[DOM_PK_F5] = Key::F5;
+        mapKeys[DOM_PK_F6] = Key::F6;
+        mapKeys[DOM_PK_F7] = Key::F7;
+        mapKeys[DOM_PK_F8] = Key::F8;
+        mapKeys[DOM_PK_F9] = Key::F9;
+        mapKeys[DOM_PK_F10] = Key::F10;
+        mapKeys[DOM_PK_F11] = Key::F11;
+        mapKeys[DOM_PK_F12] = Key::F12;
+        
+        // Arrow Keys
+        mapKeys[DOM_PK_ARROW_DOWN] = Key::DOWN;
+        mapKeys[DOM_PK_ARROW_LEFT] = Key::LEFT;
+        mapKeys[DOM_PK_ARROW_RIGHT] = Key::RIGHT;
+        mapKeys[DOM_PK_ARROW_UP] = Key::UP;
+
+        // Other Keys
+        mapKeys[DOM_PK_BACKSPACE] = Key::BACK;
+        mapKeys[DOM_PK_ESCAPE] = Key::ESCAPE;
+        mapKeys[DOM_PK_ENTER] = Key::ENTER;
+        mapKeys[DOM_PK_PAUSE] = Key::PAUSE;
+        mapKeys[DOM_PK_SCROLL_LOCK] = Key::SCROLL;
+        mapKeys[DOM_PK_TAB] = Key::TAB;
+        mapKeys[DOM_PK_DELETE] = Key::DEL;
+        mapKeys[DOM_PK_HOME] = Key::HOME;
+        mapKeys[DOM_PK_END] = Key::END;
+        mapKeys[DOM_PK_PAGE_UP] = Key::PGUP;
+        mapKeys[DOM_PK_PAGE_DOWN] = Key::PGDN;
+        mapKeys[DOM_PK_INSERT] = Key::INS;
+        mapKeys[DOM_PK_SHIFT_LEFT] = Key::SHIFT;
+        mapKeys[DOM_PK_SHIFT_RIGHT] = Key::SHIFT;
+        mapKeys[DOM_PK_CONTROL_LEFT] = Key::CTRL;
+        mapKeys[DOM_PK_CONTROL_RIGHT] = Key::CTRL;
+        mapKeys[DOM_PK_SPACE] = Key::SPACE;
+        mapKeys[DOM_PK_CAPS_LOCK] = Key::CAPS_LOCK;
+
+        // Numpad
+        mapKeys[DOM_PK_NUMPAD_0] = Key::NP0;
+        mapKeys[DOM_PK_NUMPAD_1] = Key::NP1;
+        mapKeys[DOM_PK_NUMPAD_2] = Key::NP2;
+        mapKeys[DOM_PK_NUMPAD_3] = Key::NP3;
+        mapKeys[DOM_PK_NUMPAD_4] = Key::NP4;
+        mapKeys[DOM_PK_NUMPAD_5] = Key::NP5;
+        mapKeys[DOM_PK_NUMPAD_6] = Key::NP6;
+        mapKeys[DOM_PK_NUMPAD_7] = Key::NP7;
+        mapKeys[DOM_PK_NUMPAD_8] = Key::NP8;
+        mapKeys[DOM_PK_NUMPAD_9] = Key::NP9;
+        mapKeys[DOM_PK_NUMPAD_MULTIPLY] = Key::NP_MUL;
+        mapKeys[DOM_PK_NUMPAD_DIVIDE] = Key::NP_DIV;
+        mapKeys[DOM_PK_NUMPAD_ADD] = Key::NP_ADD;
+        mapKeys[DOM_PK_NUMPAD_SUBTRACT] = Key::NP_SUB;
+        mapKeys[DOM_PK_NUMPAD_DECIMAL] = Key::NP_DECIMAL;
+        mapKeys[DOM_PK_NUMPAD_EQUAL] = Key::EQUALS;
+        mapKeys[DOM_PK_NUMPAD_ENTER] = Key::ENTER;
+        
+        mapKeys[DOM_PK_SEMICOLON] = Key::OEM_1;
+        mapKeys[DOM_PK_SLASH] = Key::OEM_2;
+        mapKeys[DOM_PK_BACKQUOTE] = Key::OEM_3;
+        mapKeys[DOM_PK_BRACKET_LEFT] = Key::OEM_4;
+        mapKeys[DOM_PK_BACKSLASH] = Key::OEM_5;
+        mapKeys[DOM_PK_BRACKET_RIGHT] = Key::OEM_6;
+        mapKeys[DOM_PK_QUOTE] = Key::OEM_7;
+        
+        mapKeys[DOM_PK_EQUAL] = Key::EQUALS;
+        mapKeys[DOM_PK_COMMA] = Key::COMMA;
+        mapKeys[DOM_PK_MINUS] = Key::MINUS;
+        mapKeys[DOM_PK_PERIOD] = Key::PERIOD;
     }
 
     bool Host_Web_Emscripten::StartSystemEventLoop(bool bBlockIfPossible)
@@ -9168,40 +9579,46 @@ namespace olc::host
 		olc::vi2d vWinSize = vWindowSize;
         
         // TODO: multi-window solutions
-        canvasId = "#canvas"; // + std::to_string(pWindow->GetUID());
-
-        mapUID2CanvasId.insert_or_assign(pWindow->GetUID(), canvasId);
-        mapCanvasId2PTR.insert_or_assign(canvasId, pWindow);
+        mapUID2CallbackData.insert_or_assign(pWindow->GetUID(), std::make_unique<CallbackData>(CallbackData{
+            this,
+            pWindow,
+            std::string{"#canvas"}
+        }));
         
-        emscripten_set_canvas_element_size(canvasId.c_str(), vWinSize.x, vWinSize.y);
+        auto cbData = mapUID2CallbackData.at(pWindow->GetUID()).get();
+
+        mapUID2CanvasId.insert_or_assign(pWindow->GetUID(), cbData->canvasId);
+        mapCanvasId2PTR.insert_or_assign(cbData->canvasId, pWindow);
+        
+        emscripten_set_canvas_element_size(cbData->canvasId.c_str(), vWinSize.x, vWinSize.y);
         pWindow->SetWindowSize(vWinSize);
 
         // Keyboard Callbacks
-        emscripten_set_keydown_callback(canvasId.c_str(), (void*)(canvasId.c_str()), 1, keyboard_callback);
-        emscripten_set_keyup_callback(canvasId.c_str(), (void*)(canvasId.c_str()), 1, keyboard_callback);
+        emscripten_set_keydown_callback(cbData->canvasId.c_str(), reinterpret_cast<void*>(cbData), 1, keyboard_callback);
+        emscripten_set_keyup_callback(cbData->canvasId.c_str(), reinterpret_cast<void*>(cbData), 1, keyboard_callback);
 
         // Mouse Callbacks
-        emscripten_set_wheel_callback(canvasId.c_str(), (void*)(canvasId.c_str()), 1, wheel_callback);
-        emscripten_set_mousedown_callback(canvasId.c_str(), (void*)(canvasId.c_str()), 1, mouse_callback);
-        emscripten_set_mouseup_callback(canvasId.c_str(), (void*)(canvasId.c_str()), 1, mouse_callback);
-        emscripten_set_mousemove_callback(canvasId.c_str(), (void*)(canvasId.c_str()), 1, mouse_callback);
+        emscripten_set_wheel_callback(cbData->canvasId.c_str(), reinterpret_cast<void*>(cbData), 1, wheel_callback);
+        emscripten_set_mousedown_callback(cbData->canvasId.c_str(), reinterpret_cast<void*>(cbData), 1, mouse_callback);
+        emscripten_set_mouseup_callback(cbData->canvasId.c_str(), reinterpret_cast<void*>(cbData), 1, mouse_callback);
+        emscripten_set_mousemove_callback(cbData->canvasId.c_str(), reinterpret_cast<void*>(cbData), 1, mouse_callback);
 
         // Touch Callbacks
-        emscripten_set_touchstart_callback(canvasId.c_str(), (void*)(canvasId.c_str()), 1, touch_callback);
-        emscripten_set_touchmove_callback(canvasId.c_str(), (void*)(canvasId.c_str()), 1, touch_callback);
-        emscripten_set_touchend_callback(canvasId.c_str(), (void*)(canvasId.c_str()), 1, touch_callback);
+        emscripten_set_touchstart_callback(cbData->canvasId.c_str(), reinterpret_cast<void*>(cbData), 1, touch_callback);
+        emscripten_set_touchmove_callback(cbData->canvasId.c_str(), reinterpret_cast<void*>(cbData), 1, touch_callback);
+        emscripten_set_touchend_callback(cbData->canvasId.c_str(), reinterpret_cast<void*>(cbData), 1, touch_callback);
 
         // Canvas Focus Callbacks
-        emscripten_set_blur_callback(canvasId.c_str(), (void*)(canvasId.c_str()), 1, focus_callback);
-        emscripten_set_focus_callback(canvasId.c_str(), (void*)(canvasId.c_str()), 1, focus_callback);
+        emscripten_set_blur_callback(cbData->canvasId.c_str(), reinterpret_cast<void*>(cbData), 1, focus_callback);
+        emscripten_set_focus_callback(cbData->canvasId.c_str(), reinterpret_cast<void*>(cbData), 1, focus_callback);
 
         // Canvas Resize Callbacks
-        emscripten_set_resize_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, (void*)(canvasId.c_str()), 1, resize_callback);
-        emscripten_set_fullscreenchange_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, (void*)(canvasId.c_str()), 1, fullscreen_change_callback);
+        emscripten_set_resize_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, reinterpret_cast<void*>(cbData), 1, resize_callback);
+        emscripten_set_fullscreenchange_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, reinterpret_cast<void*>(cbData), 1, fullscreen_change_callback);
 
         // trigger resize after a short pause
         emscripten_sleep(50);
-        resize_callback(EMSCRIPTEN_EVENT_RESIZE, nullptr, (void*)(canvasId.c_str()));
+        resize_callback(EMSCRIPTEN_EVENT_RESIZE, nullptr, reinterpret_cast<void*>(cbData));
 
         return true;
     }
@@ -9209,6 +9626,8 @@ namespace olc::host
     //TY Moros
     EM_BOOL Host_Web_Emscripten::keyboard_callback(int eventType, const EmscriptenKeyboardEvent* e, void* userData)
     {
+        CallbackData* pCallbackData = reinterpret_cast<CallbackData*>(userData);
+
         // we maintain our own state for teh number pad, default true
         static bool numPadActive = true;
         
@@ -9246,11 +9665,23 @@ namespace olc::host
             numPadActive = !numPadActive;
         }
 
-        // if (eventType == EMSCRIPTEN_EVENT_KEYDOWN)
-        //     ptrPGE->olc_UpdateKeyState(pk_code, true);
+        if (eventType == EMSCRIPTEN_EVENT_KEYDOWN)
+        {
+            if(pCallbackData->pHost->mapKeys.contains(pk_code))
+            {
+                olc_OnKeyPress(pCallbackData->pWindow, pCallbackData->pHost->mapKeys[pk_code], true);
+            }
+        }
+            
 
-        // if (eventType == EMSCRIPTEN_EVENT_KEYUP)
-        //     ptrPGE->olc_UpdateKeyState(pk_code, false);
+        if (eventType == EMSCRIPTEN_EVENT_KEYUP)
+        {
+            if(pCallbackData->pHost->mapKeys.contains(pk_code))
+            {
+                olc_OnKeyPress(pCallbackData->pWindow, pCallbackData->pHost->mapKeys[pk_code], false);
+            }
+        }
+            
 
         //Consume keyboard events so that keys like F1 and F5 don't do weird things
         return EM_TRUE;
@@ -9259,10 +9690,10 @@ namespace olc::host
     //TY Moros
     EM_BOOL Host_Web_Emscripten::wheel_callback(int eventType, const EmscriptenWheelEvent* e, void* userData)
     {
-        olc::Window* pWindow = GetWindowFromCanvasId(reinterpret_cast<char*>(userData));
+        CallbackData* pCallbackData = reinterpret_cast<CallbackData*>(userData);
         
         if (eventType == EMSCRIPTEN_EVENT_WHEEL)
-            olc_OnMouseWheel(pWindow, -1 * e->deltaY);
+            olc_OnMouseWheel(pCallbackData->pWindow, -1 * e->deltaY);
     
         return EM_TRUE;
     }
@@ -9282,36 +9713,36 @@ namespace olc::host
     //TY Moros
     EM_BOOL Host_Web_Emscripten::mouse_callback(int eventType, const EmscriptenMouseEvent* e, void* userData)
     {
-        olc::Window* pWindow = GetWindowFromCanvasId(reinterpret_cast<char*>(userData));
+        CallbackData* pCallbackData = reinterpret_cast<CallbackData*>(userData);
         
         //Mouse Movement
         if (eventType == EMSCRIPTEN_EVENT_MOUSEMOVE)
-            olc_OnMouseMove(pWindow, {e->targetX, e->targetY});
+            olc_OnMouseMove(pCallbackData->pWindow, {e->targetX, e->targetY});
 
 
         //Mouse button press
         if (e->button == 0) // left click
         {
             if (eventType == EMSCRIPTEN_EVENT_MOUSEDOWN)
-                olc_OnMouseButton(pWindow, 0, true);
+                olc_OnMouseButton(pCallbackData->pWindow, 0, true);
             else if (eventType == EMSCRIPTEN_EVENT_MOUSEUP)
-                olc_OnMouseButton(pWindow, 0, false);
+                olc_OnMouseButton(pCallbackData->pWindow, 0, false);
         }
 
         if (e->button == 2) // right click
         {
             if (eventType == EMSCRIPTEN_EVENT_MOUSEDOWN)
-                olc_OnMouseButton(pWindow, 1, true);
+                olc_OnMouseButton(pCallbackData->pWindow, 1, true);
             else if (eventType == EMSCRIPTEN_EVENT_MOUSEUP)
-                olc_OnMouseButton(pWindow, 1, false);    
+                olc_OnMouseButton(pCallbackData->pWindow, 1, false);    
         }
 
         if (e->button == 1) // middle click
         {
             if (eventType == EMSCRIPTEN_EVENT_MOUSEDOWN)
-                olc_OnMouseButton(pWindow, 2, true);
+                olc_OnMouseButton(pCallbackData->pWindow, 2, true);
             else if (eventType == EMSCRIPTEN_EVENT_MOUSEUP)
-                olc_OnMouseButton(pWindow, 2, false);
+                olc_OnMouseButton(pCallbackData->pWindow, 2, false);
 
             //at the moment only middle mouse needs to consume events.
             return EM_TRUE;
@@ -9326,25 +9757,25 @@ namespace olc::host
         // TODO: Implement touch more effectively.
         //       For now, emulate single pointer mouse.
         
-        olc::Window* pWindow = GetWindowFromCanvasId(reinterpret_cast<char*>(userData));
+        CallbackData* pCallbackData = reinterpret_cast<CallbackData*>(userData);
         
         // Move
         if (eventType == EMSCRIPTEN_EVENT_TOUCHMOVE)
         {
-            olc_OnMouseMove(pWindow, {e->touches->targetX, e->touches->targetY});
+            olc_OnMouseMove(pCallbackData->pWindow, {e->touches->targetX, e->touches->targetY});
         }
 
         // Start
         if (eventType == EMSCRIPTEN_EVENT_TOUCHSTART)
         {
-            olc_OnMouseMove(pWindow, {e->touches->targetX, e->touches->targetY});
-            olc_OnMouseButton(pWindow, 0, true);
+            olc_OnMouseMove(pCallbackData->pWindow, {e->touches->targetX, e->touches->targetY});
+            olc_OnMouseButton(pCallbackData->pWindow, 0, true);
         }
 
         // End
         if (eventType == EMSCRIPTEN_EVENT_TOUCHEND)
         {
-            olc_OnMouseButton(pWindow, 0, false);
+            olc_OnMouseButton(pCallbackData->pWindow, 0, false);
         }
 
         return EM_TRUE;
@@ -9352,17 +9783,17 @@ namespace olc::host
     //TY Gorbit
     EM_BOOL Host_Web_Emscripten::focus_callback(int eventType, const EmscriptenFocusEvent* focusEvent, void* userData)
     {
-        olc::Window* pWindow = GetWindowFromCanvasId(reinterpret_cast<char*>(userData));
-
+        CallbackData* pCallbackData = reinterpret_cast<CallbackData*>(userData);
+ 
         if (eventType == EMSCRIPTEN_EVENT_BLUR)
         {
             // ptrPGE->olc_UpdateKeyFocus(false);
-            olc_OnMouseFocus(pWindow, false);
+            olc_OnMouseFocus(pCallbackData->pWindow, false);
         }
         else if (eventType == EMSCRIPTEN_EVENT_FOCUS)
         {
             // ptrPGE->olc_UpdateKeyFocus(true);
-            olc_OnMouseFocus(pWindow, true);
+            olc_OnMouseFocus(pCallbackData->pWindow, true);
         }
 
         return 0;
@@ -9371,8 +9802,6 @@ namespace olc::host
     //TY Moros
     EM_BOOL Host_Web_Emscripten::fullscreen_change_callback(int eventType, const EmscriptenFullscreenChangeEvent *event, void *userData)
     {
-        olc::Window* pWindow = GetWindowFromCanvasId(reinterpret_cast<char*>(userData));
-
         // trigger resize after a short pause
         emscripten_sleep(50);
         resize_callback(EMSCRIPTEN_EVENT_RESIZE, nullptr, userData);
@@ -9382,8 +9811,7 @@ namespace olc::host
     //TY Moros
     EM_BOOL Host_Web_Emscripten::resize_callback(int eventType, const EmscriptenUiEvent *event, void *userData)
     {
-        char* canvasId = reinterpret_cast<char*>(userData);
-        olc::Window* pWindow = GetWindowFromCanvasId(canvasId);
+        CallbackData* pCallbackData = reinterpret_cast<CallbackData*>(userData);
 
         // HACK ALERT!
         // 
@@ -9415,8 +9843,8 @@ namespace olc::host
         }
         
         // resize the canvas
-        emscripten_set_canvas_element_size(canvasId, static_cast<int>(width), static_cast<int>(height));
-        pWindow->SetWindowSize(olc::vd2d{width, height});
+        emscripten_set_canvas_element_size(pCallbackData->canvasId.c_str(), static_cast<int>(width), static_cast<int>(height));
+        pCallbackData->pWindow->SetWindowSize(olc::vd2d{width, height});
         return 0;
     }
 
@@ -9437,7 +9865,7 @@ namespace olc::host
         const auto window_handle = mapUID2CanvasId.find(pWindow->GetUID());
         if(window_handle != mapUID2CanvasId.end())
         {
-            return { reinterpret_cast<void*>(&canvasId) };
+            return { (void*)(window_handle->second.c_str()) };
         }
         
         return {};
@@ -9452,8 +9880,13 @@ namespace olc::host
     // Wait for entire host desktop refresh (for smooooth vsync)
     bool Host_Web_Emscripten::SyncWithDesktopComposite()
     {
-        std::cout << "Emscripten: SyncWithDesktopComposite not implemented.\n";
+        // SyncWithDesktopComposite not implemented on this platform
         return true;
+    }
+	
+    olc::KeyboardLayout Host_Web_Emscripten::GetKeyboardLayout() const
+	{
+		return static_cast<olc::KeyboardLayout>(EM_ASM_INT({ return Module.keyboardLayout || 0; }));
     }
 
     bool Host_Web_Emscripten::olc_OnMouseButton(olc::Window* pWindow, const uint8_t nButton, const bool bPressed)
@@ -9476,6 +9909,11 @@ namespace olc::host
         return pWindow->olc_OnMouseFocus(bHasFocus);
     }
 
+    bool Host_Web_Emscripten::olc_OnKeyPress(olc::Window* pWindow, const olc::Key key, const bool bPressed)
+    {
+        return pWindow->olc_OnKeyPress(key, bPressed);
+    }
+
     bool Host_Web_Emscripten::olc_OnWindowPosition(olc::Window* pWindow, const olc::vi2d& vWindowPos)
     {
         return pWindow->olc_OnWindowPosition(vWindowPos);
@@ -9492,6 +9930,561 @@ namespace olc::host
     }
 
 
+}
+#endif
+
+#if OLC_HOST == OLC_HOST_ANDROID
+#include <android/input.h>
+#include <android/asset_manager.h>
+
+namespace olc::host
+{
+    constexpr size_t ANDROID_KEY_MAX = 163;
+
+
+    struct KeyEntry
+    {
+        olc::Key key;
+        bool shiftOn;
+    };
+
+    static const std::array<KeyEntry, ANDROID_KEY_MAX> AndroidKeyMap = [] {
+        std::array<KeyEntry, ANDROID_KEY_MAX> map{};
+        map.fill({Key::NONE, false});
+
+        // Letters
+        map[AKEYCODE_A] = {Key::A, false};
+        map[AKEYCODE_B] = {Key::B, false};
+        map[AKEYCODE_C] = {Key::C, false};
+        map[AKEYCODE_D] = {Key::D, false};
+        map[AKEYCODE_E] = {Key::E, false};
+        map[AKEYCODE_F] = {Key::F, false};
+        map[AKEYCODE_G] = {Key::G, false};
+        map[AKEYCODE_H] = {Key::H, false};
+        map[AKEYCODE_I] = {Key::I, false};
+        map[AKEYCODE_J] = {Key::J, false};
+        map[AKEYCODE_K] = {Key::K, false};
+        map[AKEYCODE_L] = {Key::L, false};
+        map[AKEYCODE_M] = {Key::M, false};
+        map[AKEYCODE_N] = {Key::N, false};
+        map[AKEYCODE_O] = {Key::O, false};
+        map[AKEYCODE_P] = {Key::P, false};
+        map[AKEYCODE_Q] = {Key::Q, false};
+        map[AKEYCODE_R] = {Key::R, false};
+        map[AKEYCODE_S] = {Key::S, false};
+        map[AKEYCODE_T] = {Key::T, false};
+        map[AKEYCODE_U] = {Key::U, false};
+        map[AKEYCODE_V] = {Key::V, false};
+        map[AKEYCODE_W] = {Key::W, false};
+        map[AKEYCODE_X] = {Key::X, false};
+        map[AKEYCODE_Y] = {Key::Y, false};
+        map[AKEYCODE_Z] = {Key::Z, false};
+
+        // Numbers
+        map[AKEYCODE_0] = {Key::K0, false};
+        map[AKEYCODE_1] = {Key::K1, false};
+        map[AKEYCODE_2] = {Key::K2, false};
+        map[AKEYCODE_3] = {Key::K3, false};
+        map[AKEYCODE_4] = {Key::K4, false};
+        map[AKEYCODE_5] = {Key::K5, false};
+        map[AKEYCODE_6] = {Key::K6, false};
+        map[AKEYCODE_7] = {Key::K7, false};
+        map[AKEYCODE_8] = {Key::K8, false};
+        map[AKEYCODE_9] = {Key::K9, false};
+
+        // Numpad
+        map[AKEYCODE_NUMPAD_0] = {Key::NP0, false};
+        map[AKEYCODE_NUMPAD_1] = {Key::NP1, false};
+        map[AKEYCODE_NUMPAD_2] = {Key::NP2, false};
+        map[AKEYCODE_NUMPAD_3] = {Key::NP3, false};
+        map[AKEYCODE_NUMPAD_4] = {Key::NP4, false};
+        map[AKEYCODE_NUMPAD_5] = {Key::NP5, false};
+        map[AKEYCODE_NUMPAD_6] = {Key::NP6, false};
+        map[AKEYCODE_NUMPAD_7] = {Key::NP7, false};
+        map[AKEYCODE_NUMPAD_8] = {Key::NP8, false};
+        map[AKEYCODE_NUMPAD_9] = {Key::NP9, false};
+        map[AKEYCODE_NUMPAD_ADD] = {Key::NP_ADD, false};
+        map[AKEYCODE_NUMPAD_SUBTRACT] = {Key::NP_SUB, false};
+        map[AKEYCODE_NUMPAD_MULTIPLY] = {Key::NP_MUL, false};
+        map[AKEYCODE_NUMPAD_DIVIDE] = {Key::NP_DIV, false};
+        map[AKEYCODE_NUMPAD_DOT] = {Key::NP_DECIMAL, false};
+
+        // Function keys
+        map[AKEYCODE_F1] = {Key::F1, false};
+        map[AKEYCODE_F2] = {Key::F2, false};
+        map[AKEYCODE_F3] = {Key::F3, false};
+        map[AKEYCODE_F4] = {Key::F4, false};
+        map[AKEYCODE_F5] = {Key::F5, false};
+        map[AKEYCODE_F6] = {Key::F6, false};
+        map[AKEYCODE_F7] = {Key::F7, false};
+        map[AKEYCODE_F8] = {Key::F8, false};
+        map[AKEYCODE_F9] = {Key::F9, false};
+        map[AKEYCODE_F10] = {Key::F10, false};
+        map[AKEYCODE_F11] = {Key::F11, false};
+        map[AKEYCODE_F12] = {Key::F12, false};
+
+        // Arrows
+        map[AKEYCODE_DPAD_UP] = {Key::UP, false};
+        map[AKEYCODE_DPAD_DOWN] = {Key::DOWN, false};
+        map[AKEYCODE_DPAD_LEFT] = {Key::LEFT, false};
+        map[AKEYCODE_DPAD_RIGHT] = {Key::RIGHT, false};
+
+        // Common keys
+        map[AKEYCODE_SPACE] = {Key::SPACE, false};
+        map[AKEYCODE_TAB] = {Key::TAB, false};
+        map[AKEYCODE_ENTER] = {Key::ENTER, false};
+        map[AKEYCODE_ESCAPE] = {Key::ESCAPE, false};
+        map[AKEYCODE_DEL] = {Key::BACK, false};
+        map[AKEYCODE_FORWARD_DEL] = {Key::DEL, false};
+
+        // Modifiers
+        map[AKEYCODE_SHIFT_LEFT] = {Key::SHIFT, false};
+        map[AKEYCODE_SHIFT_RIGHT] = {Key::SHIFT, false};
+        map[AKEYCODE_CTRL_LEFT] = {Key::CTRL, false};
+        map[AKEYCODE_CTRL_RIGHT] = {Key::CTRL, false};
+        map[AKEYCODE_CAPS_LOCK] = {Key::CAPS_LOCK, false};
+
+        // OEM-style punctuation
+        map[AKEYCODE_SEMICOLON] = {Key::OEM_1, false};
+        map[AKEYCODE_SLASH] = {Key::OEM_2, false};
+        map[AKEYCODE_GRAVE] = {Key::OEM_7, false};
+        map[AKEYCODE_LEFT_BRACKET] = {Key::OEM_4, false};
+        map[AKEYCODE_BACKSLASH] = {Key::OEM_5, false};
+        map[AKEYCODE_RIGHT_BRACKET] = {Key::OEM_6, false};
+        map[AKEYCODE_APOSTROPHE] = {Key::OEM_3, false};
+        map[AKEYCODE_EQUALS] = {Key::EQUALS, false};
+        map[AKEYCODE_COMMA] = {Key::COMMA, false};
+        map[AKEYCODE_MINUS] = {Key::MINUS, false};
+        map[AKEYCODE_PERIOD] = {Key::PERIOD, false};
+        map[AKEYCODE_PLUS] = {Key::EQUALS, true};
+        map[AKEYCODE_AT] = {Key::K2, true};
+        map[AKEYCODE_POUND] = {Key::K3, true};
+        map[AKEYCODE_STAR] = {Key::NP_MUL, false};
+
+        return map;
+    }();
+
+    AndroidApp* Host_Android::androidApp = nullptr;
+    JavaVM* JNI::jvm = nullptr;
+
+    static void Android_onAppCmd(struct android_app* app, int32_t cmd)
+    {
+        auto host = reinterpret_cast<olc::host::Host_Android*>(app->userData);
+        host->OnAppCmd(app, cmd);
+    }
+
+    static int32_t Android_onInputEvent(struct android_app* app, AInputEvent* event)
+    {
+        auto host = reinterpret_cast<olc::host::Host_Android*>(app->userData);
+        return host->OnInputEvent(app, event);
+    }
+
+    bool Host_Android::StartSystemEventLoop(bool bBlockIfPossible)
+    {
+        int events;
+        struct android_poll_source* source = nullptr;
+
+        if (ALooper_pollOnce(
+            bBlockIfPossible || !initialized ? -1 : 0,
+            nullptr,
+            &events,
+            (void**)&source
+        ) >= 0) {
+            if (source) source->process(androidApp, source);
+        }
+
+        if (!androidApp || !initialized) return true;
+
+        if (androidApp->destroyRequested != 0) return false;
+
+        return true;
+    }
+
+    void Host_Android::OnAppCmd(struct android_app *app, int32_t cmd)
+    {
+        auto host = reinterpret_cast<olc::host::Host_Android*>(app->userData);
+        switch (cmd) {
+            case APP_CMD_WINDOW_RESIZED:
+                host->pgeWindow->olc_OnWindowSize({
+                  ANativeWindow_getWidth(app->window),
+                  ANativeWindow_getHeight(app->window)
+                });
+                __android_log_print(ANDROID_LOG_DEBUG, "PGE ANDROID",
+                                    "APP_CMD_WINDOW_RESIZED received: %dx%d",
+                                    ANativeWindow_getWidth(app->window),
+                                    ANativeWindow_getHeight(app->window));
+                break;
+            case APP_CMD_INIT_WINDOW:
+                if (app->window) {
+                    host->initialized = true;
+                    __android_log_print(ANDROID_LOG_DEBUG, "PGE ANDROID",
+                                        "APP_CMD_INIT_WINDOW received with Window");
+                }
+                break;
+            case APP_CMD_TERM_WINDOW: {
+                host->pgeWindow->olc_OnWindowClose();
+            } break;
+            case APP_CMD_GAINED_FOCUS: {
+                host->pgeWindow->olc_OnMouseFocus(true);
+            } break;
+            case APP_CMD_LOST_FOCUS: {
+                host->pgeWindow->olc_OnMouseFocus(false);
+            } break;
+            default: break;
+        }
+    }
+
+    int32_t Host_Android::OnInputEvent(AndroidApp *app, AInputEvent *event)
+    {
+        auto host = reinterpret_cast<olc::host::Host_Android*>(app->userData);
+        auto type = AInputEvent_getType(event);
+        
+        if (type == AINPUT_EVENT_TYPE_MOTION) {
+            pgeWindow->olc_OnMouseMove({
+                static_cast<int32_t>(AMotionEvent_getX(event, 0)),
+                static_cast<int32_t>(AMotionEvent_getY(event, 0)),
+            });
+
+            auto action = AMotionEvent_getAction(event) & AMOTION_EVENT_ACTION_MASK;
+
+            switch (action) {
+                case AMOTION_EVENT_ACTION_DOWN:
+                case AMOTION_EVENT_ACTION_POINTER_DOWN:
+                    pgeWindow->olc_OnMouseButton(0, true); // Left button
+                    break;
+                case AMOTION_EVENT_ACTION_UP:
+                case AMOTION_EVENT_ACTION_POINTER_UP:
+                    pgeWindow->olc_OnMouseButton(0, false); // Left button
+                    break;
+                case AMOTION_EVENT_AXIS_WHEEL:
+                    // Handle mouse wheel
+                    {
+                        float vScroll = AMotionEvent_getAxisValue(event, AMOTION_EVENT_AXIS_VSCROLL, 0);
+                        if (vScroll != 0.0f) {
+                            pgeWindow->olc_OnMouseWheel(static_cast<int32_t>(vScroll * 120.0f));
+                        }
+                    }
+                    break;
+                default:
+                    break;
+            }
+
+            return 1;
+        }
+        else if (type == AINPUT_EVENT_TYPE_KEY)
+        {
+            int32_t keyCode = AKeyEvent_getKeyCode(event);
+            int32_t action = AKeyEvent_getAction(event);
+            int32_t meta = AKeyEvent_getMetaState(event);
+
+            auto entry = ((keyCode > 0) && keyCode < ANDROID_KEY_MAX) ? AndroidKeyMap[keyCode] : KeyEntry{Key::NONE, false};
+
+            shiftOn =
+                (meta & AMETA_SHIFT_ON) != 0 ||
+                (meta & AMETA_SHIFT_LEFT_ON) != 0 ||
+                (meta & AMETA_SHIFT_RIGHT_ON) != 0 ||
+                (meta & AMETA_CAPS_LOCK_ON) != 0 ||
+                entry.shiftOn;
+
+            if (entry.key != Key::NONE)
+            {
+                pgeWindow->olc_OnKeyPress(Key::SHIFT, shiftOn);
+                if (action == AKEY_EVENT_ACTION_DOWN)
+                {
+                    pgeWindow->olc_OnKeyPress(entry.key, true);
+                }
+                else if (action == AKEY_EVENT_ACTION_UP)
+                {
+                    pgeWindow->olc_OnKeyPress(entry.key, false);
+                }
+            }
+
+            if (keyCode == AKEYCODE_POWER)
+            {
+                // Behaviour: CMD_PAUSE -> CMD_SAVE_STATE -> CMD_STOP -> CMD_CONFIG_CHANGED -> CMD_LOST_FOCUS
+                // Resuming Behaviour: CMD_START -> CMD_RESUME -> CMD_CONFIG_CHANGED -> CMD_CONFIG_CHANGED -> CMD_GAINED_FOCUS
+                return 0;
+            }
+            else if ((keyCode == AKEYCODE_BACK) || (keyCode == AKEYCODE_MENU))
+            {
+                return 1;
+            }
+            else if ((keyCode == AKEYCODE_VOLUME_UP) || (keyCode == AKEYCODE_VOLUME_DOWN))
+            {
+                return 0;
+            }
+
+            return 0;
+        }
+
+        return 0;
+    }
+
+    bool Host_Android::AddWindowFrame(olc::Window *pWindow, const vi2d &vWindowPos,
+                                      const vi2d &vWindowSize, const bool bFullScreen)
+    {
+        pgeWindow = pWindow;
+        return true;
+    }
+
+    bool Host_Android::CloseWindowFrame(olc::Window *pWindow)
+    {
+        return true;
+    }
+
+    bool Host_Android::UpdateWindowFrameTitle(olc::Window *pWindow)
+    {
+        return true;
+    }
+
+    std::vector<void*> Host_Android::GetHostWindowDescriptor(olc::Window *pWindow)
+    {
+        return { reinterpret_cast<void*>(androidApp->window) };
+    }
+
+    bool Host_Android::ConnectHostResourceToRenderer()
+    {
+        return true;
+    }
+
+    bool Host_Android::SyncWithDesktopComposite()
+    {
+        return true;
+    }
+
+    olc::KeyboardLayout Host_Android::GetKeyboardLayout() const
+    {
+        JNIObject activity(androidApp->activity->clazz);
+        JNIEnv* env = JNI::GetEnv();
+
+        auto param = JNIString("input_method");
+        JNIObject imm = activity.Call<JNIObject>(
+            "getSystemService",
+            "(Ljava/lang/String;)Ljava/lang/Object;",
+            *param
+        );
+
+        std::string result = "";
+
+        if (*imm) {
+            JNIObject subType = imm.Call<JNIObject>(
+                "getCurrentInputMethodSubtype",
+                "()Landroid/view/inputmethod/InputMethodSubtype;"
+            );
+            if (*subType) {
+                JNIObject localeStr = subType.Call<JNIObject>(
+                    "getLocale",
+                    "()Ljava/lang/String;"
+                );
+                
+                if (*localeStr) {
+                    JNIString localeStrObj(static_cast<jstring>(*localeStr));
+                    result = localeStrObj;
+                }
+            }
+        }
+
+        JNI::Detach();
+
+        auto countryCodePos = result.substr(result.find('_') + 1);
+        if (countryCodePos.find("US") != std::string::npos)
+        {
+            return olc::KeyboardLayout::QWERTY_US;
+        }
+        else if (countryCodePos.find("UK") != std::string::npos ||
+                   countryCodePos.find("GB") != std::string::npos)
+        {
+            return olc::KeyboardLayout::QWERTY_UK;
+        }
+        else if (countryCodePos.find("DE") != std::string::npos)
+        {
+            return olc::KeyboardLayout::QWERTZ;
+        }
+        else if (countryCodePos.find("FR") != std::string::npos)
+        {
+            return olc::KeyboardLayout::AZERTY;
+        }
+
+#ifdef PGE_SPELL_CORRECTLY
+        return olc::KeyboardLayout::QWERTY_UK;
+#else
+        return olc::KeyboardLayout::QWERTY_US;
+#endif
+    }
+
+    void Host_Android::ShowKeyboard(bool bShow)
+    {
+        JNIObject activity(androidApp->activity->clazz);
+
+        auto param = JNIString("input_method");
+        auto imm = activity.Call<JNIObject>(
+            "getSystemService",
+            "(Ljava/lang/String;)Ljava/lang/Object;",
+            *param
+        );
+        if (!imm) return;
+
+        auto window = activity.Call<JNIObject>(
+            "getWindow",
+            "()Landroid/view/Window;"
+        );
+        if (!window) return;
+
+        auto decor = window.Call<JNIObject>(
+            "getDecorView",
+            "()Landroid/view/View;"
+        );
+        if (!decor) return;
+
+        if (bShow)
+        {
+            decor.Call<jboolean>(
+                "requestFocus",
+                "()Z"
+            );
+            imm.Call<jboolean>(
+                "showSoftInput",
+                "(Landroid/view/View;I)Z",
+                *decor,
+                0
+            );
+        }
+        else
+        {
+            auto token = decor.Call<JNIObject>(
+                "getWindowToken",
+                "()Landroid/os/IBinder;"
+            );
+            if (!token) return;
+            imm.Call<jboolean>(
+                "hideSoftInputFromWindow",
+                "(Landroid/os/IBinder;I)Z",
+                *token,
+                0
+            );
+        }
+
+        JNI::Detach();
+    }
+
+    Host_Android::Host_Android()
+    {
+        androidApp->onAppCmd = Android_onAppCmd;
+        androidApp->onInputEvent = Android_onInputEvent;
+        androidApp->userData = this;
+    }
+
+    void JNI::Init(AndroidApp *app)
+    {
+        jvm = app->activity->vm;
+    }
+
+    void JNI::Detach()
+    {
+        jvm->DetachCurrentThread();
+    }
+
+    JNIEnv* JNI::GetEnv()
+    {
+        JNIEnv* env = nullptr;
+        if (jvm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6) != JNI_OK)
+        {
+            jvm->AttachCurrentThread(&env, nullptr);
+        }
+        return env;
+    }
+
+    JNIObject::JNIObject(jobject obj)
+    {
+        this->obj = JNI::GetEnv()->NewGlobalRef(obj);
+    }
+
+    JNIObject::~JNIObject()
+    {
+        if (obj)
+        {
+            JNI::GetEnv()->DeleteGlobalRef(obj);
+        }
+        obj = nullptr;
+    }
+
+    JNIObject::JNIObject(JNIObject&& other) noexcept
+    {
+        obj = other.obj;
+        other.obj = nullptr;
+    }
+
+    JNIObject &JNIObject::operator=(JNIObject&& other) noexcept
+    {
+        if (this != &other) {
+            if (obj) JNI::GetEnv()->DeleteGlobalRef(obj);
+            obj = other.obj;
+            other.obj = nullptr;
+        }
+        return *this;
+    }
+
+    std::vector<uint8_t> Host_Android::OpenFile(const std::string &sFileName)
+    {
+        AAsset* asset = AAssetManager_open(
+            androidApp->activity->assetManager,
+            sFileName.c_str(),
+            AASSET_MODE_STREAMING
+        );
+        if (!asset) {
+            return {};
+        }
+
+        off_t size = AAsset_getLength(asset);
+        std::vector<uint8_t> buffer(size);
+        AAsset_read(asset, buffer.data(), size);
+        AAsset_close(asset);
+
+        return buffer;
+    }
+
+    std::string Host_Android::OpenTextFile(const std::string &sFileName)
+    {
+        AAsset* asset = AAssetManager_open(
+            androidApp->activity->assetManager,
+            sFileName.c_str(),
+            AASSET_MODE_STREAMING
+        );
+        if (!asset) {
+            return {};
+        }
+
+        off_t size = AAsset_getLength(asset);
+        std::string content(size, '\0');
+        AAsset_read(asset, content.data(), size);
+        AAsset_close(asset);
+
+        return content;
+    }
+}
+
+void android_main(struct android_app* app)
+{
+    char arg0[] = "olcPixelGameEngine 3.0";
+    char* argv[] = { arg0, nullptr };
+    
+    olc::host::JNI::Init(app);
+    olc::host::Host_Android::androidApp = app;
+
+    (void)main(1, argv);
+
+    ANativeActivity_finish(app->activity);
+
+    while (!app->destroyRequested) {
+        int events;
+        struct android_poll_source* source;
+
+        while (ALooper_pollOnce(0, nullptr, &events, (void**)&source) > ALOOPER_POLL_TIMEOUT) {
+            if (source) {
+                source->process(app, source);
+            }
+        }
+    }
 }
 #endif
 
@@ -9594,17 +10587,23 @@ namespace olc::apis::opengl
 		bLoaded &= (_glVertexAttribPointer = OGL_LOAD(glVertexAttribPointer)) != nullptr;
 		bLoaded &= (_glEnableVertexAttribArray = OGL_LOAD(glEnableVertexAttribArray)) != nullptr;
 		bLoaded &= (_glUseProgram = OGL_LOAD(glUseProgram)) != nullptr;
-#if OLC_HOST != OLC_HOST_EMSCRIPTEN
-		bLoaded &= (_glBindVertexArray = OGL_LOAD(glBindVertexArray)) != nullptr;
-		bLoaded &= (_glGenVertexArrays = OGL_LOAD(glGenVertexArrays)) != nullptr;
-		bLoaded &= (_glDrawBuffers = OGL_LOAD(glDrawBuffers)) != nullptr;
-		bLoaded &= (_glTexImage2DMultisample = OGL_LOAD(glTexImage2DMultisample)) != nullptr;
-		bLoaded &= (_glBlitFramebuffer = OGL_LOAD(glBlitFramebuffer)) != nullptr;
-#else
-		bLoaded &= (_glBindVertexArray = OGL_LOAD(glBindVertexArrayOES)) != nullptr;
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN
+        bLoaded &= (_glBindVertexArray = OGL_LOAD(glBindVertexArrayOES)) != nullptr;
 		bLoaded &= (_glGenVertexArrays = OGL_LOAD(glGenVertexArraysOES)) != nullptr;
 		bLoaded &= (_glDrawBuffers = OGL_LOAD(glDrawBuffersEXT)) != nullptr;
 		// bLoaded &= (_glTexImage2DMultisample = OGL_LOAD(glTexImage2DMultisample)) != nullptr;
+		bLoaded &= (_glBlitFramebuffer = OGL_LOAD(glBlitFramebuffer)) != nullptr;
+#elif OLC_HOST == OLC_HOST_ANDROID
+        bLoaded &= (_glBindVertexArray = OGL_LOAD(glBindVertexArray)) != nullptr;
+        bLoaded &= (_glGenVertexArrays = OGL_LOAD(glGenVertexArrays)) != nullptr;
+        bLoaded &= (_glDrawBuffers = OGL_LOAD(glDrawBuffers)) != nullptr;
+        // bLoaded &= (_glTexImage2DMultisample = OGL_LOAD(glTexImage2DMultisample)) != nullptr;
+        bLoaded &= (_glBlitFramebuffer = OGL_LOAD(glBlitFramebuffer)) != nullptr;
+#else
+        bLoaded &= (_glBindVertexArray = OGL_LOAD(glBindVertexArray)) != nullptr;
+		bLoaded &= (_glGenVertexArrays = OGL_LOAD(glGenVertexArrays)) != nullptr;
+		bLoaded &= (_glDrawBuffers = OGL_LOAD(glDrawBuffers)) != nullptr;
+		bLoaded &= (_glTexImage2DMultisample = OGL_LOAD(glTexImage2DMultisample)) != nullptr;
 		bLoaded &= (_glBlitFramebuffer = OGL_LOAD(glBlitFramebuffer)) != nullptr;
 #endif
 		bLoaded &= (_glGetShaderInfoLog = OGL_LOAD(glGetShaderInfoLog)) != nullptr;
@@ -9662,10 +10661,12 @@ namespace olc::apis::opengl
 				sLocation << "OGL33 Error: GL_INVALID_FRAMEBUFFER_OPERATION\n"; break;
 			case GL_OUT_OF_MEMORY:
 				sLocation << "OGL33 Error: GL_OUT_OF_MEMORY\n"; break;
+#if OLC_HOST != OLC_HOST_ANDROID
 			case GL_STACK_UNDERFLOW:
 				sLocation << "OGL33 Error: GL_STACK_UNDERFLOW\n"; break;
 			case GL_STACK_OVERFLOW:
 				sLocation << "OGL33 Error: GL_STACK_OVERFLOW\n"; break;
+#endif
 			}
 			bWasError = true;
 
@@ -9698,8 +10699,10 @@ namespace olc::apis::opengl
 
 	void gl::glTexEnvf(GLenum target, GLenum pname, GLfloat param)
 	{
+#if OLC_HOST != OLC_HOST_ANDROID
 		::glTexEnvf(target, pname, param);
 		CheckError();
+#endif
 	}
 
 	void gl::glDeleteTextures(GLsizei n, const GLuint* textures)
@@ -9776,7 +10779,7 @@ namespace olc::apis::opengl
 
 	void gl::glGetTexImage(GLenum target, GLint level, GLenum format, GLenum type, void* pixels)
 	{
-#if OLC_HOST != OLC_HOST_EMSCRIPTEN
+#if OLC_HOST != OLC_HOST_EMSCRIPTEN && OLC_HOST != OLC_HOST_ANDROID
 		::glGetTexImage(target, level, format, type, pixels);
 		CheckError();
 #endif
@@ -9790,7 +10793,7 @@ namespace olc::apis::opengl
 
 	void gl::glPolygonMode(GLenum face, GLenum mode)
 	{
-#if OLC_HOST != OLC_HOST_EMSCRIPTEN
+#if OLC_HOST != OLC_HOST_EMSCRIPTEN && OLC_HOST != OLC_HOST_ANDROID
 		::glPolygonMode(face, mode);
 		CheckError();
 #endif
@@ -9987,7 +10990,7 @@ namespace olc::apis::opengl
 
 	void gl::glTexImage2DMultisample(GLenum target, GLsizei samples, GLint internalformat, GLsizei width, GLsizei height, GLboolean fixedsamplelocations)
 	{
-#if OLC_HOST != OLC_HOST_EMSCRIPTEN
+#if OLC_HOST != OLC_HOST_EMSCRIPTEN && OLC_HOST != OLC_HOST_ANDROID
 		_glTexImage2DMultisample(target, samples, internalformat, width, height, fixedsamplelocations);
 		CheckError();
 #endif
@@ -10046,7 +11049,7 @@ namespace olc::gpu
 
 	// === PIXEL SHADER PGE DEFAULTS ===
 	std::string Shader::static_PS_DefaultHeader =
-#if OLC_HOST != OLC_HOST_EMSCRIPTEN
+#if OLC_HOST != OLC_HOST_EMSCRIPTEN && OLC_HOST != OLC_HOST_ANDROID
 R"(#version 330 core
 )"
 #else
@@ -10085,7 +11088,7 @@ void main()
 	
 	// === VERTEX SHADER PGE DEFAULTS ===
 	std::string Shader::static_VS_DefaultHeader =
-#if OLC_HOST != OLC_HOST_EMSCRIPTEN
+#if OLC_HOST != OLC_HOST_EMSCRIPTEN && OLC_HOST != OLC_HOST_ANDROID
 R"(#version 330 core
 )"
 #else
@@ -10318,9 +11321,13 @@ void main()
 
 #endif
 
-#if OLC_HOST == OLC_HOST_EMSCRIPTEN || OLC_HOST == OLC_HOST_LINUX_WAYLAND
-#if OLC_HOST == OLC_HOST_EMSCRIPTEN
-	EGLNativeWindowType window_handle = NULL;
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN || OLC_HOST == OLC_HOST_LINUX_WAYLAND || OLC_HOST == OLC_HOST_ANDROID
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN || OLC_HOST == OLC_HOST_ANDROID
+    #if OLC_HOST == OLC_HOST_ANDROID
+        EGLNativeWindowType window_handle = reinterpret_cast<ANativeWindow*>(os_win_id[0]);
+    #else
+        EGLNativeWindowType window_handle = NULL;
+    #endif
 	EGLNativeDisplayType display = EGL_DEFAULT_DISPLAY;
 #else
 	const auto wayland_window = reinterpret_cast<olc::host::WaylandWindow*>(os_win_id[0]);
@@ -10328,23 +11335,39 @@ void main()
 	EGLNativeDisplayType display = reinterpret_cast<EGLNativeDisplayType>(os_win_id[1]);
 #endif
 
-	EGLint const attribute_list[] = {EGL_RED_SIZE, 8, EGL_GREEN_SIZE, 8, EGL_BLUE_SIZE, 8, EGL_ALPHA_SIZE, 8, EGL_DEPTH_SIZE, 16, EGL_SAMPLE_BUFFERS, 1, EGL_SAMPLES, OLC_MSAA_SAMPLES, EGL_NONE};
-	EGLint const context_config[] = {EGL_CONTEXT_MAJOR_VERSION, 3, EGL_NONE};
-	EGLint num_config;
-
 	glRenderContext.display = eglGetDisplay(display);
 	if(glRenderContext.display == EGL_NO_DISPLAY) {
 		std::cout << "Could not create EGL Display" << std::endl;
 	}
+
 	eglInitialize(glRenderContext.display, nullptr, nullptr);
+
+#if OLC_HOST == OLC_HOST_ANDROID
+	glRenderContext.config = FindBestConfig(glRenderContext.display, OLC_MSAA_SAMPLES);
+#else
+	EGLint num_config;
+	EGLint const attribute_list[] = {
+        EGL_RED_SIZE, 8,
+        EGL_GREEN_SIZE, 8,
+        EGL_BLUE_SIZE, 8,
+        EGL_ALPHA_SIZE, 8,
+        EGL_DEPTH_SIZE, 16,
+        EGL_SAMPLE_BUFFERS, 1,
+        EGL_SAMPLES, OLC_MSAA_SAMPLES,
+        EGL_NONE
+    };
 	eglChooseConfig(glRenderContext.display, attribute_list, &glRenderContext.config, 1, &num_config);
-	
+#endif
+
+	EGLint const context_config[] = {EGL_CONTEXT_MAJOR_VERSION, 3, EGL_NONE};
+
 	/* create an EGL rendering context */
 	glRenderContext.context = eglCreateContext(glRenderContext.display, glRenderContext.config, EGL_NO_CONTEXT, context_config);
 	glRenderContext.surface = eglCreateWindowSurface(glRenderContext.display, glRenderContext.config, window_handle, nullptr);
 	if(glRenderContext.surface == EGL_NO_SURFACE) {
 		std::cout << "Could not create EGL Surface" << std::endl;
 	}
+
 	if(!eglMakeCurrent(glRenderContext.display, glRenderContext.surface, glRenderContext.surface, glRenderContext.context))
 	{
 		lastError = RendererError::FailedToCreateRenderContext;
@@ -10367,12 +11390,20 @@ void main()
 			// Enable VSync - lock to display refresh
 			// May also be governed by OS / driver settings
 			// and desktop compositor settings
+#if !((OLC_HOST == OLC_HOST_EMSCRIPTEN) || (OLC_HOST == OLC_HOST_LINUX_WAYLAND))
 			gl.glSwapInterval(1);
+#else
+			eglSwapInterval(glRenderContext.display, 1);
+#endif
 		}
 		else
 		{
 			// Disable VSync - run like the clappers!
+#if !((OLC_HOST == OLC_HOST_EMSCRIPTEN) || (OLC_HOST == OLC_HOST_LINUX_WAYLAND))
 			gl.glSwapInterval(0);
+#else
+			eglSwapInterval(glRenderContext.display, 0);
+#endif
 		}
 		
 
@@ -10469,7 +11500,7 @@ void main()
 		gl.glGenFramebuffers(1, &nResolveFBO_Draw);
 		gl.glGenFramebuffers(1, &nResolveFBO_Read);
 
-#if OLC_HOST != OLC_HOST_EMSCRIPTEN
+#if OLC_HOST != OLC_HOST_EMSCRIPTEN && OLC_HOST != OLC_HOST_ANDROID
 		gl.glEnable(GL_TEXTURE_2D); // Turn on texturing
 		gl.glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
 #endif
@@ -10495,7 +11526,7 @@ void main()
 		X11::glXMakeCurrent(display, 0, NULL);
 		X11::glXDestroyContext(display, glRenderContext);
 #endif
-#if OLC_HOST == OLC_HOST_EMSCRIPTEN || OLC_HOST == OLC_HOST_LINUX_WAYLAND
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN || OLC_HOST == OLC_HOST_LINUX_WAYLAND || OLC_HOST == OLC_HOST_ANDROID
 		eglMakeCurrent(glRenderContext.display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
 		eglDestroyContext(glRenderContext.display, glRenderContext.context);
 		eglDestroySurface(glRenderContext.display, glRenderContext.surface);
@@ -10536,13 +11567,13 @@ void main()
 			return false;
 		}
 #endif
-#if OLC_HOST == OLC_HOST_EMSCRIPTEN || OLC_HOST == OLC_HOST_LINUX_WAYLAND
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN || OLC_HOST == OLC_HOST_LINUX_WAYLAND || OLC_HOST == OLC_HOST_ANDROID
 	if(!eglMakeCurrent(glRenderContext.display, glRenderContext.surface, glRenderContext.surface, glRenderContext.context))
 	{
 		lastError = RendererError::FailedToSwitchRenderContext;
 		return false;
 	}
-#endif		
+#endif
 		return true;
 	}
 
@@ -10642,10 +11673,8 @@ void main()
 			mapTextureToRenderbuffer[id] = rboId;
 		}
 
-#if OLC_HOST != OLC_HOST_EMSCRIPTEN
-#if OLC_HOST != OLC_HOST_MACOS		
+#if OLC_HOST != OLC_HOST_EMSCRIPTEN && OLC_HOST != OLC_HOST_MACOS && OLC_HOST != OLC_HOST_ANDROID
 		gl.glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-#endif
 #endif
 
 		mapTextureSizes[id] = vSize;
@@ -10700,7 +11729,7 @@ void main()
 		// which has been blitted to via ResolveMSAA if its an MSAA texture
 		gl.glBindTexture(GL_TEXTURE_2D, image.GetGPUID());
 
-#if OLC_HOST != OLC_HOST_EMSCRIPTEN
+#if OLC_HOST != OLC_HOST_EMSCRIPTEN && OLC_HOST != OLC_HOST_ANDROID
 		gl.glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, image.Data());
 #else		
 		gl.glReadPixels(0, 0, image.Size().x, image.Size().y, GL_RGBA, GL_UNSIGNED_BYTE, image.Data());
@@ -11152,20 +12181,64 @@ void main()
 		X11::glXSwapBuffers(display, window_handle);
 #endif
 
-#if OLC_HOST == OLC_HOST_LINUX_WAYLAND
-	const auto* wayland_window = reinterpret_cast<olc::host::WaylandWindow*>(os_win_id[0]);
-	//auto* window_handle = wayland_window->window;
-	//auto* display = reinterpret_cast<wl_display*>(os_win_id[1]);
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN || OLC_HOST == OLC_HOST_LINUX_WAYLAND
 	eglSwapBuffers(glRenderContext.display, glRenderContext.surface);
 #endif
 
-#if OLC_HOST == OLC_HOST_EMSCRIPTEN
-		eglSwapInterval(glRenderContext.display, bVerticalSyncNow ? 1 : 0);
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN || OLC_HOST == OLC_HOST_ANDROID
+	eglSwapBuffers(glRenderContext.display, glRenderContext.surface);
 #endif
 
 		return true;
 	}
 
+#if OLC_HOST == OLC_HOST_ANDROID
+    EGLConfig Renderer_OGL33::FindBestConfig(EGLDisplay display, int desiredMultisamples)
+    {
+		EGLint numConfigs;
+		EGLConfig bestConfig = nullptr;
+		EGLConfig fallbackConfig = nullptr;
+
+		// Define attribute list for desired configuration
+    	EGLint const attribs[] = {
+			EGL_RENDERABLE_TYPE, EGL_OPENGL_ES3_BIT,
+			EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
+			EGL_RED_SIZE, 8,
+			EGL_GREEN_SIZE, 8,
+			EGL_BLUE_SIZE, 8,
+			EGL_ALPHA_SIZE, 8,
+			EGL_DEPTH_SIZE, 16,
+        	EGL_NONE
+    	};
+
+		// Get all matching configurations
+		eglChooseConfig(display, attribs, nullptr, 0, &numConfigs);
+
+		std::vector<EGLConfig> configs(numConfigs);
+		eglChooseConfig(display, attribs, configs.data(), numConfigs, &numConfigs);
+
+		// Evaluate configurations to find the best that matches desired multisampling
+		for (const auto& config : configs) {
+			EGLint sampleBuffers = 0;
+			EGLint samples = 0;
+
+			eglGetConfigAttrib(display, config, EGL_SAMPLE_BUFFERS, &sampleBuffers);
+			eglGetConfigAttrib(display, config, EGL_SAMPLES, &samples);
+
+			if (sampleBuffers > 0 && samples == desiredMultisamples) {
+				bestConfig = config;
+				break; // Found the best match
+			}
+
+			// Keep track of a fallback configuration
+			if (fallbackConfig == nullptr) {
+				fallbackConfig = config;
+			}
+		}
+
+		return bestConfig ? bestConfig : fallbackConfig;
+    }
+#endif
 
 }
 #endif
@@ -13292,7 +14365,6 @@ namespace olc
 		config.vScreenSize = vScreenSize;
 		config.vPixelSize = vPixelSize;
 		config.bFullScreen = bFullScreen;
-
 		return true;
 	}
 
@@ -13320,7 +14392,11 @@ namespace olc
 		#endif
 		#if OLC_HOST == OLC_HOST_EMSCRIPTEN
 		host = std::make_unique<olc::host::Host_Web_Emscripten>();
-		#endif
+        #endif
+        #if OLC_HOST == OLC_HOST_ANDROID
+        host = std::make_unique<olc::host::Host_Android>();
+        auto hostPtr = (dynamic_cast<olc::host::Host_Android*>(host.get()));
+        #endif
 #if OLC_MULTIWINDOW == OLC_MULTIWINDOW_NO
 		// Create OS window on this thread
 		host->AddWindowFrame(this, { 30,30 }, config.vPixelSize * config.vScreenSize, false);
@@ -13328,7 +14404,8 @@ namespace olc
 		// at least to initialise teh rendering subsystem... sigh.
 		coreActive = true;
 
-#if OLC_HOST != OLC_HOST_EMSCRIPTEN
+#if OLC_HOST != OLC_HOST_EMSCRIPTEN && OLC_HOST != OLC_HOST_ANDROID
+		// Create EngineThread
 		coreThread = std::thread(&PixelGameEngine::EngineThread, this);
 		// Handle window events on this thread (and block)
 		host->StartSystemEventLoop(true);		
@@ -13336,8 +14413,18 @@ namespace olc
 		coreActive = false;
 		// Wait for engine thread to terminate
 		coreThread.join();
+#elif OLC_HOST == OLC_HOST_ANDROID
+        // We need to wait for the APP_CMD_INIT_WINDOW command before starting the loop
+        __android_log_print(ANDROID_LOG_DEBUG, "PGE ANDROID", "Initializing...");
+        while (!hostPtr->IsInitialized()) {
+			host->StartSystemEventLoop(false);
+		}
+
+        __android_log_print(ANDROID_LOG_DEBUG, "PGE ANDROID", "Initialized Successfully");
+
+        EngineThread();
 #else
-		EngineThread();
+        EngineThread();
 #endif
 
 #else
@@ -13474,104 +14561,113 @@ namespace olc
 				}
 			}
 		
-	}	
-	
-	void PixelGameEngine::EngineThread()
-	{
-		using namespace std::chrono_literals;
-		timeFrame2 = std::chrono::steady_clock::now();
-		timeFrame1 = std::chrono::steady_clock::now();
+	}
+
+    void PixelGameEngine::EngineThread()
+    {
+        using namespace std::chrono_literals;
+        timeFrame2 = std::chrono::steady_clock::now();
+        timeFrame1 = std::chrono::steady_clock::now();
 
 #if OLC_MULTIWINDOW == OLC_MULTIWINDOW_YES
-		// Create Primary Window on EngineThread, event loop also exists for all windows
-		// on this thread, and all windows will be created on this thread
-		host->AddWindowFrame(this, { 30,30 }, config.vPixelSize * config.vScreenSize, false);
+        // Create Primary Window on EngineThread, event loop also exists for all windows
+        // on this thread, and all windows will be created on this thread
+        host->AddWindowFrame(this, { 30,30 }, config.vPixelSize * config.vScreenSize, false);
 #endif
-		
-		// Initialise ImageLoader Interface
-		#if OLC_HOST == OLC_HOST_WINDOWS
-		imageloader = std::make_unique<olc::imload::ImageLoader_WinGDI>();
-		#endif
 
-		// Initialise ImageLoader Interface
-		#if OLC_HOST == OLC_HOST_MACOS
-		imageloader = std::make_unique<olc::imload::ImageLoader_MacOS>();
-		#endif
+        // Initialise ImageLoader Interface
+#if OLC_HOST == OLC_HOST_WINDOWS
+        imageloader = std::make_unique<olc::imload::ImageLoader_WinGDI>();
+#endif
 
-		#if OLC_HOST == OLC_HOST_LINUX_X11
-		imageloader = std::make_unique<olc::imload::ImageLoader_LibPNG>();
-		#endif
+        // Initialise ImageLoader Interface
+#if OLC_HOST == OLC_HOST_MACOS
+        imageloader = std::make_unique<olc::imload::ImageLoader_MacOS>();
+#endif
 
-		#if OLC_HOST == OLC_HOST_LINUX_WAYLAND
-		imageloader = std::make_unique<olc::imload::ImageLoader_LibPNG>();
-		#endif
+#if OLC_HOST == OLC_HOST_LINUX_X11
+        imageloader = std::make_unique<olc::imload::ImageLoader_LibPNG>();
+#endif
 
-		#if OLC_HOST == OLC_HOST_EMSCRIPTEN
-		imageloader = std::make_unique<olc::imload::ImageLoader_LibPNG>();
-		#endif
+#if OLC_HOST == OLC_HOST_LINUX_WAYLAND
+        imageloader = std::make_unique<olc::imload::ImageLoader_LibPNG>();
+#endif
 
-		// Initialise GPU Interface	- This thread is the context
-		olc::gpu::RendererConfig cfgRenderer;
-		cfgRenderer.VerticalSync = config.bVSync;
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN
+        imageloader = std::make_unique<olc::imload::ImageLoader_LibPNG>();
+#endif
 
-		gpu = std::make_unique<olc::gpu::Renderer_OGL33>();
+#if OLC_HOST == OLC_HOST_ANDROID
+        imageloader = std::make_unique<olc::imload::ImageLoader_NDKImageDecoder>(
+            olc::host::Host_Android::androidApp->activity->assetManager
+        );
+#endif
 
-		// Link this windows devices
-		LinkToHost(host.get());
-		LinkToRenderer(gpu.get());
-		LinkToImageLoader(imageloader.get());
+        // Initialise GPU Interface	- This thread is the context
+        olc::gpu::RendererConfig cfgRenderer;
+        cfgRenderer.VerticalSync = config.bVSync;
 
-		// The GPU device can be based upon the primary window configuration. This
-		// gives us completed gpu and host objects to pass to other windows as and
-		// when required
-		gpu->CreateDevice(host->GetHostWindowDescriptor(this), cfgRenderer);
-		if (gpu->GetLastError() != olc::gpu::RendererError::NoError)
-		{
-			//const auto e = gpu->GetLastError(); // For debug visibility
-			std::cout << "Error: Could not create Renderer\n";
-			return;
-		}
+        gpu = std::make_unique<olc::gpu::Renderer_OGL33>();
 
+        // Link this windows devices
+        LinkToHost(host.get());
+        LinkToRenderer(gpu.get());
+        LinkToImageLoader(imageloader.get());
 
-		
-		olc::ImageConfig cfg;
-		cfg.MSAA = config.bAntiAliasMainScreen;
-		CreateImage(GetDefaultImage(), config.vScreenSize, cfg);
-		
-
-		// Initialise Font System
-		olc::pgeguts::CreateClassicFont(this);
+        // The GPU device can be based upon the primary window configuration. This
+        // gives us completed gpu and host objects to pass to other windows as and
+        // when required
+        gpu->CreateDevice(host->GetHostWindowDescriptor(this), cfgRenderer);
+        if (gpu->GetLastError() != olc::gpu::RendererError::NoError)
+        {
+            //const auto e = gpu->GetLastError(); // For debug visibility
+            std::cout << "Error: Could not create Renderer\n";
+            return;
+        }
 
 
-		draw.SetGPU(gpu.get());
-		gpu->ApplyDefaultShader();
-		draw.SetTarget(GetDefaultImage());
 
-		if (!OnUserCreate())
-		{
-			// Creation process signalled abort
-			return;
-		}
+        olc::ImageConfig cfg;
+        cfg.MSAA = config.bAntiAliasMainScreen;
+        CreateImage(GetDefaultImage(), config.vScreenSize, cfg);
 
 
-		
-		draw.ProcessGPUTasks();
-		draw.SetTarget(GetDefaultImage());
-
-		// Initialise Input Devices
+        // Initialise Font System
+        olc::pgeguts::CreateClassicFont(this);
 
 
-		durationFrameCount = 0s;
+        draw.SetGPU(gpu.get());
+        gpu->ApplyDefaultShader();
+        draw.SetTarget(GetDefaultImage());
 
-		#if OLC_HOST == OLC_HOST_EMSCRIPTEN
-			emscripten_set_main_loop_arg(PixelGameEngine::CoreUpdate, reinterpret_cast<void*>(this), 0, 1);
-		#else
-		while (coreActive)
-		{
-			PixelGameEngine::CoreUpdate(this);
-		}
-		#endif
-	}
+        if (!OnUserCreate())
+        {
+            // Creation process signalled abort
+            return;
+        }
+
+        draw.ProcessGPUTasks();
+        draw.SetTarget(GetDefaultImage());
+
+        // Initialise Input Devices
+
+
+        durationFrameCount = 0s;
+
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN
+        emscripten_set_main_loop_arg(PixelGameEngine::CoreUpdate, reinterpret_cast<void*>(this), 0, 1);
+#else
+        while (coreActive)
+        {
+#if OLC_HOST == OLC_HOST_ANDROID
+            if (!host->StartSystemEventLoop(false)) {
+                coreActive = false;
+            }
+#endif
+            PixelGameEngine::CoreUpdate(this);
+        }
+#endif
+    }
 }
 #define PGE_CORE_IMPLEMENTED 1
 #endif
@@ -14493,6 +15589,152 @@ namespace olc::imload
 
 }
 #endif
+#if OLC_HOST == OLC_HOST_ANDROID
+#include <android/imagedecoder.h>
+#include <android/log.h>
+#include <vector>
+
+namespace olc::imload
+{
+    bool ImageLoader_NDKImageDecoder::CreateImageFromFile(olc::Image& image, const std::string& sFileName)
+    {
+        AAsset* asset = AAssetManager_open(
+            assetManager,
+            sFileName.c_str(),
+            AASSET_MODE_BUFFER
+        );
+        if (!asset) {
+            return false;
+        }
+
+        AImageDecoder* decoder = nullptr;
+        int status = AImageDecoder_createFromAAsset(
+            asset,
+            &decoder
+        );
+
+        if (status != ANDROID_IMAGE_DECODER_SUCCESS || !decoder) {
+            AAsset_close(asset);
+            return false;
+        }
+
+        const AImageDecoderHeaderInfo* info =
+            AImageDecoder_getHeaderInfo(decoder);
+        if (!info) {
+            AImageDecoder_delete(decoder);
+            AAsset_close(asset);
+            return false;
+        }
+
+        image.Create({
+            AImageDecoderHeaderInfo_getWidth(info),
+            AImageDecoderHeaderInfo_getHeight(info)
+        });
+
+        AImageDecoder_setAndroidBitmapFormat(
+            decoder,
+            ANDROID_BITMAP_FORMAT_RGBA_8888
+        );
+        AImageDecoder_setUnpremultipliedRequired(decoder, true);
+
+        std::vector<uint8_t> pixels(image.Size().x * image.Size().y * 4);
+
+        status = AImageDecoder_decodeImage(
+            decoder,
+            pixels.data(),
+            image.Size().x * 4,
+            pixels.size()
+        );
+
+        AImageDecoder_delete(decoder);
+        AAsset_close(asset);
+
+        for (size_t i = 0; i < pixels.size(); i += 4) {
+            int32_t x = static_cast<int32_t>(i / 4) % image.Size().x;
+            int32_t y = static_cast<int32_t>(i / 4) / image.Size().x;
+            uint8_t r = pixels[i];
+            uint8_t g = pixels[i + 1];
+            uint8_t b = pixels[i + 2];
+            uint8_t a = pixels[i + 3];
+            image.Pixel({x, y}) = olc::Pixel(r, g, b, a);
+        }
+
+        return status == ANDROID_IMAGE_DECODER_SUCCESS;
+    }
+
+    bool ImageLoader_NDKImageDecoder::CreateImageFromMemory(Image &image, const uint8_t *data, const size_t bytes)
+    {
+        AImageDecoder* decoder = nullptr;
+        int status = AImageDecoder_createFromBuffer(
+            data,
+            bytes,
+            &decoder
+        );
+
+        if (status != ANDROID_IMAGE_DECODER_SUCCESS || !decoder) {
+            return false;
+        }
+
+        const AImageDecoderHeaderInfo* info =
+            AImageDecoder_getHeaderInfo(decoder);
+        if (!info) {
+            AImageDecoder_delete(decoder);
+            return false;
+        }
+
+        image.Create({
+         AImageDecoderHeaderInfo_getWidth(info),
+         AImageDecoderHeaderInfo_getHeight(info)
+        });
+
+        AImageDecoder_setAndroidBitmapFormat(
+            decoder,
+            ANDROID_BITMAP_FORMAT_RGBA_8888
+        );
+        AImageDecoder_setUnpremultipliedRequired(decoder, true);
+
+        std::vector<uint8_t> pixels(image.Size().x * image.Size().y * 4);
+
+        status = AImageDecoder_decodeImage(
+            decoder,
+            pixels.data(),
+            image.Size().x * 4,
+            pixels.size()
+        );
+
+        AImageDecoder_delete(decoder);
+
+        for (size_t i = 0; i < pixels.size(); i += 4) {
+            int32_t x = static_cast<int32_t>(i / 4) % image.Size().x;
+            int32_t y = static_cast<int32_t>(i / 4) / image.Size().x;
+            uint8_t r = pixels[i];
+            uint8_t g = pixels[i + 1];
+            uint8_t b = pixels[i + 2];
+            uint8_t a = pixels[i + 3];
+            image.Pixel({x, y}) = olc::Pixel(r, g, b, a);
+        }
+
+        return status == ANDROID_IMAGE_DECODER_SUCCESS;
+    }
+
+    bool ImageLoader_NDKImageDecoder::CreateImageFromMemory(Image &image, const std::vector<uint8_t> &data)
+    {
+        return CreateImageFromMemory(image, data.data(), data.size());
+    }
+
+    bool ImageLoader_NDKImageDecoder::WriteImageToFile(const Image &image, const std::string &sFileName)
+    {
+        // No solution for now
+        return false;
+    }
+
+    bool ImageLoader_NDKImageDecoder::WriteImageToMemoryFile(Image &image, const std::vector<uint8_t> &data)
+    {
+        // No solution for now
+        return false;
+    }
+}
+#endif
 #define PGE_IMAGELOADER_IMPLEMENTED 1
 #endif
 
@@ -14513,4 +15755,3 @@ So you scrolled all this way huh ? In that case:
 */
 
 // Thank you for using olcPixelGameEngine! :)
-
