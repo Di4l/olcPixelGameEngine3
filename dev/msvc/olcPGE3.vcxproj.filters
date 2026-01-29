@@ -144,6 +144,15 @@
     <ClInclude Include="..\src\host_lin_wayland.h">
       <Filter>Hosts\Wayland Specific</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\utilities\olcUTIL3_Animate2D.h">
+      <Filter>Utilities</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\utilities\olcUTIL3_Camera2D.h">
+      <Filter>Utilities</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\utilities\olcUTIL3_Geometry2D.h">
+      <Filter>Utilities</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\tests\test_main.cpp">
