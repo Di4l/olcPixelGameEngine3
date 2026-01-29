@@ -169,6 +169,7 @@ namespace olc
 		typedef void CALLSTYLE glDeleteRenderbuffers_t(GLsizei n, const GLuint* renderbuffers);
 		typedef void CALLSTYLE glGetInternalformativ_t(GLenum target, GLenum internalformat, GLenum pname, GLsizei bufSize, GLint* params);
 		typedef void CALLSTYLE glGetShaderiv_t(GLuint shader, GLenum pname, GLint* params);
+		typedef void CALLSTYLE glGetIntegerv_t(GLenum pname, GLint *data);
 
 #if OLC_HOST == OLC_HOST_WINDOWS
 		typedef void CALLSTYLE wglSwapIntervalEXT_t(GLsizei n);
@@ -229,6 +230,7 @@ namespace olc
 			glDeleteRenderbuffers_t* _glDeleteRenderbuffers = nullptr;
 			glGetInternalformativ_t* _glGetInternalformativ = nullptr;
 			glGetShaderiv_t* _glGetShaderiv = nullptr;
+			glGetIntegerv_t *_glGetIntegerv = nullptr;
 #if OLC_HOST == OLC_HOST_WINDOWS
 			wglSwapIntervalEXT_t* _wglSwapIntervalEXT = nullptr;
 #endif
@@ -279,8 +281,7 @@ namespace olc
 			void glDeleteRenderbuffers(GLsizei n, const GLuint* renderbuffers);
 			void glGetInternalformativ(GLenum target, GLenum internalformat, GLenum pname, GLsizei bufSize, GLint* params);
 			void glGetShaderiv(GLuint shader, GLenum pname, GLint* params);
-
-
+			void glGetIntegerv(GLenum pname, GLint *data);
 
 			// OpenGL1.2 Proxies (just keeps things tidy imo)
 			void glGenTextures(GLsizei n, GLuint* textures);

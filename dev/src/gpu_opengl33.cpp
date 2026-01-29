@@ -341,6 +341,8 @@ void main()
 			return false;
 		}
 
+		gl.glGetIntegerv(gl.GL_DRAW_FRAMEBUFFER_BINDING_X, (GLint *)&nScreenFBO);
+
 		// Configure Swap Interval (VSync)
 		if (config.VerticalSync)
 		{
@@ -451,7 +453,7 @@ void main()
 		//gl.glFramebufferTexture2D(gl.GL_FRAMEBUFFER_X, attachments[3], GL_TEXTURE_2D, 0, 0);
 
 		// Unbind the FBO
-		gl.glBindFramebuffer(gl.GL_FRAMEBUFFER_X, 0);
+		gl.glBindFramebuffer(gl.GL_FRAMEBUFFER_X, nScreenFBO);
 
 		// Create FBOs for MSAA resolve operations
 		gl.glGenFramebuffers(1, &nResolveFBO_Draw);
@@ -734,7 +736,7 @@ void main()
 #if defined(OLC_GPU_ERRORCHECK) && OLC_GPU_ERRORCHECK == 1
 			std::cout << "Warning ATS: Requested source is currently attached as target (" << actualTexId << ") - unbinding FBO\n";
 #endif
-			gl.glBindFramebuffer(gl.GL_FRAMEBUFFER_X, 0);
+			gl.glBindFramebuffer(gl.GL_FRAMEBUFFER_X, nScreenFBO);
 			nCurrentTextureTarget = 0;
 		}
 
@@ -781,7 +783,7 @@ void main()
 		if (texid == 0)
 		{
 			// Unbind the FBO (bind default framebuffer)
-			gl.glBindFramebuffer(gl.GL_FRAMEBUFFER_X, 0);
+			gl.glBindFramebuffer(gl.GL_FRAMEBUFFER_X, nScreenFBO);
 			return true;
 		}	
 	

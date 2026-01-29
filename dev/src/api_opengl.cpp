@@ -71,6 +71,7 @@ namespace olc::apis::opengl
 		bLoaded &= (_glDeleteRenderbuffers = OGL_LOAD(glDeleteRenderbuffers)) != nullptr;
 		bLoaded &= (_glGetInternalformativ = OGL_LOAD(glGetInternalformativ)) != nullptr;
 		bLoaded &= (_glGetShaderiv = OGL_LOAD(glGetShaderiv)) != nullptr;
+		bLoaded &= (_glGetIntegerv = OGL_LOAD(glGetIntegerv)) != nullptr;
 
 #if OLC_HOST == OLC_HOST_WINDOWS
 		bLoaded &= (_wglSwapIntervalEXT = OGL_LOAD(wglSwapIntervalEXT)) != nullptr;
@@ -485,6 +486,12 @@ namespace olc::apis::opengl
 	void gl::glGetShaderiv(GLuint shader, GLenum pname, GLint* params)
 	{
 		_glGetShaderiv(shader, pname, params);
+		CheckError();
+	}
+
+	void gl::glGetIntegerv(GLenum pname, GLint *data)
+	{
+		_glGetIntegerv(pname, data);
 		CheckError();
 	}
 }
