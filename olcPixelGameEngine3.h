@@ -8694,9 +8694,10 @@ namespace olc::host
         {
             XkbSelectEventDetails(olc_Display, XkbUseCoreKbd, XkbStateNotify, XkbGroupStateMask, XkbGroupStateMask);
             kbExtensionsFound = true;
-            UpdateKeyboardLayout();
+            
         }
         
+        UpdateKeyboardLayout();
 
         mapKeys[NoSymbol] = Key::NONE;
 
@@ -8960,86 +8961,55 @@ namespace olc::host
 
     void Host_Linux_X11::UpdateKeyboardLayout()
     {
-        // Get active group
-        X11::XkbStateRec state;
-        X11::XkbGetState(olc_Display, XkbUseCoreKbd, &state);
-        unsigned int group = state.group;
-
-        // Get symbol name
-        X11::XkbDescPtr desc = X11::XkbAllocKeyboard();
-        desc->dpy = olc_Display;
-
-        if (X11::XkbGetNames(olc_Display, XkbSymbolsNameMask, desc) != Success)
-        {
-            X11::XkbFreeKeyboard(desc, 0, True);
-            return;
-        }
-
-        const char* symbols = X11::XGetAtomName(olc_Display, desc->names->symbols);
-        if (!symbols)
-        {
-            X11::XkbFreeKeyboard(desc, 0, True);
-            return;
-        }
-
-        // At this point we can have: pc_us_inet(evdev)
-        // or something more complex like: pc_us_gb_2_fr_3_de_4_inet(evdev)
-        
-        // Extract layouts in order
-        std::vector<std::string> layouts;
-        std::string s(symbols);
-
-        size_t start = s.find('_') + 1;
-        size_t end   = s.find("_inet");
-
-        std::string layoutPart = s.substr(start, end - start);
-
-        size_t pos = 0;
-        while (pos < layoutPart.size())
-        {
-            size_t next = layoutPart.find('_', pos);
-            std::string token = layoutPart.substr(pos, next - pos);
-
-            // Remove numeric suffixes (_2, _3, _4)
-            size_t num = token.find_first_of("0123456789");
-            if (num != std::string::npos)
-                token = token.substr(0, num);
-
-            // don't push empty tokens
-            if(token.size() > 0)
-                layouts.push_back(token);
-
-            if (next == std::string::npos)
-                break;
-            
-            pos = next + 1;
-        }
-
-        X11::XFree((void*)symbols);
-        X11::XkbFreeKeyboard(desc, 0, True);
-
-        if (group >= layouts.size())
-            return;
-
-        const std::string& layout = layouts[group];
-
-        std::unordered_map<std::string, olc::KeyboardLayout> mapLayouts = {
-            {"us", olc::KeyboardLayout::QWERTY_US },
-            {"gb", olc::KeyboardLayout::QWERTY_UK},
-            {"de", olc::KeyboardLayout::QWERTZ},
-            {"fr", olc::KeyboardLayout::AZERTY},
-        };
-
-        auto it = mapLayouts.find(layout);
-        
-        if(it != mapLayouts.end())
-        {
-            keyboardLayout = it->second;
-            return;
-        }
-        
-        // if we've made it here, no valid layout was detected, fallback on default
+        using namespace X11;
         keyboardLayout = OLC_DEFAULT_KEYBOARD_LAYOUT;
+
+        XkbStateRec state;
+        if (XkbGetState(olc_Display, XkbUseCoreKbd, &state) != Success)
+        {
+            return;
+        }
+
+        // state.group contains the currently active layout group
+        unsigned int currentGroup = state.group;
+
+        XkbDescPtr xkb = XkbGetMap(olc_Display, 0, XkbUseCoreKbd);
+        if (!xkb)
+        {
+            return;
+        }
+
+        XkbGetNames(olc_Display, XkbGroupNamesMask, xkb);
+    
+        if (!xkb->names)
+        {
+            XkbFreeKeyboard(xkb, 0, True);
+            return;
+        }
+
+        Atom layoutAtom = xkb->names->groups[currentGroup];
+        char* layoutName = layoutAtom ? XGetAtomName(olc_Display, layoutAtom) : nullptr;
+    
+        if (layoutName)
+        {
+            std::string layout(layoutName);
+            
+            // Convert to lowercase for easier comparison
+            std::transform(layout.begin(), layout.end(), layout.begin(), ::tolower);
+        
+            if (layout.find("us") != std::string::npos)
+                keyboardLayout = olc::KeyboardLayout::QWERTY_US;
+            else if (layout.find("gb") != std::string::npos || layout.find("uk") != std::string::npos)
+                keyboardLayout = olc::KeyboardLayout::QWERTY_UK;
+            else if (layout.find("de") != std::string::npos || layout.find("german") != std::string::npos)
+                keyboardLayout = olc::KeyboardLayout::QWERTZ;
+            else if (layout.find("fr") != std::string::npos || layout.find("french") != std::string::npos)
+                keyboardLayout = olc::KeyboardLayout::AZERTY;
+            
+            XFree(layoutName);
+        }
+    
+        XkbFreeKeyboard(xkb, 0, True);
     }
 
     // Wait for entire host desktop refresh (for smooooth vsync)
