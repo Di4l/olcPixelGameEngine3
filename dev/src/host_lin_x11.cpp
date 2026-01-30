@@ -14,10 +14,8 @@ namespace olc::host
         {
             XkbSelectEventDetails(olc_Display, XkbUseCoreKbd, XkbStateNotify, XkbGroupStateMask, XkbGroupStateMask);
             kbExtensionsFound = true;
-            
+            UpdateKeyboardLayout();
         }
-        
-        UpdateKeyboardLayout();
 
         mapKeys[NoSymbol] = Key::NONE;
 
