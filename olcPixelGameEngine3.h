@@ -8982,8 +8982,10 @@ namespace olc::host
             return;
         }
 
+        // At this point we can have: pc_us_inet(evdev)
+        // or something more complex like: pc_us_gb_2_fr_3_de_4_inet(evdev)
+        
         // Extract layouts in order
-        // Example: pc_us_gb_2_fr_3_de_4_inet(evdev)
         std::vector<std::string> layouts;
         std::string s(symbols);
 
@@ -9003,11 +9005,13 @@ namespace olc::host
             if (num != std::string::npos)
                 token = token.substr(0, num);
 
+            // don't push empty tokens
             if(token.size() > 0)
                 layouts.push_back(token);
 
             if (next == std::string::npos)
                 break;
+            
             pos = next + 1;
         }
 
@@ -9019,11 +9023,12 @@ namespace olc::host
 
         const std::string& layout = layouts[group];
 
-        std::unordered_map<std::string, olc::KeyboardLayout> mapLayouts;
-        mapLayouts["us"] = olc::KeyboardLayout::QWERTY_US;
-        mapLayouts["gb"] = olc::KeyboardLayout::QWERTY_UK;
-        mapLayouts["de"] = olc::KeyboardLayout::QWERTZ;
-        mapLayouts["fr"] = olc::KeyboardLayout::AZERTY;
+        std::unordered_map<std::string, olc::KeyboardLayout> mapLayouts = {
+            {"us", olc::KeyboardLayout::QWERTY_US },
+            {"gb", olc::KeyboardLayout::QWERTY_UK},
+            {"de", olc::KeyboardLayout::QWERTZ},
+            {"fr", olc::KeyboardLayout::AZERTY},
+        };
 
         auto it = mapLayouts.find(layout);
         
@@ -9032,7 +9037,8 @@ namespace olc::host
             keyboardLayout = it->second;
             return;
         }
-            
+        
+        // if we've made it here, no valid layout was detected, fallback on default
         keyboardLayout = OLC_DEFAULT_KEYBOARD_LAYOUT;
     }
 
