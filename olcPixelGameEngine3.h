@@ -4524,6 +4524,7 @@ namespace olc::host
         bool ConnectHostResourceToRenderer() override;
         
         olc::KeyboardLayout GetKeyboardLayout() const override;
+        void UpdateKeyboardLayout();
 
         // Wait for entire host desktop refresh (for smooooth vsync)
         bool SyncWithDesktopComposite() override;
@@ -4533,6 +4534,12 @@ namespace olc::host
         std::atomic<bool> terminate {false};
 
         std::unordered_map<uint32_t, olc::Key> mapKeys;
+
+        // Keyboard Layout Variables
+        olc::KeyboardLayout keyboardLayout = OLC_DEFAULT_KEYBOARD_LAYOUT;
+        bool kbExtensionsFound = false;
+        int xkbEventBase = 0;
+        int xkbErrorBase = 0;
     };
 }
 
@@ -8683,6 +8690,14 @@ namespace olc::host
         olc_Display = XOpenDisplay(NULL);
         olc_WindowRoot = DefaultRootWindow(olc_Display);
 
+        if(XkbQueryExtension(olc_Display, nullptr, &xkbEventBase, &xkbErrorBase, nullptr, nullptr))
+        {
+            XkbSelectEventDetails(olc_Display, XkbUseCoreKbd, XkbStateNotify, XkbGroupStateMask, XkbGroupStateMask);
+            kbExtensionsFound = true;
+            UpdateKeyboardLayout();
+        }
+        
+
         mapKeys[NoSymbol] = Key::NONE;
 
         int keyTracker = static_cast<int>(Key::A);
@@ -8759,6 +8774,12 @@ namespace olc::host
                 while (XPending(olc_Display))
                 {
                     XNextEvent(olc_Display, &xev);
+                    
+                    // If there's an update to the keyboard, update it's layout.
+                    if (xev.type == xkbEventBase + XkbEventCode && kbExtensionsFound)
+                    {
+                        UpdateKeyboardLayout();
+                    }
 
                     if (xev.type == Expose)
                     {
@@ -8934,10 +8955,86 @@ namespace olc::host
     }
 
     olc::KeyboardLayout Host_Linux_X11::GetKeyboardLayout() const {
-        // The objectively correct keyboard layout
-        return olc::KeyboardLayout::QWERTY_US;
+        return keyboardLayout;
     }
 
+    void Host_Linux_X11::UpdateKeyboardLayout()
+    {
+        // Get active group
+        X11::XkbStateRec state;
+        X11::XkbGetState(olc_Display, XkbUseCoreKbd, &state);
+        unsigned int group = state.group;
+
+        // Get symbol name
+        X11::XkbDescPtr desc = X11::XkbAllocKeyboard();
+        desc->dpy = olc_Display;
+
+        if (X11::XkbGetNames(olc_Display, XkbSymbolsNameMask, desc) != Success)
+        {
+            X11::XkbFreeKeyboard(desc, 0, True);
+            return;
+        }
+
+        const char* symbols = X11::XGetAtomName(olc_Display, desc->names->symbols);
+        if (!symbols)
+        {
+            X11::XkbFreeKeyboard(desc, 0, True);
+            return;
+        }
+
+        // Extract layouts in order
+        // Example: pc_us_gb_2_fr_3_de_4_inet(evdev)
+        std::vector<std::string> layouts;
+        std::string s(symbols);
+
+        size_t start = s.find('_') + 1;
+        size_t end   = s.find("_inet");
+
+        std::string layoutPart = s.substr(start, end - start);
+
+        size_t pos = 0;
+        while (pos < layoutPart.size())
+        {
+            size_t next = layoutPart.find('_', pos);
+            std::string token = layoutPart.substr(pos, next - pos);
+
+            // Remove numeric suffixes (_2, _3, _4)
+            size_t num = token.find_first_of("0123456789");
+            if (num != std::string::npos)
+                token = token.substr(0, num);
+
+            if(token.size() > 0)
+                layouts.push_back(token);
+
+            if (next == std::string::npos)
+                break;
+            pos = next + 1;
+        }
+
+        X11::XFree((void*)symbols);
+        X11::XkbFreeKeyboard(desc, 0, True);
+
+        if (group >= layouts.size())
+            return;
+
+        const std::string& layout = layouts[group];
+
+        std::unordered_map<std::string, olc::KeyboardLayout> mapLayouts;
+        mapLayouts["us"] = olc::KeyboardLayout::QWERTY_US;
+        mapLayouts["gb"] = olc::KeyboardLayout::QWERTY_UK;
+        mapLayouts["de"] = olc::KeyboardLayout::QWERTZ;
+        mapLayouts["fr"] = olc::KeyboardLayout::AZERTY;
+
+        auto it = mapLayouts.find(layout);
+        
+        if(it != mapLayouts.end())
+        {
+            keyboardLayout = it->second;
+            return;
+        }
+            
+        keyboardLayout = OLC_DEFAULT_KEYBOARD_LAYOUT;
+    }
 
     // Wait for entire host desktop refresh (for smooooth vsync)
     bool Host_Linux_X11::SyncWithDesktopComposite()
