@@ -341,6 +341,9 @@ void main()
 			return false;
 		}
 
+		// Store the initial (screen) framebuffer binding
+		// On most platforms the system provides a default framebuffer of 0
+		// However on iOS there is no system buffer and instead a GLKit creates an FBO to use
 		gl.glGetIntegerv(gl.GL_DRAW_FRAMEBUFFER_BINDING_X, (GLint *)&nScreenFBO);
 
 		// Configure Swap Interval (VSync)
