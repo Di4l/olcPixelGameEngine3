@@ -1,6 +1,8 @@
 # Linux build
 
 ## Cmake
+
+### Building X11 (Default)
 ```bash
 cmake -B build -DBUILD_EXAMPLES=ON
 cmake --build build
@@ -9,6 +11,18 @@ cmake --build build
 Header file should now be located at `build/olcPixelGameEngine3.h`.
 
 Examples will be located at `build/examples`
+
+### Building for Wayland
+
+```bash
+cmake -B build -DBUILD_EXAMPLES=ON -DBUILD_WAYLAND=ON
+cmake --build build
+```
+
+Header file should now be located at `build/olcPixelGameEngine3.h`.
+
+Examples will be located at `build/examples`
+
 
 ## Manually build a single example with GCC
 
