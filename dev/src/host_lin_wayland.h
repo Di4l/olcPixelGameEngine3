@@ -94,6 +94,7 @@ namespace olc::host
         ~Host_Linux_Wayland();
 
         bool StartSystemEventLoop(bool bBlockIfPossible = false) override;
+        void TerminateSystemEventLoop() override;
         bool AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen) override;
         bool CloseWindowFrame(olc::Window* pWindow) override;
         bool UpdateWindowFrameTitle(olc::Window* pWindow) override;

@@ -589,6 +589,7 @@ namespace olc
 #endif
             PixelGameEngine::CoreUpdate(this);
         }
+		host->TerminateSystemEventLoop();
 #endif
     }
 }

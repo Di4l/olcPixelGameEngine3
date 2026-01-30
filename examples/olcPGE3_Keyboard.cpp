@@ -100,6 +100,9 @@ public:
 			"GPU->CPU : " + std::to_string(metrics.nGPUtoCPUTransfers) + "\n" +
 			"Shaders  : " + std::to_string(metrics.nShaderChanges));
 
+		if(keyboard.GetKey(olc::Key::ESCAPE).bPressed)
+			return false; // End application
+
 		// Successful frame
 		return true;
 	}
