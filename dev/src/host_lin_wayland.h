@@ -21,6 +21,7 @@
 #include <xkbcommon/xkbcommon.h>
 #include <sys/mman.h>
 #include <unistd.h>
+#include <cstring>
 
 #include <EGL/egl.h>
 #include <EGL/eglplatform.h>
@@ -82,6 +83,8 @@ namespace olc::host
         wl_keyboard* keyboard{nullptr};
         xkb_context* kb_context{nullptr};
         xkb_state* kb_state{nullptr};
+        xkb_keymap* kb_keymap;
+        uint32_t kb_group{0};
         xdg_wm_base* xdg_wm{nullptr};
         zxdg_decoration_manager_v1* decoration_manager{nullptr};
 
@@ -104,6 +107,7 @@ namespace olc::host
         bool ConnectHostResourceToRenderer() override;
 
         olc::KeyboardLayout GetKeyboardLayout() const override;
+        void UpdateKeyboardLayout();
 
         // Wait for entire host desktop refresh (for smooooth vsync)
         bool SyncWithDesktopComposite() override;
@@ -181,6 +185,7 @@ namespace olc::host
         std::unordered_map<size_t, olc::Window*> mapUID2OlcWindow;
         std::atomic<bool> terminate {false};
         std::unordered_map<uint32_t, olc::Key> mapKeys;
+        olc::KeyboardLayout keyboardLayout{OLC_DEFAULT_KEYBOARD_LAYOUT};
     };
 }
 

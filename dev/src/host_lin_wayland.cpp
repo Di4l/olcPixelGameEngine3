@@ -133,6 +133,8 @@ namespace olc::host
         mapKeys[XKB_KEY_minus] = Key::MINUS;			// the minus key on any keyboard			
 
         mapKeys[XKB_KEY_Caps_Lock] = Key::CAPS_LOCK;
+
+        UpdateKeyboardLayout();
     }
 
     Host_Linux_Wayland::~Host_Linux_Wayland()
@@ -146,6 +148,7 @@ namespace olc::host
         }
 
         xkb_state_unref(kb_state);
+        xkb_keymap_unref(kb_keymap);
         xkb_context_unref(kb_context);
 
         wl_display_disconnect(display);
@@ -220,10 +223,42 @@ namespace olc::host
         return true;
     }
 
+    void Host_Linux_Wayland::UpdateKeyboardLayout()
+    {
+        if(!kb_keymap)
+        {
+            keyboardLayout = OLC_DEFAULT_KEYBOARD_LAYOUT;
+            return;
+        }
+        
+        const char* layoutName = xkb_keymap_layout_get_name(kb_keymap, kb_group);
+    
+        if (!layoutName)
+        {
+            keyboardLayout = OLC_DEFAULT_KEYBOARD_LAYOUT;
+            return;
+        }
+        
+        keyboardLayout = OLC_DEFAULT_KEYBOARD_LAYOUT;
+        
+        std::string layout(layoutName);
+        std::transform(layout.begin(), layout.end(), layout.begin(), ::tolower);
+    
+        if (layout.find("us") != std::string::npos)
+            keyboardLayout = olc::KeyboardLayout::QWERTY_US;
+        else if (layout.find("gb") != std::string::npos || layout.find("uk") != std::string::npos)
+            keyboardLayout = olc::KeyboardLayout::QWERTY_UK;
+        else if (layout.find("de") != std::string::npos || layout.find("german") != std::string::npos)
+            keyboardLayout = olc::KeyboardLayout::QWERTZ;
+        else if (layout.find("fr") != std::string::npos || layout.find("french") != std::string::npos)
+            keyboardLayout = olc::KeyboardLayout::AZERTY;
+    }
+
     olc::KeyboardLayout Host_Linux_Wayland::GetKeyboardLayout() const
     {
-        return olc::KeyboardLayout::QWERTY_US;
+        return keyboardLayout;
     }
+
 
     void Host_Linux_Wayland::registry_handle_global(wl_registry* registry, uint32_t name, const char* interface, uint32_t version)
     {
@@ -515,18 +550,21 @@ namespace olc::host
             return;
         }
 
-        xkb_keymap* keymap = xkb_keymap_new_from_string(kb_context, keymap_string, XKB_KEYMAP_FORMAT_TEXT_V1, XKB_KEYMAP_COMPILE_NO_FLAGS);
+        if(kb_keymap)
+            xkb_keymap_unref(kb_keymap);
+
+        kb_keymap = xkb_keymap_new_from_string(kb_context, keymap_string, XKB_KEYMAP_FORMAT_TEXT_V1, XKB_KEYMAP_COMPILE_NO_FLAGS);
         munmap(keymap_string, size);
         close(fd);
 
-        if (!keymap) {
+        if (!kb_keymap) {
             return;
         }
 
         // Unreference the previous state if it exists and we got a new keymap from the server
         xkb_state_unref(kb_state);
-        kb_state = xkb_state_new(keymap);
-        xkb_keymap_unref(keymap);
+        kb_state = xkb_state_new(kb_keymap);
+        UpdateKeyboardLayout();
     }
 
     void Host_Linux_Wayland::keyboard_enter_callback(void* data, wl_keyboard* keyboard, uint32_t serial, wl_surface* surface, wl_array* keys)
@@ -576,6 +614,13 @@ namespace olc::host
 
     void Host_Linux_Wayland::keyboard_modifiers(wl_keyboard* keyboard, uint32_t serial, uint32_t mods_depressed, uint32_t mods_latched, uint32_t mods_locked, uint32_t group)
     {
+        // The 'group' parameter is the currently active layout index!
+        if(kb_group != group)
+        {
+            kb_group = group;
+            UpdateKeyboardLayout();
+        }
+
         xkb_state_update_mask(kb_state,
             mods_depressed & ~(1), // Just like X11, ignore the shift key
             mods_latched,
