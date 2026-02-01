@@ -267,7 +267,7 @@ template<typename... Args>
 inline constexpr void olc_IgnoreUnused(Args&&...) noexcept {}
 
 #if OLC_HOST == OLC_HOST_WINDOWS
-#define OLC_FRIENDLY_HOST Host_Windows_WinAPI;
+#define OLC_FRIENDLY_HOST Host_Windows_WinAPI
 #endif
 
 #if OLC_HOST == OLC_HOST_MACOS
@@ -14847,29 +14847,8 @@ namespace olc
 		// where we can instatiate the host interface.
 
 		// Initialise Host Interface
-#if OLC_HOST == OLC_HOST_WINDOWS
-		host = std::make_unique<olc::host::Host_Windows_WinAPI>();
-#endif
+		host = std::make_unique<olc::host::OLC_FRIENDLY_HOST>();
 
-#if OLC_HOST == OLC_HOST_MACOS
-		host = std::make_unique<olc::host::Host_Apple_MacOS>();
-#endif
-
-#if OLC_HOST == OLC_HOST_LINUX_X11
-		host = std::make_unique<olc::host::Host_Linux_X11>();
-#endif
-
-#if OLC_HOST == OLC_HOST_LINUX_WAYLAND
-		host = std::make_unique<olc::host::Host_Linux_Wayland>();
-#endif
-
-#if OLC_HOST == OLC_HOST_EMSCRIPTEN
-		host = std::make_unique<olc::host::Host_Web_Emscripten>();
-#endif
-
-#if OLC_HOST == OLC_HOST_ANDROID
-		host = std::make_unique<olc::host::Host_Android>();
-#endif
 
 		// DEVS!! Please don't merge these just yet
 
@@ -14949,7 +14928,7 @@ namespace olc
 			return false;
 		}
 
-		// Link this olc::Window to host and renderer resources
+		// Link this olc::Window to host
 		LinkToHost(host.get());
 		// Link this olc::PGEWindow to renderer and imageloader
 		LinkToRenderer(gpu.get());
