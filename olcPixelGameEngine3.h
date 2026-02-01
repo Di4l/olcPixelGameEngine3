@@ -4552,32 +4552,37 @@ namespace olc::host
 	private:
 		X11::Display* olc_Display = nullptr;
 		X11::Window					 olc_WindowRoot;
-		//X11::Window					 olc_Window;
 		X11::XVisualInfo* olc_VisualInfo;
 		X11::Colormap                olc_ColourMap;
 		X11::XSetWindowAttributes    olc_SetWindowAttribs;
     public:
         Host_Linux_X11();
-        bool StartSystemEventLoop(bool bBlockIfPossible = false) override;
-        void TerminateSystemEventLoop() override;
+
         bool AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen) override;
         bool CloseWindowFrame(olc::Window* pWindow) override;
         bool UpdateWindowFrameTitle(olc::Window* pWindow) override;
 
         std::vector<void*> GetHostWindowDescriptor(olc::Window* pWindow) override;
-        
-        
-        bool ConnectHostResourceToRenderer() override;
-        
+
         olc::KeyboardLayout GetKeyboardLayout() const override;
         void UpdateKeyboardLayout();
 
         // Wait for entire host desktop refresh (for smooooth vsync)
         bool SyncWithDesktopComposite() override;
+
+    public:
+        bool OnApplicationStart(olc::PixelGameEngine* pPrimary) override;
+        bool StartSystem() override;
+        bool StopSystem() override;
+        bool OnSystemThreadStart() override;
+        bool OnSystemTick() override;
+        bool OnSystemThreadEnd() override;
+        bool OnApplicationEnd() override;
+    
     private:
         std::unordered_map<size_t, X11::Window> mapUID2X11Window;
         std::unordered_map<X11::Window, olc::Window*> mapX11Window2PTR;
-        std::atomic<bool> terminate {false};
+        std::atomic<bool> systemActive {true};
 
         std::unordered_map<uint32_t, olc::Key> mapKeys;
 
@@ -4676,16 +4681,11 @@ namespace olc::host
         Host_Linux_Wayland();
         ~Host_Linux_Wayland();
 
-        bool StartSystemEventLoop(bool bBlockIfPossible = false) override;
-        void TerminateSystemEventLoop() override;
         bool AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen) override;
         bool CloseWindowFrame(olc::Window* pWindow) override;
         bool UpdateWindowFrameTitle(olc::Window* pWindow) override;
 
         std::vector<void*> GetHostWindowDescriptor(olc::Window* pWindow) override;
-        
-        
-        bool ConnectHostResourceToRenderer() override;
 
         olc::KeyboardLayout GetKeyboardLayout() const override;
         void UpdateKeyboardLayout();
@@ -4693,6 +4693,15 @@ namespace olc::host
         // Wait for entire host desktop refresh (for smooooth vsync)
         bool SyncWithDesktopComposite() override;
 
+    public:
+        bool OnApplicationStart(olc::PixelGameEngine* pPrimary) override;
+        bool StartSystem() override;
+        bool StopSystem() override;
+        bool OnSystemThreadStart() override;
+        bool OnSystemTick() override;
+        bool OnSystemThreadEnd() override;
+        bool OnApplicationEnd() override;
+    
         // Various callbacks from the wayland protocol
         static void registry_handle_global_callback(void* data, wl_registry* registry, uint32_t name, const char* interface, uint32_t version);
         static void registry_handle_global_remove_callback(void* data, wl_registry* registry, uint32_t name);
@@ -4764,7 +4773,7 @@ namespace olc::host
 
         std::unordered_map<size_t, WaylandWindow> mapUID2Window;
         std::unordered_map<size_t, olc::Window*> mapUID2OlcWindow;
-        std::atomic<bool> terminate {false};
+        std::atomic<bool> systemActive {true};
         std::unordered_map<uint32_t, olc::Key> mapKeys;
         olc::KeyboardLayout keyboardLayout{OLC_DEFAULT_KEYBOARD_LAYOUT};
     };
@@ -8878,9 +8887,45 @@ namespace olc::host
         mapKeys[XK_Caps_Lock] = Key::CAPS_LOCK;
     }
 
-    bool Host_Linux_X11::StartSystemEventLoop(bool bBlockIfPossible)
+    bool Host_Linux_X11::OnApplicationStart(olc::PixelGameEngine* pPrimary)
+    {
+        pPrimaryPGE = pPrimary;
+        return true;
+    }
+
+    bool Host_Linux_X11::StartSystem()
     {
         using namespace X11;
+
+        pPrimaryPGE->OnPreContextStart();
+
+		// Create system thread - handles gpu context
+		std::thread threadSystem([this]()
+			{
+				// Notify start of system thread
+				if (!this->OnSystemThreadStart())
+				{
+					// PGE->OnContextStart() failed, or user aborted OnUserCreate()
+					return;
+				}
+
+				// Main system loop
+				while (systemActive)
+				{
+					// Perform primary window update
+					if (!this->OnSystemTick())
+					{
+						StopSystem();
+					}
+				}
+
+				// Notify end of system thread
+				if (!this->OnSystemThreadEnd())
+				{
+					// PGE->OnContextEnd() failed
+					return;
+				}
+			});
 
         auto get_pge_window = [&](auto x11_window) -> olc::Window* {
             auto itr = mapX11Window2PTR.find(x11_window);
@@ -8890,128 +8935,149 @@ namespace olc::host
             return nullptr;
         };
 
-        //std::unordered_map<X11::Window, olc::Window*> mapX11Window2PTR;
-
-        if(bBlockIfPossible) {
-			X11::XEvent xev;
-            while(!terminate){
-                while (XPending(olc_Display))
+        X11::XEvent xev;
+        while(systemActive){
+            while (XPending(olc_Display))
+            {
+                XNextEvent(olc_Display, &xev);
+                
+                // If there's an update to the keyboard, update it's layout.
+                if (xev.type == xkbEventBase + XkbEventCode && kbExtensionsFound)
                 {
-                    XNextEvent(olc_Display, &xev);
+                    UpdateKeyboardLayout();
+                }
+
+                if (xev.type == Expose)
+                {
+                    //auto* expose_event = reinterpret_cast<XExposeEvent*>(&xev);
+                    X11::XExposeEvent& e = xev.xexpose;
+                    if(auto* pge_window = get_pge_window(e.window); pge_window) {
+                        X11::XWindowAttributes gwa;
+                        X11::XGetWindowAttributes(e.display, e.window, &gwa);
+                        pge_window->olc_OnWindowSize(olc::vi2d{gwa.width, gwa.height});
+                    }
+                }
+                else if (xev.type == ConfigureNotify)
+                {
+                    X11::XConfigureEvent& xce = xev.xconfigure;
+                    if(auto* pge_window = get_pge_window(xce.window); pge_window) {
+                        pge_window->olc_OnWindowSize(olc::vi2d{xce.width, xce.height});
+                    }
+                }
+                else if (xev.type == KeyPress)
+                {
+                    KeySym ks;
+
+                    // Unset the "shift" bit so that Key and Shift-Key will be mapped to the same olc::key
+                    // since the system kind of assumes this
+                    xev.xkey.state &= ~(1); 
+
+                    XLookupString(&xev.xkey, NULL, 0, &ks, NULL);
                     
-                    // If there's an update to the keyboard, update it's layout.
-                    if (xev.type == xkbEventBase + XkbEventCode && kbExtensionsFound)
-                    {
-                        UpdateKeyboardLayout();
+                    if(auto* pge_window = get_pge_window(xev.xkey.window); pge_window) {
+                        auto it = mapKeys.find(static_cast<uint32_t>(ks));
+                        if(it != mapKeys.end()) {
+                            pge_window->olc_OnKeyPress(it->second, true);
+                        }
                     }
+                }
+                else if (xev.type == KeyRelease)
+                {
+                    KeySym ks;
 
-                    if (xev.type == Expose)
-                    {
-                        //auto* expose_event = reinterpret_cast<XExposeEvent*>(&xev);
-                        X11::XExposeEvent& e = xev.xexpose;
-                        if(auto* pge_window = get_pge_window(e.window); pge_window) {
-                            X11::XWindowAttributes gwa;
-                            X11::XGetWindowAttributes(e.display, e.window, &gwa);
-                            pge_window->olc_OnWindowSize(olc::vi2d{gwa.width, gwa.height});
-                        }
-                    }
-                    else if (xev.type == ConfigureNotify)
-                    {
-                        X11::XConfigureEvent& xce = xev.xconfigure;
-                        if(auto* pge_window = get_pge_window(xce.window); pge_window) {
-                            pge_window->olc_OnWindowSize(olc::vi2d{xce.width, xce.height});
-                        }
-                    }
-                    else if (xev.type == KeyPress)
-                    {
-                    	KeySym ks;
+                    XLookupString(&xev.xkey, NULL, 0, &ks, NULL);
 
-                        // Unset the "shift" bit so that Key and Shift-Key will be mapped to the same olc::key
-                        // since the system kind of assumes this
-                        xev.xkey.state &= ~(1); 
-
-                    	XLookupString(&xev.xkey, NULL, 0, &ks, NULL);
-                        
-                        if(auto* pge_window = get_pge_window(xev.xkey.window); pge_window) {
-                            auto it = mapKeys.find(static_cast<uint32_t>(ks));
-                            if(it != mapKeys.end()) {
-                                pge_window->olc_OnKeyPress(it->second, true);
-                            }
+                    if(auto* pge_window = get_pge_window(xev.xkey.window); pge_window) {
+                        auto it = mapKeys.find(static_cast<uint32_t>(ks));
+                        if(it != mapKeys.end()) {
+                            pge_window->olc_OnKeyPress(it->second, false);
                         }
                     }
-                    else if (xev.type == KeyRelease)
-                    {
-                    	KeySym ks;
-
-                    	XLookupString(&xev.xkey, NULL, 0, &ks, NULL);
-
-                        if(auto* pge_window = get_pge_window(xev.xkey.window); pge_window) {
-                            auto it = mapKeys.find(static_cast<uint32_t>(ks));
-                            if(it != mapKeys.end()) {
-                                pge_window->olc_OnKeyPress(it->second, false);
-                            }
+                }
+                else if (xev.type == ButtonPress)
+                {
+                    if(auto* pge_window = get_pge_window(xev.xbutton.window); pge_window) {
+                        switch (xev.xbutton.button)
+                        {
+                        case 1:	pge_window->olc_OnMouseButton(0, true); break;
+                        case 2:	pge_window->olc_OnMouseButton(2, true); break;
+                        case 3:	pge_window->olc_OnMouseButton(1, true); break;
+                        case 4:	pge_window->olc_OnMouseWheel(120); break;
+                        case 5:	pge_window->olc_OnMouseWheel(-120); break;
+                        default: break;
                         }
+                    
                     }
-                    else if (xev.type == ButtonPress)
-                    {
-                        if(auto* pge_window = get_pge_window(xev.xbutton.window); pge_window) {
-                            switch (xev.xbutton.button)
-                            {
-                            case 1:	pge_window->olc_OnMouseButton(0, true); break;
-                            case 2:	pge_window->olc_OnMouseButton(2, true); break;
-                            case 3:	pge_window->olc_OnMouseButton(1, true); break;
-                            case 4:	pge_window->olc_OnMouseWheel(120); break;
-                            case 5:	pge_window->olc_OnMouseWheel(-120); break;
-                            default: break;
-                            }
-                        
-                        }
+                }
+                else if (xev.type == ButtonRelease)
+                {
+                    if(auto* pge_window = get_pge_window(xev.xbutton.window); pge_window) {
+                        switch (xev.xbutton.button)
+                        {
+                        case 1:	pge_window->olc_OnMouseButton(0, false); break;
+                        case 2:	pge_window->olc_OnMouseButton(2, false); break;
+                        case 3:	pge_window->olc_OnMouseButton(1, false); break;
+                        default: break;
+                        }               
                     }
-                    else if (xev.type == ButtonRelease)
-                    {
-                        if(auto* pge_window = get_pge_window(xev.xbutton.window); pge_window) {
-                            switch (xev.xbutton.button)
-                            {
-                            case 1:	pge_window->olc_OnMouseButton(0, false); break;
-                            case 2:	pge_window->olc_OnMouseButton(2, false); break;
-                            case 3:	pge_window->olc_OnMouseButton(1, false); break;
-                            default: break;
-                            }               
-                        }
+                }
+                else if (xev.type == MotionNotify)
+                {
+                    X11::XMotionEvent& xme = xev.xmotion;
+                    if(auto* pge_window = get_pge_window(xev.xbutton.window); pge_window) {
+                        pge_window->olc_OnMouseMove(olc::vi2d{xme.x, xme.y});
+                    
                     }
-                    else if (xev.type == MotionNotify)
-                    {
-                        X11::XMotionEvent& xme = xev.xmotion;
-                        if(auto* pge_window = get_pge_window(xev.xbutton.window); pge_window) {
-                            pge_window->olc_OnMouseMove(olc::vi2d{xme.x, xme.y});
-                        
-                        }
-                    }
-                    // else if (xev.type == FocusIn)
-                    // {
-                    // 	ptrPGE->olc_UpdateKeyFocus(true);
-                    // }
-                    // else if (xev.type == FocusOut)
-                    // {
-                    // 	ptrPGE->olc_UpdateKeyFocus(false);
-                    // }
-                    else if (xev.type == ClientMessage)
-                    {
-                        X11::XClientMessageEvent& xcme = xev.xclient;
-                        if(auto* pge_window = get_pge_window(xcme.window); pge_window) {
-                            pge_window->olc_OnWindowClose();
-                            return false;
-                        }
+                }
+                // else if (xev.type == FocusIn)
+                // {
+                // 	ptrPGE->olc_UpdateKeyFocus(true);
+                // }
+                // else if (xev.type == FocusOut)
+                // {
+                // 	ptrPGE->olc_UpdateKeyFocus(false);
+                // }
+                else if (xev.type == ClientMessage)
+                {
+                    X11::XClientMessageEvent& xcme = xev.xclient;
+                    if(auto* pge_window = get_pge_window(xcme.window); pge_window) {
+                        pge_window->olc_OnWindowClose();
                     }
                 }
             }
         }
+
+        systemActive = false;
+        if(threadSystem.joinable())
+            threadSystem.join();
+    
+        return pPrimaryPGE->OnPostContextEnd();
+    }
+
+    bool Host_Linux_X11::StopSystem()
+    {
+        systemActive = false;
         return true;
     }
 
-    void Host_Linux_X11::TerminateSystemEventLoop()
+    bool Host_Linux_X11::OnSystemThreadStart()
     {
-        terminate = true;
+        return pPrimaryPGE->OnContextStart();
+    }
+
+    bool Host_Linux_X11::OnSystemTick()
+    {
+        return pPrimaryPGE->OnContextTick();;
+    }
+
+    bool Host_Linux_X11::OnSystemThreadEnd()
+    {
+        return pPrimaryPGE->OnContextEnd();
+    }
+
+    bool Host_Linux_X11::OnApplicationEnd()
+    {
+        return true;
     }
 
     bool Host_Linux_X11::AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen)
@@ -9075,12 +9141,6 @@ namespace olc::host
             };
         }
   		return {};
-    }
-    
-    
-    bool Host_Linux_X11::ConnectHostResourceToRenderer()
-    {
-        return true;
     }
 
     olc::KeyboardLayout Host_Linux_X11::GetKeyboardLayout() const {
@@ -9301,20 +9361,77 @@ namespace olc::host
         wl_display_disconnect(display);
     }
 
-    bool Host_Linux_Wayland::StartSystemEventLoop(bool bBlockIfPossible)
+    bool Host_Linux_Wayland::OnApplicationStart(olc::PixelGameEngine* pPrimary)
     {
-        if(bBlockIfPossible) {
-            while(!terminate && wl_display_dispatch_pending(display) != -1) {
-
-            }
-        }
-
+        pPrimaryPGE = pPrimary;
         return true;
     }
 
-    void Host_Linux_Wayland::TerminateSystemEventLoop()
+    bool Host_Linux_Wayland::StartSystem()
     {
-        terminate = true;
+        pPrimaryPGE->OnPreContextStart();
+
+        		// Create system thread - handles gpu context
+		std::thread threadSystem([this]()
+			{
+				// Notify start of system thread
+				if (!this->OnSystemThreadStart())
+				{
+					// PGE->OnContextStart() failed, or user aborted OnUserCreate()
+					return;
+				}
+
+				// Main system loop
+				while (systemActive)
+				{
+					// Perform primary window update
+					if (!this->OnSystemTick())
+					{
+						StopSystem();
+					}
+				}
+
+				// Notify end of system thread
+				if (!this->OnSystemThreadEnd())
+				{
+					// PGE->OnContextEnd() failed
+					return;
+				}
+			});
+        
+        while(systemActive && wl_display_dispatch_pending(display) != -1) { }
+        
+        systemActive = false;
+        if(threadSystem.joinable())
+            threadSystem.join();
+    
+        return pPrimaryPGE->OnPostContextEnd();
+    }
+
+    bool Host_Linux_Wayland::StopSystem()
+    {
+        systemActive = false;
+        return true;
+    }
+
+    bool Host_Linux_Wayland::OnSystemThreadStart()
+    {
+        return pPrimaryPGE->OnContextStart();
+    }
+
+    bool Host_Linux_Wayland::OnSystemTick()
+    {
+        return pPrimaryPGE->OnContextTick();;
+    }
+
+    bool Host_Linux_Wayland::OnSystemThreadEnd()
+    {
+        return pPrimaryPGE->OnContextEnd();
+    }
+
+    bool Host_Linux_Wayland::OnApplicationEnd()
+    {
+        return true;
     }
 
     bool Host_Linux_Wayland::AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen)
@@ -9479,7 +9596,6 @@ namespace olc::host
                 if(itr != mapUID2OlcWindow.end()) {
                     auto* ptr = itr->second;
                     ptr->olc_OnWindowClose();
-                    terminate = true;
                 }
             }
         }
@@ -9836,11 +9952,6 @@ namespace olc::host
             };
         }
         return {};
-    }
-
-    bool Host_Linux_Wayland::ConnectHostResourceToRenderer()
-    {
-        return true;
     }
 
     bool Host_Linux_Wayland::SyncWithDesktopComposite()

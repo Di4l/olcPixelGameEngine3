@@ -154,20 +154,77 @@ namespace olc::host
         wl_display_disconnect(display);
     }
 
-    bool Host_Linux_Wayland::StartSystemEventLoop(bool bBlockIfPossible)
+    bool Host_Linux_Wayland::OnApplicationStart(olc::PixelGameEngine* pPrimary)
     {
-        if(bBlockIfPossible) {
-            while(!terminate && wl_display_dispatch_pending(display) != -1) {
-
-            }
-        }
-
+        pPrimaryPGE = pPrimary;
         return true;
     }
 
-    void Host_Linux_Wayland::TerminateSystemEventLoop()
+    bool Host_Linux_Wayland::StartSystem()
     {
-        terminate = true;
+        pPrimaryPGE->OnPreContextStart();
+
+        		// Create system thread - handles gpu context
+		std::thread threadSystem([this]()
+			{
+				// Notify start of system thread
+				if (!this->OnSystemThreadStart())
+				{
+					// PGE->OnContextStart() failed, or user aborted OnUserCreate()
+					return;
+				}
+
+				// Main system loop
+				while (systemActive)
+				{
+					// Perform primary window update
+					if (!this->OnSystemTick())
+					{
+						StopSystem();
+					}
+				}
+
+				// Notify end of system thread
+				if (!this->OnSystemThreadEnd())
+				{
+					// PGE->OnContextEnd() failed
+					return;
+				}
+			});
+        
+        while(systemActive && wl_display_dispatch_pending(display) != -1) { }
+        
+        systemActive = false;
+        if(threadSystem.joinable())
+            threadSystem.join();
+    
+        return pPrimaryPGE->OnPostContextEnd();
+    }
+
+    bool Host_Linux_Wayland::StopSystem()
+    {
+        systemActive = false;
+        return true;
+    }
+
+    bool Host_Linux_Wayland::OnSystemThreadStart()
+    {
+        return pPrimaryPGE->OnContextStart();
+    }
+
+    bool Host_Linux_Wayland::OnSystemTick()
+    {
+        return pPrimaryPGE->OnContextTick();;
+    }
+
+    bool Host_Linux_Wayland::OnSystemThreadEnd()
+    {
+        return pPrimaryPGE->OnContextEnd();
+    }
+
+    bool Host_Linux_Wayland::OnApplicationEnd()
+    {
+        return true;
     }
 
     bool Host_Linux_Wayland::AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen)
@@ -332,7 +389,6 @@ namespace olc::host
                 if(itr != mapUID2OlcWindow.end()) {
                     auto* ptr = itr->second;
                     ptr->olc_OnWindowClose();
-                    terminate = true;
                 }
             }
         }
@@ -689,11 +745,6 @@ namespace olc::host
             };
         }
         return {};
-    }
-
-    bool Host_Linux_Wayland::ConnectHostResourceToRenderer()
-    {
-        return true;
     }
 
     bool Host_Linux_Wayland::SyncWithDesktopComposite()
