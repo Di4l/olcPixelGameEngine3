@@ -37,6 +37,9 @@
     <Filter Include="Hosts\Wayland Specific">
       <UniqueIdentifier>{469b9ff0-8c4d-48fe-9034-fe6f877aab29}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Hosts\Android Specific">
+      <UniqueIdentifier>{0020e19e-b8ce-4218-a5ee-8a5716c9f01a}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\pixel.h">
@@ -150,6 +153,12 @@
     <ClInclude Include="..\..\utilities\olcUTIL3_Geometry2D.h">
       <Filter>Utilities</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\host_android.h">
+      <Filter>Hosts\Android Specific</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\imload_android.h">
+      <Filter>Hosts\Android Specific</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\tests\test_main.cpp">
@@ -226,6 +235,12 @@
     </ClCompile>
     <ClCompile Include="..\src\hw_keyboard.cpp">
       <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\host_android.cpp">
+      <Filter>Hosts\Android Specific</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\imload_android.cpp">
+      <Filter>Hosts\Android Specific</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

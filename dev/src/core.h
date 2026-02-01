@@ -149,6 +149,7 @@ namespace olc
 	public:
 		float FrameTimeElapsed() const;
 		double TotalTimeElapsed() const;
+		size_t GetFPS() const;
 
 	public: // Child Windows
 		bool AddChildWindow(std::shared_ptr<olc::PGEWindow> window, const olc::vi2d& vScreenSize, const olc::vi2d& vPixelSize);
@@ -167,6 +168,7 @@ namespace olc
 		std::chrono::duration<float> durationFrameCount{ 0 };
 		std::chrono::duration<double> durationTotalElapsed{ 0 };
 		size_t frameCount = 0;
+		size_t fps = 0;
 
 		// Core Thread
 		std::thread coreThread;

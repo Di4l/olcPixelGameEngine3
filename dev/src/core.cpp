@@ -367,6 +367,11 @@ namespace olc
 		return durationTotalElapsed.count();
 	}
 
+	size_t PixelGameEngine::GetFPS() const
+	{
+		return fps;
+	}
+
 	bool PixelGameEngine::AddChildWindow(std::shared_ptr<olc::PGEWindow> window, const olc::vi2d& vScreenSize, const olc::vi2d& vPixelSize)
 	{
 #if OLC_MULTIWINDOW == OLC_MULTIWINDOW_YES
@@ -433,6 +438,7 @@ namespace olc
 			if (pge->durationFrameCount >= 1s)
 			{
 				pge->durationFrameCount -= 1s;
+				pge->fps = pge->frameCount;
 				std::string sTitle = "OneLoneCoder.com - Pixel Game Engine 3 - Test - FPS: " + std::to_string(pge->frameCount);
 				pge->SetWindowTitle(sTitle);
 				pge->frameCount = 0;
