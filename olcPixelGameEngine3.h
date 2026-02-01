@@ -3361,6 +3361,7 @@ namespace olc
 
 		public:
 			bool StartSystemEventLoop(bool bBlockIfPossible = false);
+			void TerminateSystemEventLoop();
 			bool AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen);			
 			bool CloseWindowFrame(olc::Window* pWindow);
 			bool UpdateWindowFrameTitle(olc::Window* pWindow);
@@ -5290,7 +5291,6 @@ namespace olc
 			void glDeleteRenderbuffers(GLsizei n, const GLuint* renderbuffers);
 			void glGetInternalformativ(GLenum target, GLenum internalformat, GLenum pname, GLsizei bufSize, GLint* params);
 			void glGetShaderiv(GLuint shader, GLenum pname, GLint* params);
-			void glGetIntegerv(GLenum pname, GLint *data);
 
 			// OpenGL1.2 Proxies (just keeps things tidy imo)
 			void glGenTextures(GLsizei n, GLuint* textures);
@@ -5312,6 +5312,8 @@ namespace olc
 			void glGetTexImage(GLenum target, GLint level, GLenum format, GLenum type, void* pixels);
 			void glHint(GLenum target, GLenum mode);
 			void glPolygonMode(GLenum face, GLenum mode);
+			
+			void glGetIntegerv(GLenum pname, GLint *data);
 
 
 			void glSwapInterval(GLsizei n);
@@ -5818,6 +5820,12 @@ namespace olc::host
 		}
 
 		return true;
+	}
+
+	void Host_Windows_WinAPI::TerminateSystemEventLoop()
+	{
+		// Post windows WM_QUIT message
+		//PostQuitMessage(0);
 	}
 
 	bool Host_Windows_WinAPI::AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen)
@@ -10967,7 +10975,13 @@ namespace olc::apis::opengl
 		bLoaded &= (_glDeleteRenderbuffers = OGL_LOAD(glDeleteRenderbuffers)) != nullptr;
 		bLoaded &= (_glGetInternalformativ = OGL_LOAD(glGetInternalformativ)) != nullptr;
 		bLoaded &= (_glGetShaderiv = OGL_LOAD(glGetShaderiv)) != nullptr;
+
+		// Do we really need to do this? - jx9
+#if OLC_HOST != OLC_HOST_WINDOWS
 		bLoaded &= (_glGetIntegerv = OGL_LOAD(glGetIntegerv)) != nullptr;
+#else
+		_glGetIntegerv = ::glGetIntegerv;
+#endif
 
 #if OLC_HOST == OLC_HOST_WINDOWS
 		bLoaded &= (_wglSwapIntervalEXT = OGL_LOAD(wglSwapIntervalEXT)) != nullptr;

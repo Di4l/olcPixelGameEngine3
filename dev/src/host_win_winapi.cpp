@@ -195,6 +195,12 @@ namespace olc::host
 		return true;
 	}
 
+	void Host_Windows_WinAPI::TerminateSystemEventLoop()
+	{
+		// Post windows WM_QUIT message
+		//PostQuitMessage(0);
+	}
+
 	bool Host_Windows_WinAPI::AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen)
 	{
 		olc_IgnoreUnused(bFullScreen);
