@@ -122,11 +122,11 @@ namespace olc
             void MacEventsHandler();
             void MacOpenGLContextEventsHandler();
             
-            /*
-             Note for Mac Users: Apple-branded extended keyboards often do not have a physical "NumLock" key; they act as "NumLock On" by default.
-             This behavior (where the key triggers the function flag) is more common when using third-party mechanical keyboards or specialized numpads on macOS.
-             */
-            void ModifiersFlagsHandler(const olc::apis::macos::KeyEvent& data, bool pressed);
+
+            // When modifier flag changes the keycode it will return true, else false
+            bool ModifiersFlagsHandler(const olc::apis::macos::KeyEvent& data, bool pressed);
+            
+            bool bNumLockActive = true; // Num Lock state, we assume it's active at start
             
         };
     }
