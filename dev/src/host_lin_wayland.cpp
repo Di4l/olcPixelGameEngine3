@@ -162,6 +162,11 @@ namespace olc::host
         return true;
     }
 
+    void Host_Linux_Wayland::TerminateSystemEventLoop()
+    {
+        terminate = true;
+    }
+
     bool Host_Linux_Wayland::AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen)
     {
         // Create a window

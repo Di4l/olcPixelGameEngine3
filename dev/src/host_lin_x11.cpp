@@ -204,6 +204,11 @@ namespace olc::host
         return true;
     }
 
+    void Host_Linux_X11::TerminateSystemEventLoop()
+    {
+        terminate = true;
+    }
+
     bool Host_Linux_X11::AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen)
     {
         // Based on the display capabilities, configure the appearance of the window

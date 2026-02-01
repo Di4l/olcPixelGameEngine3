@@ -3115,6 +3115,7 @@ namespace olc
 
 		public: 
 			virtual bool StartSystemEventLoop(bool bBlockIfPossible = false) = 0;
+			virtual void TerminateSystemEventLoop() = 0;
 			virtual bool AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen) = 0;
 			virtual bool CloseWindowFrame(olc::Window* pWindow) = 0;
 			virtual bool UpdateWindowFrameTitle(olc::Window* pWindow) = 0;
@@ -4516,6 +4517,7 @@ namespace olc::host
     public:
         Host_Linux_X11();
         bool StartSystemEventLoop(bool bBlockIfPossible = false) override;
+        void TerminateSystemEventLoop() override;
         bool AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen) override;
         bool CloseWindowFrame(olc::Window* pWindow) override;
         bool UpdateWindowFrameTitle(olc::Window* pWindow) override;
@@ -4630,6 +4632,7 @@ namespace olc::host
         ~Host_Linux_Wayland();
 
         bool StartSystemEventLoop(bool bBlockIfPossible = false) override;
+        void TerminateSystemEventLoop() override;
         bool AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen) override;
         bool CloseWindowFrame(olc::Window* pWindow) override;
         bool UpdateWindowFrameTitle(olc::Window* pWindow) override;
@@ -8886,6 +8889,11 @@ namespace olc::host
         return true;
     }
 
+    void Host_Linux_X11::TerminateSystemEventLoop()
+    {
+        terminate = true;
+    }
+
     bool Host_Linux_X11::AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen)
     {
         // Based on the display capabilities, configure the appearance of the window
@@ -9179,6 +9187,11 @@ namespace olc::host
         }
 
         return true;
+    }
+
+    void Host_Linux_Wayland::TerminateSystemEventLoop()
+    {
+        terminate = true;
     }
 
     bool Host_Linux_Wayland::AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen)
@@ -14947,6 +14960,7 @@ namespace olc
 #endif
             PixelGameEngine::CoreUpdate(this);
         }
+		host->TerminateSystemEventLoop();
 #endif
     }
 }
