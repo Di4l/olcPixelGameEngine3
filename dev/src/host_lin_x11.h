@@ -45,6 +45,7 @@ namespace olc::host
         bool ConnectHostResourceToRenderer() override;
         
         olc::KeyboardLayout GetKeyboardLayout() const override;
+        void UpdateKeyboardLayout();
 
         // Wait for entire host desktop refresh (for smooooth vsync)
         bool SyncWithDesktopComposite() override;
@@ -54,6 +55,12 @@ namespace olc::host
         std::atomic<bool> terminate {false};
 
         std::unordered_map<uint32_t, olc::Key> mapKeys;
+
+        // Keyboard Layout Variables
+        olc::KeyboardLayout keyboardLayout = OLC_DEFAULT_KEYBOARD_LAYOUT;
+        bool kbExtensionsFound = false;
+        int xkbEventBase = 0;
+        int xkbErrorBase = 0;
     };
 }
 
