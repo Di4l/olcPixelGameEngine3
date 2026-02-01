@@ -83,6 +83,7 @@ namespace olc
 			uint32_t nDefaultVB = 0;
 			uint32_t nDefaultVA = 0;
 			uint32_t nDefaultFBO = 0;
+			uint32_t nScreenFBO = 0;
 			olc::Image imgBlank;
 			olc::vf2d vTargetSize;
 

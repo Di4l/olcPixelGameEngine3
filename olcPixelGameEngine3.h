@@ -5173,6 +5173,7 @@ namespace olc
 		typedef void CALLSTYLE glDeleteRenderbuffers_t(GLsizei n, const GLuint* renderbuffers);
 		typedef void CALLSTYLE glGetInternalformativ_t(GLenum target, GLenum internalformat, GLenum pname, GLsizei bufSize, GLint* params);
 		typedef void CALLSTYLE glGetShaderiv_t(GLuint shader, GLenum pname, GLint* params);
+		typedef void CALLSTYLE glGetIntegerv_t(GLenum pname, GLint *data);
 
 #if OLC_HOST == OLC_HOST_WINDOWS
 		typedef void CALLSTYLE wglSwapIntervalEXT_t(GLsizei n);
@@ -5233,6 +5234,7 @@ namespace olc
 			glDeleteRenderbuffers_t* _glDeleteRenderbuffers = nullptr;
 			glGetInternalformativ_t* _glGetInternalformativ = nullptr;
 			glGetShaderiv_t* _glGetShaderiv = nullptr;
+			glGetIntegerv_t *_glGetIntegerv = nullptr;
 #if OLC_HOST == OLC_HOST_WINDOWS
 			wglSwapIntervalEXT_t* _wglSwapIntervalEXT = nullptr;
 #endif
@@ -5283,8 +5285,7 @@ namespace olc
 			void glDeleteRenderbuffers(GLsizei n, const GLuint* renderbuffers);
 			void glGetInternalformativ(GLenum target, GLenum internalformat, GLenum pname, GLsizei bufSize, GLint* params);
 			void glGetShaderiv(GLuint shader, GLenum pname, GLint* params);
-
-
+			void glGetIntegerv(GLenum pname, GLint *data);
 
 			// OpenGL1.2 Proxies (just keeps things tidy imo)
 			void glGenTextures(GLsizei n, GLuint* textures);
@@ -5418,6 +5419,7 @@ namespace olc
 			uint32_t nDefaultVB = 0;
 			uint32_t nDefaultVA = 0;
 			uint32_t nDefaultFBO = 0;
+			uint32_t nScreenFBO = 0;
 			olc::Image imgBlank;
 			olc::vf2d vTargetSize;
 
@@ -10915,6 +10917,7 @@ namespace olc::apis::opengl
 		bLoaded &= (_glDeleteRenderbuffers = OGL_LOAD(glDeleteRenderbuffers)) != nullptr;
 		bLoaded &= (_glGetInternalformativ = OGL_LOAD(glGetInternalformativ)) != nullptr;
 		bLoaded &= (_glGetShaderiv = OGL_LOAD(glGetShaderiv)) != nullptr;
+		bLoaded &= (_glGetIntegerv = OGL_LOAD(glGetIntegerv)) != nullptr;
 
 #if OLC_HOST == OLC_HOST_WINDOWS
 		bLoaded &= (_wglSwapIntervalEXT = OGL_LOAD(wglSwapIntervalEXT)) != nullptr;
@@ -11331,6 +11334,12 @@ namespace olc::apis::opengl
 		_glGetShaderiv(shader, pname, params);
 		CheckError();
 	}
+
+	void gl::glGetIntegerv(GLenum pname, GLint *data)
+	{
+		_glGetIntegerv(pname, data);
+		CheckError();
+	}
 }
 namespace olc::gpu
 {
@@ -11672,6 +11681,11 @@ void main()
 			return false;
 		}
 
+		// Store the initial (screen) framebuffer binding
+		// On most platforms the system provides a default framebuffer of 0
+		// However on iOS there is no system buffer and instead a GLKit creates an FBO to use
+		gl.glGetIntegerv(gl.GL_DRAW_FRAMEBUFFER_BINDING_X, (GLint *)&nScreenFBO);
+
 		// Configure Swap Interval (VSync)
 		if (config.VerticalSync)
 		{
@@ -11782,7 +11796,7 @@ void main()
 		//gl.glFramebufferTexture2D(gl.GL_FRAMEBUFFER_X, attachments[3], GL_TEXTURE_2D, 0, 0);
 
 		// Unbind the FBO
-		gl.glBindFramebuffer(gl.GL_FRAMEBUFFER_X, 0);
+		gl.glBindFramebuffer(gl.GL_FRAMEBUFFER_X, nScreenFBO);
 
 		// Create FBOs for MSAA resolve operations
 		gl.glGenFramebuffers(1, &nResolveFBO_Draw);
@@ -12065,7 +12079,7 @@ void main()
 #if defined(OLC_GPU_ERRORCHECK) && OLC_GPU_ERRORCHECK == 1
 			std::cout << "Warning ATS: Requested source is currently attached as target (" << actualTexId << ") - unbinding FBO\n";
 #endif
-			gl.glBindFramebuffer(gl.GL_FRAMEBUFFER_X, 0);
+			gl.glBindFramebuffer(gl.GL_FRAMEBUFFER_X, nScreenFBO);
 			nCurrentTextureTarget = 0;
 		}
 
@@ -12112,7 +12126,7 @@ void main()
 		if (texid == 0)
 		{
 			// Unbind the FBO (bind default framebuffer)
-			gl.glBindFramebuffer(gl.GL_FRAMEBUFFER_X, 0);
+			gl.glBindFramebuffer(gl.GL_FRAMEBUFFER_X, nScreenFBO);
 			return true;
 		}	
 	
