@@ -266,6 +266,30 @@
 template<typename... Args>
 inline constexpr void olc_IgnoreUnused(Args&&...) noexcept {}
 
+#if OLC_HOST == OLC_HOST_WINDOWS
+#define OLC_FRIENDLY_HOST Host_Windows_WinAPI;
+#endif
+
+#if OLC_HOST == OLC_HOST_MACOS
+#define OLC_FRIENDLY_HOST Host_Apple_MacOS
+#endif
+
+#if OLC_HOST == OLC_HOST_LINUX_X11
+#define OLC_FRIENDLY_HOST Host_Linux_X11
+#endif
+
+#if OLC_HOST == OLC_HOST_LINUX_WAYLAND
+#define OLC_FRIENDLY_HOST Host_Linux_Wayland
+#endif
+
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN
+#define OLC_FRIENDLY_HOST Host_Web_Emscripten
+#endif
+
+#if OLC_HOST == OLC_HOST_ANDROID
+#define OLC_FRIENDLY_HOST Host_Android
+#endif
+
 
 #if !defined(PGE_PIXEL_DECLARED)
 namespace olc
@@ -2930,36 +2954,11 @@ namespace olc
 #endif
 
 #if !defined(PGE_WINDOW_DECLARED)
-
-#if OLC_HOST == OLC_HOST_WINDOWS
-	#define FRIENDLY_HOST Host_Windows_WinAPI
-#endif
-
-#if OLC_HOST == OLC_HOST_MACOS
-    #define FRIENDLY_HOST Host_Apple_MacOS
-#endif
-
-#if OLC_HOST == OLC_HOST_LINUX_X11
-	#define FRIENDLY_HOST Host_Linux_X11
-#endif
-
-#if OLC_HOST == OLC_HOST_LINUX_WAYLAND
-	#define FRIENDLY_HOST Host_Linux_Wayland
-#endif
-
-#if OLC_HOST == OLC_HOST_EMSCRIPTEN
-	#define FRIENDLY_HOST Host_Web_Emscripten
-#endif
-
-#if OLC_HOST == OLC_HOST_ANDROID
-    #define FRIENDLY_HOST Host_Android
-#endif
-
 namespace olc
 {
 	namespace host
 	{
-		class FRIENDLY_HOST;
+		class OLC_FRIENDLY_HOST;
 		class Host;
 	}
 
@@ -2981,7 +2980,7 @@ namespace olc
 
 	class Window
 	{
-		friend class olc::host::FRIENDLY_HOST;
+		friend class olc::host::OLC_FRIENDLY_HOST;
 		
 
 	public:
@@ -3261,6 +3260,9 @@ namespace olc
 	// The olc::PixelGameEngine3 core, manages the main window, child windows, engine loop, timing and devices
 	class PixelGameEngine : public PGEWindow
 	{
+		// Host needs access to private methods
+		friend class olc::host::OLC_FRIENDLY_HOST;
+
 	public:
 		PixelGameEngine();
 		virtual ~PixelGameEngine();
@@ -3286,11 +3288,8 @@ namespace olc
 	public: // Child Windows
 		bool AddChildWindow(std::shared_ptr<olc::PGEWindow> window, const olc::vi2d& vScreenSize, const olc::vi2d& vPixelSize);
 	
-	public: // Core Update
-		static void CoreUpdate(void* userdata);
 
-
-	public: // Called from Host
+	private: // Called from Host
 		// Called before any context threads start
 		bool OnPreContextStart();
 		// Called after context thread started, before anything else
@@ -3315,16 +3314,12 @@ namespace olc
 		size_t frameCount = 0;
 		size_t fps = 0;
 
-		// Core Thread
-		std::thread coreThread;
-		std::atomic<bool> coreActive;
-		void EngineThread();
-
 		// These interfaces are created dynamically by the PGE core
 		// after the environment is understood (or specified by config)
 		std::unique_ptr<olc::gpu::Renderer> gpu;
 		std::unique_ptr<olc::host::Host> host;
 		std::unique_ptr<olc::imload::ImageLoader> imageloader;
+
 	};
 }
 #define PGE_CORE_DECLARED 1
@@ -3378,9 +3373,7 @@ namespace olc
 {
 	namespace host
 	{
-
-
-
+		// Host for Windows OS - Single Window Only!
 		class Host_Windows_WinAPI : public olc::host::Host
 		{
 			
@@ -3428,7 +3421,6 @@ namespace olc
 			std::unordered_map<HWND, olc::Window*> mapHWND2PTR;
 			std::wstring ConvertS2W(std::string s);
 			std::atomic<bool> systemActive = false;
-			bool SystemEventLoop(const bool bBlockIfPossible = true);
 
 		public:
 			LRESULT OnWindowEvent(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
@@ -5722,7 +5714,12 @@ namespace olc::host
 			});
 
 		// Blocking event loop on this thread - handles windows
-		SystemEventLoop(true);
+		MSG msg;
+		while (GetMessage(&msg, NULL, 0, 0) > 0 && systemActive)
+		{
+			TranslateMessage(&msg);
+			DispatchMessage(&msg);
+		}
 
 		systemActive = false;
 		if(threadSystem.joinable())
@@ -5766,31 +5763,6 @@ namespace olc::host
 	// Forward Declaration
 	static LRESULT CALLBACK WINAPI_EventHandler(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
-	// Windows app needs an event loop somewhere. This is blocking of course. This loop handles
-	// all windows created for this host.
-	bool Host_Windows_WinAPI::SystemEventLoop(bool bBlockIfPossible)
-	{
-		if (bBlockIfPossible)
-		{
-			MSG msg;
-			while (GetMessage(&msg, NULL, 0, 0) > 0)
-			{
-				TranslateMessage(&msg);
-				DispatchMessage(&msg);
-			}
-		}
-		else
-		{
-			MSG msg;
-			while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE) > 0)
-			{
-				TranslateMessage(&msg);
-				DispatchMessage(&msg);
-			}
-		}
-
-		return true;    
-	}
 
 	// Static linkage to lpfnWndProc - the hWnd is tagged with meta-info to get
 	// access to the actual host instance, which can more conveninetly process
@@ -6218,6 +6190,7 @@ namespace olc::host
 				break;
 				//return DefWindowProc(hWnd, uMsg, wParam, lParam);
 			}
+
 		case WM_DESTROY:	
 			PostQuitMessage(0); 
 			DestroyWindow(hWnd);
@@ -15063,6 +15036,7 @@ namespace olc
 			durationFrameCount -= 1s;
 			std::string sTitle = "OneLoneCoder.com - Pixel Game Engine 3 - Test - FPS: " + std::to_string(frameCount);
 			SetWindowTitle(sTitle);
+			fps = frameCount;
 			frameCount = 0;
 		}
 
@@ -15107,6 +15081,11 @@ namespace olc
 	double PixelGameEngine::TotalTimeElapsed() const
 	{
 		return durationTotalElapsed.count();
+	}
+
+	size_t PixelGameEngine::GetFPS() const
+	{
+		return fps;
 	}
 
 	bool PixelGameEngine::AddChildWindow(std::shared_ptr<olc::PGEWindow> window, const olc::vi2d& vScreenSize, const olc::vi2d& vPixelSize)
