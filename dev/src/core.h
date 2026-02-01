@@ -21,6 +21,8 @@
 #include "host_iface.h"
 #include "imload_iface.h"
 #include "font.h"
+#include "draw2d.h"
+#include "draw3d.h"
 //! END CUSTOMHEADER GLOBAL
 
 //! START DECLARATION
@@ -63,6 +65,7 @@ namespace olc
 	class PGEWindow : public Window
 	{
 	public:
+		PGEWindow();
 		bool Create(const olc::vi2d& vScreenSize, const olc::vi2d& vPixelSize);
 	
 	public:
@@ -112,6 +115,7 @@ namespace olc
 
 	protected:
 		olc::Draw2D draw;
+		olc::Draw3D draw3d;
 		
 		
 	private:

@@ -160,6 +160,8 @@ namespace olc
 		class Renderer;
 		class Shader;
 	}
+
+	class Draw3D;
 	
 	// These "opaque" structs are merely to help with
 	// type differentiation of various GPUTask types
@@ -172,6 +174,8 @@ namespace olc
 
 	class Draw2D
 	{
+		friend class olc::Draw3D;
+
 	public:
 		Draw2D();
 
