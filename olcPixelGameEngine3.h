@@ -9998,11 +9998,7 @@ namespace olc::host
 
         if(!pHost->OnSystemTick())
         {
-            if(!pHost->OnSystemThreadEnd())
-            {
-                // PGE->OnContextEnd() failed
-                return;
-            }
+            pHost->StopSystem();
         }
     }
 
@@ -10020,8 +10016,8 @@ namespace olc::host
         
         emscripten_set_main_loop_arg(Host_Web_Emscripten::MainLoop, reinterpret_cast<void*>(this), 0, 1);
         
-        // This code is never reached!!
-
+        // EMSCRIPTEN QUIRK: this code is never reached, the main loop is simulating a while(true);
+        
         return true;
     }
     
@@ -10029,6 +10025,9 @@ namespace olc::host
     bool Host_Web_Emscripten::StopSystem()
     {
         std::cout << "Emscripten: StopSystem.\n";
+        OnSystemThreadEnd();
+        pPrimaryPGE->OnPostContextEnd();
+        emscripten_cancel_main_loop();
         return true;
     }
 
@@ -10049,7 +10048,6 @@ namespace olc::host
     bool Host_Web_Emscripten::OnSystemThreadEnd()
     {
         std::cout << "Emscripten: OnSystemThreadEnd.\n";
-        emscripten_cancel_main_loop();
         return pPrimaryPGE->OnContextEnd();
     }
     
