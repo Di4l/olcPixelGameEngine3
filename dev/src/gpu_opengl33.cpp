@@ -6,7 +6,7 @@ namespace olc::gpu
 
 	// === PIXEL SHADER PGE DEFAULTS ===
 	std::string Shader::static_PS_DefaultHeader =
-#if OLC_HOST != OLC_HOST_EMSCRIPTEN
+#if OLC_HOST != OLC_HOST_EMSCRIPTEN && OLC_HOST != OLC_HOST_ANDROID
 R"(#version 330 core
 )"
 #else
@@ -45,7 +45,7 @@ void main()
 	
 	// === VERTEX SHADER PGE DEFAULTS ===
 	std::string Shader::static_VS_DefaultHeader =
-#if OLC_HOST != OLC_HOST_EMSCRIPTEN
+#if OLC_HOST != OLC_HOST_EMSCRIPTEN && OLC_HOST != OLC_HOST_ANDROID
 R"(#version 330 core
 )"
 #else
@@ -251,12 +251,6 @@ void main()
 			lastError = RendererError::FailedToSwitchRenderContext;
 			return false;
 		}
-
-		//// Set Vertical Sync
-		//glSwapInterval = OGL_LOAD(glSwapInterval);
-		//if (locSwapInterval && !bVSYNC) locSwapInterval(0);
-		//bSync = bVSYNC;
-
 #endif
 
 #if OLC_HOST == OLC_HOST_LINUX_X11
@@ -284,9 +278,13 @@ void main()
 
 #endif
 
-#if OLC_HOST == OLC_HOST_EMSCRIPTEN || OLC_HOST == OLC_HOST_LINUX_WAYLAND
-#if OLC_HOST == OLC_HOST_EMSCRIPTEN
-	EGLNativeWindowType window_handle = NULL;
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN || OLC_HOST == OLC_HOST_LINUX_WAYLAND || OLC_HOST == OLC_HOST_ANDROID
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN || OLC_HOST == OLC_HOST_ANDROID
+    #if OLC_HOST == OLC_HOST_ANDROID
+        EGLNativeWindowType window_handle = reinterpret_cast<ANativeWindow*>(os_win_id[0]);
+    #else
+        EGLNativeWindowType window_handle = NULL;
+    #endif
 	EGLNativeDisplayType display = EGL_DEFAULT_DISPLAY;
 #else
 	const auto wayland_window = reinterpret_cast<olc::host::WaylandWindow*>(os_win_id[0]);
@@ -294,23 +292,39 @@ void main()
 	EGLNativeDisplayType display = reinterpret_cast<EGLNativeDisplayType>(os_win_id[1]);
 #endif
 
-	EGLint const attribute_list[] = {EGL_RED_SIZE, 8, EGL_GREEN_SIZE, 8, EGL_BLUE_SIZE, 8, EGL_ALPHA_SIZE, 8, EGL_DEPTH_SIZE, 16, EGL_SAMPLE_BUFFERS, 1, EGL_SAMPLES, OLC_MSAA_SAMPLES, EGL_NONE};
-	EGLint const context_config[] = {EGL_CONTEXT_CLIENT_VERSION, 2, EGL_NONE};
-	EGLint num_config;
-
 	glRenderContext.display = eglGetDisplay(display);
 	if(glRenderContext.display == EGL_NO_DISPLAY) {
 		std::cout << "Could not create EGL Display" << std::endl;
 	}
+
 	eglInitialize(glRenderContext.display, nullptr, nullptr);
+
+#if OLC_HOST == OLC_HOST_ANDROID
+	glRenderContext.config = FindBestConfig(glRenderContext.display, OLC_MSAA_SAMPLES);
+#else
+	EGLint num_config;
+	EGLint const attribute_list[] = {
+        EGL_RED_SIZE, 8,
+        EGL_GREEN_SIZE, 8,
+        EGL_BLUE_SIZE, 8,
+        EGL_ALPHA_SIZE, 8,
+        EGL_DEPTH_SIZE, 16,
+        EGL_SAMPLE_BUFFERS, 1,
+        EGL_SAMPLES, OLC_MSAA_SAMPLES,
+        EGL_NONE
+    };
 	eglChooseConfig(glRenderContext.display, attribute_list, &glRenderContext.config, 1, &num_config);
-	
+#endif
+
+	EGLint const context_config[] = {EGL_CONTEXT_MAJOR_VERSION, 3, EGL_NONE};
+
 	/* create an EGL rendering context */
 	glRenderContext.context = eglCreateContext(glRenderContext.display, glRenderContext.config, EGL_NO_CONTEXT, context_config);
 	glRenderContext.surface = eglCreateWindowSurface(glRenderContext.display, glRenderContext.config, window_handle, nullptr);
 	if(glRenderContext.surface == EGL_NO_SURFACE) {
 		std::cout << "Could not create EGL Surface" << std::endl;
 	}
+
 	if(!eglMakeCurrent(glRenderContext.display, glRenderContext.surface, glRenderContext.surface, glRenderContext.context))
 	{
 		lastError = RendererError::FailedToCreateRenderContext;
@@ -325,6 +339,33 @@ void main()
 			std::cout << "Error: Could not Load OpenGL!\n";
 			lastError = RendererError::NoError;
 			return false;
+		}
+
+		// Store the initial (screen) framebuffer binding
+		// On most platforms the system provides a default framebuffer of 0
+		// However on iOS there is no system buffer and instead a GLKit creates an FBO to use
+		gl.glGetIntegerv(gl.GL_DRAW_FRAMEBUFFER_BINDING_X, (GLint *)&nScreenFBO);
+
+		// Configure Swap Interval (VSync)
+		if (config.VerticalSync)
+		{
+			// Enable VSync - lock to display refresh
+			// May also be governed by OS / driver settings
+			// and desktop compositor settings
+#if !((OLC_HOST == OLC_HOST_EMSCRIPTEN) || (OLC_HOST == OLC_HOST_LINUX_WAYLAND))
+			gl.glSwapInterval(1);
+#else
+			eglSwapInterval(glRenderContext.display, 1);
+#endif
+		}
+		else
+		{
+			// Disable VSync - run like the clappers!
+#if !((OLC_HOST == OLC_HOST_EMSCRIPTEN) || (OLC_HOST == OLC_HOST_LINUX_WAYLAND))
+			gl.glSwapInterval(0);
+#else
+			eglSwapInterval(glRenderContext.display, 0);
+#endif
 		}
 		
 
@@ -397,24 +438,31 @@ void main()
 
 		// Create a Frame Buffer Object for off-screen rendering things
 		gl.glGenFramebuffers(1, (GLuint*)&nDefaultFBO);
-		gl.glBindFramebuffer(36160U, nDefaultFBO); // GL_FRAMEBUFFER
+		gl.glBindFramebuffer(gl.GL_FRAMEBUFFER_X, nDefaultFBO); // GL_FRAMEBUFFER
 		// Attach 4 colour buffers
-		std::array<GLenum, 4> attachments = { {36064U, 36065U, 36066U, 36067U} };
+		std::array<GLenum, 4> attachments = 
+		{ {
+			gl.GL_COLOR_ATTACHMENT0_X,
+			gl.GL_COLOR_ATTACHMENT0_X + 1,
+			gl.GL_COLOR_ATTACHMENT0_X + 2,
+			gl.GL_COLOR_ATTACHMENT0_X + 3
+		} };
+
 		gl.glDrawBuffers(4, attachments.data());
 		// Unlink them from any existing image textures
-		//gl.glFramebufferTexture2D(36160U, attachments[0], GL_TEXTURE_2D, 0, 0);
-		//gl.glFramebufferTexture2D(36160U, attachments[1], GL_TEXTURE_2D, 0, 0);
-		//gl.glFramebufferTexture2D(36160U, attachments[2], GL_TEXTURE_2D, 0, 0);
-		//gl.glFramebufferTexture2D(36160U, attachments[3], GL_TEXTURE_2D, 0, 0);
-		// Unbind the FBO
-		gl.glBindFramebuffer(36160U, 0);
+		//gl.glFramebufferTexture2D(gl.GL_FRAMEBUFFER_X, attachments[0], GL_TEXTURE_2D, 0, 0);
+		//gl.glFramebufferTexture2D(gl.GL_FRAMEBUFFER_X, attachments[1], GL_TEXTURE_2D, 0, 0);
+		//gl.glFramebufferTexture2D(gl.GL_FRAMEBUFFER_X, attachments[2], GL_TEXTURE_2D, 0, 0);
+		//gl.glFramebufferTexture2D(gl.GL_FRAMEBUFFER_X, attachments[3], GL_TEXTURE_2D, 0, 0);
 
+		// Unbind the FBO
+		gl.glBindFramebuffer(gl.GL_FRAMEBUFFER_X, nScreenFBO);
 
 		// Create FBOs for MSAA resolve operations
 		gl.glGenFramebuffers(1, &nResolveFBO_Draw);
 		gl.glGenFramebuffers(1, &nResolveFBO_Read);
 
-#if OLC_HOST != OLC_HOST_EMSCRIPTEN
+#if OLC_HOST != OLC_HOST_EMSCRIPTEN && OLC_HOST != OLC_HOST_ANDROID
 		gl.glEnable(GL_TEXTURE_2D); // Turn on texturing
 		gl.glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
 #endif
@@ -440,7 +488,7 @@ void main()
 		X11::glXMakeCurrent(display, 0, NULL);
 		X11::glXDestroyContext(display, glRenderContext);
 #endif
-#if OLC_HOST == OLC_HOST_EMSCRIPTEN || OLC_HOST == OLC_HOST_LINUX_WAYLAND
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN || OLC_HOST == OLC_HOST_LINUX_WAYLAND || OLC_HOST == OLC_HOST_ANDROID
 		eglMakeCurrent(glRenderContext.display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
 		eglDestroyContext(glRenderContext.display, glRenderContext.context);
 		eglDestroySurface(glRenderContext.display, glRenderContext.surface);
@@ -481,13 +529,13 @@ void main()
 			return false;
 		}
 #endif
-#if OLC_HOST == OLC_HOST_EMSCRIPTEN || OLC_HOST == OLC_HOST_LINUX_WAYLAND
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN || OLC_HOST == OLC_HOST_LINUX_WAYLAND || OLC_HOST == OLC_HOST_ANDROID
 	if(!eglMakeCurrent(glRenderContext.display, glRenderContext.surface, glRenderContext.surface, glRenderContext.context))
 	{
 		lastError = RendererError::FailedToSwitchRenderContext;
 		return false;
 	}
-#endif		
+#endif
 		return true;
 	}
 
@@ -587,10 +635,8 @@ void main()
 			mapTextureToRenderbuffer[id] = rboId;
 		}
 
-#if OLC_HOST != OLC_HOST_EMSCRIPTEN
-#if OLC_HOST != OLC_HOST_MACOS		
+#if OLC_HOST != OLC_HOST_EMSCRIPTEN && OLC_HOST != OLC_HOST_MACOS && OLC_HOST != OLC_HOST_ANDROID
 		gl.glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-#endif
 #endif
 
 		mapTextureSizes[id] = vSize;
@@ -645,7 +691,7 @@ void main()
 		// which has been blitted to via ResolveMSAA if its an MSAA texture
 		gl.glBindTexture(GL_TEXTURE_2D, image.GetGPUID());
 
-#if OLC_HOST != OLC_HOST_EMSCRIPTEN
+#if OLC_HOST != OLC_HOST_EMSCRIPTEN && OLC_HOST != OLC_HOST_ANDROID
 		gl.glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, image.Data());
 #else		
 		gl.glReadPixels(0, 0, image.Size().x, image.Size().y, GL_RGBA, GL_UNSIGNED_BYTE, image.Data());
@@ -693,7 +739,7 @@ void main()
 #if defined(OLC_GPU_ERRORCHECK) && OLC_GPU_ERRORCHECK == 1
 			std::cout << "Warning ATS: Requested source is currently attached as target (" << actualTexId << ") - unbinding FBO\n";
 #endif
-			gl.glBindFramebuffer(gl.GL_FRAMEBUFFER_X, 0);
+			gl.glBindFramebuffer(gl.GL_FRAMEBUFFER_X, nScreenFBO);
 			nCurrentTextureTarget = 0;
 		}
 
@@ -740,7 +786,7 @@ void main()
 		if (texid == 0)
 		{
 			// Unbind the FBO (bind default framebuffer)
-			gl.glBindFramebuffer(gl.GL_FRAMEBUFFER_X, 0);
+			gl.glBindFramebuffer(gl.GL_FRAMEBUFFER_X, nScreenFBO);
 			return true;
 		}	
 	
@@ -885,6 +931,13 @@ void main()
 	{
 		auto& gl = olc::apis::opengl::gl::Get();
 		int loc = pCurrentShader->GetUniform(name);
+		if (loc == -1)
+		{
+			#if OLC_GPU_ERRORCHECK == 1
+			std::cout << "Warning: Uniform '" << name << "' not found in current shader\n";
+			#endif
+			return false;
+		}
 		gl.glUniform1f(loc, value);
 		return true;
 	}
@@ -893,6 +946,13 @@ void main()
 	{
 		auto& gl = olc::apis::opengl::gl::Get();
 		int loc = pCurrentShader->GetUniform(name);
+		if (loc == -1)
+		{
+			#if OLC_GPU_ERRORCHECK == 1
+			std::cout << "Warning: Uniform '" << name << "' not found in current shader\n";
+			#endif
+			return false;
+		}
 		gl.glUniform2fv(loc, 1, value.a().data());
 		return true;
 	}
@@ -908,6 +968,13 @@ void main()
 
 		auto& gl = olc::apis::opengl::gl::Get();
 		int loc = pCurrentShader->GetUniform(name);
+		if (loc == -1)
+		{
+			#if OLC_GPU_ERRORCHECK == 1
+			std::cout << "Warning: Uniform '" << name << "' not found in current shader\n";
+			#endif
+			return false;
+		}
 		gl.glUniform4fv(loc, 1, f);
 		return true;
 	}
@@ -947,23 +1014,11 @@ void main()
 				//gl.glUniformMatrix4fv(shaderDefault.GetUniform("mvp"), 1, true, task.mvpMatrix.data());
 
 				// Shader: Apply Global Tint
-				float f[4] = { 
-					float(task.tint.r) / 255.0f, 
-					float(task.tint.g) / 255.0f, 
-					float(task.tint.b) / 255.0f, 
-					float(task.tint.a) / 255.0f 
-				};
-				
-				gl.glUniform4fv(pCurrentShader->GetUniform("pgeGlobalTint"), 1, f);
+				SetUniform("pgeGlobalTint", task.tint);
 
-				f[0] = 64.0f;
-				f[1] = 64.0f;
-				gl.glUniform2fv(pCurrentShader->GetUniform("pgeTargetSizeInPixels"), 1, vTargetSize.a().data());
-				gl.glUniform2fv(pCurrentShader->GetUniform("pgeInverseTargetSizeInPixels"), 1, ((1.0f / vTargetSize)).a().data());
-				gl.glUniform1f(pCurrentShader->GetUniform("pgeTotalTimeElapsed"), fTotalTime);
-
-
-				
+				SetUniform("pgeTargetSizeInPixels", vTargetSize);
+				SetUniform("pgeInverseTargetSizeInPixels", (1.0f / vTargetSize));
+				SetUniform("pgeTotalTimeElapsed", fTotalTime);
 
 				// Apply Culling modes
 				//if (task.cullmode == GPUTask::CullMode::None)
@@ -999,6 +1054,8 @@ void main()
 					gl.glUniform1i(pCurrentShader->GetUniform("pgeDrawType"), 1);
 				else if (task.structure == olc::Structure::LineLoop)
 					gl.glUniform1i(pCurrentShader->GetUniform("pgeDrawType"), 1);
+				else if (task.structure == olc::Structure::LineList)
+					gl.glUniform1i(pCurrentShader->GetUniform("pgeDrawType"), 1);
 				else
 					gl.glUniform1i(pCurrentShader->GetUniform("pgeDrawType"), 0);
 
@@ -1010,6 +1067,8 @@ void main()
 					gl.glDrawArrays(GL_TRIANGLES, 0, (GLsizei)task.vertexBuffer.size());
 				else if (task.structure == olc::Structure::Line)
 					gl.glDrawArrays(GL_LINE_STRIP, 0, (GLsizei)task.vertexBuffer.size());
+				else if (task.structure == olc::Structure::LineList)
+					gl.glDrawArrays(GL_LINES, 0, (GLsizei)task.vertexBuffer.size());
 				else if (task.structure == olc::Structure::LineLoop)
 					gl.glDrawArrays(GL_LINE_LOOP, 0, (GLsizei)task.vertexBuffer.size());
 				else if (task.structure == olc::Structure::Point)
@@ -1084,20 +1143,64 @@ void main()
 		X11::glXSwapBuffers(display, window_handle);
 #endif
 
-#if OLC_HOST == OLC_HOST_LINUX_WAYLAND
-	const auto* wayland_window = reinterpret_cast<olc::host::WaylandWindow*>(os_win_id[0]);
-	//auto* window_handle = wayland_window->window;
-	//auto* display = reinterpret_cast<wl_display*>(os_win_id[1]);
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN || OLC_HOST == OLC_HOST_LINUX_WAYLAND
 	eglSwapBuffers(glRenderContext.display, glRenderContext.surface);
 #endif
 
-#if OLC_HOST == OLC_HOST_EMSCRIPTEN
-		eglSwapInterval(glRenderContext.display, bVerticalSyncNow ? 1 : 0);
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN || OLC_HOST == OLC_HOST_ANDROID
+	eglSwapBuffers(glRenderContext.display, glRenderContext.surface);
 #endif
 
 		return true;
 	}
 
+#if OLC_HOST == OLC_HOST_ANDROID
+    EGLConfig Renderer_OGL33::FindBestConfig(EGLDisplay display, int desiredMultisamples)
+    {
+		EGLint numConfigs;
+		EGLConfig bestConfig = nullptr;
+		EGLConfig fallbackConfig = nullptr;
+
+		// Define attribute list for desired configuration
+    	EGLint const attribs[] = {
+			EGL_RENDERABLE_TYPE, EGL_OPENGL_ES3_BIT,
+			EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
+			EGL_RED_SIZE, 8,
+			EGL_GREEN_SIZE, 8,
+			EGL_BLUE_SIZE, 8,
+			EGL_ALPHA_SIZE, 8,
+			EGL_DEPTH_SIZE, 16,
+        	EGL_NONE
+    	};
+
+		// Get all matching configurations
+		eglChooseConfig(display, attribs, nullptr, 0, &numConfigs);
+
+		std::vector<EGLConfig> configs(numConfigs);
+		eglChooseConfig(display, attribs, configs.data(), numConfigs, &numConfigs);
+
+		// Evaluate configurations to find the best that matches desired multisampling
+		for (const auto& config : configs) {
+			EGLint sampleBuffers = 0;
+			EGLint samples = 0;
+
+			eglGetConfigAttrib(display, config, EGL_SAMPLE_BUFFERS, &sampleBuffers);
+			eglGetConfigAttrib(display, config, EGL_SAMPLES, &samples);
+
+			if (sampleBuffers > 0 && samples == desiredMultisamples) {
+				bestConfig = config;
+				break; // Found the best match
+			}
+
+			// Keep track of a fallback configuration
+			if (fallbackConfig == nullptr) {
+				fallbackConfig = config;
+			}
+		}
+
+		return bestConfig ? bestConfig : fallbackConfig;
+    }
+#endif
 
 }
 //! END IMPLEMENTATION

@@ -106,17 +106,16 @@
 */
 
 
-#include <concepts>
 #include <cmath>
 #include <cstdint>
 #include <algorithm>
 #include <string>
 #include <unordered_map>
 #include <iostream>
+#include <concepts>
 #include <array>
 #include <vector>
 #include <memory>
-
 #include <optional>
 #include <deque>
 #include <chrono>
@@ -174,7 +173,7 @@
 		#define OLC_HOST OLC_HOST_WINDOWS
 	#endif
 
-	#if defined(__linux__) || defined(__FreeBSD__)
+	#if (defined(__linux__) || defined(__FreeBSD__)) && !defined(__ANDROID__)
 		// Note: Assumes X11 atm
 		#define OLC_HOST OLC_HOST_LINUX_X11
 	#endif
@@ -212,6 +211,7 @@
 #define OLC_IMAGELOADER_WINGDI 2
 #define OLC_IMAGELOADER_MACOS 3
 #define OLC_IMAGELOADER_LIB_PNG 4
+#define OLC_IMAGELOADER_NDK_IMAGEDECODER 5
 
 #if OLC_HOST == OLC_HOST_MACOS
 	#undef OLC_IMAGELOADER
@@ -226,6 +226,11 @@
 #if OLC_HOST == OLC_HOST_EMSCRIPTEN
 	#undef OLC_IMAGELOADER
 	#define OLC_IMAGELOADER OLC_IMAGELOADER_LIB_PNG
+#endif
+
+#if OLC_HOST == OLC_HOST_ANDROID
+    #undef OLC_IMAGELOADER
+    #define OLC_IMAGELOADER OLC_IMAGELOADER_NDK_IMAGEDECODER
 #endif
 
 #if !defined(OLC_IMAGELOADER)
@@ -243,9 +248,13 @@
 
 #define OLC_MOUSE_BUTTONS 5
 
+#define OLC_DEFAULT_KEYBOARD_LAYOUT olc::KeyboardLayout::QWERTY_UK
+
 #define OLC_GPU_MAX_VERTICES 8192
 #define OLC_GPU_ERRORCHECK 0
 #define OLC_MSAA_SAMPLES 4
+#define OLC_DEFAULT_CIRCLE_FACETS 16
+#define OLC_DEFAULT_VSYNC true
 
 #define LICENCE_DEFAULT "OneLoneCoder.com - Pixel Game Engine 3 - "
 
@@ -257,12 +266,29 @@
 template<typename... Args>
 inline constexpr void olc_IgnoreUnused(Args&&...) noexcept {}
 
+#if OLC_HOST == OLC_HOST_WINDOWS
+#define OLC_FRIENDLY_HOST Host_Windows_WinAPI
+#endif
 
-namespace olc
-{
-	template <typename T>
-	concept numeric = std::integral<T> || std::floating_point<T>;
-}
+#if OLC_HOST == OLC_HOST_MACOS
+#define OLC_FRIENDLY_HOST Host_Apple_MacOS
+#endif
+
+#if OLC_HOST == OLC_HOST_LINUX_X11
+#define OLC_FRIENDLY_HOST Host_Linux_X11
+#endif
+
+#if OLC_HOST == OLC_HOST_LINUX_WAYLAND
+#define OLC_FRIENDLY_HOST Host_Linux_Wayland
+#endif
+
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN
+#define OLC_FRIENDLY_HOST Host_Web_Emscripten
+#endif
+
+#if OLC_HOST == OLC_HOST_ANDROID
+#define OLC_FRIENDLY_HOST Host_Android
+#endif
 
 
 #if !defined(PGE_PIXEL_DECLARED)
@@ -579,6 +605,9 @@ namespace olc
 #if !defined(PGE_VECTOR2D_DECLARED)
 namespace olc
 {
+	template <typename T>
+	concept numeric = std::integral<T> || std::floating_point<T>;
+
 	/*
 		A complete 2D geometric vector structure, with a variety
 		of useful utility functions and operator overloads
@@ -1205,6 +1234,13 @@ namespace olc
 
 		// Transform a vector by this transform in place
 		template<typename Q>
+		inline constexpr auto forwardX(std::vector<olc::v_2d<Q>>&& v) const
+		{
+			std::transform(v.begin(), v.end(), v.begin(), [this](const olc::v_2d<Q>& i) {return (m_mForward * i); });
+			return v;
+		}
+
+		template<typename Q>
 		inline constexpr auto forwardRoundX(std::vector<olc::v_2d<Q>>&& v) const
 		{
 			std::transform(v.begin(), v.end(), v.begin(), [this](const olc::v_2d<Q>& i) {return (m_mForward * i).round(); });
@@ -1225,6 +1261,14 @@ namespace olc
 			std::vector<olc::v_2d<Q>> o(v.size());
 			std::transform(v.begin(), v.end(), o.begin(), [this](const olc::v_2d<Q>& i) {return m_mInverse * i; });
 			return o;
+		}
+
+		// Transform a vector by this transform in place
+		template<typename Q>
+		inline constexpr auto inverseX(std::vector<olc::v_2d<Q>>&& v) const
+		{
+			std::transform(v.begin(), v.end(), v.begin(), [this](const olc::v_2d<Q>& i) {return m_mInverse * i; });
+			return v;
 		}
 
 
@@ -1623,10 +1667,12 @@ namespace olc
 	{
 		// Vertex buffer is a series of points	
 		Point = 0,
-		// Vertex buffer is a series of line segments
+		// Vertex buffer is a series of connected line segments
 		Line,
-		// Vertex buffer is a series of line segments, that close to form a loop
+		// Vertex buffer is a series of connected line segments, that close to form a loop
 		LineLoop,
+		// Vertex buffer is a series of individual line segments
+		LineList,
 		// Vertex buffer is a fan of triangles
 		Fan,
 		// Vertex buffer is a strip of adjacent triangles
@@ -1927,6 +1973,13 @@ namespace olc
 			const olc::Pixel col = olc::Colour::WHITE,
 			const olc::Pixel tint = olc::Colour::WHITE);
 
+		// Draws a single pixel wide line into a batch
+		const LineBatch& Line(
+			olc::LineBatch& batch,
+			const olc::vf2d& p1,
+			const olc::vf2d& p2,
+			const olc::Pixel col = olc::Colour::WHITE);
+
 		// Draws a single pixel wide line with a gradient		
 		const GPUTask& Line(
 			const olc::vf2d& p1, 
@@ -1934,6 +1987,14 @@ namespace olc
 			const olc::vf2d& p2, 
 			const olc::Pixel c2,
 			const olc::Pixel tint = olc::Colour::WHITE);
+
+		// Draws a single pixel wide line with a gradient into a batch	
+		const LineBatch& Line(
+			olc::LineBatch& batch,
+			const olc::vf2d& p1,
+			const olc::Pixel c1,
+			const olc::vf2d& p2,
+			const olc::Pixel c2);
 
 // === Rectangles ===
 
@@ -1943,6 +2004,13 @@ namespace olc
 			const olc::vf2d& size, 
 			const olc::Pixel col = olc::Colour::WHITE,
 			const olc::Pixel tint = olc::Colour::WHITE);
+
+		// Draws a rectangle outline into a batch
+		const LineBatch& Rect(
+			olc::LineBatch& batch,
+			const olc::vf2d& pos,
+			const olc::vf2d& size,
+			const olc::Pixel col = olc::Colour::WHITE);
 
 		// Draws a multiple colour rectangle, with linear colour interpolation
 		const GPUTask& Rect(
@@ -1954,12 +2022,29 @@ namespace olc
 			const olc::Pixel colBR,
 			const olc::Pixel tint = olc::Colour::WHITE);
 
+		// Draws a multiple colour rectangle, with linear colour interpolation, into a batch
+		const LineBatch& Rect(
+			olc::LineBatch& batch,
+			const olc::vf2d& pos,
+			const olc::vf2d& size,
+			const olc::Pixel colTL,
+			const olc::Pixel colTR,
+			const olc::Pixel colBL,
+			const olc::Pixel colBR);
+			
 		// Draws a filled, single colour rectangle
 		const GPUTask& FilledRect(
 			const olc::vf2d& pos, 
 			const olc::vf2d& size, 
 			const olc::Pixel col = olc::Colour::WHITE,
 			const olc::Pixel tint = olc::Colour::WHITE);
+
+		// Draws a filled, single colour rectangle into a batch
+		const FilledBatch& FilledRect(
+			olc::FilledBatch& batch,
+			const olc::vf2d& pos,
+			const olc::vf2d& size,
+			const olc::Pixel col = olc::Colour::WHITE);
 
 		// Draws a filled, multiple colour rectangle, with linear colour interpolation
 		const GPUTask& FilledRect(
@@ -1971,6 +2056,16 @@ namespace olc
 			const olc::Pixel colBR,
 			const olc::Pixel tint = olc::Colour::WHITE);
 
+		// Draws a filled, multiple colour rectangle, with linear colour interpolation, into a batch
+		const FilledBatch& FilledRect(
+			olc::FilledBatch& batch,
+			const olc::vf2d& pos,
+			const olc::vf2d& size,
+			const olc::Pixel colTL,
+			const olc::Pixel colTR,
+			const olc::Pixel colBL,
+			const olc::Pixel colBR);
+
 // === Circles ===
 		
 		// Draws a circle outline with a single colour
@@ -1979,7 +2074,15 @@ namespace olc
 			const float& radius,
 			const olc::Pixel col = olc::Colour::WHITE,
 			const olc::Pixel tint = olc::Colour::WHITE,
-			int32_t nFacets = 32);
+			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS);
+
+		// Draws a circle outline with a single colour into a batch
+		const LineBatch& Circle(
+			olc::LineBatch& batch,
+			const olc::vf2d& pos,
+			const float& radius,
+			const olc::Pixel col = olc::Colour::WHITE,
+			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS);
 
 		// Draws a filled circle with a single colour
 		const GPUTask& FilledCircle(
@@ -1987,7 +2090,15 @@ namespace olc
 			const float& radius,
 			const olc::Pixel col = olc::Colour::WHITE,
 			const olc::Pixel tint = olc::Colour::WHITE,
-			int32_t nFacets = 32);
+			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS);
+
+		// Draws a filled circle with a single colour into a batch
+		const FilledBatch& FilledCircle(
+			olc::FilledBatch& batch,
+			const olc::vf2d& pos,
+			const float& radius,
+			const olc::Pixel col = olc::Colour::WHITE,
+			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS);
 
 		// Draws a shaded circle with a radial gradient
 		const GPUTask& FilledCircle(
@@ -1996,7 +2107,16 @@ namespace olc
 			const olc::Pixel colInner,
 			const olc::Pixel colOuter,
 			const olc::Pixel tint = olc::Colour::WHITE,
-			int32_t nFacets = 32);
+			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS);
+
+		// Draws a shaded circle with a radial gradient into a batch
+		const FilledBatch& FilledCircle(
+			olc::FilledBatch& batch,
+			const olc::vf2d& pos,
+			const float& radius,
+			const olc::Pixel colInner,
+			const olc::Pixel colOuter,
+			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS);
 
 // === Ellipses ===
 
@@ -2007,7 +2127,16 @@ namespace olc
 			const float& ry,
 			const olc::Pixel col = olc::Colour::WHITE,
 			const olc::Pixel tint = olc::Colour::WHITE,
-			int32_t nFacets = 32);
+			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS);
+
+		// Draws an ellipse outline with a single colour into a batch
+		const LineBatch& Ellipse(
+			olc::LineBatch& batch,
+			const olc::vf2d& pos,
+			const float& rx,
+			const float& ry,
+			const olc::Pixel col = olc::Colour::WHITE,
+			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS);
 
 		// Draws a filled ellipse with a single colour
 		const GPUTask& FilledEllipse(
@@ -2016,7 +2145,16 @@ namespace olc
 			const float& ry,
 			const olc::Pixel col = olc::Colour::WHITE,
 			const olc::Pixel tint = olc::Colour::WHITE,
-			int32_t nFacets = 32);
+			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS);
+
+		// Draws a filled ellipse with a single colour into a batch
+		const FilledBatch& FilledEllipse(
+			olc::FilledBatch& batch,
+			const olc::vf2d& pos,
+			const float& rx,
+			const float& ry,
+			const olc::Pixel col = olc::Colour::WHITE,
+			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS);
 
 		// Draws a shaded ellipse with a radial gradient
 		const GPUTask& FilledEllipse(
@@ -2026,7 +2164,17 @@ namespace olc
 			const olc::Pixel colInner,
 			const olc::Pixel colOuter,
 			const olc::Pixel tint = olc::Colour::WHITE,
-			int32_t nFacets = 32);
+			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS);
+
+		// Draws a shaded ellipse with a radial gradient into a batch
+		const FilledBatch& FilledEllipse(
+			olc::FilledBatch& batch,
+			const olc::vf2d& pos,
+			const float& rx,
+			const float& ry,
+			const olc::Pixel colInner,
+			const olc::Pixel colOuter,
+			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS);
 
 // === Rounded Rectangles ===
 
@@ -2037,7 +2185,16 @@ namespace olc
 			const float& radius,
 			const olc::Pixel col = olc::Colour::WHITE,
 			const olc::Pixel tint = olc::Colour::WHITE,
-			int32_t nFacets = 8);
+			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS / 4);
+
+		// Draws a rounded rectangle outline with a single colour into a batch
+		const LineBatch& RoundedRect(
+			olc::LineBatch& batch,
+			const olc::vf2d& pos,						// Top left of bounding rectangle
+			const olc::vf2d& size,						// Size of bounding rectangle
+			const float& radius,
+			const olc::Pixel col = olc::Colour::WHITE,
+			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS / 4);
 
 		// Draws a filled rounded rectangle with a single colour
 		const GPUTask& FilledRoundedRect(
@@ -2046,7 +2203,7 @@ namespace olc
 			const float& radius,
 			const olc::Pixel col = olc::Colour::WHITE,
 			const olc::Pixel tint = olc::Colour::WHITE,
-			int32_t nFacets = 8);
+			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS / 4);
 
 
 // === Triangles ===
@@ -2059,6 +2216,14 @@ namespace olc
 			const olc::Pixel col = olc::Colour::WHITE,
 			const olc::Pixel tint = olc::Colour::WHITE);
 
+		// Draws a triangle outline with a single colour into a batch
+		const LineBatch& Triangle(
+			olc::LineBatch& batch,
+			const olc::vf2d& p1,
+			const olc::vf2d& p2,
+			const olc::vf2d& p3,
+			const olc::Pixel col = olc::Colour::WHITE);
+
 		// Draws a multiple colour triangle outline
 		const GPUTask& Triangle(
 			const olc::vf2d& p1,
@@ -2069,6 +2234,16 @@ namespace olc
 			const olc::Pixel c3,
 			const olc::Pixel tint = olc::Colour::WHITE);
 
+		// Draws a multiple colour triangle outline into a batch
+		const LineBatch& Triangle(
+			olc::LineBatch& batch,
+			const olc::vf2d& p1,
+			const olc::vf2d& p2,
+			const olc::vf2d& p3,
+			const olc::Pixel c1,
+			const olc::Pixel c2,
+			const olc::Pixel c3);
+
 		// Draws a filled, single colour triangle
 		const GPUTask& FilledTriangle(
 			const olc::vf2d& p1,
@@ -2076,6 +2251,14 @@ namespace olc
 			const olc::vf2d& p3,
 			const olc::Pixel col = olc::Colour::WHITE,
 			const olc::Pixel tint = olc::Colour::WHITE);
+
+		// Draws a filled, single colour triangle into a batch
+		const FilledBatch& FilledTriangle(
+			olc::FilledBatch& batch,
+			const olc::vf2d& p1,
+			const olc::vf2d& p2,
+			const olc::vf2d& p3,
+			const olc::Pixel col = olc::Colour::WHITE);
 
 		// Draws a filled, multiple colour triangle
 		const GPUTask& FilledTriangle(
@@ -2086,6 +2269,16 @@ namespace olc
 			const olc::Pixel c2,
 			const olc::Pixel c3,
 			const olc::Pixel tint = olc::Colour::WHITE);
+
+		// Draws a filled, multiple colour triangle into a batch
+		const FilledBatch& FilledTriangle(
+			olc::FilledBatch& batch,
+			const olc::vf2d& p1,
+			const olc::vf2d& p2,
+			const olc::vf2d& p3,
+			const olc::Pixel c1,
+			const olc::Pixel c2,
+			const olc::Pixel c3);
 
 		// Draws a textured triangle, with per vertex colouring
 		const GPUTask& TexturedTriangle(
@@ -2101,7 +2294,7 @@ namespace olc
 			olc::Image& texture,
 			const olc::Pixel tint = olc::Colour::WHITE);
 
-// === Polygons ===
+// === Polygon Outlines ===
 
 		// Draws a polygon outline with a single colour
 		const GPUTask& Polygon(
@@ -2109,11 +2302,25 @@ namespace olc
 			const olc::Pixel col = olc::Colour::WHITE,
 			const olc::Pixel tint = olc::Colour::WHITE);
 
+		// Draws a polygon outline with a single colour into a batch
+		const LineBatch& Polygon(
+			olc::LineBatch& batch,
+			const std::vector<olc::vf2d>& vecPoints,
+			const olc::Pixel col = olc::Colour::WHITE);
+
 		// Draws a polygon outline with multiple colours
 		const GPUTask& Polygon(
 			const std::vector<olc::vf2d>& vecPoints,
 			const std::vector<olc::Pixel>& vecColours,
 			const olc::Pixel tint = olc::Colour::WHITE);
+
+		// Draws a polygon outline with multiple colours into a batch
+		const LineBatch& Polygon(
+			olc::LineBatch& batch,
+			const std::vector<olc::vf2d>& vecPoints,
+			const std::vector<olc::Pixel>& vecColours);
+
+	// === Structured Polygons (Outlines & Fills) ===
 
 		// Draws a polygon outline with a single colour
 		const GPUTask& Polygon(
@@ -2268,21 +2475,21 @@ namespace olc
 		ImageBatch CreateImageBatch(olc::Image& image);
 
 		// Draws an image batch to the current target
-		const GPUTask& Batch(const olc::ImageBatch& batch);
+		const GPUTask& Batch(olc::ImageBatch& batch, const olc::Pixel tint = olc::Colour::WHITE);
 
 		// Create a filled shape batch for efficient repeated drawing 
 		// of primitive filled shapes
 		FilledBatch CreateFilledBatch();
 
 		// Draws a filled shape batch to the current target
-		const GPUTask& Batch(const olc::FilledBatch& batch);
+		const GPUTask& Batch(olc::FilledBatch& batch, const olc::Pixel tint = olc::Colour::WHITE);
 
 		// Create a line shape batch for efficient repeated drawing
 		// of primitive line shapes
 		LineBatch CreateLineBatch();
 
 		// Draws a line shape batch to the current target
-		const GPUTask& Batch(const olc::LineBatch& batch);
+		const GPUTask& Batch(olc::LineBatch& batch, const olc::Pixel tint = olc::Colour::WHITE);
 
 
 	public: // GPU Task Creator Functions (not normally called by user)
@@ -2495,6 +2702,22 @@ namespace olc
 			// Assign an image to a texture slot for subsequent GPU drawing tasks
 			bool SetShaderTexture(const uint32_t nSlot, olc::Image& image);
 
+		public:
+			struct sDrawMetrics
+			{
+				uint32_t nGPUTasks = 0;
+				uint32_t nGPUtoCPUTransfers = 0;
+				uint32_t nCPUtoGPUTransfers = 0;
+				uint32_t nShaderChanges = 0;
+			};
+
+			void ResetDrawMetrics();
+			sDrawMetrics GetDrawMetrics() const;
+
+		private:
+			sDrawMetrics drawMetrics;
+
+
 
 
 		protected:
@@ -2624,33 +2847,118 @@ namespace olc
 #define PGE_HW_MOUSE_DECLARED 1
 #endif
 
+#if !defined(PGE_HW_KEYBOARD_DECLARED)
+namespace olc
+{
+	// Forward declare for friendship
+	class Window;
+	class PGEWindow;
+
+	enum class KeyboardLayout : uint8_t
+	{
+		QWERTY_UK,
+		QWERTY_US,
+		QWERTZ,
+		AZERTY
+	};
+
+	// Officially recognised OLC key codes
+	enum class Key : uint8_t
+	{
+		NONE,
+		
+		// Alphanumeric keys
+		A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z,
+		
+		// Numeric keys
+		K0, K1, K2, K3, K4, K5, K6, K7, K8, K9,
+		
+		// Numpad keys
+		NP0, NP1, NP2, NP3, NP4, NP5, NP6, NP7, NP8, NP9,
+		NP_MUL, NP_DIV, NP_ADD, NP_SUB, NP_DECIMAL, PERIOD,
+		
+		// Function keys
+		F1, F2, F3, F4, F5, F6, F7, F8, F9, F10, F11, F12,
+		
+		// Arrow keys
+		UP, DOWN, LEFT, RIGHT,
+		
+		// Other keys
+		SPACE, TAB, SHIFT, CTRL, INS, DEL, HOME, END, PGUP, PGDN, CAPS_LOCK, 
+		BACK, ESCAPE, RETURN, ENTER, PAUSE, SCROLL,	EQUALS, COMMA, MINUS,
+		
+		// OEM specific keys
+		OEM_1, OEM_2, OEM_3, OEM_4, OEM_5, OEM_6, OEM_7, OEM_8,
+
+		// Special case for iteration limits
+		ENUM_END
+	};
+
+
+	namespace hw
+	{
+		class Keyboard
+		{
+			friend class olc::Window;
+			friend class olc::PGEWindow;
+
+		public:
+			Keyboard() = default;
+
+		public:
+			// Get the state of a specific key
+			const Button& GetKey(const olc::Key nOLCKeyCode) const;
+			// Get a list of keys that have been pressed/typed since last update
+			const std::vector<olc::Key>& GetKeyCache() const;
+			// Get printable glyph for a key based on current modifier state
+			const std::string GetKeyGlyph(const olc::Key key, const bool shift = false, const bool ctrl = false, const bool alt = false) const;
+			// Converts System keycode to olc::Key
+			olc::Key SystemKeyCodeToOLCKey(const int32_t nSystemKeyCode) const;
+			// Set keyboard layout for glyph mapping
+			void UseKeyboardLayout(const olc::KeyboardLayout kbl);
+
+		private:
+			// Set key state from system keycode
+			void SetKey(const olc::Key key, bool state);
+			// Update internal state, called once per frame
+			void UpdateState();
+
+		protected:
+			std::array<Button, 256> keys{};
+			std::array<bool, 256> keys_new{};
+			std::array<bool, 256> keys_old{};
+
+		private:
+			// We use two buffers to cache key presses so we can 
+			// read from one while writing to the other, we dont
+			// want to miss any key presses that are typed, or 
+			// autotyped by the OS repeat rate or peripheral
+			std::array<std::vector<olc::Key>, 2> keyCache{};
+			size_t nKeyCacheIndex = 0;
+
+			// Map of olc::Keycodes to printable glyphs
+			struct sKeyGlyph
+			{
+				std::string modNone;
+				std::string modShift;
+				std::string modCtrl;
+				std::string modAlt;
+			};
+			std::unordered_map<olc::Key, sKeyGlyph> mapKeyGlyphs;
+
+
+		};
+	}
+}
+#define PGE_HW_KEYBOARD_DECLARED 1
+#endif
+
 #if !defined(PGE_WINDOW_DECLARED)
-
-#if OLC_HOST == OLC_HOST_WINDOWS
-	#define FRIENDLY_HOST Host_Windows_WinAPI
-#endif
-
-#if OLC_HOST == OLC_HOST_MACOS
-    #define FRIENDLY_HOST Host_Apple_MacOS
-#endif
-
-#if OLC_HOST == OLC_HOST_LINUX_X11
-	#define FRIENDLY_HOST Host_Linux_X11
-#endif
-
-#if OLC_HOST == OLC_HOST_LINUX_WAYLAND
-	#define FRIENDLY_HOST Host_Linux_Wayland
-#endif
-
-#if OLC_HOST == OLC_HOST_EMSCRIPTEN
-	#define FRIENDLY_HOST Host_Web_Emscripten
-#endif
-
 namespace olc
 {
 	namespace host
 	{
-		class FRIENDLY_HOST;
+		class OLC_FRIENDLY_HOST;
 		class Host;
 	}
 
@@ -2667,11 +2975,12 @@ namespace olc
 	namespace hw
 	{
 		class Mouse;
+		class Keyboard;
 	}
 
 	class Window
 	{
-		friend class olc::host::FRIENDLY_HOST;
+		friend class olc::host::OLC_FRIENDLY_HOST;
 		
 
 	public:
@@ -2695,6 +3004,7 @@ namespace olc
 		virtual bool olc_OnWindowClose();
 
 		// Set Keyboard State
+		virtual bool olc_OnKeyPress(const olc::Key key, const bool bPressed);
 
 
 
@@ -2729,6 +3039,7 @@ namespace olc
 
 	protected:
 		olc::hw::Mouse mouse;
+		olc::hw::Keyboard keyboard;
 
 	};
 }
@@ -2767,13 +3078,15 @@ namespace olc
 			return uuid++;
 		}
 		#endif
-		#if OLC_HOST == OLC_HOST_EMSCRIPTEN
+		#if OLC_HOST == OLC_HOST_EMSCRIPTEN || OLC_HOST == OLC_HOST_ANDROID
 		inline size_t CreateUID()
 		{
 			return uuid++;
 		}		
 		#endif
 	}
+
+	class PixelGameEngine;
 
 	namespace host
 	{
@@ -2801,22 +3114,41 @@ namespace olc
 			// Check/Get last error
 			HostError GetLastError() const { return lastError; }
 
-		public: 
-			virtual bool StartSystemEventLoop(bool bBlockIfPossible = false) = 0;
-			virtual bool AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen) = 0;
+		public: // OS Window Handling
+			// Make OS Create a window frame, associated with olc::Window
+			virtual bool AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen) = 0;			
+			// Make OS Close a window frame, associated with olc::Window
 			virtual bool CloseWindowFrame(olc::Window* pWindow) = 0;
+			// Make OS Update a window frame title, associated with olc::Window
 			virtual bool UpdateWindowFrameTitle(olc::Window* pWindow) = 0;
-
+			// Get OS-specific window descriptor(s) for given olc::Window
 			virtual std::vector<void*> GetHostWindowDescriptor(olc::Window* pWindow) = 0;
-			
-			
-			virtual bool ConnectHostResourceToRenderer() = 0;
-
-			// Wait for entire host desktop refresh (for smooooth vsync)
+			// Wait for OS desktop refresh (for smooooth vsync)
 			virtual bool SyncWithDesktopComposite() = 0;
+
+		public: // OS Specific Environment Information
+			virtual olc::KeyboardLayout GetKeyboardLayout() const = 0;
+
+		public: // Platform Specific OS<->PGE Linkage
+			// Called at very start of application
+			virtual bool OnApplicationStart(olc::PixelGameEngine* pPrimary) = 0;
+			// Called to start the host - this may mean different things on different hosts
+			// It MUST block until system is requested to exit
+			virtual bool StartSystem() = 0;
+			// Called to stop the host, and shutdown all resources
+			virtual bool StopSystem() = 0;
+			// Called at start of system event loop
+			virtual bool OnSystemThreadStart() = 0;
+			// Called to perform primary window update
+			virtual bool OnSystemTick() = 0;
+			// Called at end of system event loop
+			virtual bool OnSystemThreadEnd() = 0;
+			// Called at very end of application
+			virtual bool OnApplicationEnd() = 0;
 
 		protected:
 			HostError lastError = HostError::None;
+			olc::PixelGameEngine* pPrimaryPGE = nullptr;
 		};
 	}
 }
@@ -2824,6 +3156,7 @@ namespace olc
 #endif
 
 #if !defined(PGE_CORE_DECLARED)
+
 namespace olc
 {
 	// A grouping of all settable PGE properties
@@ -2842,7 +3175,7 @@ namespace olc
 		// Allow the window to be resized by user
 		bool bResizeable = true;
 		// Synchronise rendering with monitor
-		bool bVSync = false;
+		bool bVSync = OLC_DEFAULT_VSYNC;
 		// Behave like a host window, resizing the screen in response to window resize
 		bool bRealWindow = false;
 		// Ensure aspect ratio of "screen" is mainatined regardless of window size
@@ -2853,6 +3186,8 @@ namespace olc
 		bool bAllowChildWindows = true;
 		// Creates a "DefaultImage" with anti-aliased properties
 		bool bAntiAliasMainScreen = false;
+		// Default clear colour for the primary drawing surface
+		olc::Pixel colClear = olc::Colour::BLACK;
 	};
 
 	// A PGE Window is a window with drawing and input capabilities a la olc::PixelGameEngine
@@ -2895,7 +3230,10 @@ namespace olc
 
 		// Input devices are handled by a regular olc::Window, but for convenience...
 		olc::hw::Mouse& GetMouse();
+		olc::hw::Keyboard& GetKeyboard();
 		
+		// Returns the current size of the "screen" in pixels
+		const olc::vi2d& ScreenSize();
 
 	protected:
 		bool olc_OnMouseMove(const olc::vi2d& vMousePos) override;
@@ -2911,11 +3249,20 @@ namespace olc
 		olc::Image imgPrimary;
 		olc::gpu::Renderer* pRenderer = nullptr;
 		olc::imload::ImageLoader* pImageLoader = nullptr;
+		olc::vi2d vViewPos = { 0,0 };
+		olc::vi2d vViewSize = { 0,0 };
+
+	protected:
+		// PGE Configuration
+		PGEConfig config;
 	};
 
 	// The olc::PixelGameEngine3 core, manages the main window, child windows, engine loop, timing and devices
 	class PixelGameEngine : public PGEWindow
 	{
+		// Host needs access to private methods
+		friend class olc::host::OLC_FRIENDLY_HOST;
+
 	public:
 		PixelGameEngine();
 		virtual ~PixelGameEngine();
@@ -2936,12 +3283,23 @@ namespace olc
 	public:
 		float FrameTimeElapsed() const;
 		double TotalTimeElapsed() const;
+		size_t GetFPS() const;
 
 	public: // Child Windows
 		bool AddChildWindow(std::shared_ptr<olc::PGEWindow> window, const olc::vi2d& vScreenSize, const olc::vi2d& vPixelSize);
 	
-	public: // Core Update
-		static void CoreUpdate(void* userdata);
+
+	private: // Called from Host
+		// Called before any context threads start
+		bool OnPreContextStart();
+		// Called after context thread started, before anything else
+		bool OnContextStart();
+		// Called once per tick on context thread
+		bool OnContextTick();
+		// Called at end of context thread, after everything else
+		bool OnContextEnd();
+		// Called after all context threads ended
+		bool OnPostContextEnd();
 		
 	private:
 		// Window Management
@@ -2954,20 +3312,14 @@ namespace olc
 		std::chrono::duration<float> durationFrameCount{ 0 };
 		std::chrono::duration<double> durationTotalElapsed{ 0 };
 		size_t frameCount = 0;
-
-		// PGE Configuration
-		PGEConfig config;
-
-		// Core Thread
-		std::thread coreThread;
-		std::atomic<bool> coreActive;
-		void EngineThread();
+		size_t fps = 0;
 
 		// These interfaces are created dynamically by the PGE core
 		// after the environment is understood (or specified by config)
 		std::unique_ptr<olc::gpu::Renderer> gpu;
 		std::unique_ptr<olc::host::Host> host;
 		std::unique_ptr<olc::imload::ImageLoader> imageloader;
+
 	};
 }
 #define PGE_CORE_DECLARED 1
@@ -3021,39 +3373,60 @@ namespace olc
 {
 	namespace host
 	{
-
-
-
+		// Host for Windows OS - Single Window Only!
 		class Host_Windows_WinAPI : public olc::host::Host
 		{
 			
 
 		public:
-			Host_Windows_WinAPI() = default;
+			Host_Windows_WinAPI();
 			virtual ~Host_Windows_WinAPI() {};
 
 
+		public: // OS Window Handling
+			// Make OS Create a window frame, associated with olc::Window
+			bool AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen) override;
+			// Make OS Close a window frame, associated with olc::Window
+			bool CloseWindowFrame(olc::Window* pWindow) override;
+			// Make OS Update a window frame title, associated with olc::Window
+			bool UpdateWindowFrameTitle(olc::Window* pWindow) override;
+			// Get OS-specific window descriptor(s) for given olc::Window
+			std::vector<void*> GetHostWindowDescriptor(olc::Window* pWindow) override;
+			// Wait for OS desktop refresh (for smooooth vsync)
+			bool SyncWithDesktopComposite() override;
+
+		public: // OS Specific Environment Information
+			olc::KeyboardLayout GetKeyboardLayout() const override;
+
 		public:
-			bool StartSystemEventLoop(bool bBlockIfPossible = false);
-			bool AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen);			
-			bool CloseWindowFrame(olc::Window* pWindow);
-			bool UpdateWindowFrameTitle(olc::Window* pWindow);
-			
-			std::vector<void*> GetHostWindowDescriptor(olc::Window* pWindow);
-			bool ConnectHostResourceToRenderer();
+			// Called at very start of application
+			bool OnApplicationStart(olc::PixelGameEngine* pPrimary) override;
+			// Called to start the host - this may mean different things on different hosts
+			bool StartSystem() override;
+			// Called to stop the host, and shutdown all resources
+			bool StopSystem() override;
+			// Called at start of system event loop
+			bool OnSystemThreadStart() override;
+			// Called to perform primary window update
+			bool OnSystemTick() override;
+			// Called at end of system event loop
+			bool OnSystemThreadEnd() override;
+			// Called at very end of application
+			bool OnApplicationEnd() override;
 
 
-			// Wait for entire host desktop refresh (for smooooth vsync)
-			bool SyncWithDesktopComposite();
 
-			LRESULT OnWindowEvent(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
-
-			std::string test;
-
-		private:
+		private: // Windows OS Specific Things
 			std::unordered_map<size_t, HWND> mapUID2HWND;
 			std::unordered_map<HWND, olc::Window*> mapHWND2PTR;
 			std::wstring ConvertS2W(std::string s);
+			std::atomic<bool> systemActive = false;
+
+		public:
+			LRESULT OnWindowEvent(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
+
+			// Map of system keycodes to olc::Keycodes
+			std::unordered_map<int32_t, olc::Key> mapKeys;
 
 		};
 	}
@@ -3070,7 +3443,6 @@ namespace olc
 
 extern "C" {
     // NSRect (OSX rectangle structure same as GCRect C structure)
-    // NSRect structure for window and view frames
     struct NSRect {
         double x{0.0}, y{0.0};
         double width{800.0}, height{600.0};
@@ -3095,6 +3467,7 @@ extern "C" {
     void application_activate            (struct Application* self);
     void application_run                 (struct Application* self);
     void application_destroy             (struct Application* self);
+    const char* application_getSystemLocale (struct Application* self);
     
     // Window API - as implemented in api_macos.c
     struct Window* window_init           (double x, double y, double width, double height);
@@ -3113,16 +3486,15 @@ extern "C" {
     void window_getContentViewFrame      (const struct Window* self, double* x, double* y, double* width, double* height);
     void window_setContentViewFrame      (struct Window* self, double* x, double* y, double* width, double* height);
     
-
     // OpenGL Renderer API - as implemented in api_macos.c
     struct OpenGLRenderer* opengl_init    (void);
     void opengl_initialize                (struct OpenGLRenderer* self, struct Window* window);
     void opengl_setupContext              (struct OpenGLRenderer* self);
-    void* opengl_getOpenGLContext         (const struct OpenGLRenderer* self);  // Returns id, cast to void*
-    void* opengl_getCGLContextObj         (struct OpenGLRenderer* self);        // Returns CGLContextObj, cast to void*
-    void* opengl_getCGLContextObjPtr      (struct OpenGLRenderer* self);        // Returns CGLContextObj as void*
-    void opengl_makeCurrentContext        (struct OpenGLRenderer* self);        // Make OpenGL context current
-    void opengl_setVsync                  (struct OpenGLRenderer* self, BOOL enabled); // Enable/disable vsync
+    void* opengl_getOpenGLContext         (const struct OpenGLRenderer* self);          // Returns id, cast to void*
+    void* opengl_getCGLContextObj         (struct OpenGLRenderer* self);                // Returns CGLContextObj, cast to void*
+    void* opengl_getCGLContextObjPtr      (struct OpenGLRenderer* self);                // Returns CGLContextObj as void*
+    void opengl_makeCurrentContext        (struct OpenGLRenderer* self);                // Make OpenGL context current
+    void opengl_setVsync                  (struct OpenGLRenderer* self, BOOL enabled);  // Enable/disable vsync
     void opengl_destroy                   (struct OpenGLRenderer* self);
     bool opengl_resetContextForSize       (struct OpenGLRenderer* self, double width, double height);
 
@@ -3135,7 +3507,6 @@ extern "C" {
     void imageloader_getDetailedInfo            (const struct ImageLoader* self, int* width, int* height, int* bytesPerPixel, int* bytesPerRow, BOOL* hasAlpha);
     BOOL imageloader_isLoaded                   (const struct ImageLoader* self);
     BOOL imageloader_getPixel                   (const struct ImageLoader* self, int x, int y, unsigned char* red, unsigned char* green, unsigned char* blue, unsigned char* alpha);
-    unsigned int imageloader_createOpenGLTexture(const struct ImageLoader* self);
     
     // Autorelease pool management
     void* objc_autoreleasePoolPush  (void);
@@ -3144,14 +3515,9 @@ extern "C" {
     // OpenGL functions we might need
     void glDeleteTextures(int n, const unsigned int* textures);
     
-    // ===========================================================================
-    // EVENT HANDLING API
-    // ===========================================================================
-    
     // Event callback function types
-    typedef void (*KeyEventCallback)        (unsigned short keyCode, const char* characters, void* userData);
+    typedef void (*KeyEventCallback)        (unsigned short keyCode, const char* characters, unsigned int modifierFlags, void* userData);
     typedef void (*MouseEventCallback)      (double x, double y, int buttonNumber, unsigned int modifierFlags, void* userData);
-    //typedef void (*MouseMoveEventCallback)  (double x, double y, unsigned int modifierFlags, void* userData);
     
     // Event handler setup
     void window_setKeyDownCallback          (struct Window* self, KeyEventCallback callback, void* userData);
@@ -3172,10 +3538,6 @@ extern "C" {
     void window_enableEventHandling     (struct Window* self);
     void window_disableEventHandling    (struct Window* self);
     
-    // ===========================================================================
-    // APPLICATION DELEGATE EVENT HANDLING API
-    // ===========================================================================
-    
     // Application delegate callback function type
     typedef void (*ApplicationDelegateCallback)(void* userData);
     
@@ -3185,10 +3547,6 @@ extern "C" {
     void application_setWillTerminateCallback       (struct Application* self, ApplicationDelegateCallback callback, void* userData);
     void application_setDidBecomeActiveCallback     (struct Application* self, ApplicationDelegateCallback callback, void* userData);
     void application_setWillResignActiveCallback    (struct Application* self, ApplicationDelegateCallback callback, void* userData);
-
-    // ===========================================================================
-    // WINDOW DELEGATE EVENT HANDLING API
-    // ===========================================================================
     
     // Window delegate callback function type
     typedef void (*WindowDelegateCallback)(void* userData);
@@ -3228,57 +3586,6 @@ namespace olc {
                 AutoreleasePool& operator=(AutoreleasePool&&) = delete;
             };
             
-            // RAII wrapper for OpenGL texture management
-            class OpenGLTexture {
-            private:
-                unsigned int textureID_;
-                
-            public:
-                explicit constexpr OpenGLTexture(unsigned int id = 0) noexcept : textureID_(id) {}
-                
-                ~OpenGLTexture() noexcept {
-                    if (textureID_ != 0) {
-                        glDeleteTextures(1, &textureID_);
-                    }
-                }
-                
-                constexpr unsigned int get() const noexcept { return textureID_; }
-                constexpr bool isValid() const noexcept { return textureID_ != 0; }
-                
-                // Release ownership
-                unsigned int release() noexcept {
-                    unsigned int id = textureID_;
-                    textureID_ = 0;
-                    return id;
-                }
-                
-                // Reset with new texture ID
-                void reset(unsigned int id = 0) noexcept {
-                    if (textureID_ != 0) {
-                        glDeleteTextures(1, &textureID_);
-                    }
-                    textureID_ = id;
-                }
-                
-                // Move semantics
-                OpenGLTexture(OpenGLTexture&& other) noexcept : textureID_(other.textureID_) {
-                    other.textureID_ = 0;
-                }
-                
-                OpenGLTexture& operator=(OpenGLTexture&& other) noexcept {
-                    if (this != &other) {
-                        reset();
-                        textureID_ = other.textureID_;
-                        other.textureID_ = 0;
-                    }
-                    return *this;
-                }
-                
-                // Non-copyable
-                OpenGLTexture(const OpenGLTexture&) = delete;
-                OpenGLTexture& operator=(const OpenGLTexture&) = delete;
-            };
-
             // Exception class for framework errors
             class FrameworkException : public std::runtime_error {
             public:
@@ -3334,11 +3641,16 @@ namespace olc {
                 void run() noexcept {
                     if (app_) application_run(app_);
                 }
+
+                // Add this method to get system locale
+                std::string getSystemLocale() const {
+                    const char* localeC = application_getSystemLocale(app_);
+                    return localeC ? std::string(localeC) : std::string("en_GB");
+                }
                 
                 // Get underlying C handle
                 struct ::Application* getCHandle() const noexcept { return app_; }
-                
-                        
+                              
                 // Set callback for application will finish launching event
                 void setWillFinishLaunchingCallback(std::function<void()> callback) {
                     setCallback(application_setWillFinishLaunchingCallback, std::move(callback));
@@ -3426,7 +3738,6 @@ namespace olc {
                     if (!window_) {
                         throw FrameworkException("Failed to create window");
                     }
-                   
                 }
                 
                 ~Window() {
@@ -3474,20 +3785,21 @@ namespace olc {
                     return NSRect{0, 0, 0, 0};
                 }
 
+                // Set the window frame size
                 void setFrameSize(int32_t width, int32_t height) noexcept {
                     setFrameSize(static_cast<double>(width), static_cast<double>(height));
                 }
+
                 void setFrameSize(float width, float height) noexcept {
                     setFrameSize(static_cast<double>(width), static_cast<double>(height));
                 }
-                // Set the window frame size
+
                 void setFrameSize(double width, double height) noexcept {
                     if (window_) {
                         double x = 0.0, y = 0.0;
                         window_getWindowFrame(window_, &x, &y, nullptr, nullptr);
                         window_setWindowFrame(window_, x, y, width, height);
                     }
-
                 }
 
                 void getFrameSize(int32_t& width, int32_t& height) const noexcept {
@@ -3512,13 +3824,15 @@ namespace olc {
                     }
                 }
 
+                // Set the window position
                 void setPosition(int32_t x, int32_t y) noexcept {
                     setPosition(static_cast<double>(x), static_cast<double>(y));
                 }
+
                 void setPosition(float x, float y) noexcept {
                     setPosition(static_cast<double>(x), static_cast<double>(y));
                 }
-                // Set the window position
+
                 void setPosition(double x, double y) noexcept {
                     if (window_) {
                         window_setWindowPosition(window_, x, y);
@@ -3533,6 +3847,7 @@ namespace olc {
                     }
                 }
 
+                // Set the window size
                 void setWindowSize(int32_t width, int32_t height) noexcept {
                     setWindowSize(static_cast<double>(width), static_cast<double>(height));
                 }
@@ -3540,7 +3855,7 @@ namespace olc {
                 void setWindowSize(float width, float height) noexcept {
                     setWindowSize(static_cast<double>(width), static_cast<double>(height));
                 }
-                // Set the window size
+                
                 void setWindowSize(double width, double height) noexcept {
                     if (window_) {
                         window_setWindowSize(window_, width, height);
@@ -3569,7 +3884,6 @@ namespace olc {
                         width = height = 0.0;
                     }
                 }
-
 
                 // Context view frame getters and setters
                 void setContentViewPosition(int32_t x, int32_t y) noexcept {
@@ -3646,8 +3960,6 @@ namespace olc {
                     }
                 }
 
-               
-
                 // Set callback for window resize events
                 void setWindowDidResizeCallback(std::function<void()> callback) {
                     setCallback(window_setWindowDidResizeCallback, std::move(callback));
@@ -3716,7 +4028,6 @@ namespace olc {
                 ~OpenGLRenderer() {
                     if (renderer_) {
                         opengl_destroy(renderer_);
-                        // Note: opengl_destroy already calls free() on the renderer
                     }
                 }
                 
@@ -3833,22 +4144,7 @@ namespace olc {
                 bool isLoaded() const noexcept {
                     return loaded_ && loader_ && imageloader_isLoaded(loader_);
                 }
-                
-                OpenGLTexture createOpenGLTexture() const noexcept {
-                    if (loader_ && loaded_) {
-                        return OpenGLTexture(imageloader_createOpenGLTexture(loader_));
-                    }
-                    return OpenGLTexture{};
-                }
-                
-                // Legacy method for backwards compatibility
-                unsigned int createOpenGLTextureID() const noexcept {
-                    if (loader_ && loaded_) {
-                        return imageloader_createOpenGLTexture(loader_);
-                    }
-                    return 0;
-                }
-                
+
                 void getImageInfo(int& width, int& height, int& bytesPerPixel) const noexcept {
                     if (loader_ && loaded_) {
                         imageloader_getImageInfo(loader_, &width, &height, &bytesPerPixel);
@@ -3884,15 +4180,15 @@ namespace olc {
                 }
             };
             
-            
             // Keyboard event data structure
             struct KeyEvent {
                 unsigned short keyCode;
                 std::string characters;
-                
-                KeyEvent(unsigned short code, const char* chars) noexcept
-                    : keyCode(code), characters(chars ? chars : "") {}
-                
+                unsigned int modifierFlags;
+
+                KeyEvent(unsigned short code, const char* chars, unsigned int mods) noexcept
+                    : keyCode(code), characters(chars ? chars : ""), modifierFlags(mods) {}
+
                 // Move constructor and assignment for better performance
                 KeyEvent(KeyEvent&&) noexcept = default;
                 KeyEvent& operator=(KeyEvent&&) noexcept = default;
@@ -3946,10 +4242,10 @@ namespace olc {
                
                 // Template helpers for static callbacks to reduce code duplication
                 template<typename EventType, typename HandlerType>
-                static void keyCallback(unsigned short keyCode, const char* characters, void* userData, HandlerType EventHandler::*handler) {
+                static void keyCallback(unsigned short keyCode, const char* characters, unsigned int modifierFlags, void* userData, HandlerType EventHandler::*handler) {
                     auto* eventHandler = static_cast<EventHandler*>(userData);
                     if (eventHandler && (eventHandler->*handler)) {
-                        (eventHandler->*handler)(KeyEvent(keyCode, characters));
+                        (eventHandler->*handler)(KeyEvent(keyCode, characters, modifierFlags));
                     }
                 }
                 
@@ -3962,12 +4258,12 @@ namespace olc {
                 }
                 
                 // Static callback functions for C API
-                static void keyDownCallback(unsigned short keyCode, const char* characters, void* userData) {
-                    keyCallback<KeyEvent>(keyCode, characters, userData, &EventHandler::keyDownHandler_);
+                static void keyDownCallback(unsigned short keyCode, const char* characters, unsigned int modifierFlags, void* userData) {
+                    keyCallback<KeyEvent>(keyCode, characters, modifierFlags, userData, &EventHandler::keyDownHandler_);
                 }
-                
-                static void keyUpCallback(unsigned short keyCode, const char* characters, void* userData) {
-                    keyCallback<KeyEvent>(keyCode, characters, userData, &EventHandler::keyUpHandler_);
+
+                static void keyUpCallback(unsigned short keyCode, const char* characters, unsigned int modifierFlags, void* userData) {
+                    keyCallback<KeyEvent>(keyCode, characters, modifierFlags, userData, &EventHandler::keyUpHandler_);
                 }
                 
                 static void mouseDownCallback(double x, double y, int buttonNumber, unsigned int modifierFlags, void* userData) {
@@ -4125,8 +4421,6 @@ namespace olc {
                 EventHandler& operator=(EventHandler&&) = delete;
             };
             
-            
-    
         } // namespace macos
     } // namespace apis
 } // namespace olc
@@ -4140,23 +4434,18 @@ namespace olc
 {
     namespace host
     {
-        
         // Manages our MacOS Host
         class Host_Apple_MacOS : public olc::host::Host
         {
         public:
-            
             olc::Window* pPGEwindow = nullptr;                  // Pointer to PGE Window
-            //GLint glSwapInterval = 0;                         // VSync disbaled by default
             
         public:
-            Host_Apple_MacOS() = default;
+            Host_Apple_MacOS();
             virtual ~Host_Apple_MacOS() {};
             
         public:
-            // Check/Get last error
             HostError GetLastError() const { return lastError; }
-
 
         public:
             virtual bool StartSystemEventLoop(bool bBlockIfPossible = false) override;
@@ -4166,17 +4455,17 @@ namespace olc
 
 			virtual std::vector<void*> GetHostWindowDescriptor(olc::Window* pWindow) override;
 			
-			
 			virtual bool ConnectHostResourceToRenderer() override;
 
 			// Wait for entire host desktop refresh (for smooooth vsync),
 			virtual bool SyncWithDesktopComposite() override;
 
+            virtual olc::KeyboardLayout GetKeyboardLayout() const override;
+
         protected:
 			HostError lastError = HostError::None;
 
         public:
-          
             // MacOS Application and Window pointers
             std::unique_ptr<olc::apis::macos::Application> pMacApplication = nullptr;
             std::unique_ptr<olc::apis::macos::Window> pMacOSWindow = nullptr;
@@ -4185,10 +4474,11 @@ namespace olc
 
             void* pMacGLConextObj = nullptr;
             std::once_flag intialAppFlag;
-    
             
-        private:
-                       
+            // Map of system keycodes to olc::Keycodes
+            std::unordered_map<int32_t, olc::Key> mapKeys;
+    
+        private:      
             enum MAINTASKS{
                 NONE,
                 CREATE_OPENGL_RENDERER,
@@ -4208,7 +4498,7 @@ namespace olc
             
             std::vector<void*> vMacOSWindowDescriptors; // Vector to hold window descriptors
             bool enableVSync = false;                   // VSync enabled flag
-            bool bSkipFrame = false;                     // Flag to indicate if frame should be skipped 
+            bool bSkipFrame = false;                    // Flag to indicate if frame should be skipped 
 
             // Thread synchronization for PGE Thread V Main thread
             mutable std::mutex      mainThreadPendingTasksMutex;    // Mutex for main thread pending tasks
@@ -4227,11 +4517,16 @@ namespace olc
                 double height = 600.0;
             } frameBounds;
 
-             // TODO: Should these be private?
             void MacApplicationEventsHandler();
             void MacWindowEventsHandler();
             void MacEventsHandler();
             void MacOpenGLContextEventsHandler();
+            
+
+            // When modifier flag changes the keycode it will return true, else false
+            bool ModifiersFlagsHandler(const olc::apis::macos::KeyEvent& data, bool pressed);
+            
+            bool bNumLockActive = true; // Num Lock state, we assume it's active at start
             
         };
     }
@@ -4246,6 +4541,7 @@ namespace X11
 {
 #include <X11/X.h>
 #include <X11/Xlib.h>
+#include <X11/XKBlib.h>
 #include <GL/glx.h>
 }
 
@@ -4256,28 +4552,45 @@ namespace olc::host
 	private:
 		X11::Display* olc_Display = nullptr;
 		X11::Window					 olc_WindowRoot;
-		//X11::Window					 olc_Window;
 		X11::XVisualInfo* olc_VisualInfo;
 		X11::Colormap                olc_ColourMap;
 		X11::XSetWindowAttributes    olc_SetWindowAttribs;
     public:
         Host_Linux_X11();
-        bool StartSystemEventLoop(bool bBlockIfPossible = false) override;
+
         bool AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen) override;
         bool CloseWindowFrame(olc::Window* pWindow) override;
         bool UpdateWindowFrameTitle(olc::Window* pWindow) override;
 
         std::vector<void*> GetHostWindowDescriptor(olc::Window* pWindow) override;
-        
-        
-        bool ConnectHostResourceToRenderer() override;
+
+        olc::KeyboardLayout GetKeyboardLayout() const override;
+        void UpdateKeyboardLayout();
 
         // Wait for entire host desktop refresh (for smooooth vsync)
         bool SyncWithDesktopComposite() override;
+
+    public:
+        bool OnApplicationStart(olc::PixelGameEngine* pPrimary) override;
+        bool StartSystem() override;
+        bool StopSystem() override;
+        bool OnSystemThreadStart() override;
+        bool OnSystemTick() override;
+        bool OnSystemThreadEnd() override;
+        bool OnApplicationEnd() override;
+    
     private:
         std::unordered_map<size_t, X11::Window> mapUID2X11Window;
         std::unordered_map<X11::Window, olc::Window*> mapX11Window2PTR;
-        std::atomic<bool> terminate {false};
+        std::atomic<bool> systemActive {true};
+
+        std::unordered_map<uint32_t, olc::Key> mapKeys;
+
+        // Keyboard Layout Variables
+        olc::KeyboardLayout keyboardLayout = OLC_DEFAULT_KEYBOARD_LAYOUT;
+        bool kbExtensionsFound = false;
+        int xkbEventBase = 0;
+        int xkbErrorBase = 0;
     };
 }
 
@@ -4290,6 +4603,10 @@ namespace olc::host
 #include "xdg-shell.h"
 #include "xdg-decoration.h"
 #include <linux/input-event-codes.h>
+#include <xkbcommon/xkbcommon.h>
+#include <sys/mman.h>
+#include <unistd.h>
+#include <cstring>
 
 #include <EGL/egl.h>
 #include <EGL/eglplatform.h>
@@ -4348,6 +4665,11 @@ namespace olc::host
         wl_compositor* compositor{nullptr};
         wl_seat* seat{nullptr};
         wl_pointer* pointer{nullptr};
+        wl_keyboard* keyboard{nullptr};
+        xkb_context* kb_context{nullptr};
+        xkb_state* kb_state{nullptr};
+        xkb_keymap* kb_keymap;
+        uint32_t kb_group{0};
         xdg_wm_base* xdg_wm{nullptr};
         zxdg_decoration_manager_v1* decoration_manager{nullptr};
 
@@ -4359,19 +4681,27 @@ namespace olc::host
         Host_Linux_Wayland();
         ~Host_Linux_Wayland();
 
-        bool StartSystemEventLoop(bool bBlockIfPossible = false) override;
         bool AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen) override;
         bool CloseWindowFrame(olc::Window* pWindow) override;
         bool UpdateWindowFrameTitle(olc::Window* pWindow) override;
 
         std::vector<void*> GetHostWindowDescriptor(olc::Window* pWindow) override;
-        
-        
-        bool ConnectHostResourceToRenderer() override;
+
+        olc::KeyboardLayout GetKeyboardLayout() const override;
+        void UpdateKeyboardLayout();
 
         // Wait for entire host desktop refresh (for smooooth vsync)
         bool SyncWithDesktopComposite() override;
 
+    public:
+        bool OnApplicationStart(olc::PixelGameEngine* pPrimary) override;
+        bool StartSystem() override;
+        bool StopSystem() override;
+        bool OnSystemThreadStart() override;
+        bool OnSystemTick() override;
+        bool OnSystemThreadEnd() override;
+        bool OnApplicationEnd() override;
+    
         // Various callbacks from the wayland protocol
         static void registry_handle_global_callback(void* data, wl_registry* registry, uint32_t name, const char* interface, uint32_t version);
         static void registry_handle_global_remove_callback(void* data, wl_registry* registry, uint32_t name);
@@ -4391,6 +4721,14 @@ namespace olc::host
         static void pointer_axis_discrete_callback(void* data, wl_pointer* pointer, uint32_t axis, int32_t discrete);
         static void pointer_axis_value120_callback(void* data, wl_pointer* pointer, uint32_t axis, int32_t value120);
         static void pointer_axis_relative_direction_callback(void* data, wl_pointer* pointer, uint32_t axis, uint32_t direction);
+
+        // Keyboard callbacks
+        static void keyboard_keymap_callback(void* data, wl_keyboard* keyboard, uint32_t format, int fd, uint32_t size);
+        static void keyboard_enter_callback(void* data, wl_keyboard* keyboard, uint32_t serial, wl_surface* surface, wl_array* keys);
+        static void keyboard_leave_callback(void* data, wl_keyboard* keyboard, uint32_t serial, wl_surface* surface);
+        static void keyboard_key_callback(void* data, wl_keyboard* keyboard, uint32_t serial, uint32_t time, uint32_t key, uint32_t state);
+        static void keyboard_modifiers_callback(void* data, wl_keyboard* keyboard, uint32_t serial, uint32_t mods_depressed, uint32_t mods_latched, uint32_t mods_locked, uint32_t group);
+        static void keyboard_repeat_info_callback(void* data, wl_keyboard* keyboard, int32_t rate, int32_t delay);
 
         // xdg callbacks
         static void xdg_wm_ping_callback(void* data, xdg_wm_base* wm, uint32_t serial);
@@ -4419,6 +4757,13 @@ namespace olc::host
         void pointer_axis_value120(wl_pointer* pointer, uint32_t axis, int32_t value120);
         void pointer_axis_relative_direction(wl_pointer* pointer, uint32_t axis, uint32_t direction);
 
+        // Keyboard Callback Functions
+        void keyboard_keymap(wl_keyboard* keyboard, uint32_t format, int fd, uint32_t size);
+        void keyboard_enter(wl_keyboard* keyboard, uint32_t serial, wl_surface* surface, wl_array* keys);
+        void keyboard_leave(wl_keyboard* keyboard, uint32_t serial, wl_surface* surface);
+        void keyboard_key(wl_keyboard* keyboard, uint32_t serial, uint32_t time, uint32_t key, uint32_t state);
+        void keyboard_modifiers(wl_keyboard* keyboard, uint32_t serial, uint32_t mods_depressed, uint32_t mods_latched, uint32_t mods_locked, uint32_t group);
+
         // XDG toplevel callback functions
         void xdg_toplevel_configure(xdg_toplevel* toplevel, int32_t width, int32_t height, wl_array* states);
         void xdg_toplevel_close(xdg_toplevel* toplevel);
@@ -4428,7 +4773,9 @@ namespace olc::host
 
         std::unordered_map<size_t, WaylandWindow> mapUID2Window;
         std::unordered_map<size_t, olc::Window*> mapUID2OlcWindow;
-        std::atomic<bool> terminate {false};
+        std::atomic<bool> systemActive {true};
+        std::unordered_map<uint32_t, olc::Key> mapKeys;
+        olc::KeyboardLayout keyboardLayout{OLC_DEFAULT_KEYBOARD_LAYOUT};
     };
 }
 
@@ -4444,21 +4791,36 @@ namespace olc::host
 {
     class Host_Web_Emscripten : public olc::host::Host
     {
-	private:
-        std::string canvasId;
     public:
         Host_Web_Emscripten();
-        bool StartSystemEventLoop(bool bBlockIfPossible = false) override;
         bool AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen) override;
         bool CloseWindowFrame(olc::Window* pWindow) override;
         bool UpdateWindowFrameTitle(olc::Window* pWindow) override;
 
         std::vector<void*> GetHostWindowDescriptor(olc::Window* pWindow) override;
         
-        bool ConnectHostResourceToRenderer() override;
-
         // Wait for entire host desktop refresh (for smooooth vsync)
         bool SyncWithDesktopComposite() override;
+        olc::KeyboardLayout GetKeyboardLayout() const override;
+    
+    public:
+        // Called at very start of application
+        bool OnApplicationStart(olc::PixelGameEngine* pPrimary) override;
+        // Called to start the host - this may mean different things on different hosts
+        bool StartSystem() override;
+        // Called to stop the host, and shutdown all resources
+        bool StopSystem() override;
+        // Called at start of system event loop
+        bool OnSystemThreadStart() override;
+        // Called to perform primary window update
+        bool OnSystemTick() override;
+        // Called at end of system event loop
+        bool OnSystemThreadEnd() override;
+        // Called at very end of application
+        bool OnApplicationEnd() override;
+        
+        static void MainLoop(void* userData);
+
     public: // event callbacks
         static EM_BOOL keyboard_callback(int eventType, const EmscriptenKeyboardEvent* e, void* userData);
         static EM_BOOL wheel_callback(int eventType, const EmscriptenWheelEvent* e, void* userData);
@@ -4475,22 +4837,257 @@ namespace olc::host
 		static bool olc_OnMouseWheel(olc::Window* pWindow, const int32_t nScroll);
 		static bool olc_OnMouseFocus(olc::Window* pWindow, const bool bHasFocus);
 		
+        // Set Keyboard Device State
+        static bool olc_OnKeyPress(olc::Window* pWindow, const olc::Key key, const bool bPressed);
+
 		// Set Window State
 		static bool olc_OnWindowPosition(olc::Window* pWindow, const olc::vi2d& vWindowPos);
 		static bool olc_OnWindowSize(olc::Window* pWindow, const olc::vi2d& vWindowSize);
 		static bool olc_OnWindowClose(olc::Window* pWindow);
+    
     private: // helpers
         static olc::Window* GetWindowFromCanvasId(std::string canvasId);
         
+    public: // Callback data type
+        struct CallbackData {
+            Host_Web_Emscripten* pHost;
+            olc::Window* pWindow;
+            std::string canvasId;
+        };
+
     private:
         static std::unordered_map<size_t, std::string> mapUID2CanvasId;
+        static std::unordered_map<size_t, std::unique_ptr<CallbackData>> mapUID2CallbackData;
         static std::unordered_map<std::string, olc::Window*> mapCanvasId2PTR;
-        std::atomic<bool> terminate {false};
+        
+        // Map of system keycodes to olc::Keycodes
+        std::unordered_map<int32_t, olc::Key> mapKeys;
     };
     
     
 }
 
+#endif
+
+#if OLC_HOST == OLC_HOST_ANDROID
+
+#include <android_native_app_glue.h>
+#include <android/log.h>
+#include <jni.h>
+
+// We allow users to create a normal main function for android apps
+extern int main(int argc, char** argv);
+
+namespace olc::host
+{
+    using AndroidApp = struct android_app;
+    class Host_Android : public olc::host::Host
+    {
+    public:
+        Host_Android();
+        bool StartSystemEventLoop(bool bBlockIfPossible) override;
+        bool AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen) override;
+        bool CloseWindowFrame(olc::Window* pWindow) override;
+        bool UpdateWindowFrameTitle(olc::Window* pWindow) override;
+
+        std::vector<void*> GetHostWindowDescriptor(olc::Window* pWindow) override;
+
+        bool ConnectHostResourceToRenderer() override;
+
+        // Wait for entire host desktop refresh (for smooooth vsync)
+        bool SyncWithDesktopComposite() override;
+
+        olc::KeyboardLayout GetKeyboardLayout() const override;
+
+        void OnAppCmd(AndroidApp* app, int32_t cmd);
+        int32_t OnInputEvent(AndroidApp* app, AInputEvent* event);
+
+        bool IsInitialized() const { return initialized.load(); }
+
+        void ShowKeyboard(bool bShow);
+
+        // TODO: file loading support (temporaru)
+        std::vector<uint8_t> OpenFile(const std::string& sFileName);
+        std::string OpenTextFile(const std::string& sFileName);
+
+        static AndroidApp* androidApp;
+    protected:
+        olc::Window* pgeWindow = nullptr;
+        std::atomic<bool> initialized{false};
+        bool shiftOn = false;
+    };
+
+    class JNI
+    {
+    public:
+        static void Init(AndroidApp* app);
+        static void Detach();
+
+        static JNIEnv* GetEnv();
+
+    private:
+        static JavaVM* jvm;
+    };
+
+    class JNIObject
+    {
+    public:
+        JNIObject() = default;
+        JNIObject(jobject obj);
+
+        ~JNIObject();
+
+        JNIObject(const JNIObject&) = delete;
+        JNIObject& operator=(const JNIObject&) = delete;
+
+        JNIObject(JNIObject&& other) noexcept;
+
+        JNIObject& operator=(JNIObject&& other) noexcept;
+
+        jobject Get() const { return obj; }
+        jobject operator *() const { return obj; }
+        operator bool() const { return obj != nullptr; }
+
+        template <typename R, typename... Args>
+        R Call(
+            const std::string& methodName,
+            const std::string& methodSig,
+            Args&&... args
+        )
+        {
+            JNIEnv* env = JNI::GetEnv();
+            jclass objClass = env->GetObjectClass(obj);
+            jmethodID methodID = env->GetMethodID(
+                objClass,
+                methodName.c_str(),
+                methodSig.c_str()
+            );
+            env->DeleteLocalRef(objClass);
+
+            R result{};
+            
+            if constexpr (std::is_same_v<R, void>)
+            {
+                env->CallVoidMethod(obj, methodID, std::forward<Args>(args)...);
+            }
+            else if constexpr (std::is_same_v<R, jint>)
+            {
+                result = env->CallIntMethod(obj, methodID,  std::forward<Args>(args)...);
+            }
+            else if constexpr (std::is_same_v<R, jboolean>)
+            {
+                result = env->CallBooleanMethod(obj, methodID,  std::forward<Args>(args)...);
+            }
+            else if constexpr (std::is_same_v<R, jbyte>)
+            {
+                result = env->CallByteMethod(obj, methodID,  std::forward<Args>(args)...);
+            }
+            else if constexpr (std::is_same_v<R, jchar>)
+            {
+                result = env->CallCharMethod(obj, methodID,  std::forward<Args>(args)...);
+            }
+            else if constexpr (std::is_same_v<R, jshort>)
+            {
+                result = env->CallShortMethod(obj, methodID,  std::forward<Args>(args)...);
+            }
+            else if constexpr (std::is_same_v<R, jlong>)
+            {
+                result = env->CallLongMethod(obj, methodID,  std::forward<Args>(args)...);
+            }
+            else if constexpr (std::is_same_v<R, jfloat>)
+            {
+                result = env->CallFloatMethod(obj, methodID,  std::forward<Args>(args)...);
+            }
+            else if constexpr (std::is_same_v<R, jdouble>)
+            {
+                result = env->CallDoubleMethod(obj, methodID,  std::forward<Args>(args)...);
+            }
+            else if constexpr (std::is_same_v<R, jobject> || std::is_same_v<R, JNIObject>)
+            {
+                jobject callResult = env->CallObjectMethod(obj, methodID, std::forward<Args>(args)...);
+                if (env->ExceptionCheck())
+                {
+                    env->ExceptionDescribe();
+                    env->ExceptionClear();
+                    return {};
+                }
+                if constexpr (std::is_same_v<R, jobject>)
+                {
+                    result = callResult;
+                }
+                else // JNIObject
+                {
+                    result = JNIObject(callResult);
+                }
+            }
+            else
+            {
+                static_assert(sizeof(R) == 0, "Unsupported return type in JNIObject::Call");
+            }
+            
+            if (env->ExceptionCheck())
+            {
+                env->ExceptionDescribe();
+                env->ExceptionClear();
+                return {};
+            }
+            return result;
+        }
+
+    private:
+        jobject obj = nullptr;
+    };
+
+    class JNIString
+    {
+    public:
+        JNIString(const std::string& str)
+        {
+            JNIEnv* env = JNI::GetEnv();
+            jstring local = env->NewStringUTF(str.c_str());
+            jstr = static_cast<jstring>(env->NewGlobalRef(local));
+            env->DeleteLocalRef(local);
+        }
+
+        JNIString(jstring jstr)
+        {
+            JNIEnv* env = JNI::GetEnv();
+            const char* chars = env->GetStringUTFChars(jstr, nullptr);
+            std::string str(chars);
+            env->ReleaseStringUTFChars(jstr, chars);
+            jstring local = env->NewStringUTF(str.c_str());
+            this->jstr = static_cast<jstring>(env->NewGlobalRef(local));
+            env->DeleteLocalRef(local);
+        }
+
+        ~JNIString()
+        {
+            if (jstr)
+            {
+                JNI::GetEnv()->DeleteGlobalRef(jstr);
+            }
+            jstr = nullptr;
+        }
+
+        operator std::string() const
+        {
+            JNIEnv* env = JNI::GetEnv();
+            const char* chars = env->GetStringUTFChars(jstr, nullptr);
+            std::string result(chars);
+            env->ReleaseStringUTFChars(jstr, chars);
+            return result;
+        }
+
+        jstring operator*() const
+        {
+            return jstr;
+        }
+
+    private:
+        jstring jstr = nullptr;
+    };
+
+}
 #endif
 
 #if OLC_GPU == OLC_GPU_OPENGL33
@@ -4517,7 +5114,6 @@ namespace olc::host
 	#include <GL/gl.h>
 
 	#define OGL_LOAD(t) reinterpret_cast<t##_t*>(eglGetProcAddress(#t))
-
 #endif
 
 #if OLC_HOST == OLC_HOST_MACOS
@@ -4546,6 +5142,19 @@ namespace olc::host
 	#define GL_CLAMP GL_CLAMP_TO_EDGE
 
 	#define OGL_LOAD(t) ::t
+#endif
+
+#if OLC_HOST == OLC_HOST_ANDROID
+    #include <EGL/egl.h>
+    #include <GLES3/gl3.h>
+    #define GL_GLEXT_PROTOTYPES
+    #include <GLES3/gl3ext.h>
+    #define CALLSTYLE
+    #undef GL_CLAMP
+    #define GL_CLAMP GL_CLAMP_TO_EDGE
+    #define GL_LINE 0
+    #define GL_FILL 0
+    #define OGL_LOAD(t) reinterpret_cast<t##_t*>(eglGetProcAddress(#t))
 #endif
 
 #if !defined(CALLSTYLE)
@@ -4583,7 +5192,7 @@ namespace olc
 		typedef X11::GLXContext glRenderContext_t;
 #endif
 
-#if OLC_HOST == OLC_HOST_EMSCRIPTEN || OLC_HOST == OLC_HOST_LINUX_WAYLAND
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN || OLC_HOST == OLC_HOST_LINUX_WAYLAND || OLC_HOST == OLC_HOST_ANDROID
 	typedef void CALLSTYLE glShaderSource_t(GLuint shader, GLsizei size, const GLchar *const * string, const GLint * length);
 	typedef void glDeviceContext_t;
 	typedef struct
@@ -4635,9 +5244,10 @@ namespace olc
 		typedef void CALLSTYLE glDeleteRenderbuffers_t(GLsizei n, const GLuint* renderbuffers);
 		typedef void CALLSTYLE glGetInternalformativ_t(GLenum target, GLenum internalformat, GLenum pname, GLsizei bufSize, GLint* params);
 		typedef void CALLSTYLE glGetShaderiv_t(GLuint shader, GLenum pname, GLint* params);
+		typedef void CALLSTYLE glGetIntegerv_t(GLenum pname, GLint *data);
 
 #if OLC_HOST == OLC_HOST_WINDOWS
-		typedef void CALLSTYLE glSwapInterval_t(GLsizei n);
+		typedef void CALLSTYLE wglSwapIntervalEXT_t(GLsizei n);
 #endif
 
 		// A little GL class (singleton)
@@ -4695,6 +5305,10 @@ namespace olc
 			glDeleteRenderbuffers_t* _glDeleteRenderbuffers = nullptr;
 			glGetInternalformativ_t* _glGetInternalformativ = nullptr;
 			glGetShaderiv_t* _glGetShaderiv = nullptr;
+			glGetIntegerv_t *_glGetIntegerv = nullptr;
+#if OLC_HOST == OLC_HOST_WINDOWS
+			wglSwapIntervalEXT_t* _wglSwapIntervalEXT = nullptr;
+#endif
 
 
 		public:
@@ -4743,8 +5357,6 @@ namespace olc
 			void glGetInternalformativ(GLenum target, GLenum internalformat, GLenum pname, GLsizei bufSize, GLint* params);
 			void glGetShaderiv(GLuint shader, GLenum pname, GLint* params);
 
-
-
 			// OpenGL1.2 Proxies (just keeps things tidy imo)
 			void glGenTextures(GLsizei n, GLuint* textures);
 			void glBindTexture(GLenum target, GLuint texture);
@@ -4765,6 +5377,11 @@ namespace olc
 			void glGetTexImage(GLenum target, GLint level, GLenum format, GLenum type, void* pixels);
 			void glHint(GLenum target, GLenum mode);
 			void glPolygonMode(GLenum face, GLenum mode);
+			
+			void glGetIntegerv(GLenum pname, GLint *data);
+
+
+			void glSwapInterval(GLsizei n);
 
 			// Constants
 			static constexpr GLenum GL_FRAMEBUFFER_COMPLETE_X = 0x8CD5;
@@ -4864,7 +5481,7 @@ namespace olc
 		
 		protected: // These may need some thinking about re multiple window
 			//olc::apis::opengl::glDeviceContext_t glDeviceContext = 0;
-#if OLC_HOST == OLC_HOST_EMSCRIPTEN || OLC_HOST == OLC_HOST_LINUX_WAYLAND
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN || OLC_HOST == OLC_HOST_LINUX_WAYLAND || OLC_HOST == OLC_HOST_ANDROID
 	olc::apis::opengl::glRenderContext_t glRenderContext;
 #else
 	olc::apis::opengl::glRenderContext_t glRenderContext = 0;
@@ -4874,6 +5491,7 @@ namespace olc
 			uint32_t nDefaultVB = 0;
 			uint32_t nDefaultVA = 0;
 			uint32_t nDefaultFBO = 0;
+			uint32_t nScreenFBO = 0;
 			olc::Image imgBlank;
 			olc::vf2d vTargetSize;
 
@@ -4889,6 +5507,10 @@ namespace olc
 			std::unordered_map<uint32_t, uint32_t> mapTextureToRenderbuffer;
 
 			const Shader* pCurrentShader = nullptr;
+
+#if OLC_HOST == OLC_HOST_ANDROID
+			EGLConfig FindBestConfig(EGLDisplay display, int desiredMultisamples = OLC_MSAA_SAMPLES);
+#endif
 
 		};
 	}
@@ -5026,6 +5648,43 @@ namespace olc::imload
 #endif
 #endif
 
+#if OLC_HOST == OLC_HOST_ANDROID
+#include <android/asset_manager.h>
+
+#if !defined(PGE_IMAGELOADER_NDK_IMAGEDECODER_DECLARED)
+namespace olc::imload
+{
+
+    // Create an image resource based on an image file asset
+    class ImageLoader_NDKImageDecoder : public ImageLoader
+    {
+    public:
+        ImageLoader_NDKImageDecoder() = default;
+        ImageLoader_NDKImageDecoder(AAssetManager* assetManager) : assetManager(assetManager) {}
+
+        // Create an image resource based on an image file asset on disk
+        bool CreateImageFromFile(olc::Image& image, const std::string& sFileName) override;
+
+        // Create an image resource based on an image file asset in memory
+        bool CreateImageFromMemory(olc::Image& image, const uint8_t* data, const size_t bytes) override;
+
+        // Create an image resource based on an image file asset in memory
+        bool CreateImageFromMemory(olc::Image& image, const std::vector<uint8_t>& data) override;
+
+        // Store an image as a file asset on disk
+        bool WriteImageToFile(const olc::Image& image, const std::string& sFileName) override;
+
+        // Store an image as a file asset in memory
+        bool WriteImageToMemoryFile(olc::Image& image, const std::vector<uint8_t>& data) override;
+
+    protected:
+        AAssetManager* assetManager = nullptr;
+    };
+}
+#define PGE_IMAGELOADER_NDK_IMAGEDECODER_DECLARED 1
+#endif
+#endif
+
 
 
 
@@ -5036,34 +5695,98 @@ namespace olc::imload
 #if OLC_HOST == OLC_HOST_WINDOWS
 namespace olc::host
 {
+	bool Host_Windows_WinAPI::OnApplicationStart(olc::PixelGameEngine* pPrimary)
+	{
+		pPrimaryPGE = pPrimary;
+		return true;
+	}
+
+	bool Host_Windows_WinAPI::StartSystem()
+	{
+		// Pre-context start hook
+		pPrimaryPGE->OnPreContextStart();
+
+		// Mark system as active
+		systemActive = true;
+
+		// Create system thread - handles gpu context
+		std::thread threadSystem([this]()
+			{
+				// Notify start of system thread
+				if (!this->OnSystemThreadStart())
+				{
+					// PGE->OnContextStart() failed, or user aborted OnUserCreate()
+					return;
+				}
+
+				// Main system loop
+				while (systemActive)
+				{
+					// Perform primary window update
+					if (!this->OnSystemTick())
+					{
+						StopSystem();
+					}
+				}
+
+				// Notify end of system thread
+				if (!this->OnSystemThreadEnd())
+				{
+					// PGE->OnContextEnd() failed
+					return;
+				}
+			});
+
+		// Blocking event loop on this thread - handles windows
+		MSG msg;
+		while (GetMessage(&msg, NULL, 0, 0) > 0 && systemActive)
+		{
+			TranslateMessage(&msg);
+			DispatchMessage(&msg);
+		}
+
+		systemActive = false;
+		if(threadSystem.joinable())
+			threadSystem.join();
+
+		// Post-context end hook
+		return pPrimaryPGE->OnPostContextEnd();
+	}
+
+	bool Host_Windows_WinAPI::StopSystem()
+	{
+		systemActive = false;
+		return true;
+	}
+
+	bool Host_Windows_WinAPI::OnSystemThreadStart()
+	{
+		return pPrimaryPGE->OnContextStart();
+	}
+
+	bool Host_Windows_WinAPI::OnSystemTick()
+	{
+		return pPrimaryPGE->OnContextTick();
+	}
+
+	bool Host_Windows_WinAPI::OnSystemThreadEnd()
+	{
+		return pPrimaryPGE->OnContextEnd();
+	}
+
+	bool Host_Windows_WinAPI::OnApplicationEnd()
+	{
+		return true;
+	}
+
+
+
+	// ALL WINDOWS SPECIFIC GUBBINS BELOW HERE
+
+
 	// Forward Declaration
 	static LRESULT CALLBACK WINAPI_EventHandler(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
-	// Windows app needs an event loop somewhere. This is blocking of course. This loop handles
-	// all windows created for this host.
-	bool Host_Windows_WinAPI::StartSystemEventLoop(bool bBlockIfPossible)
-	{
-		if (bBlockIfPossible)
-		{
-			MSG msg;
-			while (GetMessage(&msg, NULL, 0, 0) > 0)
-			{
-				TranslateMessage(&msg);
-				DispatchMessage(&msg);
-			}
-		}
-		else
-		{
-			MSG msg;
-			while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE) > 0)
-			{
-				TranslateMessage(&msg);
-				DispatchMessage(&msg);
-			}
-		}
-
-		return true;    
-	}
 
 	// Static linkage to lpfnWndProc - the hWnd is tagged with meta-info to get
 	// access to the actual host instance, which can more conveninetly process
@@ -5107,6 +5830,121 @@ namespace olc::host
 		std::wstring w(buffer);
 		delete[] buffer;
 		return w;
+	}
+
+	Host_Windows_WinAPI::Host_Windows_WinAPI()
+	{
+		// Map Windows Defined VK_ Codes to olc::KeyCodes
+		mapKeys[0x00] = Key::NONE;
+
+		// Windows doesn't define A-Z
+		mapKeys[0x41] = Key::A;
+		mapKeys[0x42] = Key::B;
+		mapKeys[0x43] = Key::C;
+		mapKeys[0x44] = Key::D;
+		mapKeys[0x45] = Key::E;
+		mapKeys[0x46] = Key::F;
+		mapKeys[0x47] = Key::G;
+		mapKeys[0x48] = Key::H;
+		mapKeys[0x49] = Key::I;
+		mapKeys[0x4A] = Key::J;
+		mapKeys[0x4B] = Key::K;
+		mapKeys[0x4C] = Key::L;
+		mapKeys[0x4D] = Key::M;
+		mapKeys[0x4E] = Key::N;
+		mapKeys[0x4F] = Key::O;
+		mapKeys[0x50] = Key::P;
+		mapKeys[0x51] = Key::Q;
+		mapKeys[0x52] = Key::R;
+		mapKeys[0x53] = Key::S;
+		mapKeys[0x54] = Key::T;
+		mapKeys[0x55] = Key::U;
+		mapKeys[0x56] = Key::V;
+		mapKeys[0x57] = Key::W;
+		mapKeys[0x58] = Key::X;
+		mapKeys[0x59] = Key::Y;
+		mapKeys[0x5A] = Key::Z;
+
+		// Windows doesnt define numeric keys
+		mapKeys[0x30] = Key::K0;
+		mapKeys[0x31] = Key::K1;
+		mapKeys[0x32] = Key::K2;
+		mapKeys[0x33] = Key::K3;
+		mapKeys[0x34] = Key::K4;
+		mapKeys[0x35] = Key::K5;
+		mapKeys[0x36] = Key::K6;
+		mapKeys[0x37] = Key::K7;
+		mapKeys[0x38] = Key::K8;
+		mapKeys[0x39] = Key::K9;
+
+		// Function Keys
+		mapKeys[VK_F1] = Key::F1;
+		mapKeys[VK_F2] = Key::F2;
+		mapKeys[VK_F3] = Key::F3;
+		mapKeys[VK_F4] = Key::F4;
+		mapKeys[VK_F5] = Key::F5;
+		mapKeys[VK_F6] = Key::F6;
+		mapKeys[VK_F7] = Key::F7;
+		mapKeys[VK_F8] = Key::F8;
+		mapKeys[VK_F9] = Key::F9;
+		mapKeys[VK_F10] = Key::F10;
+		mapKeys[VK_F11] = Key::F11;
+		mapKeys[VK_F12] = Key::F12;
+
+		// Arrow Keys
+		mapKeys[VK_DOWN] = Key::DOWN;
+		mapKeys[VK_LEFT] = Key::LEFT;
+		mapKeys[VK_RIGHT] = Key::RIGHT;
+		mapKeys[VK_UP] = Key::UP;
+
+		// Other Keys
+		mapKeys[VK_BACK] = Key::BACK;
+		mapKeys[VK_ESCAPE] = Key::ESCAPE;
+		mapKeys[VK_RETURN] = Key::ENTER;
+		mapKeys[VK_PAUSE] = Key::PAUSE;
+		mapKeys[VK_SCROLL] = Key::SCROLL;
+		mapKeys[VK_TAB] = Key::TAB;
+		mapKeys[VK_DELETE] = Key::DEL;
+		mapKeys[VK_HOME] = Key::HOME;
+		mapKeys[VK_END] = Key::END;
+		mapKeys[VK_PRIOR] = Key::PGUP;
+		mapKeys[VK_NEXT] = Key::PGDN;
+		mapKeys[VK_INSERT] = Key::INS;
+		mapKeys[VK_SHIFT] = Key::SHIFT;
+		mapKeys[VK_CONTROL] = Key::CTRL;
+		mapKeys[VK_SPACE] = Key::SPACE;
+		mapKeys[VK_CAPITAL] = Key::CAPS_LOCK;
+
+		// Numpad
+		mapKeys[VK_NUMPAD0] = Key::NP0;
+		mapKeys[VK_NUMPAD1] = Key::NP1;
+		mapKeys[VK_NUMPAD2] = Key::NP2;
+		mapKeys[VK_NUMPAD3] = Key::NP3;
+		mapKeys[VK_NUMPAD4] = Key::NP4;
+		mapKeys[VK_NUMPAD5] = Key::NP5;
+		mapKeys[VK_NUMPAD6] = Key::NP6;
+		mapKeys[VK_NUMPAD7] = Key::NP7;
+		mapKeys[VK_NUMPAD8] = Key::NP8;
+		mapKeys[VK_NUMPAD9] = Key::NP9;
+		mapKeys[VK_MULTIPLY] = Key::NP_MUL;
+		mapKeys[VK_ADD] = Key::NP_ADD;
+		mapKeys[VK_DIVIDE] = Key::NP_DIV;
+		mapKeys[VK_SUBTRACT] = Key::NP_SUB;
+		mapKeys[VK_DECIMAL] = Key::NP_DECIMAL;
+
+		// OEM Keys
+		mapKeys[VK_OEM_1] = Key::OEM_1;			// On US and UK keyboards this is the ';:' key
+		mapKeys[VK_OEM_2] = Key::OEM_2;			// On US and UK keyboards this is the '/?' key
+		mapKeys[VK_OEM_3] = Key::OEM_3;			// On US keyboard this is the '~' key
+		mapKeys[VK_OEM_4] = Key::OEM_4;			// On US and UK keyboards this is the '[{' key
+		mapKeys[VK_OEM_5] = Key::OEM_5;			// On US keyboard this is '\|' key.
+		mapKeys[VK_OEM_6] = Key::OEM_6;			// On US and UK keyboards this is the ']}' key
+		mapKeys[VK_OEM_7] = Key::OEM_7;			// On US keyboard this is the single/double quote key. On UK, this is the single quote/@ symbol key
+		mapKeys[VK_OEM_8] = Key::OEM_8;			// miscellaneous characters. Varies by keyboard
+		mapKeys[VK_OEM_PLUS] = Key::EQUALS;		// the '+' key on any keyboard
+		mapKeys[VK_OEM_COMMA] = Key::COMMA;		// the comma key on any keyboard
+		mapKeys[VK_OEM_MINUS] = Key::MINUS;		// the minus key on any keyboard
+		mapKeys[VK_OEM_PERIOD] = Key::PERIOD;	// the period key on any keyboard
 	}
 
 	bool Host_Windows_WinAPI::AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen)
@@ -5219,11 +6057,6 @@ namespace olc::host
 		return { mapUID2HWND[pWindow->GetUID()] };
 	}
 
-	bool Host_Windows_WinAPI::ConnectHostResourceToRenderer()
-	{
-		return false;
-	}
-
 	bool Host_Windows_WinAPI::SyncWithDesktopComposite()
 	{
 		return DwmFlush() == S_OK;
@@ -5270,10 +6103,43 @@ namespace olc::host
 			//		case WM_MOUSELEAVE: ptrPGE->olc_UpdateMouseFocus(false);                                    return 0;
 			//		case WM_SETFOCUS:	ptrPGE->olc_UpdateKeyFocus(true);                                       return 0;
 			//		case WM_KILLFOCUS:	ptrPGE->olc_UpdateKeyFocus(false);                                      return 0;
-			//		case WM_KEYDOWN:	ptrPGE->olc_UpdateKeyState(int32_t(wParam), true);                      return 0;
-			//		case WM_KEYUP:		ptrPGE->olc_UpdateKeyState(int32_t(wParam), false);                     return 0;
-			//		case WM_SYSKEYDOWN: ptrPGE->olc_UpdateKeyState(int32_t(wParam), true);						return 0;
-			//		case WM_SYSKEYUP:	ptrPGE->olc_UpdateKeyState(int32_t(wParam), false);						return 0;
+
+		case WM_KEYDOWN:
+			{
+				if (mapKeys.contains(int32_t(wParam)))
+				{
+					window->olc_OnKeyPress(mapKeys[int32_t(wParam)], true);
+				}
+				break;
+			}
+
+		case WM_KEYUP:
+			{
+				if (mapKeys.contains(int32_t(wParam)))
+				{
+					window->olc_OnKeyPress(mapKeys[int32_t(wParam)], false);
+				}
+				break;
+			}
+
+		case WM_SYSKEYDOWN:
+		{
+			if (mapKeys.contains(int32_t(wParam)))
+			{
+				window->olc_OnKeyPress(mapKeys[int32_t(wParam)], true);
+			}
+			break;
+		}
+
+		case WM_SYSKEYUP:
+		{
+			if (mapKeys.contains(int32_t(wParam)))
+			{
+				window->olc_OnKeyPress(mapKeys[int32_t(wParam)], false);
+			}
+			break;
+		}
+
 		case WM_LBUTTONDOWN:
 			{
 				window->olc_OnMouseButton(0, true);
@@ -5348,6 +6214,7 @@ namespace olc::host
 				break;
 				//return DefWindowProc(hWnd, uMsg, wParam, lParam);
 			}
+
 		case WM_DESTROY:	
 			PostQuitMessage(0); 
 			DestroyWindow(hWnd);
@@ -5358,15 +6225,159 @@ namespace olc::host
 		return DefWindowProc(hWnd, uMsg, wParam, lParam);
 	}
 
+	olc::KeyboardLayout Host_Windows_WinAPI::GetKeyboardLayout() const
+	{
+		HKL kbl = ::GetKeyboardLayout(0);
+		size_t highWord = ((size_t)kbl >> 16) & 0xFFFF;
+
+		if (highWord == 0x00000409) // US
+			return olc::KeyboardLayout::QWERTY_US;
+		else if(highWord == 0x00000809) // UK
+			return olc::KeyboardLayout::QWERTY_UK;
+		else if(highWord == 0x00000407) // DE
+			return olc::KeyboardLayout::QWERTZ;
+		else if(highWord == 0x0000040C) // FR
+			return olc::KeyboardLayout::AZERTY;
+
+		return OLC_DEFAULT_KEYBOARD_LAYOUT;
+	}
+
 };
 #endif
 #if OLC_HOST == OLC_HOST_MACOS
 namespace olc::host {
 
-    bool Host_Apple_MacOS::StartSystemEventLoop(bool bBlockIfPossible)
+
+    // NSEventModifierFlags values
+    constexpr unsigned int NSEventModifierNoFlags        = 1 << 8;  // 0x100
+    constexpr unsigned int NSEventModifierFlagCapsLock   = 1 << 16; // 0x10000
+    constexpr unsigned int NSEventModifierFlagShift      = 1 << 17; // 0x20000
+    constexpr unsigned int NSEventModifierFlagControl    = 1 << 18; // 0x40000
+    constexpr unsigned int NSEventModifierFlagOption     = 1 << 19; // 0x80000
+    constexpr unsigned int NSEventModifierFlagCommand    = 1 << 20; // 0x100000
+    constexpr unsigned int NSEventModifierFlagNumericPad = 1 << 21; // 0x200000
+    constexpr unsigned int NSEventModifierFlagHelp       = 1 << 22; // 0x400000
+    constexpr unsigned int NSEventModifierFlagFunction   = 1 << 23; // 0x800000
+
+
+    Host_Apple_MacOS::Host_Apple_MacOS()
     {
+         // Reference: https://eastmanreference.com/complete-list-of-applescript-key-codes
+        mapKeys[0x00] = Key::NONE;
+
+        // Map macOS key codes to olc::Key codes
+        mapKeys[0] = Key::A;
+        mapKeys[11] = Key::B;
+        mapKeys[8] = Key::C;
+        mapKeys[2] = Key::D;
+        mapKeys[14] = Key::E;
+        mapKeys[3] = Key::F;
+        mapKeys[5] = Key::G;
+        mapKeys[4] = Key::H;
+        mapKeys[34] = Key::I;
+        mapKeys[38] = Key::J;
+        mapKeys[40] = Key::K;
+        mapKeys[37] = Key::L;
+        mapKeys[46] = Key::M;
+        mapKeys[45] = Key::N;
+        mapKeys[31] = Key::O;
+        mapKeys[35] = Key::P;
+        mapKeys[12] = Key::Q;
+        mapKeys[15] = Key::R;
+        mapKeys[1] = Key::S;
+        mapKeys[17] = Key::T;
+        mapKeys[32] = Key::U;
+        mapKeys[9] = Key::V;
+        mapKeys[13] = Key::W;
+        mapKeys[7] = Key::X;
+        mapKeys[16] = Key::Y;
+        mapKeys[6] = Key::Z;
+
+        // Numeric keys
+        mapKeys[29] = Key::K0;
+        mapKeys[18] = Key::K1;
+        mapKeys[19] = Key::K2;
+        mapKeys[20] = Key::K3;
+        mapKeys[21] = Key::K4;
+        mapKeys[23] = Key::K5;
+        mapKeys[22] = Key::K6;
+        mapKeys[26] = Key::K7;
+        mapKeys[28] = Key::K8;
+        mapKeys[25] = Key::K9;
+
+        // Function Keys
+        mapKeys[122] = Key::F1;
+        mapKeys[120] = Key::F2;
+        mapKeys[99] = Key::F3;
+        mapKeys[118] = Key::F4;
+        mapKeys[96] = Key::F5;
+        mapKeys[97] = Key::F6;
+        mapKeys[98] = Key::F7;
+        mapKeys[100] = Key::F8;
+        mapKeys[101] = Key::F9;
+        mapKeys[109] = Key::F10;
+        mapKeys[103] = Key::F11;
+        mapKeys[111] = Key::F12;
+
+        // Arrow Keys
+        mapKeys[125] = Key::DOWN; 
+        mapKeys[123] = Key::LEFT;
+        mapKeys[124] = Key::RIGHT;
+        mapKeys[126] = Key::UP;
+
+        // Other Keys
+        mapKeys[51] = Key::BACK;        // Delete (Backspace)
+        mapKeys[53] = Key::ESCAPE;      // Escape
+        mapKeys[36] = Key::ENTER;       // Return
+        mapKeys[113] = Key::PAUSE;      // F16 (often used as pause)
+        mapKeys[107] = Key::SCROLL;     // F14 (scroll lock equivalent)
+        mapKeys[48] = Key::TAB;         // Tab
+        mapKeys[117] = Key::DEL;        // Forward Delete
+        mapKeys[115] = Key::HOME;       // Home
+        mapKeys[119] = Key::END;        // End
+        mapKeys[116] = Key::PGUP;       // Page Up
+        mapKeys[121] = Key::PGDN;       // Page Down
+        mapKeys[114] = Key::INS;        // Help (Insert equivalent)
+        mapKeys[56] = Key::SHIFT;       // Left Shift
+        mapKeys[59] = Key::CTRL;        // Left Control
+        mapKeys[49] = Key::SPACE;       // Space
+        mapKeys[57] = Key::CAPS_LOCK;   // Caps Lock
+
+        // Numpad
+        mapKeys[82] = Key::NP0;
+        mapKeys[83] = Key::NP1;
+        mapKeys[84] = Key::NP2;
+        mapKeys[85] = Key::NP3;
+        mapKeys[86] = Key::NP4;
+        mapKeys[87] = Key::NP5;
+        mapKeys[88] = Key::NP6;
+        mapKeys[89] = Key::NP7;
+        mapKeys[91] = Key::NP8;
+        mapKeys[92] = Key::NP9;
+        mapKeys[67] = Key::NP_MUL;      // Numpad *
+        mapKeys[69] = Key::NP_ADD;      // Numpad +
+        mapKeys[75] = Key::NP_DIV;      // Numpad /
+        mapKeys[78] = Key::NP_SUB;      // Numpad -
+        mapKeys[65] = Key::NP_DECIMAL;  // Numpad .
+
+        // Symbol Keys (OEM equivalents)
+        mapKeys[41] = Key::OEM_1;       // On US and UK keyboards this is the ';:' key
+        mapKeys[44] = Key::OEM_2;       // On US and UK keyboards this is the '/?' key
+        mapKeys[50] = Key::OEM_3;       // On US and UK keyboards this is the '`~' key (Grave accent `)
+        mapKeys[33] = Key::OEM_4;       // On US and UK keyboards this is the '[{' key
+        mapKeys[42] = Key::OEM_5;       // On US keyboard this is '\|' key. 
+        mapKeys[30] = Key::OEM_6;       // On US and UK keyboards this is the ']}' key
+        mapKeys[39] = Key::OEM_7;       // On US keyboard this is the single/double quote key. On UK, this is the single quote/@ symbol key (TODO: I think MAC is always @)
+        mapKeys[10] = Key::OEM_8;       // Section sign § (varies by keyboard)
+        mapKeys[24] = Key::EQUALS;      // Equal sign =
+        mapKeys[43] = Key::COMMA;       // Comma ,
+        mapKeys[27] = Key::MINUS;       // Minus -
+        mapKeys[47] = Key::PERIOD;      // Period .
+
+    }
+
+    bool Host_Apple_MacOS::StartSystemEventLoop(bool bBlockIfPossible){
         (void)(bBlockIfPossible); // Remove unused variable warning
-        //TODO: Johnngy63 find out what bBlockIfPossible is supposed to do
 
         // Create MacOS Application instance
         pMacApplication = std::make_unique<olc::apis::macos::Application>();
@@ -5402,10 +6413,7 @@ namespace olc::host {
         return true;
     }
 
-    bool Host_Apple_MacOS::AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen)
-    {
-         // Update the PGE window with the actual window size given by MacOS
-        
+    bool Host_Apple_MacOS::AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen){       
         pPGEwindow = pWindow;
         pPGEwindow->SetWindowPosition(vWindowPos);
         pPGEwindow->SetWindowSize(vWindowSize); // Temporary small size to avoid large window on creation
@@ -5420,17 +6428,14 @@ namespace olc::host {
     }
 
 
-    bool Host_Apple_MacOS::CloseWindowFrame(olc::Window* pWindow)
-    {
-        // TODO: Gracefully close the window and clean up resources
+    bool Host_Apple_MacOS::CloseWindowFrame(olc::Window* pWindow){
         if (!pMacOSWindow) return false;
         if (!pWindow) return false;
         pWindow->olc_OnWindowClose();
         return true;
     }
 
-    bool Host_Apple_MacOS::UpdateWindowFrameTitle(olc::Window* pWindow)
-    {
+    bool Host_Apple_MacOS::UpdateWindowFrameTitle(olc::Window* pWindow){
         if (!pMacOSWindow) return false;
         dispatch_async(dispatch_get_main_queue(), ^{
             pMacOSWindow->setTitle(pWindow->GetWindowTitle().c_str());
@@ -5438,9 +6443,7 @@ namespace olc::host {
         return true;
     }
 
-    std::vector<void*> Host_Apple_MacOS::GetHostWindowDescriptor(olc::Window* pWindow)
-    {
-               
+    std::vector<void*> Host_Apple_MacOS::GetHostWindowDescriptor(olc::Window* pWindow){
         // While the PGE is running, if there are pending main thread tasks, process them, this causes PGE to wait
         bSkipFrame = ExecutePendingMainThreadTasks();
         
@@ -5473,6 +6476,35 @@ namespace olc::host {
         
         return enableVSync;
     }
+
+    olc::KeyboardLayout Host_Apple_MacOS::GetKeyboardLayout() const
+    {
+        // Get system locale from MacOS Application
+        // We need to wait until the application has launched to get the keyboard layout
+        // Therefore this function is called again from setDidFinishLaunchingCallback event
+        if (pMacApplication)
+        {
+            std::string locale = pMacApplication->getSystemLocale();
+            if (locale == "en_GB")
+            {
+                return olc::KeyboardLayout::QWERTY_UK;
+            }
+            else if (locale == "en_US")
+            {
+                return olc::KeyboardLayout::QWERTY_US;
+            }
+            else if (locale == "fr_FR")
+            {
+                return olc::KeyboardLayout::AZERTY;
+            }
+            else if (locale == "de_DE")
+            {
+                return olc::KeyboardLayout::QWERTZ;
+            }
+        }
+        // Default to QWERTY if unknown
+        return olc::KeyboardLayout::QWERTY_UK;
+    }   
 
 // ------- Priavate Main Thread Task Handling for MacOS Host -------
 
@@ -5601,7 +6633,6 @@ namespace olc::host {
         }
         vPendingMainThreadTasks.clear();
         
-        // Release any locks on the PGE
         // 4. Main Thread unlocks PGE Thread
         {
             std::lock_guard<std::mutex> lock(pgeThreadPendingTasksMutex);
@@ -5609,49 +6640,36 @@ namespace olc::host {
             isMainThreadResetting = false; // Reset main thread flag
         }
         pgeThreadResetCondition.notify_all();  // Wake up PGE thread
-
         return res;
-        
     }
 
 //------ Events Handlers -----
 
     void Host_Apple_MacOS::MacApplicationEventsHandler()
     {
-        // Application event handling code here
-        // Set application delegate event handlers
-       pMacApplication->setWillFinishLaunchingCallback([]() {
-           //std::cout << "--> Application delegate: Will finish launching" << std::endl;
-       });
+       pMacApplication->setWillFinishLaunchingCallback([]() { });
        
        pMacApplication->setDidFinishLaunchingCallback([&]() {
-           //std::cout << "--> Application delegate: Did finish launching" << std::endl;
            // Queue the Create OpenGL context task
            vPendingMainThreadTasks.push_back(CREATE_OPENGL_RENDERER);
+           // We need to wait until the application has launched to get the keyboard layout
+           pPGEwindow->keyboard.UseKeyboardLayout(GetKeyboardLayout());
        });
        
        pMacApplication->setWillTerminateCallback([&]() {
-           //std::cout << "--> Application delegate: Will terminate" << std::endl;
            // TODO: Johnngy63 - Implement olc_OnDestory in window.h/cpp
-           
        });
        
-       pMacApplication->setDidBecomeActiveCallback([]() {
-           //std::cout << "--> Application delegate: Did become active" << std::endl;
-       });
+       pMacApplication->setDidBecomeActiveCallback([]() { });
        
-       pMacApplication->setWillResignActiveCallback([]() {
-           //std::cout << "--> Application delegate: Will resign active" << std::endl;
-       });
+       pMacApplication->setWillResignActiveCallback([]() { });
         
     }
 
     void Host_Apple_MacOS::MacWindowEventsHandler()
     {
-        // Window event handling code here
         pMacOSWindow->setWindowDidResizeCallback([&]() {
             AddPendingMainThreadTask(RESIZE_WINDOW);
-            
         });
 
         pMacOSWindow->setWindowWillCloseCallback([&]() {
@@ -5667,18 +6685,59 @@ namespace olc::host {
 
         pMacOSWindow->setWindowDidResignKeyCallback([&]() {
             //TODO: Johnngy63 - Implement olc_OnWindowFocus in window.h/cpp
-            
         });
        
         pMacOSWindow->setWindowDidMiniaturizeCallback([&]() {
-            //TODO: Johnngy63 - Implement olc_OnWindowMinimize in window.h/cpp if needed
             AddPendingMainThreadTask(MINIMIZE_WINDOW);
         });
        
         pMacOSWindow->setWindowDidDeminiaturizeCallback([&]() {
-            //TODO: Johnngy63 - Implement olc_OnWindowFocus in window.h/cpp if needed
             AddPendingMainThreadTask(DEMINIMIZE_WINDOW);
         });
+        
+    }
+
+    bool Host_Apple_MacOS::ModifiersFlagsHandler(const olc::apis::macos::KeyEvent& event, bool pressed) {
+        
+        bool bisHandled = false;
+        if (event.modifierFlags & NSEventModifierFlagCapsLock) {
+            pPGEwindow->olc_OnKeyPress(Key::CAPS_LOCK, pressed);
+        }
+        if (event.modifierFlags & NSEventModifierFlagShift) {
+            pPGEwindow->olc_OnKeyPress(Key::SHIFT, pressed);
+            if(event.keyCode == 39)
+            {
+                // The @ symbol does not change position from US - UK keyboards on MacOS, so we handle it here
+                pPGEwindow->olc_OnKeyPress(mapKeys[50], pressed);
+                return true;
+            }
+            
+        }
+        if (event.modifierFlags & NSEventModifierFlagControl) {
+            pPGEwindow->olc_OnKeyPress(Key::CTRL, pressed);
+        }
+        
+        if(event.modifierFlags & NSEventModifierFlagNumericPad) {
+            if(event.keyCode == 71 && pressed) // NumLock keycode
+            {
+                // We only tottle the NumLock state on key press to minic the latching of the key
+                bNumLockActive = !bNumLockActive;
+            }
+            
+            if(!bNumLockActive)
+            {
+                // 84 down, 86 left, 88 right, 91 up >>> 125 down, 123 left, 124 right, 126 up
+                if(event.keyCode == 84) pPGEwindow->olc_OnKeyPress(mapKeys[125], pressed);
+                if(event.keyCode == 86) pPGEwindow->olc_OnKeyPress(mapKeys[123], pressed);
+                if(event.keyCode == 88) pPGEwindow->olc_OnKeyPress(mapKeys[124], pressed);
+                if(event.keyCode == 91) pPGEwindow->olc_OnKeyPress(mapKeys[126], pressed);
+                return true;
+            }
+            
+
+        }
+            
+        return bisHandled;
         
     }
 
@@ -5689,43 +6748,15 @@ namespace olc::host {
         // Reference: https://eastmanreference.com/complete-list-of-applescript-key-codes
 
         // Set up keyboard event handlers
-        pMacOSEventHandler->onKeyDown([](const olc::apis::macos::KeyEvent& event) {
-            std::cout << "Key Down - Code: " << event.keyCode
-                        << ", Chars: '" << event.characters << "'" << std::endl;
-            
-            // Handle special keys
-            switch (event.keyCode) {
-                case 53: // Escape
-                    std::cout << "Escape key pressed!" << std::endl;
-                    break;
-                case 36: // Return
-                    std::cout << "Return key pressed!" << std::endl;
-                    break;
-                case 49: // Space
-                    std::cout << "Space key pressed!" << std::endl;
-                    break;
-                case 123: // Left arrow
-                    std::cout << "Left arrow pressed!" << std::endl;
-                    break;
-                case 124: // Right arrow
-                    std::cout << "Right arrow pressed!" << std::endl;
-                    break;
-                case 125: // Down arrow
-                    std::cout << "Down arrow pressed!" << std::endl;
-                    break;
-                case 126: // Up arrow
-                    std::cout << "Up arrow pressed!" << std::endl;
-                    break;
-                default:
-                    if (!event.characters.empty()) {
-                        std::cout << "Character key: '" << event.characters << "'" << std::endl;
-                    }
-                    break;
-            }
+        pMacOSEventHandler->onKeyDown([&](const olc::apis::macos::KeyEvent& event) {
+            if(!ModifiersFlagsHandler(event, true))
+                pPGEwindow->olc_OnKeyPress(mapKeys[event.keyCode], true);
         });
         
-        pMacOSEventHandler->onKeyUp([](const olc::apis::macos::KeyEvent& event) {
-            std::cout << "Key Up - Code: " << event.keyCode << std::endl;
+        pMacOSEventHandler->onKeyUp([&](const olc::apis::macos::KeyEvent& event) {
+            if(!ModifiersFlagsHandler(event, false))
+               pPGEwindow->olc_OnKeyPress(mapKeys[event.keyCode], false);
+
         });
         
         // Set up mouse event handlers
@@ -5780,7 +6811,6 @@ namespace olc::host {
         });
         
     }
-
 
 }
 
@@ -5902,6 +6932,12 @@ static constexpr const char* kBytesPerRowSel                    = "bytesPerRow";
 static constexpr const char* kHasAlphaSel                       = "hasAlpha";
 static constexpr const char* kBitmapDataSel                     = "bitmapData";
 
+// NSLocale class and method names
+static constexpr const char* kNSLocaleClass                     = "NSLocale";
+static constexpr const char* kCurrentLocaleSel                  = "currentLocale";
+static constexpr const char* kLocaleIdentifierSel               = "localeIdentifier";
+
+
 // Default values and configuration settings 
 static constexpr const char* kWindowTitle                       = "C macOS OpenGL Framework";
 static constexpr double kDefaultWindowWidth                     = 800.0;
@@ -5931,112 +6967,44 @@ static constexpr const char* kDrawRectMethodTypeEncoding = "v@:{NSRect={NSPoint=
 // Type encoding for void methods with no parameters: "v@:"
 static constexpr const char* kVoidMethodTypeEncoding = "v@:";
 
-
 namespace ObjectiveCSEL {
      
     // Application memory management selectors
-    static SEL allocSel = nullptr;
-    static SEL initSel = nullptr;
-    static SEL setDelegateSel = nullptr;
-    static SEL releaseSel = nullptr;
-    static SEL isKindOfClassSel = nullptr;
+    static SEL allocSel, initSel, setDelegateSel, releaseSel, isKindOfClassSel = nullptr;
 
     // NSApplication lifecycle and management selectors
-    static SEL sharedApplicationSel = nullptr;
-    static SEL activateIgnoringOtherAppsSel = nullptr;
-    static SEL setActivationPolicySel = nullptr;
-    static SEL runSel = nullptr;
+    static SEL sharedApplicationSel, activateIgnoringOtherAppsSel, setActivationPolicySel,runSel = nullptr;
 
     // NSApplicationDelegate lifecycle methods
-    static SEL applicationWillFinishLaunchingSel = nullptr;
-    static SEL applicationDidFinishLaunchingSel  = nullptr;
-    static SEL applicationWillTerminateSel       = nullptr;
-    static SEL applicationDidBecomeActiveSel     = nullptr;
-    static SEL applicationWillResignActiveSel    = nullptr;
+    static SEL applicationWillFinishLaunchingSel, applicationDidFinishLaunchingSel, applicationWillTerminateSel, applicationDidBecomeActiveSel, applicationWillResignActiveSel = nullptr;
 
     // NSWindow creation, display, and management selectors
-    static SEL initWithContentRectSel           = nullptr;
-    static SEL stringWithUTF8StringSel          = nullptr;
-    static SEL setTitleSel                      = nullptr;
-    static SEL orderFrontRegardlessSel          = nullptr;
-    static SEL setAcceptsMouseMovedEventsSel    = nullptr;
-    static SEL makeFirstResponderSel            = nullptr;
-    static SEL makeKeyAndOrderFrontSel          = nullptr;
-    static SEL makeKeyWindowSel                 = nullptr;
-    static SEL frameSel                         = nullptr;
-    static SEL setFrameDisplaySel               = nullptr;
-    static SEL setFrameSel                      = nullptr;
+    static SEL initWithContentRectSel, stringWithUTF8StringSel, setTitleSel, orderFrontRegardlessSel, setAcceptsMouseMovedEventsSel, makeKeyAndOrderFrontSel = nullptr;
+    static SEL makeKeyWindowSel, frameSel, setFrameDisplaySel, setFrameSel, makeFirstResponderSel = nullptr;
 
     // NSWindowDelegate lifecycle and event methods selectors
-    static SEL windowDidResizeSel               = nullptr;
-    static SEL windowWillCloseSel               = nullptr;
-    static SEL windowDidBecomeKeySel            = nullptr;
-    static SEL windowDidResignKeySel            = nullptr;
-    static SEL windowDidMiniaturizeSel          = nullptr;
-    static SEL windowDidDeminiaturizeSel        = nullptr;
+    static SEL windowDidResizeSel, windowWillCloseSel, windowDidBecomeKeySel, windowDidResignKeySel, windowDidMiniaturizeSel, windowDidDeminiaturizeSel = nullptr;
 
     // NSResponder keyboard and mouse event methods selectors
-    static SEL keyDownSel                       = nullptr;
-    static SEL keyUpSel                         = nullptr;
-    static SEL mouseDownSel                     = nullptr;
-    static SEL mouseUpSel                       = nullptr;
-    static SEL mouseDraggedSel                  = nullptr;
-    static SEL mouseMovedSel                    = nullptr;
-    static SEL rightMouseDownSel                = nullptr;
-    static SEL rightMouseUpSel                  = nullptr;
-    static SEL rightMouseDraggedSel             = nullptr;
-    static SEL otherMouseDownSel                = nullptr;
-    static SEL otherMouseUpSel                  = nullptr;
-    static SEL otherMouseDraggedSel             = nullptr;
-    static SEL scrollWheelSel                   = nullptr;
-    static SEL deltaXSel                        = nullptr;
-    static SEL deltaYSel                        = nullptr;
+    static SEL keyDownSel, keyUpSel, mouseDownSel, mouseUpSel, mouseDraggedSel, mouseMovedSel, rightMouseDownSel, rightMouseUpSel, rightMouseDraggedSel, otherMouseDownSel = nullptr;
+    static SEL otherMouseUpSel, otherMouseDraggedSel, scrollWheelSel, deltaXSel, deltaYSel = nullptr;
 
     // Managing first responder status and keyboard focus selectors
-    static SEL acceptsFirstResponderSel         = nullptr;
-    static SEL becomeFirstResponderSel          = nullptr;
-    static SEL canBecomeKeyViewSel              = nullptr;
-    static SEL needsPanelToBecomeKeySel         = nullptr;
-    static SEL drawRectSel                      = nullptr;
-    static SEL reshapeSel                       = nullptr;
-    static SEL updateSel                        = nullptr;
+    static SEL acceptsFirstResponderSel, becomeFirstResponderSel, canBecomeKeyViewSel, needsPanelToBecomeKeySel, drawRectSel, reshapeSel, updateSel = nullptr;
 
     // NSOpenGL pixel format, view, and context management selectors
-    static SEL initWithAttributesSel            = nullptr;
-    static SEL initWithFramePixelFormatSel      = nullptr;
-    static SEL setContentViewSel                = nullptr;
-    static SEL contentViewSel                   = nullptr;
-    static SEL boundsSel                        = nullptr;
-    static SEL convertPointFromViewSel          = nullptr;
-    static SEL openGLContextSel                 = nullptr;
-    static SEL makeCurrentContextSel            = nullptr;
-    static SEL setAutoresizingMaskSel           = nullptr;
-    static SEL flushBufferSel                   = nullptr;
-    static SEL displaySel                       = nullptr;
-    static SEL CGLContextObjSel                 = nullptr;
-    static SEL setValuesSel                     = nullptr;
+    static SEL initWithAttributesSel, initWithFramePixelFormatSel, setContentViewSel, contentViewSel, boundsSel, convertPointFromViewSel, openGLContextSel, makeCurrentContextSel = nullptr;
+    static SEL setAutoresizingMaskSel, flushBufferSel, displaySel, CGLContextObjSel, setValuesSel = nullptr;
 
     // Extracting data from NSEvent objects selectors
-    static SEL keyCodeSel                       = nullptr;
-    static SEL charactersSel                    = nullptr;
-    static SEL locationInWindowSel              = nullptr;
-    static SEL buttonNumberSel                  = nullptr;
-    static SEL clickCountSel                    = nullptr;
-    static SEL modifierFlagsSel                 = nullptr;
-    static SEL utf8StringSel                    = nullptr;
+    static SEL keyCodeSel, charactersSel, locationInWindowSel, buttonNumberSel, clickCountSel, modifierFlagsSel, utf8StringSel = nullptr;
 
     // NSImage, NSBitmapImageRep, and image data access selectors
-    static SEL initWithContentsOfFileSel        = nullptr;
-    static SEL representationsSel               = nullptr;
-    static SEL countSel                         = nullptr;
-    static SEL objectAtIndexSel                 = nullptr;
-    static SEL pixelsWideSel                    = nullptr;
-    static SEL pixelsHighSel                    = nullptr;
-    static SEL bitsPerPixelSel                  = nullptr;
-    static SEL bytesPerRowSel                   = nullptr;
-    static SEL hasAlphaSel                      = nullptr;
-    static SEL bitmapDataSel                    = nullptr;
+    static SEL initWithContentsOfFileSel, representationsSel, countSel, objectAtIndexSel, pixelsWideSel, pixelsHighSel, bitsPerPixelSel, bytesPerRowSel, hasAlphaSel, bitmapDataSel = nullptr;
 
+    // NSLocale selectors
+    static SEL currentLocaleSel, localeIdentifierSel = nullptr;
+    
     // Initialize all selectors - called once at startup
     void initializeSelectors() {
         if (allocSel) return; // Already initialized
@@ -6143,6 +7111,10 @@ namespace ObjectiveCSEL {
         bytesPerRowSel                     = sel_registerName(kBytesPerRowSel);
         hasAlphaSel                        = sel_registerName(kHasAlphaSel);
         bitmapDataSel                      = sel_registerName(kBitmapDataSel);
+
+        // NSLocale selectors
+        currentLocaleSel                   = sel_registerName(kCurrentLocaleSel);
+        localeIdentifierSel                = sel_registerName(kLocaleIdentifierSel);
     }
 
     // Ensures we only initialize selectors once (Thread-safe)
@@ -6208,7 +7180,6 @@ struct ApplicationDelegate;
 struct CustomOpenGLView;
 struct WindowDelegate;
 struct ImageLoader;
-
 
 // enums for OpenGL pixel format and rendering capabilities
 enum class NSOpenGLPixelFormatAttribute : uint16_t {
@@ -6354,7 +7325,6 @@ static Window*      gptrNSWindowEvents      = nullptr;
 static Application* gptrApplicationDelegate = nullptr;
 static Window*      gptrWindowDelegate      = nullptr;
 
-
 // Handles NSApplication delegate methods and lifecycle events
 struct ApplicationDelegate {
     Class isa;                      // Objective-C class pointer (required)
@@ -6395,6 +7365,7 @@ struct Application {
     void (*activate)    (struct Application* self){nullptr};
     void (*run)         (struct Application* self){nullptr};
     void (*destroy)     (struct Application* self){nullptr};
+    const char* (*getSystemLocale)(struct Application* self){nullptr};
     
     Application() = default;
     
@@ -6407,8 +7378,6 @@ struct Application {
     // Delete copy constructor and assignment
     Application(const Application&) = delete;
     Application& operator=(const Application&) = delete;
-    
-    // Allow move semantics
     Application(Application&&) = default;
     Application& operator=(Application&&) = default;
 };
@@ -6423,8 +7392,8 @@ struct Window {
     const char* title{nullptr};     // Window title string
 
     // Event callback function pointers with nullptr initialization
-    void (*keyDownCallback)          (unsigned short keyCode, const char* characters, void* userData){nullptr};
-    void (*keyUpCallback)            (unsigned short keyCode, const char* characters, void* userData){nullptr};
+    void (*keyDownCallback)          (unsigned short keyCode, const char* characters, unsigned int modifierFlags, void* userData){nullptr};
+    void (*keyUpCallback)            (unsigned short keyCode, const char* characters, unsigned int modifierFlags, void* userData){nullptr};
     void (*mouseDownCallback)        (double x, double y, int buttonNumber,  unsigned int modifierFlags, void* userData){nullptr};
     void (*mouseUpCallback)          (double x, double y, int buttonNumber,  unsigned int modifierFlags, void* userData){nullptr};
     void (*mouseMovedCallback)       (double x, double y, int buttonNumber,  unsigned int modifierFlags, void* userData){nullptr};
@@ -6516,7 +7485,6 @@ struct ImageLoader {
     unsigned int (*createOpenGLTexture)(const struct ImageLoader* self){nullptr};
 };
 
-
 // Called when application is about to finish launching
 void applicationWillFinishLaunching(id self, SEL _cmd, id notification) {
     (void)self;(void)_cmd;(void)notification; // Remove unused parameter warnings
@@ -6590,6 +7558,7 @@ id createApplicationDelegate() {
 struct KeyEventData {
     unsigned short keyCode = 0;
     const char* characters = nullptr;
+    unsigned int modifierFlags = 0;
 };
 
 // Extract common key event data from NSEvent
@@ -6598,6 +7567,7 @@ KeyEventData extractKeyEventData(id event) {
     data.keyCode = ((unsigned short(*)(id, SEL))objc_msgSend)(event, ObjectiveCSEL::keyCodeSel);
     id characters = ((id(*)(id, SEL))objc_msgSend)(event, ObjectiveCSEL::charactersSel);
     data.characters = ((const char*(*)(id, SEL))objc_msgSend)(characters, ObjectiveCSEL::utf8StringSel);
+    data.modifierFlags = ((unsigned int(*)(id, SEL))objc_msgSend)(event, ObjectiveCSEL::modifierFlagsSel);
     return data;
 }
 
@@ -6608,7 +7578,7 @@ void view_keyDown(id self, SEL _cmd, id event) {
     KeyEventData data = extractKeyEventData(event);
 
     if (gptrNSWindowEvents && gptrNSWindowEvents->acceptsInputEvents && gptrNSWindowEvents->keyDownCallback) [[likely]] {
-        gptrNSWindowEvents->keyDownCallback(data.keyCode, data.characters, gptrNSWindowEvents->eventUserData);
+        gptrNSWindowEvents->keyDownCallback(data.keyCode, data.characters, data.modifierFlags, gptrNSWindowEvents->eventUserData);
     }
 }
 
@@ -6619,7 +7589,7 @@ void view_keyUp(id self, SEL _cmd, id event) {
     KeyEventData data = extractKeyEventData(event);
     
     if (gptrNSWindowEvents && gptrNSWindowEvents->acceptsInputEvents && gptrNSWindowEvents->keyUpCallback) [[likely]] {
-        gptrNSWindowEvents->keyUpCallback(data.keyCode, data.characters, gptrNSWindowEvents->eventUserData);
+        gptrNSWindowEvents->keyUpCallback(data.keyCode, data.characters, data.modifierFlags, gptrNSWindowEvents->eventUserData);
     }
 }
 
@@ -6656,7 +7626,6 @@ void convertToContentViewCoordinates(NSPoint& location) {
     }
 }
 
-// Structure to hold common mouse event data
 struct MouseEventData {
     NSPoint location         = {0.0, 0.0};
     NSUInteger modifierFlags = 0;
@@ -6676,8 +7645,6 @@ MouseEventData extractMouseEventData(id event) {
     return data;
 }
 
-
-
 // Handle left mouse down events
 void view_mouseDown(id self, SEL _cmd, id event) {
     (void)self;(void)_cmd; // Remove unused parameter warnings
@@ -6696,12 +7663,10 @@ void view_mouseUp(id self, SEL _cmd, id event) {
     (void)self;(void)_cmd;
 
     MouseEventData data = extractMouseEventData(event);
-
     if (gptrNSWindowEvents && gptrNSWindowEvents->acceptsInputEvents && gptrNSWindowEvents->mouseUpCallback) [[likely]] {
         gptrNSWindowEvents->mouseUpCallback(data.location.x, data.location.y, (int)data.buttonNumber,
                                             (unsigned int)data.modifierFlags, gptrNSWindowEvents->eventUserData);
     }
-
 }
 
 // Handle mouse drag events
@@ -6709,7 +7674,6 @@ void view_mouseDragged(id self, SEL _cmd, id event) {
     (void)self;(void)_cmd;
 
     MouseEventData data = extractMouseEventData(event);
-
     if (gptrNSWindowEvents && gptrNSWindowEvents->acceptsInputEvents && gptrNSWindowEvents->mouseDraggedCallback) [[likely]] {
         gptrNSWindowEvents->mouseDraggedCallback(data.location.x, data.location.y, (int)data.buttonNumber, (unsigned int)data.modifierFlags, gptrNSWindowEvents->eventUserData);
     }
@@ -6718,12 +7682,6 @@ void view_mouseDragged(id self, SEL _cmd, id event) {
 // Handle mouse movement events
 void view_mouseMoved(id self, SEL _cmd, id event) {
     (void)self;(void)_cmd;
-
-    // Note: mouseMoved events do not have buttonNumber except in the case of Touch screens
-    // When using a touch screen, mouseMoved events may include a buttonNumber corresponding to the touch point
-    // However, for standard mouse movement, buttonNumber is typically not applicable, but if you call it, it returns 0
-    // Hence, we will use kNoButton constant to indicate no button is pressed during mouse movement and avoid
-    // using extractMouseEventData which retrieves buttonNumber
 
     NSPoint location         = ((NSPoint(*)(id, SEL))objc_msgSend)(event, ObjectiveCSEL::locationInWindowSel);
     NSUInteger modifierFlags = ((NSUInteger(*)(id, SEL))objc_msgSend)(event, ObjectiveCSEL::modifierFlagsSel);
@@ -6740,7 +7698,6 @@ void view_rightMouseDown(id self, SEL _cmd, id event) {
     (void)self;(void)_cmd;
 
     MouseEventData data = extractMouseEventData(event);
-
     if (gptrNSWindowEvents && gptrNSWindowEvents->acceptsInputEvents && gptrNSWindowEvents->rightMouseDownCallback) [[likely]] {
         gptrNSWindowEvents->rightMouseDownCallback(data.location.x, data.location.y, (int)data.buttonNumber, (unsigned int)data.modifierFlags, gptrNSWindowEvents->eventUserData);
     }
@@ -6751,7 +7708,6 @@ void view_rightMouseUp(id self, SEL _cmd, id event) {
     (void)self;(void)_cmd;
 
     MouseEventData data = extractMouseEventData(event);
-
     if (gptrNSWindowEvents && gptrNSWindowEvents->acceptsInputEvents && gptrNSWindowEvents->rightMouseUpCallback) [[likely]] {
         gptrNSWindowEvents->rightMouseUpCallback(data.location.x, data.location.y, (int)data.buttonNumber, (unsigned int)data.modifierFlags, gptrNSWindowEvents->eventUserData);
     }
@@ -6762,7 +7718,6 @@ void view_rightMouseDragged(id self, SEL _cmd, id event) {
     (void)self;(void)_cmd;
 
     MouseEventData data = extractMouseEventData(event);
-
     if (gptrNSWindowEvents && gptrNSWindowEvents->acceptsInputEvents && gptrNSWindowEvents->rightMouseDraggedCallback) [[likely]] {
         gptrNSWindowEvents->rightMouseDraggedCallback(data.location.x, data.location.y, (int)data.buttonNumber, (unsigned int)data.modifierFlags, gptrNSWindowEvents->eventUserData);
     }
@@ -6774,7 +7729,6 @@ void view_otherMouseDown(id self, SEL _cmd, id event) {
     (void)self;(void)_cmd;
 
     MouseEventData data = extractMouseEventData(event);
-
     if (gptrNSWindowEvents && gptrNSWindowEvents->acceptsInputEvents && gptrNSWindowEvents->otherMouseDownCallback) [[likely]] {
         gptrNSWindowEvents->otherMouseDownCallback(data.location.x, data.location.y, (int)data.buttonNumber, (unsigned int)data.modifierFlags, gptrNSWindowEvents->eventUserData);
     }
@@ -6785,7 +7739,6 @@ void view_otherMouseUp(id self, SEL _cmd, id event) {
     (void)self;(void)_cmd;
 
     MouseEventData data = extractMouseEventData(event);
-
     if (gptrNSWindowEvents && gptrNSWindowEvents->acceptsInputEvents && gptrNSWindowEvents->otherMouseUpCallback) {
         gptrNSWindowEvents->otherMouseUpCallback(data.location.x, data.location.y, (int)data.buttonNumber, (unsigned int)data.modifierFlags, gptrNSWindowEvents->eventUserData);
     }
@@ -6795,7 +7748,6 @@ void view_otherMouseDragged(id self, SEL _cmd, id event) {
     (void)self;(void)_cmd;
 
     MouseEventData data = extractMouseEventData(event);
-
     if (gptrNSWindowEvents && gptrNSWindowEvents->acceptsInputEvents && gptrNSWindowEvents->otherMouseDraggedCallback) [[likely]] {
         gptrNSWindowEvents->otherMouseDraggedCallback(data.location.x, data.location.y, (int)data.buttonNumber, (unsigned int)data.modifierFlags, gptrNSWindowEvents->eventUserData);
     }
@@ -6816,7 +7768,6 @@ void view_scrollWheel(id self, SEL _cmd, id event) {
         gptrNSWindowEvents->scrollWheelCallback(location.x, location.y, deltaX, deltaY, (unsigned int)modifierFlags, gptrNSWindowEvents->eventUserData);
     }
 }
-
 
 // Determine if view can accept first responder status
 id view_acceptsFirstResponder(id self, SEL _cmd) {
@@ -6845,25 +7796,20 @@ id view_needsPanelToBecomeKey(id self, SEL _cmd) {
 // Empty drawRect method - prevents automatic drawing on main thread
 void view_drawRect(id self, SEL _cmd, NSRect dirtyRect) {
     (void)self;(void)_cmd;(void)dirtyRect;
-
-    // Block automatic drawing - PGE engine thread will handle OpenGL rendering
 }
 
 // Empty reshape method - prevents automatic context reshaping on main thread
 void view_reshape(id self, SEL _cmd) {
     (void)self;(void)_cmd;
-    // Block automatic reshape - PGE engine thread will handle OpenGL updates
 }
 
 // Empty update method - prevents automatic context updates on main thread
 void view_update(id self, SEL _cmd) {
     (void)self;(void)_cmd;
-    // Block automatic update - PGE engine thread will handle OpenGL updates
 }
 
 // Create custom OpenGL view class
 Class createCustomOpenGLViewClass() {
-    // Check if class already exists
     Class existingClass = objc_getClass(kCustomOpenGLViewClass);
     if (existingClass) {
         return existingClass;
@@ -6923,7 +7869,8 @@ void windowDidResize(id self, SEL _cmd, id notification) {
     (void)self;(void)_cmd;(void)notification;
 
     if (gptrWindowDelegate && gptrWindowDelegate->nsWindow) {
-        // Safely update frame data only - no OpenGL operations
+
+        // Update frame data only
         window_updateFrameFromOSX(gptrWindowDelegate);
 
          // Get the new content view size
@@ -6953,6 +7900,7 @@ void windowDidBecomeKey(id self, SEL _cmd, id notification) {
     }
 }
 
+// handle window did resign key events
 void windowDidResignKey(id self, SEL _cmd, id notification) {
     (void)self;(void)_cmd;(void)notification;
     if (gptrWindowDelegate && gptrWindowDelegate->windowDidResignKeyCallback) {
@@ -6960,6 +7908,7 @@ void windowDidResignKey(id self, SEL _cmd, id notification) {
     }
 }
 
+// Handle window did miniaturize events
 void windowDidMiniaturize(id self, SEL _cmd, id notification) {
     (void)self;(void)_cmd;(void)notification;
     if (gptrWindowDelegate && gptrWindowDelegate->windowDidMiniaturizeCallback) {
@@ -7040,7 +7989,6 @@ id createWindowDelegateForWindow(void) {
     return delegate;
 }
 
-
     // Forward declarations for C API functions used by internal helpers
     extern "C" void window_setDelegate(Window* self, id delegate);
 
@@ -7083,6 +8031,26 @@ extern "C" {
         }
     }
 
+     // Get system locale identifier
+    const char* application_getSystemLocale(Application* self) {
+        (void)self; 
+        
+        // Get NSLocale class
+        Class NSLocaleClass = objc_getClass(kNSLocaleClass);
+        
+        // Get current locale
+        id currentLocale = ((id(*)(Class, SEL))objc_msgSend)(NSLocaleClass, ObjectiveCSEL::currentLocaleSel);
+        
+        // Get locale identifier
+        id localeIdentifierNS = ((id(*)(id, SEL))objc_msgSend)(currentLocale, ObjectiveCSEL::localeIdentifierSel);
+        
+        // Convert to C string (en-US, en-GB, en-IE etc)
+        const char* localeIdentifier = ((const char*(*)(id, SEL))objc_msgSend)(localeIdentifierNS, ObjectiveCSEL::utf8StringSel);
+        
+        return localeIdentifier;
+    }
+
+
     // Ensure window has a delegate for window events
     void ensureWindowDelegate(struct Window* self) {
 
@@ -7105,10 +8073,11 @@ extern "C" {
         Application* app = new Application();
 
         // Assign the method pointers
-        app->initialize = application_initialize;
-        app->activate   = application_activate;
-        app->run        = application_run;
-        app->destroy    = application_destroy;
+        app->initialize      = application_initialize;
+        app->activate        = application_activate;
+        app->run             = application_run;
+        app->destroy         = application_destroy;
+        app->getSystemLocale = application_getSystemLocale;
 
         return app;
     }
@@ -7148,7 +8117,6 @@ extern "C" {
 
         window_getContentViewFrame(self, &self->contentViewFrame.x, &self->contentViewFrame.y,
                                    &self->contentViewFrame.width, &self->contentViewFrame.height);
-        // Update internal frame representation from actual NSWindow
     }
 
     // Show the window and set up event handling
@@ -7172,8 +8140,8 @@ extern "C" {
 
     // Destroy the window
     void window_destroy(Window* self) {
-        // NSWindow will be cleaned up by autorelease pool
         (void)self;
+        // NSWindow will be cleaned up by autorelease pool
     }
 
     // Window delegate setter
@@ -7211,11 +8179,7 @@ extern "C" {
 
     // Refresh internal frame representation from actual NSWindow (OSX)
     void window_updateFrameFromOSX(Window* self) {
-
-       NSRect screenFrame = ((NSRect(*)(id, SEL))objc_msgSend)(self->nsWindow, ObjectiveCSEL::frameSel);
-
-        self->windowFrame = screenFrame; // Update internal frame representation
-       
+       self->windowFrame = ((NSRect(*)(id, SEL))objc_msgSend)(self->nsWindow, ObjectiveCSEL::frameSel);
     }
 
     // Get the content view size (excludes title bar and borders)
@@ -7267,7 +8231,6 @@ extern "C" {
            }
        }
     }
-
 
     // Get Window frame (x, y, width, height)
     void window_getWindowFrame(const Window* self, double* x, double* y, double* width, double* height) {
@@ -7393,20 +8356,10 @@ extern "C" {
         ((void(*)(id, SEL))objc_msgSend)(self->window->nsWindow, ObjectiveCSEL::makeKeyWindowSel);
         
         // Make the OpenGL view the first responder so it can receive keyboard and mouse events
-        BOOL result = ((BOOL(*)(id, SEL, id))objc_msgSend)(self->window->nsWindow, ObjectiveCSEL::makeFirstResponderSel, self->glView);
-        
-        if(result == NO) {
-            // Handle error if needed
-            //printf("Warning: Failed to make OpenGL view the first responder.\n");
-        }
+        ((BOOL(*)(id, SEL, id))objc_msgSend)(self->window->nsWindow, ObjectiveCSEL::makeFirstResponderSel, self->glView);
         
         // Additional debug: check if view can become key view
-        BOOL canBecomeKey = ((BOOL(*)(id, SEL))objc_msgSend)(self->glView, ObjectiveCSEL::canBecomeKeyViewSel);
-        if(canBecomeKey == NO) {
-            // Handle error if needed
-            //printf("Warning: OpenGL view cannot become key view.\n");
-        }
-
+        ((BOOL(*)(id, SEL))objc_msgSend)(self->glView, ObjectiveCSEL::canBecomeKeyViewSel);
     }
 
     // Implementation function
@@ -7433,7 +8386,6 @@ extern "C" {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         return true;
-
     }
 
 
@@ -7444,11 +8396,8 @@ extern "C" {
 
     // Get the underlying CGLContextObj from the OpenGL renderer
     void* opengl_getCGLContextObj(struct OpenGLRenderer* self) {
-        if (!self || !self->glContext) {
-            return nullptr;
-        }
+        if (!self || !self->glContext) { return nullptr;}
         
-        // Get the CGLContextObj from the NSOpenGLContext
         return (void*)((void*(*)(id, SEL))objc_msgSend)(self->glContext, ObjectiveCSEL::CGLContextObjSel);
     }
     
@@ -7466,9 +8415,7 @@ extern "C" {
 
     // Enable or disable vertical synchronization (vsync)
     void opengl_setVsync(OpenGLRenderer* self, BOOL enabled) {
-        if (!self || !self->glContext) {
-            return;
-        }
+        if (!self || !self->glContext) { return; }
         
         // Make context current first
         ((void(*)(id, SEL))objc_msgSend)(self->glContext, ObjectiveCSEL::makeCurrentContextSel);
@@ -7477,7 +8424,6 @@ extern "C" {
         GLint swapInterval = enabled ? 1 : 0;
         
         // Use NSOpenGLContext setValues:forParameter: to set swap interval
-        // NSOpenGLContextParameterSwapInterval = 222
         const GLint parameter = 222; // NSOpenGLContextParameterSwapInterval
         ((void(*)(id, SEL, const GLint*, GLint))objc_msgSend)(self->glContext, ObjectiveCSEL::setValuesSel, &swapInterval, parameter);
     }
@@ -7672,36 +8618,7 @@ extern "C" {
         self->bytesPerRow     = kZeroRows;
         self->hasAlpha        = NO;
     }
-
-    // Create OpenGL texture from ImageLoader
-    unsigned int imageloader_createOpenGLTexture(const struct ImageLoader* loader) {
-        if (!loader->isLoaded(const_cast<struct ImageLoader*>(loader))) {
-            return 0;
-        }
-        
-        unsigned int textureID;
-        glGenTextures(1, &textureID);
-        glBindTexture(GL_TEXTURE_2D, textureID);
-        
-        // Set texture parameters
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        
-        // Determine format
-        GLenum format = (loader->bytesPerPixel == kRGBABytesPerPixel) ? GL_RGBA : GL_RGB;
-
-        // Upload texture data
-        glTexImage2D(GL_TEXTURE_2D, 0, format, loader->width, loader->height,
-                    0, format, GL_UNSIGNED_BYTE, loader->pixelData);
-        
-        // Generate mipmaps for better quality at different scales
-        glGenerateMipmap(GL_TEXTURE_2D);
-        
-        return textureID;
-    }
-
+ 
     // ImageLoader constructor
     struct ImageLoader* imageloader_init() {
         struct ImageLoader* loader = (struct ImageLoader*)malloc(sizeof(struct ImageLoader));
@@ -7722,7 +8639,6 @@ extern "C" {
         loader->getDetailedInfo     = imageloader_getDetailedInfo;
         loader->isLoaded            = imageloader_isLoaded;
         loader->getPixel            = imageloader_getPixel;
-        loader->createOpenGLTexture = imageloader_createOpenGLTexture;
         
         return loader;
     }
@@ -7799,12 +8715,12 @@ extern "C" {
     }
 
     // Event callback setter functions
-    void window_setKeyDownCallback(Window* self, void (*callback)(unsigned short, const char*, void*), void* userData) {
+    void window_setKeyDownCallback(Window* self, void (*callback)(unsigned short, const char*, unsigned int, void*), void* userData) {
         self->keyDownCallback = callback;
         self->eventUserData = userData;
     }
 
-    void window_setKeyUpCallback(Window* self, void (*callback)(unsigned short, const char*, void*), void* userData) {
+    void window_setKeyUpCallback(Window* self, void (*callback)(unsigned short, const char*, unsigned int, void*), void* userData) {
         self->keyUpCallback = callback;
         self->eventUserData = userData;
     }
@@ -7884,38 +8800,32 @@ extern "C" {
     void window_setWindowDidResizeCallback(Window* self, void (*callback)(void*), void* userData) {
         self->windowDidResizeCallback = callback;
         self->windowDidResizeUserData = userData;
-        ensureWindowDelegate(self);  // Ensure delegate exists when callbacks are set
 
     }
 
     void window_setWindowWillCloseCallback(Window* self, void (*callback)(void*), void* userData) {
         self->windowWillCloseCallback = callback;
         self->windowWillCloseUserData = userData;
-        ensureWindowDelegate(self);
     }
 
     void window_setWindowDidBecomeKeyCallback(Window* self, void (*callback)(void*), void* userData) {
         self->windowDidBecomeKeyCallback = callback;
         self->windowDidBecomeKeyUserData = userData;
-        ensureWindowDelegate(self);
     }
 
     void window_setWindowDidResignKeyCallback(Window* self, void (*callback)(void*), void* userData) {
         self->windowDidResignKeyCallback = callback;
         self->windowDidResignKeyUserData = userData;
-        ensureWindowDelegate(self);
     }
 
     void window_setWindowDidMiniaturizeCallback(Window* self, void (*callback)(void*), void* userData) {
         self->windowDidMiniaturizeCallback = callback;
         self->windowDidMiniaturizeUserData = userData;
-        ensureWindowDelegate(self);
     }
 
     void window_setWindowDidDeminiaturizeCallback(Window* self, void (*callback)(void*), void* userData) {
         self->windowDidDeminiaturizeCallback = callback;
         self->windowDidDeminiaturizeUserData = userData;
-        ensureWindowDelegate(self);
     }
 
     // Application delegate callback setter functions
@@ -7958,11 +8868,109 @@ namespace olc::host
         XInitThreads();
         olc_Display = XOpenDisplay(NULL);
         olc_WindowRoot = DefaultRootWindow(olc_Display);
+
+        if(XkbQueryExtension(olc_Display, nullptr, &xkbEventBase, &xkbErrorBase, nullptr, nullptr))
+        {
+            XkbSelectEventDetails(olc_Display, XkbUseCoreKbd, XkbStateNotify, XkbGroupStateMask, XkbGroupStateMask);
+            kbExtensionsFound = true;
+            UpdateKeyboardLayout();
+        }
+
+        mapKeys[NoSymbol] = Key::NONE;
+
+        int keyTracker = static_cast<int>(Key::A);
+        uint32_t uppercase = static_cast<uint32_t>(XK_A);
+        uint32_t lowercase = static_cast<uint32_t>(XK_a);
+
+        for (; uppercase <= static_cast<uint32_t>(XK_Z); ++uppercase, ++lowercase)
+        {
+            mapKeys[uppercase] = (Key)keyTracker;
+            mapKeys[lowercase] = (Key)keyTracker;
+            ++keyTracker;
+        }
+
+        mapKeys[XK_F1] = Key::F1; mapKeys[XK_F2] = Key::F2; mapKeys[XK_F3] = Key::F3; mapKeys[XK_F4] = Key::F4;
+        mapKeys[XK_F5] = Key::F5; mapKeys[XK_F6] = Key::F6; mapKeys[XK_F7] = Key::F7; mapKeys[XK_F8] = Key::F8;
+        mapKeys[XK_F9] = Key::F9; mapKeys[XK_F10] = Key::F10; mapKeys[XK_F11] = Key::F11; mapKeys[XK_F12] = Key::F12;
+
+        mapKeys[XK_Down] = Key::DOWN; mapKeys[XK_Left] = Key::LEFT; mapKeys[XK_Right] = Key::RIGHT; mapKeys[XK_Up] = Key::UP;
+        mapKeys[XK_KP_Enter] = Key::ENTER; mapKeys[XK_Return] = Key::ENTER;
+
+        mapKeys[XK_BackSpace] = Key::BACK; mapKeys[XK_Escape] = Key::ESCAPE; mapKeys[XK_Linefeed] = Key::ENTER;	mapKeys[XK_Pause] = Key::PAUSE;
+        mapKeys[XK_Scroll_Lock] = Key::SCROLL; mapKeys[XK_Tab] = Key::TAB; mapKeys[XK_Delete] = Key::DEL; mapKeys[XK_Home] = Key::HOME;
+        mapKeys[XK_End] = Key::END; mapKeys[XK_Page_Up] = Key::PGUP; mapKeys[XK_Page_Down] = Key::PGDN;	mapKeys[XK_Insert] = Key::INS;
+        mapKeys[XK_Shift_L] = Key::SHIFT; mapKeys[XK_Shift_R] = Key::SHIFT; mapKeys[XK_Control_L] = Key::CTRL; mapKeys[XK_Control_R] = Key::CTRL;
+        mapKeys[XK_space] = Key::SPACE; mapKeys[XK_period] = Key::PERIOD;
+
+        mapKeys[XK_0] = Key::K0; mapKeys[XK_1] = Key::K1; mapKeys[XK_2] = Key::K2; mapKeys[XK_3] = Key::K3; mapKeys[XK_4] = Key::K4;
+        mapKeys[XK_5] = Key::K5; mapKeys[XK_6] = Key::K6; mapKeys[XK_7] = Key::K7; mapKeys[XK_8] = Key::K8; mapKeys[XK_9] = Key::K9;
+
+        mapKeys[XK_KP_0] = Key::NP0; mapKeys[XK_KP_1] = Key::NP1; mapKeys[XK_KP_2] = Key::NP2; mapKeys[XK_KP_3] = Key::NP3; mapKeys[XK_KP_4] = Key::NP4;
+        mapKeys[XK_KP_5] = Key::NP5; mapKeys[XK_KP_6] = Key::NP6; mapKeys[XK_KP_7] = Key::NP7; mapKeys[XK_KP_8] = Key::NP8; mapKeys[XK_KP_9] = Key::NP9;
+        mapKeys[XK_KP_Multiply] = Key::NP_MUL; mapKeys[XK_KP_Add] = Key::NP_ADD; mapKeys[XK_KP_Divide] = Key::NP_DIV; mapKeys[XK_KP_Subtract] = Key::NP_SUB; mapKeys[XK_KP_Decimal] = Key::NP_DECIMAL;
+
+        // These map the keypad when NUMLOCK is off
+        mapKeys[XK_KP_Home] = Key::HOME; mapKeys[XK_KP_End] = Key::END; mapKeys[XK_KP_Up] = Key::UP;
+        mapKeys[XK_KP_Down] = Key::DOWN; mapKeys[XK_KP_Left] = Key::LEFT; mapKeys[XK_KP_Right] = Key::RIGHT;
+        mapKeys[XK_KP_Page_Up] = Key::PGUP; mapKeys[XK_KP_Page_Down] = Key::PGDN; mapKeys[XK_KP_Insert] = Key::INS;
+        mapKeys[XK_KP_Delete] = Key::DEL;
+
+        // These keys vary depending on the keyboard. I've included comments for US and UK keyboard layouts
+        mapKeys[XK_semicolon] = Key::OEM_1;		// On US and UK keyboards this is the ';:' key
+        mapKeys[XK_slash] = Key::OEM_2;			// On US and UK keyboards this is the '/?' key
+        mapKeys[XK_asciitilde] = Key::OEM_3;	// On US keyboard this is the '~' key
+        mapKeys[XK_grave] = Key::OEM_3;	// On US keyboard this is the '`' key
+        mapKeys[XK_bracketleft] = Key::OEM_4;	// On US and UK keyboards this is the '[{' key
+        mapKeys[XK_backslash] = Key::OEM_5;		// On US keyboard this is '\|' key.
+        mapKeys[XK_bracketright] = Key::OEM_6;	// On US and UK keyboards this is the ']}' key
+        mapKeys[XK_apostrophe] = Key::OEM_7;	// On US keyboard this is the single/double quote key. On UK, this is the single quote/@ symbol key
+        mapKeys[XK_numbersign] = Key::OEM_8;	// miscellaneous characters. Varies by keyboard. I believe this to be the '#~' key on UK keyboards
+        mapKeys[XK_equal] = Key::EQUALS;		// the '+' key on any keyboard
+        mapKeys[XK_comma] = Key::COMMA;			// the comma key on any keyboard
+        mapKeys[XK_minus] = Key::MINUS;			// the minus key on any keyboard			
+
+        mapKeys[XK_Caps_Lock] = Key::CAPS_LOCK;
     }
 
-    bool Host_Linux_X11::StartSystemEventLoop(bool bBlockIfPossible)
+    bool Host_Linux_X11::OnApplicationStart(olc::PixelGameEngine* pPrimary)
+    {
+        pPrimaryPGE = pPrimary;
+        return true;
+    }
+
+    bool Host_Linux_X11::StartSystem()
     {
         using namespace X11;
+
+        pPrimaryPGE->OnPreContextStart();
+
+		// Create system thread - handles gpu context
+		std::thread threadSystem([this]()
+			{
+				// Notify start of system thread
+				if (!this->OnSystemThreadStart())
+				{
+					// PGE->OnContextStart() failed, or user aborted OnUserCreate()
+					return;
+				}
+
+				// Main system loop
+				while (systemActive)
+				{
+					// Perform primary window update
+					if (!this->OnSystemTick())
+					{
+						StopSystem();
+					}
+				}
+
+				// Notify end of system thread
+				if (!this->OnSystemThreadEnd())
+				{
+					// PGE->OnContextEnd() failed
+					return;
+				}
+			});
 
         auto get_pge_window = [&](auto x11_window) -> olc::Window* {
             auto itr = mapX11Window2PTR.find(x11_window);
@@ -7972,114 +8980,153 @@ namespace olc::host
             return nullptr;
         };
 
-        //std::unordered_map<X11::Window, olc::Window*> mapX11Window2PTR;
-
-        if(bBlockIfPossible) {
-			X11::XEvent xev;
-            while(!terminate){
-                while (XPending(olc_Display))
+        X11::XEvent xev;
+        while(systemActive){
+            while (XPending(olc_Display))
+            {
+                XNextEvent(olc_Display, &xev);
+                
+                // If there's an update to the keyboard, update it's layout.
+                if (xev.type == xkbEventBase + XkbEventCode && kbExtensionsFound)
                 {
-                    XNextEvent(olc_Display, &xev);
+                    UpdateKeyboardLayout();
+                }
 
-                    if (xev.type == Expose)
-                    {
-                        //auto* expose_event = reinterpret_cast<XExposeEvent*>(&xev);
-                        X11::XExposeEvent& e = xev.xexpose;
-                        if(auto* pge_window = get_pge_window(e.window); pge_window) {
-                            X11::XWindowAttributes gwa;
-                            X11::XGetWindowAttributes(e.display, e.window, &gwa);
-                            pge_window->olc_OnWindowSize(olc::vi2d{gwa.width, gwa.height});
-                        }
+                if (xev.type == Expose)
+                {
+                    //auto* expose_event = reinterpret_cast<XExposeEvent*>(&xev);
+                    X11::XExposeEvent& e = xev.xexpose;
+                    if(auto* pge_window = get_pge_window(e.window); pge_window) {
+                        X11::XWindowAttributes gwa;
+                        X11::XGetWindowAttributes(e.display, e.window, &gwa);
+                        pge_window->olc_OnWindowSize(olc::vi2d{gwa.width, gwa.height});
                     }
-                    else if (xev.type == ConfigureNotify)
-                    {
-                        X11::XConfigureEvent& xce = xev.xconfigure;
-                        if(auto* pge_window = get_pge_window(xce.window); pge_window) {
-                            pge_window->olc_OnWindowSize(olc::vi2d{xce.width, xce.height});
-                        }
+                }
+                else if (xev.type == ConfigureNotify)
+                {
+                    X11::XConfigureEvent& xce = xev.xconfigure;
+                    if(auto* pge_window = get_pge_window(xce.window); pge_window) {
+                        pge_window->olc_OnWindowSize(olc::vi2d{xce.width, xce.height});
                     }
-                    // else if (xev.type == KeyPress)
-                    // {
-                    // 	KeySym ks;
+                }
+                else if (xev.type == KeyPress)
+                {
+                    KeySym ks;
 
-                    // 	// DragonEye still loves numpads, but this is a better way
-                    // 	XLookupString(&xev.xkey, NULL, 0, &ks, NULL);
+                    // Unset the "shift" bit so that Key and Shift-Key will be mapped to the same olc::key
+                    // since the system kind of assumes this
+                    xev.xkey.state &= ~(1); 
 
-                    // 	if (ks != NoSymbol)
-                    // 		ptrPGE->olc_UpdateKeyState(ks, true);
-                    // }
-                    // else if (xev.type == KeyRelease)
-                    // {
-                    // 	KeySym ks;
-                    // 	XLookupString(&xev.xkey, NULL, 0, &ks, NULL);
+                    XLookupString(&xev.xkey, NULL, 0, &ks, NULL);
+                    
+                    if(auto* pge_window = get_pge_window(xev.xkey.window); pge_window) {
+                        auto it = mapKeys.find(static_cast<uint32_t>(ks));
+                        if(it != mapKeys.end()) {
+                            pge_window->olc_OnKeyPress(it->second, true);
+                        }
+                    }
+                }
+                else if (xev.type == KeyRelease)
+                {
+                    KeySym ks;
 
-                    // 	if (ks != NoSymbol)
-                    // 		ptrPGE->olc_UpdateKeyState(ks, false);
-                    // }
-                    else if (xev.type == ButtonPress)
-                    {
-                        if(auto* pge_window = get_pge_window(xev.xbutton.window); pge_window) {
-                            switch (xev.xbutton.button)
-                            {
-                            case 1:	pge_window->olc_OnMouseButton(0, true); break;
-                            case 2:	pge_window->olc_OnMouseButton(2, true); break;
-                            case 3:	pge_window->olc_OnMouseButton(1, true); break;
-                            case 4:	pge_window->olc_OnMouseWheel(120); break;
-                            case 5:	pge_window->olc_OnMouseWheel(-120); break;
-                            default: break;
-                            }
-                        
+                    XLookupString(&xev.xkey, NULL, 0, &ks, NULL);
+
+                    if(auto* pge_window = get_pge_window(xev.xkey.window); pge_window) {
+                        auto it = mapKeys.find(static_cast<uint32_t>(ks));
+                        if(it != mapKeys.end()) {
+                            pge_window->olc_OnKeyPress(it->second, false);
                         }
                     }
-                    else if (xev.type == ButtonRelease)
-                    {
-                        if(auto* pge_window = get_pge_window(xev.xbutton.window); pge_window) {
-                            switch (xev.xbutton.button)
-                            {
-                            case 1:	pge_window->olc_OnMouseButton(0, false); break;
-                            case 2:	pge_window->olc_OnMouseButton(2, false); break;
-                            case 3:	pge_window->olc_OnMouseButton(1, false); break;
-                            default: break;
-                            }               
+                }
+                else if (xev.type == ButtonPress)
+                {
+                    if(auto* pge_window = get_pge_window(xev.xbutton.window); pge_window) {
+                        switch (xev.xbutton.button)
+                        {
+                        case 1:	pge_window->olc_OnMouseButton(0, true); break;
+                        case 2:	pge_window->olc_OnMouseButton(2, true); break;
+                        case 3:	pge_window->olc_OnMouseButton(1, true); break;
+                        case 4:	pge_window->olc_OnMouseWheel(120); break;
+                        case 5:	pge_window->olc_OnMouseWheel(-120); break;
+                        default: break;
                         }
+                    
                     }
-                    else if (xev.type == MotionNotify)
-                    {
-                        X11::XMotionEvent& xme = xev.xmotion;
-                        if(auto* pge_window = get_pge_window(xev.xbutton.window); pge_window) {
-                            pge_window->olc_OnMouseMove(olc::vi2d{xme.x, xme.y});
-                        
-                        }
+                }
+                else if (xev.type == ButtonRelease)
+                {
+                    if(auto* pge_window = get_pge_window(xev.xbutton.window); pge_window) {
+                        switch (xev.xbutton.button)
+                        {
+                        case 1:	pge_window->olc_OnMouseButton(0, false); break;
+                        case 2:	pge_window->olc_OnMouseButton(2, false); break;
+                        case 3:	pge_window->olc_OnMouseButton(1, false); break;
+                        default: break;
+                        }               
                     }
-                    // else if (xev.type == FocusIn)
-                    // {
-                    // 	ptrPGE->olc_UpdateKeyFocus(true);
-                    // }
-                    // else if (xev.type == FocusOut)
-                    // {
-                    // 	ptrPGE->olc_UpdateKeyFocus(false);
-                    // }
-                    else if (xev.type == ClientMessage)
-                    {
-                        X11::XClientMessageEvent& xcme = xev.xclient;
-                        if(auto* pge_window = get_pge_window(xcme.window); pge_window) {
-                            pge_window->olc_OnWindowClose();
-                            return false;
-                        }
+                }
+                else if (xev.type == MotionNotify)
+                {
+                    X11::XMotionEvent& xme = xev.xmotion;
+                    if(auto* pge_window = get_pge_window(xev.xbutton.window); pge_window) {
+                        pge_window->olc_OnMouseMove(olc::vi2d{xme.x, xme.y});
+                    
+                    }
+                }
+                // else if (xev.type == FocusIn)
+                // {
+                // 	ptrPGE->olc_UpdateKeyFocus(true);
+                // }
+                // else if (xev.type == FocusOut)
+                // {
+                // 	ptrPGE->olc_UpdateKeyFocus(false);
+                // }
+                else if (xev.type == ClientMessage)
+                {
+                    X11::XClientMessageEvent& xcme = xev.xclient;
+                    if(auto* pge_window = get_pge_window(xcme.window); pge_window) {
+                        pge_window->olc_OnWindowClose();
                     }
                 }
             }
         }
+
+        systemActive = false;
+        if(threadSystem.joinable())
+            threadSystem.join();
+    
+        return pPrimaryPGE->OnPostContextEnd();
+    }
+
+    bool Host_Linux_X11::StopSystem()
+    {
+        systemActive = false;
+        return true;
+    }
+
+    bool Host_Linux_X11::OnSystemThreadStart()
+    {
+        return pPrimaryPGE->OnContextStart();
+    }
+
+    bool Host_Linux_X11::OnSystemTick()
+    {
+        return pPrimaryPGE->OnContextTick();;
+    }
+
+    bool Host_Linux_X11::OnSystemThreadEnd()
+    {
+        return pPrimaryPGE->OnContextEnd();
+    }
+
+    bool Host_Linux_X11::OnApplicationEnd()
+    {
         return true;
     }
 
     bool Host_Linux_X11::AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen)
     {
-		// The user created olc::Window object is the SSoT for what a window
-		// should look like, so get that sort of thing from there
-		olc::vi2d vWinPos = vWindowPos;
-		olc::vi2d vWinSize = vWindowSize;
-
         // Based on the display capabilities, configure the appearance of the window
         // to do this namespacing, both x11 and glx have to be included in the x11 namespace
         GLint olc_GLAttribs[] = { GLX_RGBA, GLX_DEPTH_SIZE, 24, GLX_DOUBLEBUFFER, None };
@@ -8140,11 +9187,62 @@ namespace olc::host
         }
   		return {};
     }
-    
-    
-    bool Host_Linux_X11::ConnectHostResourceToRenderer()
+
+    olc::KeyboardLayout Host_Linux_X11::GetKeyboardLayout() const {
+        return keyboardLayout;
+    }
+
+    void Host_Linux_X11::UpdateKeyboardLayout()
     {
-        return true;
+        using namespace X11;
+        keyboardLayout = OLC_DEFAULT_KEYBOARD_LAYOUT;
+
+        XkbStateRec state;
+        if (XkbGetState(olc_Display, XkbUseCoreKbd, &state) != Success)
+        {
+            return;
+        }
+
+        // state.group contains the currently active layout group
+        unsigned int currentGroup = state.group;
+
+        XkbDescPtr xkb = XkbGetMap(olc_Display, 0, XkbUseCoreKbd);
+        if (!xkb)
+        {
+            return;
+        }
+
+        XkbGetNames(olc_Display, XkbGroupNamesMask, xkb);
+    
+        if (!xkb->names)
+        {
+            XkbFreeKeyboard(xkb, 0, True);
+            return;
+        }
+
+        Atom layoutAtom = xkb->names->groups[currentGroup];
+        char* layoutName = layoutAtom ? XGetAtomName(olc_Display, layoutAtom) : nullptr;
+    
+        if (layoutName)
+        {
+            std::string layout(layoutName);
+            
+            // Convert to lowercase for easier comparison
+            std::transform(layout.begin(), layout.end(), layout.begin(), ::tolower);
+        
+            if (layout.find("us") != std::string::npos)
+                keyboardLayout = olc::KeyboardLayout::QWERTY_US;
+            else if (layout.find("gb") != std::string::npos || layout.find("uk") != std::string::npos)
+                keyboardLayout = olc::KeyboardLayout::QWERTY_UK;
+            else if (layout.find("de") != std::string::npos || layout.find("german") != std::string::npos)
+                keyboardLayout = olc::KeyboardLayout::QWERTZ;
+            else if (layout.find("fr") != std::string::npos || layout.find("french") != std::string::npos)
+                keyboardLayout = olc::KeyboardLayout::AZERTY;
+            
+            XFree(layoutName);
+        }
+    
+        XkbFreeKeyboard(xkb, 0, True);
     }
 
     // Wait for entire host desktop refresh (for smooooth vsync)
@@ -8181,6 +9279,15 @@ namespace olc::host
             .axis_discrete = Host_Linux_Wayland::pointer_axis_discrete_callback,
             .axis_value120 = Host_Linux_Wayland::pointer_axis_value120_callback,
             .axis_relative_direction = Host_Linux_Wayland::pointer_axis_relative_direction_callback
+        };
+
+        static const wl_keyboard_listener keyboard_listener {
+            .keymap = Host_Linux_Wayland::keyboard_keymap_callback,
+            .enter = Host_Linux_Wayland::keyboard_enter_callback,
+            .leave = Host_Linux_Wayland::keyboard_leave_callback,
+            .key = Host_Linux_Wayland::keyboard_key_callback,
+            .modifiers = Host_Linux_Wayland::keyboard_modifiers_callback,
+            .repeat_info = Host_Linux_Wayland::keyboard_repeat_info_callback
         };
     }
 
@@ -8220,6 +9327,66 @@ namespace olc::host
         
         xdg_wm_base_add_listener(xdg_wm, &xdg::xdg_base_listener, this);
         wl_seat_add_listener(seat, &wayland::seat_listener, this);
+
+        kb_context = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
+
+        // Setup the keymap with XKB codes, which are basically the same as the X11 codes
+        mapKeys[XKB_KEY_NoSymbol] = Key::NONE;
+
+        int keyTracker = static_cast<int>(Key::A);
+        uint32_t uppercase = static_cast<uint32_t>(XKB_KEY_A);
+        uint32_t lowercase = static_cast<uint32_t>(XKB_KEY_a);
+
+        for (; uppercase <= static_cast<uint32_t>(XKB_KEY_Z); ++uppercase, ++lowercase)
+        {
+            mapKeys[uppercase] = (Key)keyTracker;
+            mapKeys[lowercase] = (Key)keyTracker;
+            ++keyTracker;
+        }
+
+        mapKeys[XKB_KEY_F1] = Key::F1; mapKeys[XKB_KEY_F2] = Key::F2; mapKeys[XKB_KEY_F3] = Key::F3; mapKeys[XKB_KEY_F4] = Key::F4;
+        mapKeys[XKB_KEY_F5] = Key::F5; mapKeys[XKB_KEY_F6] = Key::F6; mapKeys[XKB_KEY_F7] = Key::F7; mapKeys[XKB_KEY_F8] = Key::F8;
+        mapKeys[XKB_KEY_F9] = Key::F9; mapKeys[XKB_KEY_F10] = Key::F10; mapKeys[XKB_KEY_F11] = Key::F11; mapKeys[XKB_KEY_F12] = Key::F12;
+
+        mapKeys[XKB_KEY_Down] = Key::DOWN; mapKeys[XKB_KEY_Left] = Key::LEFT; mapKeys[XKB_KEY_Right] = Key::RIGHT; mapKeys[XKB_KEY_Up] = Key::UP;
+        mapKeys[XKB_KEY_KP_Enter] = Key::ENTER; mapKeys[XKB_KEY_Return] = Key::ENTER;
+
+        mapKeys[XKB_KEY_BackSpace] = Key::BACK; mapKeys[XKB_KEY_Escape] = Key::ESCAPE; mapKeys[XKB_KEY_Linefeed] = Key::ENTER;	mapKeys[XKB_KEY_Pause] = Key::PAUSE;
+        mapKeys[XKB_KEY_Scroll_Lock] = Key::SCROLL; mapKeys[XKB_KEY_Tab] = Key::TAB; mapKeys[XKB_KEY_Delete] = Key::DEL; mapKeys[XKB_KEY_Home] = Key::HOME;
+        mapKeys[XKB_KEY_End] = Key::END; mapKeys[XKB_KEY_Page_Up] = Key::PGUP; mapKeys[XKB_KEY_Page_Down] = Key::PGDN;	mapKeys[XKB_KEY_Insert] = Key::INS;
+        mapKeys[XKB_KEY_Shift_L] = Key::SHIFT; mapKeys[XKB_KEY_Shift_R] = Key::SHIFT; mapKeys[XKB_KEY_Control_L] = Key::CTRL; mapKeys[XKB_KEY_Control_R] = Key::CTRL;
+        mapKeys[XKB_KEY_space] = Key::SPACE; mapKeys[XKB_KEY_period] = Key::PERIOD;
+
+        mapKeys[XKB_KEY_0] = Key::K0; mapKeys[XKB_KEY_1] = Key::K1; mapKeys[XKB_KEY_2] = Key::K2; mapKeys[XKB_KEY_3] = Key::K3; mapKeys[XKB_KEY_4] = Key::K4;
+        mapKeys[XKB_KEY_5] = Key::K5; mapKeys[XKB_KEY_6] = Key::K6; mapKeys[XKB_KEY_7] = Key::K7; mapKeys[XKB_KEY_8] = Key::K8; mapKeys[XKB_KEY_9] = Key::K9;
+
+        mapKeys[XKB_KEY_KP_0] = Key::NP0; mapKeys[XKB_KEY_KP_1] = Key::NP1; mapKeys[XKB_KEY_KP_2] = Key::NP2; mapKeys[XKB_KEY_KP_3] = Key::NP3; mapKeys[XKB_KEY_KP_4] = Key::NP4;
+        mapKeys[XKB_KEY_KP_5] = Key::NP5; mapKeys[XKB_KEY_KP_6] = Key::NP6; mapKeys[XKB_KEY_KP_7] = Key::NP7; mapKeys[XKB_KEY_KP_8] = Key::NP8; mapKeys[XKB_KEY_KP_9] = Key::NP9;
+        mapKeys[XKB_KEY_KP_Multiply] = Key::NP_MUL; mapKeys[XKB_KEY_KP_Add] = Key::NP_ADD; mapKeys[XKB_KEY_KP_Divide] = Key::NP_DIV; mapKeys[XKB_KEY_KP_Subtract] = Key::NP_SUB; mapKeys[XKB_KEY_KP_Decimal] = Key::NP_DECIMAL;
+
+        // These map the keypad when NUMLOCK is off
+        mapKeys[XKB_KEY_KP_Home] = Key::HOME; mapKeys[XKB_KEY_KP_End] = Key::END; mapKeys[XKB_KEY_KP_Up] = Key::UP;
+        mapKeys[XKB_KEY_KP_Down] = Key::DOWN; mapKeys[XKB_KEY_KP_Left] = Key::LEFT; mapKeys[XKB_KEY_KP_Right] = Key::RIGHT;
+        mapKeys[XKB_KEY_KP_Page_Up] = Key::PGUP; mapKeys[XKB_KEY_KP_Page_Down] = Key::PGDN; mapKeys[XKB_KEY_KP_Insert] = Key::INS;
+        mapKeys[XKB_KEY_KP_Delete] = Key::DEL;
+
+        // These keys vary depending on the keyboard. I've included comments for US and UK keyboard layouts
+        mapKeys[XKB_KEY_semicolon] = Key::OEM_1;		// On US and UK keyboards this is the ';:' key
+        mapKeys[XKB_KEY_slash] = Key::OEM_2;			// On US and UK keyboards this is the '/?' key
+        mapKeys[XKB_KEY_asciitilde] = Key::OEM_3;	// On US keyboard this is the '~' key
+        mapKeys[XKB_KEY_grave] = Key::OEM_3;	// On US keyboard this is the '`' key
+        mapKeys[XKB_KEY_bracketleft] = Key::OEM_4;	// On US and UK keyboards this is the '[{' key
+        mapKeys[XKB_KEY_backslash] = Key::OEM_5;		// On US keyboard this is '\|' key.
+        mapKeys[XKB_KEY_bracketright] = Key::OEM_6;	// On US and UK keyboards this is the ']}' key
+        mapKeys[XKB_KEY_apostrophe] = Key::OEM_7;	// On US keyboard this is the single/double quote key. On UK, this is the single quote/@ symbol key
+        mapKeys[XKB_KEY_numbersign] = Key::OEM_8;	// miscellaneous characters. Varies by keyboard. I believe this to be the '#~' key on UK keyboards
+        mapKeys[XKB_KEY_equal] = Key::EQUALS;		// the '+' key on any keyboard
+        mapKeys[XKB_KEY_comma] = Key::COMMA;			// the comma key on any keyboard
+        mapKeys[XKB_KEY_minus] = Key::MINUS;			// the minus key on any keyboard			
+
+        mapKeys[XKB_KEY_Caps_Lock] = Key::CAPS_LOCK;
+
+        UpdateKeyboardLayout();
     }
 
     Host_Linux_Wayland::~Host_Linux_Wayland()
@@ -8232,17 +9399,83 @@ namespace olc::host
             wl_surface_destroy(wayland_window.surface);
         }
 
+        xkb_state_unref(kb_state);
+        xkb_keymap_unref(kb_keymap);
+        xkb_context_unref(kb_context);
+
         wl_display_disconnect(display);
     }
 
-    bool Host_Linux_Wayland::StartSystemEventLoop(bool bBlockIfPossible)
+    bool Host_Linux_Wayland::OnApplicationStart(olc::PixelGameEngine* pPrimary)
     {
-        if(bBlockIfPossible) {
-            while(!terminate && wl_display_dispatch_pending(display) != -1) {
+        pPrimaryPGE = pPrimary;
+        return true;
+    }
 
-            }
-        }
+    bool Host_Linux_Wayland::StartSystem()
+    {
+        pPrimaryPGE->OnPreContextStart();
 
+        		// Create system thread - handles gpu context
+		std::thread threadSystem([this]()
+			{
+				// Notify start of system thread
+				if (!this->OnSystemThreadStart())
+				{
+					// PGE->OnContextStart() failed, or user aborted OnUserCreate()
+					return;
+				}
+
+				// Main system loop
+				while (systemActive)
+				{
+					// Perform primary window update
+					if (!this->OnSystemTick())
+					{
+						StopSystem();
+					}
+				}
+
+				// Notify end of system thread
+				if (!this->OnSystemThreadEnd())
+				{
+					// PGE->OnContextEnd() failed
+					return;
+				}
+			});
+        
+        while(systemActive && wl_display_dispatch_pending(display) != -1) { }
+        
+        systemActive = false;
+        if(threadSystem.joinable())
+            threadSystem.join();
+    
+        return pPrimaryPGE->OnPostContextEnd();
+    }
+
+    bool Host_Linux_Wayland::StopSystem()
+    {
+        systemActive = false;
+        return true;
+    }
+
+    bool Host_Linux_Wayland::OnSystemThreadStart()
+    {
+        return pPrimaryPGE->OnContextStart();
+    }
+
+    bool Host_Linux_Wayland::OnSystemTick()
+    {
+        return pPrimaryPGE->OnContextTick();;
+    }
+
+    bool Host_Linux_Wayland::OnSystemThreadEnd()
+    {
+        return pPrimaryPGE->OnContextEnd();
+    }
+
+    bool Host_Linux_Wayland::OnApplicationEnd()
+    {
         return true;
     }
 
@@ -8304,6 +9537,43 @@ namespace olc::host
         return true;
     }
 
+    void Host_Linux_Wayland::UpdateKeyboardLayout()
+    {
+        if(!kb_keymap)
+        {
+            keyboardLayout = OLC_DEFAULT_KEYBOARD_LAYOUT;
+            return;
+        }
+        
+        const char* layoutName = xkb_keymap_layout_get_name(kb_keymap, kb_group);
+    
+        if (!layoutName)
+        {
+            keyboardLayout = OLC_DEFAULT_KEYBOARD_LAYOUT;
+            return;
+        }
+        
+        keyboardLayout = OLC_DEFAULT_KEYBOARD_LAYOUT;
+        
+        std::string layout(layoutName);
+        std::transform(layout.begin(), layout.end(), layout.begin(), ::tolower);
+    
+        if (layout.find("us") != std::string::npos)
+            keyboardLayout = olc::KeyboardLayout::QWERTY_US;
+        else if (layout.find("gb") != std::string::npos || layout.find("uk") != std::string::npos)
+            keyboardLayout = olc::KeyboardLayout::QWERTY_UK;
+        else if (layout.find("de") != std::string::npos || layout.find("german") != std::string::npos)
+            keyboardLayout = olc::KeyboardLayout::QWERTZ;
+        else if (layout.find("fr") != std::string::npos || layout.find("french") != std::string::npos)
+            keyboardLayout = olc::KeyboardLayout::AZERTY;
+    }
+
+    olc::KeyboardLayout Host_Linux_Wayland::GetKeyboardLayout() const
+    {
+        return keyboardLayout;
+    }
+
+
     void Host_Linux_Wayland::registry_handle_global(wl_registry* registry, uint32_t name, const char* interface, uint32_t version)
     {
         if(std::strcmp(interface, wl_compositor_interface.name) == 0) {
@@ -8318,6 +9588,9 @@ namespace olc::host
         if(std::strcmp(interface, zxdg_decoration_manager_v1_interface.name) == 0) {
             decoration_manager = static_cast<zxdg_decoration_manager_v1*>(wl_registry_bind(registry, name, &zxdg_decoration_manager_v1_interface, version));
         }
+        if(std::strcmp(interface, wl_keyboard_interface.name) == 0) {
+            keyboard = static_cast<wl_keyboard*>(wl_registry_bind(registry, name, &wl_keyboard_interface, version));
+        }
     }
     
     void Host_Linux_Wayland::registry_handle_global_remove(wl_registry* registry, uint32_t name)
@@ -8330,6 +9603,11 @@ namespace olc::host
         if (capabilities & WL_SEAT_CAPABILITY_POINTER && pointer == nullptr) {
             pointer = wl_seat_get_pointer(seat);
             wl_pointer_add_listener(pointer, &wayland::pointer_listener, this);
+        }
+
+        if (capabilities & WL_SEAT_CAPABILITY_KEYBOARD && keyboard == nullptr) {
+            keyboard = wl_seat_get_keyboard(seat);
+            wl_keyboard_add_listener(keyboard, &wayland::keyboard_listener, this);
         }
     }
 
@@ -8363,7 +9641,6 @@ namespace olc::host
                 if(itr != mapUID2OlcWindow.end()) {
                     auto* ptr = itr->second;
                     ptr->olc_OnWindowClose();
-                    terminate = true;
                 }
             }
         }
@@ -8566,6 +9843,112 @@ namespace olc::host
         //host->pointer_axis_relative_direction(pointer, axis, direction);
     }
 
+    // Keyboard Callbacks
+    void Host_Linux_Wayland::keyboard_keymap_callback(void* data, wl_keyboard* keyboard, uint32_t format, int fd, uint32_t size)
+    {
+        auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
+        host->keyboard_keymap(keyboard, format, fd, size);
+    }
+
+    void Host_Linux_Wayland::keyboard_keymap(wl_keyboard* keyboard, uint32_t format, int fd, uint32_t size)
+    {
+        if (format != WL_KEYBOARD_KEYMAP_FORMAT_XKB_V1) {
+            close(fd);
+            return;
+        }
+
+        char* keymap_string = static_cast<char*>(mmap(nullptr, size, PROT_READ, MAP_SHARED, fd, 0));
+        if (keymap_string == MAP_FAILED) {
+            close(fd);
+            return;
+        }
+
+        if(kb_keymap)
+            xkb_keymap_unref(kb_keymap);
+
+        kb_keymap = xkb_keymap_new_from_string(kb_context, keymap_string, XKB_KEYMAP_FORMAT_TEXT_V1, XKB_KEYMAP_COMPILE_NO_FLAGS);
+        munmap(keymap_string, size);
+        close(fd);
+
+        if (!kb_keymap) {
+            return;
+        }
+
+        // Unreference the previous state if it exists and we got a new keymap from the server
+        xkb_state_unref(kb_state);
+        kb_state = xkb_state_new(kb_keymap);
+        UpdateKeyboardLayout();
+    }
+
+    void Host_Linux_Wayland::keyboard_enter_callback(void* data, wl_keyboard* keyboard, uint32_t serial, wl_surface* surface, wl_array* keys)
+    {
+        auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
+        host->keyboard_enter(keyboard, serial, surface, keys);
+    }
+
+    void Host_Linux_Wayland::keyboard_enter(wl_keyboard* keyboard, uint32_t serial, wl_surface* surface, wl_array* keys)
+    {
+        // Currently do nothing
+    }
+
+    void Host_Linux_Wayland::keyboard_leave_callback(void* data, wl_keyboard* keyboard, uint32_t serial, wl_surface* surface)
+    {
+        auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
+        host->keyboard_leave(keyboard, serial, surface);
+    }
+
+    void Host_Linux_Wayland::keyboard_leave(wl_keyboard* keyboard, uint32_t serial, wl_surface* surface)
+    {
+        // Currently do nothing
+    }
+
+    void Host_Linux_Wayland::keyboard_key_callback(void* data, wl_keyboard* keyboard, uint32_t serial, uint32_t time, uint32_t key, uint32_t state)
+    {
+        auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
+        host->keyboard_key(keyboard, serial, time, key, state);
+    }
+
+    void Host_Linux_Wayland::keyboard_key(wl_keyboard* keyboard, uint32_t serial, uint32_t time, uint32_t key, uint32_t state)
+    {
+        const auto sym = xkb_state_key_get_one_sym(kb_state, key + 8); // XKB keys are offset by 8
+        auto itr = mapKeys.find(sym);
+        if(itr != mapKeys.end()) {
+            auto olc_key = itr->second;
+            auto* pge_window = mapUID2OlcWindow[active_window_id];
+            pge_window->olc_OnKeyPress(olc_key, state == WL_KEYBOARD_KEY_STATE_PRESSED);
+        }
+    }
+
+    void Host_Linux_Wayland::keyboard_modifiers_callback(void* data, wl_keyboard* keyboard, uint32_t serial, uint32_t mods_depressed, uint32_t mods_latched, uint32_t mods_locked, uint32_t group)
+    {
+        auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
+        host->keyboard_modifiers(keyboard, serial, mods_depressed, mods_latched, mods_locked, group);
+    }
+
+    void Host_Linux_Wayland::keyboard_modifiers(wl_keyboard* keyboard, uint32_t serial, uint32_t mods_depressed, uint32_t mods_latched, uint32_t mods_locked, uint32_t group)
+    {
+        // The 'group' parameter is the currently active layout index!
+        if(kb_group != group)
+        {
+            kb_group = group;
+            UpdateKeyboardLayout();
+        }
+
+        xkb_state_update_mask(kb_state,
+            mods_depressed & ~(1), // Just like X11, ignore the shift key
+            mods_latched,
+            mods_locked,
+            0,
+            0,
+            group);
+    }
+
+    void Host_Linux_Wayland::keyboard_repeat_info_callback(void* data, wl_keyboard* keyboard, int32_t rate, int32_t delay)
+    {
+        // auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
+        // host->keyboard_repeat_info(keyboard, rate, delay);
+    }
+
     // XDG Callbacks
     void Host_Linux_Wayland::xdg_wm_ping_callback(void* data, xdg_wm_base* wm, uint32_t serial) {
         xdg_wm_base_pong(wm, serial);
@@ -8616,11 +9999,6 @@ namespace olc::host
         return {};
     }
 
-    bool Host_Linux_Wayland::ConnectHostResourceToRenderer()
-    {
-        return true;
-    }
-
     bool Host_Linux_Wayland::SyncWithDesktopComposite()
     {
         return true;
@@ -8634,56 +10012,238 @@ namespace olc::host
 {
     std::unordered_map<size_t, std::string> Host_Web_Emscripten::mapUID2CanvasId;
     std::unordered_map<std::string, olc::Window*> Host_Web_Emscripten::mapCanvasId2PTR;
+    std::unordered_map<size_t, std::unique_ptr<Host_Web_Emscripten::CallbackData>> Host_Web_Emscripten::mapUID2CallbackData;
+
+    // Called at very start of application
+    bool Host_Web_Emscripten::OnApplicationStart(olc::PixelGameEngine* pPrimary)
+    {
+        std::cout << "Emscripten: OnApplicationStart.\n";
+        pPrimaryPGE = pPrimary;
+        return true;
+    }
+    
+    void Host_Web_Emscripten::MainLoop(void* userData)
+    {
+        auto pHost = reinterpret_cast<Host_Web_Emscripten*>(userData);
+
+        if(!pHost->OnSystemTick())
+        {
+            pHost->StopSystem();
+        }
+    }
+
+    // Called to start the host - this may mean different things on different hosts
+    bool Host_Web_Emscripten::StartSystem()
+    {
+		// Pre-context start hook
+		pPrimaryPGE->OnPreContextStart();
+
+        if(!OnSystemThreadStart())
+        {
+            // PGE->ContextStart() failed, or user aborted OnUserCreate()
+            return false;
+        }
+        
+        emscripten_set_main_loop_arg(Host_Web_Emscripten::MainLoop, reinterpret_cast<void*>(this), 0, 1);
+        
+        // EMSCRIPTEN QUIRK: this code is never reached, the main loop is simulating a while(true);
+        
+        return true;
+    }
+    
+    // Called to stop the host, and shutdown all resources
+    bool Host_Web_Emscripten::StopSystem()
+    {
+        std::cout << "Emscripten: StopSystem.\n";
+        OnSystemThreadEnd();
+        pPrimaryPGE->OnPostContextEnd();
+        emscripten_cancel_main_loop();
+        return true;
+    }
+
+    // Called at start of system event loop
+    bool Host_Web_Emscripten::OnSystemThreadStart()
+    {
+        std::cout << "Emscripten: OnSystemThreadStart.\n";
+        return pPrimaryPGE->OnContextStart();
+    }
+    
+    // Called to perform primary window update
+    bool Host_Web_Emscripten::OnSystemTick()
+    {
+        return pPrimaryPGE->OnContextTick();
+    }
+    
+    // Called at end of system event loop
+    bool Host_Web_Emscripten::OnSystemThreadEnd()
+    {
+        std::cout << "Emscripten: OnSystemThreadEnd.\n";
+        return pPrimaryPGE->OnContextEnd();
+    }
+    
+    // Called at very end of application
+    bool Host_Web_Emscripten::OnApplicationEnd()
+    {
+        std::cout << "Emscripten: OnApplicationEnd.\n";
+        return true;
+    }
 
     Host_Web_Emscripten::Host_Web_Emscripten()
     {
         std::cout << "Emscripten: host constructed.\n";
         
-        // mapKeys[DOM_PK_UNKNOWN] = Key::NONE;
-        // mapKeys[DOM_PK_A] = Key::A; mapKeys[DOM_PK_B] = Key::B; mapKeys[DOM_PK_C] = Key::C; mapKeys[DOM_PK_D] = Key::D;
-        // mapKeys[DOM_PK_E] = Key::E; mapKeys[DOM_PK_F] = Key::F; mapKeys[DOM_PK_G] = Key::G; mapKeys[DOM_PK_H] = Key::H;
-        // mapKeys[DOM_PK_I] = Key::I; mapKeys[DOM_PK_J] = Key::J; mapKeys[DOM_PK_K] = Key::K; mapKeys[DOM_PK_L] = Key::L;
-        // mapKeys[DOM_PK_M] = Key::M; mapKeys[DOM_PK_N] = Key::N; mapKeys[DOM_PK_O] = Key::O; mapKeys[DOM_PK_P] = Key::P;
-        // mapKeys[DOM_PK_Q] = Key::Q; mapKeys[DOM_PK_R] = Key::R; mapKeys[DOM_PK_S] = Key::S; mapKeys[DOM_PK_T] = Key::T;
-        // mapKeys[DOM_PK_U] = Key::U; mapKeys[DOM_PK_V] = Key::V; mapKeys[DOM_PK_W] = Key::W; mapKeys[DOM_PK_X] = Key::X;
-        // mapKeys[DOM_PK_Y] = Key::Y; mapKeys[DOM_PK_Z] = Key::Z;
-        // mapKeys[DOM_PK_0] = Key::K0; mapKeys[DOM_PK_1] = Key::K1; mapKeys[DOM_PK_2] = Key::K2;
-        // mapKeys[DOM_PK_3] = Key::K3; mapKeys[DOM_PK_4] = Key::K4; mapKeys[DOM_PK_5] = Key::K5;
-        // mapKeys[DOM_PK_6] = Key::K6; mapKeys[DOM_PK_7] = Key::K7; mapKeys[DOM_PK_8] = Key::K8;
-        // mapKeys[DOM_PK_9] = Key::K9;
-        // mapKeys[DOM_PK_F1] = Key::F1; mapKeys[DOM_PK_F2] = Key::F2; mapKeys[DOM_PK_F3] = Key::F3; mapKeys[DOM_PK_F4] = Key::F4;
-        // mapKeys[DOM_PK_F5] = Key::F5; mapKeys[DOM_PK_F6] = Key::F6; mapKeys[DOM_PK_F7] = Key::F7; mapKeys[DOM_PK_F8] = Key::F8;
-        // mapKeys[DOM_PK_F9] = Key::F9; mapKeys[DOM_PK_F10] = Key::F10; mapKeys[DOM_PK_F11] = Key::F11; mapKeys[DOM_PK_F12] = Key::F12;
-        // mapKeys[DOM_PK_ARROW_UP] = Key::UP; mapKeys[DOM_PK_ARROW_DOWN] = Key::DOWN;
-        // mapKeys[DOM_PK_ARROW_LEFT] = Key::LEFT; mapKeys[DOM_PK_ARROW_RIGHT] = Key::RIGHT;
-        // mapKeys[DOM_PK_SPACE] = Key::SPACE; mapKeys[DOM_PK_TAB] = Key::TAB;
-        // mapKeys[DOM_PK_SHIFT_LEFT] = Key::SHIFT; mapKeys[DOM_PK_SHIFT_RIGHT] = Key::SHIFT;
-        // mapKeys[DOM_PK_CONTROL_LEFT] = Key::CTRL; mapKeys[DOM_PK_CONTROL_RIGHT] = Key::CTRL;
-        // mapKeys[DOM_PK_INSERT] = Key::INS; mapKeys[DOM_PK_DELETE] = Key::DEL; mapKeys[DOM_PK_HOME] = Key::HOME;
-        // mapKeys[DOM_PK_END] = Key::END; mapKeys[DOM_PK_PAGE_UP] = Key::PGUP; mapKeys[DOM_PK_PAGE_DOWN] = Key::PGDN;
-        // mapKeys[DOM_PK_BACKSPACE] = Key::BACK; mapKeys[DOM_PK_ESCAPE] = Key::ESCAPE;
-        // mapKeys[DOM_PK_ENTER] = Key::ENTER; mapKeys[DOM_PK_NUMPAD_EQUAL] = Key::EQUALS;
-        // mapKeys[DOM_PK_NUMPAD_ENTER] = Key::ENTER; mapKeys[DOM_PK_PAUSE] = Key::PAUSE;
-        // mapKeys[DOM_PK_SCROLL_LOCK] = Key::SCROLL;
-        // mapKeys[DOM_PK_NUMPAD_0] = Key::NP0; mapKeys[DOM_PK_NUMPAD_1] = Key::NP1; mapKeys[DOM_PK_NUMPAD_2] = Key::NP2;
-        // mapKeys[DOM_PK_NUMPAD_3] = Key::NP3; mapKeys[DOM_PK_NUMPAD_4] = Key::NP4; mapKeys[DOM_PK_NUMPAD_5] = Key::NP5;
-        // mapKeys[DOM_PK_NUMPAD_6] = Key::NP6; mapKeys[DOM_PK_NUMPAD_7] = Key::NP7; mapKeys[DOM_PK_NUMPAD_8] = Key::NP8;
-        // mapKeys[DOM_PK_NUMPAD_9] = Key::NP9;
-        // mapKeys[DOM_PK_NUMPAD_MULTIPLY] = Key::NP_MUL; mapKeys[DOM_PK_NUMPAD_DIVIDE] = Key::NP_DIV;
-        // mapKeys[DOM_PK_NUMPAD_ADD] = Key::NP_ADD; mapKeys[DOM_PK_NUMPAD_SUBTRACT] = Key::NP_SUB;
-        // mapKeys[DOM_PK_NUMPAD_DECIMAL] = Key::NP_DECIMAL;
-        // mapKeys[DOM_PK_PERIOD] = Key::PERIOD; mapKeys[DOM_PK_EQUAL] = Key::EQUALS;
-        // mapKeys[DOM_PK_COMMA] = Key::COMMA; mapKeys[DOM_PK_MINUS] = Key::MINUS;
-        // mapKeys[DOM_PK_CAPS_LOCK] = Key::CAPS_LOCK;
-        // mapKeys[DOM_PK_SEMICOLON] = Key::OEM_1;	mapKeys[DOM_PK_SLASH] = Key::OEM_2; mapKeys[DOM_PK_BACKQUOTE] = Key::OEM_3;
-        // mapKeys[DOM_PK_BRACKET_LEFT] = Key::OEM_4; mapKeys[DOM_PK_BACKSLASH] = Key::OEM_5; mapKeys[DOM_PK_BRACKET_RIGHT] = Key::OEM_6;
-        // mapKeys[DOM_PK_QUOTE] = Key::OEM_7;
-    }
+        // Detect and Store Keyboard Layout
+        EM_ASM({
+            if (!navigator.keyboard || !navigator.keyboard.getLayoutMap)
+                return;
 
-    bool Host_Web_Emscripten::StartSystemEventLoop(bool bBlockIfPossible)
-    {
-        std::cout << "Emscripten: StartSystemEventLoop called, but not used.\n";
-        return true;
+            navigator.keyboard.getLayoutMap().then(function(map)
+            {
+                const keys = [map.get("KeyQ"), map.get("KeyW"), map.get("KeyE"), map.get("KeyR"), map.get("KeyT"), map.get("KeyY"), map.get("Backslash")];
+                
+                // QWERTY - UK/US
+                if(keys[0] == 'q' && keys[1] == 'w' && keys[2] == 'e' && keys[3] == 'r' && keys[4] == 't' && keys[5] == 'y') {
+                    if(keys[6] == '#' || keys[6] == '~')
+                    {
+                        Module.keyboardLayout = 0;
+                        return;
+                    }
+                    else
+                    {
+                        Module.keyboardLayout = 1;
+                        return;
+                    }
+                }
+
+                // QWERTZ - DE
+                if(keys[0] == 'q' && keys[1] == 'w' && keys[2] == 'e' && keys[3] == 'r' && keys[4] == 't' && keys[5] == 'z') {
+                    Module.keyboardLayout = 2; 
+                    return;
+                }
+                
+                // AZERTY - FR
+                if(keys[0] == 'q' && keys[1] == 'w' && keys[2] == 'e' && keys[3] == 'r' && keys[4] == 't' && keys[5] == 'z') {
+                    Module.keyboardLayout = 3;
+                    return;
+                }
+                
+            });
+        });
+
+        // Map Emscripten Defined DOM_PK_ Codes to olc::KeyCodes
+        mapKeys[DOM_PK_UNKNOWN] = Key::NONE;
+        
+        // A-Z
+        mapKeys[DOM_PK_A] = Key::A;
+        mapKeys[DOM_PK_B] = Key::B;
+        mapKeys[DOM_PK_C] = Key::C;
+        mapKeys[DOM_PK_D] = Key::D;
+        mapKeys[DOM_PK_E] = Key::E;
+        mapKeys[DOM_PK_F] = Key::F;
+        mapKeys[DOM_PK_G] = Key::G;
+        mapKeys[DOM_PK_H] = Key::H;
+        mapKeys[DOM_PK_I] = Key::I;
+        mapKeys[DOM_PK_J] = Key::J;
+        mapKeys[DOM_PK_K] = Key::K;
+        mapKeys[DOM_PK_L] = Key::L;
+        mapKeys[DOM_PK_M] = Key::M;
+        mapKeys[DOM_PK_N] = Key::N;
+        mapKeys[DOM_PK_O] = Key::O;
+        mapKeys[DOM_PK_P] = Key::P;
+        mapKeys[DOM_PK_Q] = Key::Q;
+        mapKeys[DOM_PK_R] = Key::R;
+        mapKeys[DOM_PK_S] = Key::S;
+        mapKeys[DOM_PK_T] = Key::T;
+        mapKeys[DOM_PK_U] = Key::U;
+        mapKeys[DOM_PK_V] = Key::V;
+        mapKeys[DOM_PK_W] = Key::W;
+        mapKeys[DOM_PK_X] = Key::X;
+        mapKeys[DOM_PK_Y] = Key::Y;
+        mapKeys[DOM_PK_Z] = Key::Z;
+        
+        // Numeric Keys
+        mapKeys[DOM_PK_0] = Key::K0;
+        mapKeys[DOM_PK_1] = Key::K1;
+        mapKeys[DOM_PK_2] = Key::K2;
+        mapKeys[DOM_PK_3] = Key::K3;
+        mapKeys[DOM_PK_4] = Key::K4;
+        mapKeys[DOM_PK_5] = Key::K5;
+        mapKeys[DOM_PK_6] = Key::K6;
+        mapKeys[DOM_PK_7] = Key::K7;
+        mapKeys[DOM_PK_8] = Key::K8;
+        mapKeys[DOM_PK_9] = Key::K9;
+        
+        // Function Keys
+        mapKeys[DOM_PK_F1] = Key::F1;
+        mapKeys[DOM_PK_F2] = Key::F2;
+        mapKeys[DOM_PK_F3] = Key::F3;
+        mapKeys[DOM_PK_F4] = Key::F4;
+        mapKeys[DOM_PK_F5] = Key::F5;
+        mapKeys[DOM_PK_F6] = Key::F6;
+        mapKeys[DOM_PK_F7] = Key::F7;
+        mapKeys[DOM_PK_F8] = Key::F8;
+        mapKeys[DOM_PK_F9] = Key::F9;
+        mapKeys[DOM_PK_F10] = Key::F10;
+        mapKeys[DOM_PK_F11] = Key::F11;
+        mapKeys[DOM_PK_F12] = Key::F12;
+        
+        // Arrow Keys
+        mapKeys[DOM_PK_ARROW_DOWN] = Key::DOWN;
+        mapKeys[DOM_PK_ARROW_LEFT] = Key::LEFT;
+        mapKeys[DOM_PK_ARROW_RIGHT] = Key::RIGHT;
+        mapKeys[DOM_PK_ARROW_UP] = Key::UP;
+
+        // Other Keys
+        mapKeys[DOM_PK_BACKSPACE] = Key::BACK;
+        mapKeys[DOM_PK_ESCAPE] = Key::ESCAPE;
+        mapKeys[DOM_PK_ENTER] = Key::ENTER;
+        mapKeys[DOM_PK_PAUSE] = Key::PAUSE;
+        mapKeys[DOM_PK_SCROLL_LOCK] = Key::SCROLL;
+        mapKeys[DOM_PK_TAB] = Key::TAB;
+        mapKeys[DOM_PK_DELETE] = Key::DEL;
+        mapKeys[DOM_PK_HOME] = Key::HOME;
+        mapKeys[DOM_PK_END] = Key::END;
+        mapKeys[DOM_PK_PAGE_UP] = Key::PGUP;
+        mapKeys[DOM_PK_PAGE_DOWN] = Key::PGDN;
+        mapKeys[DOM_PK_INSERT] = Key::INS;
+        mapKeys[DOM_PK_SHIFT_LEFT] = Key::SHIFT;
+        mapKeys[DOM_PK_SHIFT_RIGHT] = Key::SHIFT;
+        mapKeys[DOM_PK_CONTROL_LEFT] = Key::CTRL;
+        mapKeys[DOM_PK_CONTROL_RIGHT] = Key::CTRL;
+        mapKeys[DOM_PK_SPACE] = Key::SPACE;
+        mapKeys[DOM_PK_CAPS_LOCK] = Key::CAPS_LOCK;
+
+        // Numpad
+        mapKeys[DOM_PK_NUMPAD_0] = Key::NP0;
+        mapKeys[DOM_PK_NUMPAD_1] = Key::NP1;
+        mapKeys[DOM_PK_NUMPAD_2] = Key::NP2;
+        mapKeys[DOM_PK_NUMPAD_3] = Key::NP3;
+        mapKeys[DOM_PK_NUMPAD_4] = Key::NP4;
+        mapKeys[DOM_PK_NUMPAD_5] = Key::NP5;
+        mapKeys[DOM_PK_NUMPAD_6] = Key::NP6;
+        mapKeys[DOM_PK_NUMPAD_7] = Key::NP7;
+        mapKeys[DOM_PK_NUMPAD_8] = Key::NP8;
+        mapKeys[DOM_PK_NUMPAD_9] = Key::NP9;
+        mapKeys[DOM_PK_NUMPAD_MULTIPLY] = Key::NP_MUL;
+        mapKeys[DOM_PK_NUMPAD_DIVIDE] = Key::NP_DIV;
+        mapKeys[DOM_PK_NUMPAD_ADD] = Key::NP_ADD;
+        mapKeys[DOM_PK_NUMPAD_SUBTRACT] = Key::NP_SUB;
+        mapKeys[DOM_PK_NUMPAD_DECIMAL] = Key::NP_DECIMAL;
+        mapKeys[DOM_PK_NUMPAD_EQUAL] = Key::EQUALS;
+        mapKeys[DOM_PK_NUMPAD_ENTER] = Key::ENTER;
+        
+        mapKeys[DOM_PK_SEMICOLON] = Key::OEM_1;
+        mapKeys[DOM_PK_SLASH] = Key::OEM_2;
+        mapKeys[DOM_PK_BACKQUOTE] = Key::OEM_3;
+        mapKeys[DOM_PK_BRACKET_LEFT] = Key::OEM_4;
+        mapKeys[DOM_PK_BACKSLASH] = Key::OEM_5;
+        mapKeys[DOM_PK_BRACKET_RIGHT] = Key::OEM_6;
+        mapKeys[DOM_PK_QUOTE] = Key::OEM_7;
+        
+        mapKeys[DOM_PK_EQUAL] = Key::EQUALS;
+        mapKeys[DOM_PK_COMMA] = Key::COMMA;
+        mapKeys[DOM_PK_MINUS] = Key::MINUS;
+        mapKeys[DOM_PK_PERIOD] = Key::PERIOD;
     }
 
     bool Host_Web_Emscripten::AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen)
@@ -8696,40 +10256,46 @@ namespace olc::host
 		olc::vi2d vWinSize = vWindowSize;
         
         // TODO: multi-window solutions
-        canvasId = "#canvas"; // + std::to_string(pWindow->GetUID());
-
-        mapUID2CanvasId.insert_or_assign(pWindow->GetUID(), canvasId);
-        mapCanvasId2PTR.insert_or_assign(canvasId, pWindow);
+        mapUID2CallbackData.insert_or_assign(pWindow->GetUID(), std::make_unique<CallbackData>(CallbackData{
+            this,
+            pWindow,
+            std::string{"#canvas"}
+        }));
         
-        emscripten_set_canvas_element_size(canvasId.c_str(), vWinSize.x, vWinSize.y);
+        auto cbData = mapUID2CallbackData.at(pWindow->GetUID()).get();
+
+        mapUID2CanvasId.insert_or_assign(pWindow->GetUID(), cbData->canvasId);
+        mapCanvasId2PTR.insert_or_assign(cbData->canvasId, pWindow);
+        
+        emscripten_set_canvas_element_size(cbData->canvasId.c_str(), vWinSize.x, vWinSize.y);
         pWindow->SetWindowSize(vWinSize);
 
         // Keyboard Callbacks
-        emscripten_set_keydown_callback(canvasId.c_str(), (void*)(canvasId.c_str()), 1, keyboard_callback);
-        emscripten_set_keyup_callback(canvasId.c_str(), (void*)(canvasId.c_str()), 1, keyboard_callback);
+        emscripten_set_keydown_callback(cbData->canvasId.c_str(), reinterpret_cast<void*>(cbData), 1, keyboard_callback);
+        emscripten_set_keyup_callback(cbData->canvasId.c_str(), reinterpret_cast<void*>(cbData), 1, keyboard_callback);
 
         // Mouse Callbacks
-        emscripten_set_wheel_callback(canvasId.c_str(), (void*)(canvasId.c_str()), 1, wheel_callback);
-        emscripten_set_mousedown_callback(canvasId.c_str(), (void*)(canvasId.c_str()), 1, mouse_callback);
-        emscripten_set_mouseup_callback(canvasId.c_str(), (void*)(canvasId.c_str()), 1, mouse_callback);
-        emscripten_set_mousemove_callback(canvasId.c_str(), (void*)(canvasId.c_str()), 1, mouse_callback);
+        emscripten_set_wheel_callback(cbData->canvasId.c_str(), reinterpret_cast<void*>(cbData), 1, wheel_callback);
+        emscripten_set_mousedown_callback(cbData->canvasId.c_str(), reinterpret_cast<void*>(cbData), 1, mouse_callback);
+        emscripten_set_mouseup_callback(cbData->canvasId.c_str(), reinterpret_cast<void*>(cbData), 1, mouse_callback);
+        emscripten_set_mousemove_callback(cbData->canvasId.c_str(), reinterpret_cast<void*>(cbData), 1, mouse_callback);
 
         // Touch Callbacks
-        emscripten_set_touchstart_callback(canvasId.c_str(), (void*)(canvasId.c_str()), 1, touch_callback);
-        emscripten_set_touchmove_callback(canvasId.c_str(), (void*)(canvasId.c_str()), 1, touch_callback);
-        emscripten_set_touchend_callback(canvasId.c_str(), (void*)(canvasId.c_str()), 1, touch_callback);
+        emscripten_set_touchstart_callback(cbData->canvasId.c_str(), reinterpret_cast<void*>(cbData), 1, touch_callback);
+        emscripten_set_touchmove_callback(cbData->canvasId.c_str(), reinterpret_cast<void*>(cbData), 1, touch_callback);
+        emscripten_set_touchend_callback(cbData->canvasId.c_str(), reinterpret_cast<void*>(cbData), 1, touch_callback);
 
         // Canvas Focus Callbacks
-        emscripten_set_blur_callback(canvasId.c_str(), (void*)(canvasId.c_str()), 1, focus_callback);
-        emscripten_set_focus_callback(canvasId.c_str(), (void*)(canvasId.c_str()), 1, focus_callback);
+        emscripten_set_blur_callback(cbData->canvasId.c_str(), reinterpret_cast<void*>(cbData), 1, focus_callback);
+        emscripten_set_focus_callback(cbData->canvasId.c_str(), reinterpret_cast<void*>(cbData), 1, focus_callback);
 
         // Canvas Resize Callbacks
-        emscripten_set_resize_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, (void*)(canvasId.c_str()), 1, resize_callback);
-        emscripten_set_fullscreenchange_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, (void*)(canvasId.c_str()), 1, fullscreen_change_callback);
+        emscripten_set_resize_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, reinterpret_cast<void*>(cbData), 1, resize_callback);
+        emscripten_set_fullscreenchange_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, reinterpret_cast<void*>(cbData), 1, fullscreen_change_callback);
 
         // trigger resize after a short pause
         emscripten_sleep(50);
-        resize_callback(EMSCRIPTEN_EVENT_RESIZE, nullptr, (void*)(canvasId.c_str()));
+        resize_callback(EMSCRIPTEN_EVENT_RESIZE, nullptr, reinterpret_cast<void*>(cbData));
 
         return true;
     }
@@ -8737,6 +10303,8 @@ namespace olc::host
     //TY Moros
     EM_BOOL Host_Web_Emscripten::keyboard_callback(int eventType, const EmscriptenKeyboardEvent* e, void* userData)
     {
+        CallbackData* pCallbackData = reinterpret_cast<CallbackData*>(userData);
+
         // we maintain our own state for teh number pad, default true
         static bool numPadActive = true;
         
@@ -8774,11 +10342,23 @@ namespace olc::host
             numPadActive = !numPadActive;
         }
 
-        // if (eventType == EMSCRIPTEN_EVENT_KEYDOWN)
-        //     ptrPGE->olc_UpdateKeyState(pk_code, true);
+        if (eventType == EMSCRIPTEN_EVENT_KEYDOWN)
+        {
+            if(pCallbackData->pHost->mapKeys.contains(pk_code))
+            {
+                olc_OnKeyPress(pCallbackData->pWindow, pCallbackData->pHost->mapKeys[pk_code], true);
+            }
+        }
+            
 
-        // if (eventType == EMSCRIPTEN_EVENT_KEYUP)
-        //     ptrPGE->olc_UpdateKeyState(pk_code, false);
+        if (eventType == EMSCRIPTEN_EVENT_KEYUP)
+        {
+            if(pCallbackData->pHost->mapKeys.contains(pk_code))
+            {
+                olc_OnKeyPress(pCallbackData->pWindow, pCallbackData->pHost->mapKeys[pk_code], false);
+            }
+        }
+            
 
         //Consume keyboard events so that keys like F1 and F5 don't do weird things
         return EM_TRUE;
@@ -8787,10 +10367,10 @@ namespace olc::host
     //TY Moros
     EM_BOOL Host_Web_Emscripten::wheel_callback(int eventType, const EmscriptenWheelEvent* e, void* userData)
     {
-        olc::Window* pWindow = GetWindowFromCanvasId(reinterpret_cast<char*>(userData));
+        CallbackData* pCallbackData = reinterpret_cast<CallbackData*>(userData);
         
         if (eventType == EMSCRIPTEN_EVENT_WHEEL)
-            olc_OnMouseWheel(pWindow, -1 * e->deltaY);
+            olc_OnMouseWheel(pCallbackData->pWindow, -1 * e->deltaY);
     
         return EM_TRUE;
     }
@@ -8810,36 +10390,36 @@ namespace olc::host
     //TY Moros
     EM_BOOL Host_Web_Emscripten::mouse_callback(int eventType, const EmscriptenMouseEvent* e, void* userData)
     {
-        olc::Window* pWindow = GetWindowFromCanvasId(reinterpret_cast<char*>(userData));
+        CallbackData* pCallbackData = reinterpret_cast<CallbackData*>(userData);
         
         //Mouse Movement
         if (eventType == EMSCRIPTEN_EVENT_MOUSEMOVE)
-            olc_OnMouseMove(pWindow, {e->targetX, e->targetY});
+            olc_OnMouseMove(pCallbackData->pWindow, {e->targetX, e->targetY});
 
 
         //Mouse button press
         if (e->button == 0) // left click
         {
             if (eventType == EMSCRIPTEN_EVENT_MOUSEDOWN)
-                olc_OnMouseButton(pWindow, 0, true);
+                olc_OnMouseButton(pCallbackData->pWindow, 0, true);
             else if (eventType == EMSCRIPTEN_EVENT_MOUSEUP)
-                olc_OnMouseButton(pWindow, 0, false);
+                olc_OnMouseButton(pCallbackData->pWindow, 0, false);
         }
 
         if (e->button == 2) // right click
         {
             if (eventType == EMSCRIPTEN_EVENT_MOUSEDOWN)
-                olc_OnMouseButton(pWindow, 1, true);
+                olc_OnMouseButton(pCallbackData->pWindow, 1, true);
             else if (eventType == EMSCRIPTEN_EVENT_MOUSEUP)
-                olc_OnMouseButton(pWindow, 1, false);    
+                olc_OnMouseButton(pCallbackData->pWindow, 1, false);    
         }
 
         if (e->button == 1) // middle click
         {
             if (eventType == EMSCRIPTEN_EVENT_MOUSEDOWN)
-                olc_OnMouseButton(pWindow, 2, true);
+                olc_OnMouseButton(pCallbackData->pWindow, 2, true);
             else if (eventType == EMSCRIPTEN_EVENT_MOUSEUP)
-                olc_OnMouseButton(pWindow, 2, false);
+                olc_OnMouseButton(pCallbackData->pWindow, 2, false);
 
             //at the moment only middle mouse needs to consume events.
             return EM_TRUE;
@@ -8854,25 +10434,25 @@ namespace olc::host
         // TODO: Implement touch more effectively.
         //       For now, emulate single pointer mouse.
         
-        olc::Window* pWindow = GetWindowFromCanvasId(reinterpret_cast<char*>(userData));
+        CallbackData* pCallbackData = reinterpret_cast<CallbackData*>(userData);
         
         // Move
         if (eventType == EMSCRIPTEN_EVENT_TOUCHMOVE)
         {
-            olc_OnMouseMove(pWindow, {e->touches->targetX, e->touches->targetY});
+            olc_OnMouseMove(pCallbackData->pWindow, {e->touches->targetX, e->touches->targetY});
         }
 
         // Start
         if (eventType == EMSCRIPTEN_EVENT_TOUCHSTART)
         {
-            olc_OnMouseMove(pWindow, {e->touches->targetX, e->touches->targetY});
-            olc_OnMouseButton(pWindow, 0, true);
+            olc_OnMouseMove(pCallbackData->pWindow, {e->touches->targetX, e->touches->targetY});
+            olc_OnMouseButton(pCallbackData->pWindow, 0, true);
         }
 
         // End
         if (eventType == EMSCRIPTEN_EVENT_TOUCHEND)
         {
-            olc_OnMouseButton(pWindow, 0, false);
+            olc_OnMouseButton(pCallbackData->pWindow, 0, false);
         }
 
         return EM_TRUE;
@@ -8880,17 +10460,17 @@ namespace olc::host
     //TY Gorbit
     EM_BOOL Host_Web_Emscripten::focus_callback(int eventType, const EmscriptenFocusEvent* focusEvent, void* userData)
     {
-        olc::Window* pWindow = GetWindowFromCanvasId(reinterpret_cast<char*>(userData));
-
+        CallbackData* pCallbackData = reinterpret_cast<CallbackData*>(userData);
+ 
         if (eventType == EMSCRIPTEN_EVENT_BLUR)
         {
             // ptrPGE->olc_UpdateKeyFocus(false);
-            olc_OnMouseFocus(pWindow, false);
+            olc_OnMouseFocus(pCallbackData->pWindow, false);
         }
         else if (eventType == EMSCRIPTEN_EVENT_FOCUS)
         {
             // ptrPGE->olc_UpdateKeyFocus(true);
-            olc_OnMouseFocus(pWindow, true);
+            olc_OnMouseFocus(pCallbackData->pWindow, true);
         }
 
         return 0;
@@ -8899,8 +10479,6 @@ namespace olc::host
     //TY Moros
     EM_BOOL Host_Web_Emscripten::fullscreen_change_callback(int eventType, const EmscriptenFullscreenChangeEvent *event, void *userData)
     {
-        olc::Window* pWindow = GetWindowFromCanvasId(reinterpret_cast<char*>(userData));
-
         // trigger resize after a short pause
         emscripten_sleep(50);
         resize_callback(EMSCRIPTEN_EVENT_RESIZE, nullptr, userData);
@@ -8910,8 +10488,7 @@ namespace olc::host
     //TY Moros
     EM_BOOL Host_Web_Emscripten::resize_callback(int eventType, const EmscriptenUiEvent *event, void *userData)
     {
-        char* canvasId = reinterpret_cast<char*>(userData);
-        olc::Window* pWindow = GetWindowFromCanvasId(canvasId);
+        CallbackData* pCallbackData = reinterpret_cast<CallbackData*>(userData);
 
         // HACK ALERT!
         // 
@@ -8943,8 +10520,8 @@ namespace olc::host
         }
         
         // resize the canvas
-        emscripten_set_canvas_element_size(canvasId, static_cast<int>(width), static_cast<int>(height));
-        pWindow->SetWindowSize(olc::vd2d{width, height});
+        emscripten_set_canvas_element_size(pCallbackData->canvasId.c_str(), static_cast<int>(width), static_cast<int>(height));
+        pCallbackData->pWindow->SetWindowSize(olc::vd2d{width, height});
         return 0;
     }
 
@@ -8965,23 +10542,22 @@ namespace olc::host
         const auto window_handle = mapUID2CanvasId.find(pWindow->GetUID());
         if(window_handle != mapUID2CanvasId.end())
         {
-            return { reinterpret_cast<void*>(&canvasId) };
+            return { (void*)(window_handle->second.c_str()) };
         }
         
         return {};
     }
 
-    bool Host_Web_Emscripten::ConnectHostResourceToRenderer()
-    {
-        std::cout << "Emscripten: ConnectHostResourceToRenderer not implemented.\n";
-        return true;
-    }
-
     // Wait for entire host desktop refresh (for smooooth vsync)
     bool Host_Web_Emscripten::SyncWithDesktopComposite()
     {
-        std::cout << "Emscripten: SyncWithDesktopComposite not implemented.\n";
+        // SyncWithDesktopComposite not implemented on this platform
         return true;
+    }
+	
+    olc::KeyboardLayout Host_Web_Emscripten::GetKeyboardLayout() const
+	{
+		return static_cast<olc::KeyboardLayout>(EM_ASM_INT({ return Module.keyboardLayout || 0; }));
     }
 
     bool Host_Web_Emscripten::olc_OnMouseButton(olc::Window* pWindow, const uint8_t nButton, const bool bPressed)
@@ -9004,6 +10580,11 @@ namespace olc::host
         return pWindow->olc_OnMouseFocus(bHasFocus);
     }
 
+    bool Host_Web_Emscripten::olc_OnKeyPress(olc::Window* pWindow, const olc::Key key, const bool bPressed)
+    {
+        return pWindow->olc_OnKeyPress(key, bPressed);
+    }
+
     bool Host_Web_Emscripten::olc_OnWindowPosition(olc::Window* pWindow, const olc::vi2d& vWindowPos)
     {
         return pWindow->olc_OnWindowPosition(vWindowPos);
@@ -9020,6 +10601,561 @@ namespace olc::host
     }
 
 
+}
+#endif
+
+#if OLC_HOST == OLC_HOST_ANDROID
+#include <android/input.h>
+#include <android/asset_manager.h>
+
+namespace olc::host
+{
+    constexpr size_t ANDROID_KEY_MAX = 163;
+
+
+    struct KeyEntry
+    {
+        olc::Key key;
+        bool shiftOn;
+    };
+
+    static const std::array<KeyEntry, ANDROID_KEY_MAX> AndroidKeyMap = [] {
+        std::array<KeyEntry, ANDROID_KEY_MAX> map{};
+        map.fill({Key::NONE, false});
+
+        // Letters
+        map[AKEYCODE_A] = {Key::A, false};
+        map[AKEYCODE_B] = {Key::B, false};
+        map[AKEYCODE_C] = {Key::C, false};
+        map[AKEYCODE_D] = {Key::D, false};
+        map[AKEYCODE_E] = {Key::E, false};
+        map[AKEYCODE_F] = {Key::F, false};
+        map[AKEYCODE_G] = {Key::G, false};
+        map[AKEYCODE_H] = {Key::H, false};
+        map[AKEYCODE_I] = {Key::I, false};
+        map[AKEYCODE_J] = {Key::J, false};
+        map[AKEYCODE_K] = {Key::K, false};
+        map[AKEYCODE_L] = {Key::L, false};
+        map[AKEYCODE_M] = {Key::M, false};
+        map[AKEYCODE_N] = {Key::N, false};
+        map[AKEYCODE_O] = {Key::O, false};
+        map[AKEYCODE_P] = {Key::P, false};
+        map[AKEYCODE_Q] = {Key::Q, false};
+        map[AKEYCODE_R] = {Key::R, false};
+        map[AKEYCODE_S] = {Key::S, false};
+        map[AKEYCODE_T] = {Key::T, false};
+        map[AKEYCODE_U] = {Key::U, false};
+        map[AKEYCODE_V] = {Key::V, false};
+        map[AKEYCODE_W] = {Key::W, false};
+        map[AKEYCODE_X] = {Key::X, false};
+        map[AKEYCODE_Y] = {Key::Y, false};
+        map[AKEYCODE_Z] = {Key::Z, false};
+
+        // Numbers
+        map[AKEYCODE_0] = {Key::K0, false};
+        map[AKEYCODE_1] = {Key::K1, false};
+        map[AKEYCODE_2] = {Key::K2, false};
+        map[AKEYCODE_3] = {Key::K3, false};
+        map[AKEYCODE_4] = {Key::K4, false};
+        map[AKEYCODE_5] = {Key::K5, false};
+        map[AKEYCODE_6] = {Key::K6, false};
+        map[AKEYCODE_7] = {Key::K7, false};
+        map[AKEYCODE_8] = {Key::K8, false};
+        map[AKEYCODE_9] = {Key::K9, false};
+
+        // Numpad
+        map[AKEYCODE_NUMPAD_0] = {Key::NP0, false};
+        map[AKEYCODE_NUMPAD_1] = {Key::NP1, false};
+        map[AKEYCODE_NUMPAD_2] = {Key::NP2, false};
+        map[AKEYCODE_NUMPAD_3] = {Key::NP3, false};
+        map[AKEYCODE_NUMPAD_4] = {Key::NP4, false};
+        map[AKEYCODE_NUMPAD_5] = {Key::NP5, false};
+        map[AKEYCODE_NUMPAD_6] = {Key::NP6, false};
+        map[AKEYCODE_NUMPAD_7] = {Key::NP7, false};
+        map[AKEYCODE_NUMPAD_8] = {Key::NP8, false};
+        map[AKEYCODE_NUMPAD_9] = {Key::NP9, false};
+        map[AKEYCODE_NUMPAD_ADD] = {Key::NP_ADD, false};
+        map[AKEYCODE_NUMPAD_SUBTRACT] = {Key::NP_SUB, false};
+        map[AKEYCODE_NUMPAD_MULTIPLY] = {Key::NP_MUL, false};
+        map[AKEYCODE_NUMPAD_DIVIDE] = {Key::NP_DIV, false};
+        map[AKEYCODE_NUMPAD_DOT] = {Key::NP_DECIMAL, false};
+
+        // Function keys
+        map[AKEYCODE_F1] = {Key::F1, false};
+        map[AKEYCODE_F2] = {Key::F2, false};
+        map[AKEYCODE_F3] = {Key::F3, false};
+        map[AKEYCODE_F4] = {Key::F4, false};
+        map[AKEYCODE_F5] = {Key::F5, false};
+        map[AKEYCODE_F6] = {Key::F6, false};
+        map[AKEYCODE_F7] = {Key::F7, false};
+        map[AKEYCODE_F8] = {Key::F8, false};
+        map[AKEYCODE_F9] = {Key::F9, false};
+        map[AKEYCODE_F10] = {Key::F10, false};
+        map[AKEYCODE_F11] = {Key::F11, false};
+        map[AKEYCODE_F12] = {Key::F12, false};
+
+        // Arrows
+        map[AKEYCODE_DPAD_UP] = {Key::UP, false};
+        map[AKEYCODE_DPAD_DOWN] = {Key::DOWN, false};
+        map[AKEYCODE_DPAD_LEFT] = {Key::LEFT, false};
+        map[AKEYCODE_DPAD_RIGHT] = {Key::RIGHT, false};
+
+        // Common keys
+        map[AKEYCODE_SPACE] = {Key::SPACE, false};
+        map[AKEYCODE_TAB] = {Key::TAB, false};
+        map[AKEYCODE_ENTER] = {Key::ENTER, false};
+        map[AKEYCODE_ESCAPE] = {Key::ESCAPE, false};
+        map[AKEYCODE_DEL] = {Key::BACK, false};
+        map[AKEYCODE_FORWARD_DEL] = {Key::DEL, false};
+
+        // Modifiers
+        map[AKEYCODE_SHIFT_LEFT] = {Key::SHIFT, false};
+        map[AKEYCODE_SHIFT_RIGHT] = {Key::SHIFT, false};
+        map[AKEYCODE_CTRL_LEFT] = {Key::CTRL, false};
+        map[AKEYCODE_CTRL_RIGHT] = {Key::CTRL, false};
+        map[AKEYCODE_CAPS_LOCK] = {Key::CAPS_LOCK, false};
+
+        // OEM-style punctuation
+        map[AKEYCODE_SEMICOLON] = {Key::OEM_1, false};
+        map[AKEYCODE_SLASH] = {Key::OEM_2, false};
+        map[AKEYCODE_GRAVE] = {Key::OEM_7, false};
+        map[AKEYCODE_LEFT_BRACKET] = {Key::OEM_4, false};
+        map[AKEYCODE_BACKSLASH] = {Key::OEM_5, false};
+        map[AKEYCODE_RIGHT_BRACKET] = {Key::OEM_6, false};
+        map[AKEYCODE_APOSTROPHE] = {Key::OEM_3, false};
+        map[AKEYCODE_EQUALS] = {Key::EQUALS, false};
+        map[AKEYCODE_COMMA] = {Key::COMMA, false};
+        map[AKEYCODE_MINUS] = {Key::MINUS, false};
+        map[AKEYCODE_PERIOD] = {Key::PERIOD, false};
+        map[AKEYCODE_PLUS] = {Key::EQUALS, true};
+        map[AKEYCODE_AT] = {Key::K2, true};
+        map[AKEYCODE_POUND] = {Key::K3, true};
+        map[AKEYCODE_STAR] = {Key::NP_MUL, false};
+
+        return map;
+    }();
+
+    AndroidApp* Host_Android::androidApp = nullptr;
+    JavaVM* JNI::jvm = nullptr;
+
+    static void Android_onAppCmd(struct android_app* app, int32_t cmd)
+    {
+        auto host = reinterpret_cast<olc::host::Host_Android*>(app->userData);
+        host->OnAppCmd(app, cmd);
+    }
+
+    static int32_t Android_onInputEvent(struct android_app* app, AInputEvent* event)
+    {
+        auto host = reinterpret_cast<olc::host::Host_Android*>(app->userData);
+        return host->OnInputEvent(app, event);
+    }
+
+    bool Host_Android::StartSystemEventLoop(bool bBlockIfPossible)
+    {
+        int events;
+        struct android_poll_source* source = nullptr;
+
+        if (ALooper_pollOnce(
+            bBlockIfPossible || !initialized ? -1 : 0,
+            nullptr,
+            &events,
+            (void**)&source
+        ) >= 0) {
+            if (source) source->process(androidApp, source);
+        }
+
+        if (!androidApp || !initialized) return true;
+
+        if (androidApp->destroyRequested != 0) return false;
+
+        return true;
+    }
+
+    void Host_Android::OnAppCmd(struct android_app *app, int32_t cmd)
+    {
+        auto host = reinterpret_cast<olc::host::Host_Android*>(app->userData);
+        switch (cmd) {
+            case APP_CMD_WINDOW_RESIZED:
+                host->pgeWindow->olc_OnWindowSize({
+                  ANativeWindow_getWidth(app->window),
+                  ANativeWindow_getHeight(app->window)
+                });
+                __android_log_print(ANDROID_LOG_DEBUG, "PGE ANDROID",
+                                    "APP_CMD_WINDOW_RESIZED received: %dx%d",
+                                    ANativeWindow_getWidth(app->window),
+                                    ANativeWindow_getHeight(app->window));
+                break;
+            case APP_CMD_INIT_WINDOW:
+                if (app->window) {
+                    host->initialized = true;
+                    __android_log_print(ANDROID_LOG_DEBUG, "PGE ANDROID",
+                                        "APP_CMD_INIT_WINDOW received with Window");
+                }
+                break;
+            case APP_CMD_TERM_WINDOW: {
+                host->pgeWindow->olc_OnWindowClose();
+            } break;
+            case APP_CMD_GAINED_FOCUS: {
+                host->pgeWindow->olc_OnMouseFocus(true);
+            } break;
+            case APP_CMD_LOST_FOCUS: {
+                host->pgeWindow->olc_OnMouseFocus(false);
+            } break;
+            default: break;
+        }
+    }
+
+    int32_t Host_Android::OnInputEvent(AndroidApp *app, AInputEvent *event)
+    {
+        auto host = reinterpret_cast<olc::host::Host_Android*>(app->userData);
+        auto type = AInputEvent_getType(event);
+        
+        if (type == AINPUT_EVENT_TYPE_MOTION) {
+            pgeWindow->olc_OnMouseMove({
+                static_cast<int32_t>(AMotionEvent_getX(event, 0)),
+                static_cast<int32_t>(AMotionEvent_getY(event, 0)),
+            });
+
+            auto action = AMotionEvent_getAction(event) & AMOTION_EVENT_ACTION_MASK;
+
+            switch (action) {
+                case AMOTION_EVENT_ACTION_DOWN:
+                case AMOTION_EVENT_ACTION_POINTER_DOWN:
+                    pgeWindow->olc_OnMouseButton(0, true); // Left button
+                    break;
+                case AMOTION_EVENT_ACTION_UP:
+                case AMOTION_EVENT_ACTION_POINTER_UP:
+                    pgeWindow->olc_OnMouseButton(0, false); // Left button
+                    break;
+                case AMOTION_EVENT_AXIS_WHEEL:
+                    // Handle mouse wheel
+                    {
+                        float vScroll = AMotionEvent_getAxisValue(event, AMOTION_EVENT_AXIS_VSCROLL, 0);
+                        if (vScroll != 0.0f) {
+                            pgeWindow->olc_OnMouseWheel(static_cast<int32_t>(vScroll * 120.0f));
+                        }
+                    }
+                    break;
+                default:
+                    break;
+            }
+
+            return 1;
+        }
+        else if (type == AINPUT_EVENT_TYPE_KEY)
+        {
+            int32_t keyCode = AKeyEvent_getKeyCode(event);
+            int32_t action = AKeyEvent_getAction(event);
+            int32_t meta = AKeyEvent_getMetaState(event);
+
+            auto entry = ((keyCode > 0) && keyCode < ANDROID_KEY_MAX) ? AndroidKeyMap[keyCode] : KeyEntry{Key::NONE, false};
+
+            shiftOn =
+                (meta & AMETA_SHIFT_ON) != 0 ||
+                (meta & AMETA_SHIFT_LEFT_ON) != 0 ||
+                (meta & AMETA_SHIFT_RIGHT_ON) != 0 ||
+                (meta & AMETA_CAPS_LOCK_ON) != 0 ||
+                entry.shiftOn;
+
+            if (entry.key != Key::NONE)
+            {
+                pgeWindow->olc_OnKeyPress(Key::SHIFT, shiftOn);
+                if (action == AKEY_EVENT_ACTION_DOWN)
+                {
+                    pgeWindow->olc_OnKeyPress(entry.key, true);
+                }
+                else if (action == AKEY_EVENT_ACTION_UP)
+                {
+                    pgeWindow->olc_OnKeyPress(entry.key, false);
+                }
+            }
+
+            if (keyCode == AKEYCODE_POWER)
+            {
+                // Behaviour: CMD_PAUSE -> CMD_SAVE_STATE -> CMD_STOP -> CMD_CONFIG_CHANGED -> CMD_LOST_FOCUS
+                // Resuming Behaviour: CMD_START -> CMD_RESUME -> CMD_CONFIG_CHANGED -> CMD_CONFIG_CHANGED -> CMD_GAINED_FOCUS
+                return 0;
+            }
+            else if ((keyCode == AKEYCODE_BACK) || (keyCode == AKEYCODE_MENU))
+            {
+                return 1;
+            }
+            else if ((keyCode == AKEYCODE_VOLUME_UP) || (keyCode == AKEYCODE_VOLUME_DOWN))
+            {
+                return 0;
+            }
+
+            return 0;
+        }
+
+        return 0;
+    }
+
+    bool Host_Android::AddWindowFrame(olc::Window *pWindow, const vi2d &vWindowPos,
+                                      const vi2d &vWindowSize, const bool bFullScreen)
+    {
+        pgeWindow = pWindow;
+        return true;
+    }
+
+    bool Host_Android::CloseWindowFrame(olc::Window *pWindow)
+    {
+        return true;
+    }
+
+    bool Host_Android::UpdateWindowFrameTitle(olc::Window *pWindow)
+    {
+        return true;
+    }
+
+    std::vector<void*> Host_Android::GetHostWindowDescriptor(olc::Window *pWindow)
+    {
+        return { reinterpret_cast<void*>(androidApp->window) };
+    }
+
+    bool Host_Android::ConnectHostResourceToRenderer()
+    {
+        return true;
+    }
+
+    bool Host_Android::SyncWithDesktopComposite()
+    {
+        return true;
+    }
+
+    olc::KeyboardLayout Host_Android::GetKeyboardLayout() const
+    {
+        JNIObject activity(androidApp->activity->clazz);
+        JNIEnv* env = JNI::GetEnv();
+
+        auto param = JNIString("input_method");
+        JNIObject imm = activity.Call<JNIObject>(
+            "getSystemService",
+            "(Ljava/lang/String;)Ljava/lang/Object;",
+            *param
+        );
+
+        std::string result = "";
+
+        if (*imm) {
+            JNIObject subType = imm.Call<JNIObject>(
+                "getCurrentInputMethodSubtype",
+                "()Landroid/view/inputmethod/InputMethodSubtype;"
+            );
+            if (*subType) {
+                JNIObject localeStr = subType.Call<JNIObject>(
+                    "getLocale",
+                    "()Ljava/lang/String;"
+                );
+                
+                if (*localeStr) {
+                    JNIString localeStrObj(static_cast<jstring>(*localeStr));
+                    result = localeStrObj;
+                }
+            }
+        }
+
+        JNI::Detach();
+
+        auto countryCodePos = result.substr(result.find('_') + 1);
+        if (countryCodePos.find("US") != std::string::npos)
+        {
+            return olc::KeyboardLayout::QWERTY_US;
+        }
+        else if (countryCodePos.find("UK") != std::string::npos ||
+                   countryCodePos.find("GB") != std::string::npos)
+        {
+            return olc::KeyboardLayout::QWERTY_UK;
+        }
+        else if (countryCodePos.find("DE") != std::string::npos)
+        {
+            return olc::KeyboardLayout::QWERTZ;
+        }
+        else if (countryCodePos.find("FR") != std::string::npos)
+        {
+            return olc::KeyboardLayout::AZERTY;
+        }
+
+#ifdef PGE_SPELL_CORRECTLY
+        return olc::KeyboardLayout::QWERTY_UK;
+#else
+        return olc::KeyboardLayout::QWERTY_US;
+#endif
+    }
+
+    void Host_Android::ShowKeyboard(bool bShow)
+    {
+        JNIObject activity(androidApp->activity->clazz);
+
+        auto param = JNIString("input_method");
+        auto imm = activity.Call<JNIObject>(
+            "getSystemService",
+            "(Ljava/lang/String;)Ljava/lang/Object;",
+            *param
+        );
+        if (!imm) return;
+
+        auto window = activity.Call<JNIObject>(
+            "getWindow",
+            "()Landroid/view/Window;"
+        );
+        if (!window) return;
+
+        auto decor = window.Call<JNIObject>(
+            "getDecorView",
+            "()Landroid/view/View;"
+        );
+        if (!decor) return;
+
+        if (bShow)
+        {
+            decor.Call<jboolean>(
+                "requestFocus",
+                "()Z"
+            );
+            imm.Call<jboolean>(
+                "showSoftInput",
+                "(Landroid/view/View;I)Z",
+                *decor,
+                0
+            );
+        }
+        else
+        {
+            auto token = decor.Call<JNIObject>(
+                "getWindowToken",
+                "()Landroid/os/IBinder;"
+            );
+            if (!token) return;
+            imm.Call<jboolean>(
+                "hideSoftInputFromWindow",
+                "(Landroid/os/IBinder;I)Z",
+                *token,
+                0
+            );
+        }
+
+        JNI::Detach();
+    }
+
+    Host_Android::Host_Android()
+    {
+        androidApp->onAppCmd = Android_onAppCmd;
+        androidApp->onInputEvent = Android_onInputEvent;
+        androidApp->userData = this;
+    }
+
+    void JNI::Init(AndroidApp *app)
+    {
+        jvm = app->activity->vm;
+    }
+
+    void JNI::Detach()
+    {
+        jvm->DetachCurrentThread();
+    }
+
+    JNIEnv* JNI::GetEnv()
+    {
+        JNIEnv* env = nullptr;
+        if (jvm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6) != JNI_OK)
+        {
+            jvm->AttachCurrentThread(&env, nullptr);
+        }
+        return env;
+    }
+
+    JNIObject::JNIObject(jobject obj)
+    {
+        this->obj = JNI::GetEnv()->NewGlobalRef(obj);
+    }
+
+    JNIObject::~JNIObject()
+    {
+        if (obj)
+        {
+            JNI::GetEnv()->DeleteGlobalRef(obj);
+        }
+        obj = nullptr;
+    }
+
+    JNIObject::JNIObject(JNIObject&& other) noexcept
+    {
+        obj = other.obj;
+        other.obj = nullptr;
+    }
+
+    JNIObject &JNIObject::operator=(JNIObject&& other) noexcept
+    {
+        if (this != &other) {
+            if (obj) JNI::GetEnv()->DeleteGlobalRef(obj);
+            obj = other.obj;
+            other.obj = nullptr;
+        }
+        return *this;
+    }
+
+    std::vector<uint8_t> Host_Android::OpenFile(const std::string &sFileName)
+    {
+        AAsset* asset = AAssetManager_open(
+            androidApp->activity->assetManager,
+            sFileName.c_str(),
+            AASSET_MODE_STREAMING
+        );
+        if (!asset) {
+            return {};
+        }
+
+        off_t size = AAsset_getLength(asset);
+        std::vector<uint8_t> buffer(size);
+        AAsset_read(asset, buffer.data(), size);
+        AAsset_close(asset);
+
+        return buffer;
+    }
+
+    std::string Host_Android::OpenTextFile(const std::string &sFileName)
+    {
+        AAsset* asset = AAssetManager_open(
+            androidApp->activity->assetManager,
+            sFileName.c_str(),
+            AASSET_MODE_STREAMING
+        );
+        if (!asset) {
+            return {};
+        }
+
+        off_t size = AAsset_getLength(asset);
+        std::string content(size, '\0');
+        AAsset_read(asset, content.data(), size);
+        AAsset_close(asset);
+
+        return content;
+    }
+}
+
+void android_main(struct android_app* app)
+{
+    char arg0[] = "olcPixelGameEngine 3.0";
+    char* argv[] = { arg0, nullptr };
+    
+    olc::host::JNI::Init(app);
+    olc::host::Host_Android::androidApp = app;
+
+    (void)main(1, argv);
+
+    ANativeActivity_finish(app->activity);
+
+    while (!app->destroyRequested) {
+        int events;
+        struct android_poll_source* source;
+
+        while (ALooper_pollOnce(0, nullptr, &events, (void**)&source) > ALOOPER_POLL_TIMEOUT) {
+            if (source) {
+                source->process(app, source);
+            }
+        }
+    }
 }
 #endif
 
@@ -9122,17 +11258,23 @@ namespace olc::apis::opengl
 		bLoaded &= (_glVertexAttribPointer = OGL_LOAD(glVertexAttribPointer)) != nullptr;
 		bLoaded &= (_glEnableVertexAttribArray = OGL_LOAD(glEnableVertexAttribArray)) != nullptr;
 		bLoaded &= (_glUseProgram = OGL_LOAD(glUseProgram)) != nullptr;
-#if OLC_HOST != OLC_HOST_EMSCRIPTEN
-		bLoaded &= (_glBindVertexArray = OGL_LOAD(glBindVertexArray)) != nullptr;
-		bLoaded &= (_glGenVertexArrays = OGL_LOAD(glGenVertexArrays)) != nullptr;
-		bLoaded &= (_glDrawBuffers = OGL_LOAD(glDrawBuffers)) != nullptr;
-		bLoaded &= (_glTexImage2DMultisample = OGL_LOAD(glTexImage2DMultisample)) != nullptr;
-		bLoaded &= (_glBlitFramebuffer = OGL_LOAD(glBlitFramebuffer)) != nullptr;
-#else
-		bLoaded &= (_glBindVertexArray = OGL_LOAD(glBindVertexArrayOES)) != nullptr;
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN
+        bLoaded &= (_glBindVertexArray = OGL_LOAD(glBindVertexArrayOES)) != nullptr;
 		bLoaded &= (_glGenVertexArrays = OGL_LOAD(glGenVertexArraysOES)) != nullptr;
 		bLoaded &= (_glDrawBuffers = OGL_LOAD(glDrawBuffersEXT)) != nullptr;
 		// bLoaded &= (_glTexImage2DMultisample = OGL_LOAD(glTexImage2DMultisample)) != nullptr;
+		bLoaded &= (_glBlitFramebuffer = OGL_LOAD(glBlitFramebuffer)) != nullptr;
+#elif OLC_HOST == OLC_HOST_ANDROID
+        bLoaded &= (_glBindVertexArray = OGL_LOAD(glBindVertexArray)) != nullptr;
+        bLoaded &= (_glGenVertexArrays = OGL_LOAD(glGenVertexArrays)) != nullptr;
+        bLoaded &= (_glDrawBuffers = OGL_LOAD(glDrawBuffers)) != nullptr;
+        // bLoaded &= (_glTexImage2DMultisample = OGL_LOAD(glTexImage2DMultisample)) != nullptr;
+        bLoaded &= (_glBlitFramebuffer = OGL_LOAD(glBlitFramebuffer)) != nullptr;
+#else
+        bLoaded &= (_glBindVertexArray = OGL_LOAD(glBindVertexArray)) != nullptr;
+		bLoaded &= (_glGenVertexArrays = OGL_LOAD(glGenVertexArrays)) != nullptr;
+		bLoaded &= (_glDrawBuffers = OGL_LOAD(glDrawBuffers)) != nullptr;
+		bLoaded &= (_glTexImage2DMultisample = OGL_LOAD(glTexImage2DMultisample)) != nullptr;
 		bLoaded &= (_glBlitFramebuffer = OGL_LOAD(glBlitFramebuffer)) != nullptr;
 #endif
 		bLoaded &= (_glGetShaderInfoLog = OGL_LOAD(glGetShaderInfoLog)) != nullptr;
@@ -9156,6 +11298,17 @@ namespace olc::apis::opengl
 		bLoaded &= (_glDeleteRenderbuffers = OGL_LOAD(glDeleteRenderbuffers)) != nullptr;
 		bLoaded &= (_glGetInternalformativ = OGL_LOAD(glGetInternalformativ)) != nullptr;
 		bLoaded &= (_glGetShaderiv = OGL_LOAD(glGetShaderiv)) != nullptr;
+
+		// Do we really need to do this? - jx9
+#if OLC_HOST != OLC_HOST_WINDOWS
+		bLoaded &= (_glGetIntegerv = OGL_LOAD(glGetIntegerv)) != nullptr;
+#else
+		_glGetIntegerv = ::glGetIntegerv;
+#endif
+
+#if OLC_HOST == OLC_HOST_WINDOWS
+		bLoaded &= (_wglSwapIntervalEXT = OGL_LOAD(wglSwapIntervalEXT)) != nullptr;
+#endif
 
 		
 		return bLoaded;
@@ -9186,10 +11339,12 @@ namespace olc::apis::opengl
 				sLocation << "OGL33 Error: GL_INVALID_FRAMEBUFFER_OPERATION\n"; break;
 			case GL_OUT_OF_MEMORY:
 				sLocation << "OGL33 Error: GL_OUT_OF_MEMORY\n"; break;
+#if OLC_HOST != OLC_HOST_ANDROID
 			case GL_STACK_UNDERFLOW:
 				sLocation << "OGL33 Error: GL_STACK_UNDERFLOW\n"; break;
 			case GL_STACK_OVERFLOW:
 				sLocation << "OGL33 Error: GL_STACK_OVERFLOW\n"; break;
+#endif
 			}
 			bWasError = true;
 
@@ -9222,8 +11377,10 @@ namespace olc::apis::opengl
 
 	void gl::glTexEnvf(GLenum target, GLenum pname, GLfloat param)
 	{
+#if OLC_HOST != OLC_HOST_ANDROID
 		::glTexEnvf(target, pname, param);
 		CheckError();
+#endif
 	}
 
 	void gl::glDeleteTextures(GLsizei n, const GLuint* textures)
@@ -9300,7 +11457,7 @@ namespace olc::apis::opengl
 
 	void gl::glGetTexImage(GLenum target, GLint level, GLenum format, GLenum type, void* pixels)
 	{
-#if OLC_HOST != OLC_HOST_EMSCRIPTEN
+#if OLC_HOST != OLC_HOST_EMSCRIPTEN && OLC_HOST != OLC_HOST_ANDROID
 		::glGetTexImage(target, level, format, type, pixels);
 		CheckError();
 #endif
@@ -9314,9 +11471,16 @@ namespace olc::apis::opengl
 
 	void gl::glPolygonMode(GLenum face, GLenum mode)
 	{
-#if OLC_HOST != OLC_HOST_EMSCRIPTEN
+#if OLC_HOST != OLC_HOST_EMSCRIPTEN && OLC_HOST != OLC_HOST_ANDROID
 		::glPolygonMode(face, mode);
 		CheckError();
+#endif
+	}
+
+	void gl::glSwapInterval(GLsizei n)
+	{
+#if OLC_HOST == OLC_HOST_WINDOWS
+		_wglSwapIntervalEXT(n);
 #endif
 	}
 
@@ -9504,7 +11668,7 @@ namespace olc::apis::opengl
 
 	void gl::glTexImage2DMultisample(GLenum target, GLsizei samples, GLint internalformat, GLsizei width, GLsizei height, GLboolean fixedsamplelocations)
 	{
-#if OLC_HOST != OLC_HOST_EMSCRIPTEN
+#if OLC_HOST != OLC_HOST_EMSCRIPTEN && OLC_HOST != OLC_HOST_ANDROID
 		_glTexImage2DMultisample(target, samples, internalformat, width, height, fixedsamplelocations);
 		CheckError();
 #endif
@@ -9557,13 +11721,19 @@ namespace olc::apis::opengl
 		_glGetShaderiv(shader, pname, params);
 		CheckError();
 	}
+
+	void gl::glGetIntegerv(GLenum pname, GLint *data)
+	{
+		_glGetIntegerv(pname, data);
+		CheckError();
+	}
 }
 namespace olc::gpu
 {
 
 	// === PIXEL SHADER PGE DEFAULTS ===
 	std::string Shader::static_PS_DefaultHeader =
-#if OLC_HOST != OLC_HOST_EMSCRIPTEN
+#if OLC_HOST != OLC_HOST_EMSCRIPTEN && OLC_HOST != OLC_HOST_ANDROID
 R"(#version 330 core
 )"
 #else
@@ -9602,7 +11772,7 @@ void main()
 	
 	// === VERTEX SHADER PGE DEFAULTS ===
 	std::string Shader::static_VS_DefaultHeader =
-#if OLC_HOST != OLC_HOST_EMSCRIPTEN
+#if OLC_HOST != OLC_HOST_EMSCRIPTEN && OLC_HOST != OLC_HOST_ANDROID
 R"(#version 330 core
 )"
 #else
@@ -9808,12 +11978,6 @@ void main()
 			lastError = RendererError::FailedToSwitchRenderContext;
 			return false;
 		}
-
-		//// Set Vertical Sync
-		//glSwapInterval = OGL_LOAD(glSwapInterval);
-		//if (locSwapInterval && !bVSYNC) locSwapInterval(0);
-		//bSync = bVSYNC;
-
 #endif
 
 #if OLC_HOST == OLC_HOST_LINUX_X11
@@ -9841,9 +12005,13 @@ void main()
 
 #endif
 
-#if OLC_HOST == OLC_HOST_EMSCRIPTEN || OLC_HOST == OLC_HOST_LINUX_WAYLAND
-#if OLC_HOST == OLC_HOST_EMSCRIPTEN
-	EGLNativeWindowType window_handle = NULL;
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN || OLC_HOST == OLC_HOST_LINUX_WAYLAND || OLC_HOST == OLC_HOST_ANDROID
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN || OLC_HOST == OLC_HOST_ANDROID
+    #if OLC_HOST == OLC_HOST_ANDROID
+        EGLNativeWindowType window_handle = reinterpret_cast<ANativeWindow*>(os_win_id[0]);
+    #else
+        EGLNativeWindowType window_handle = NULL;
+    #endif
 	EGLNativeDisplayType display = EGL_DEFAULT_DISPLAY;
 #else
 	const auto wayland_window = reinterpret_cast<olc::host::WaylandWindow*>(os_win_id[0]);
@@ -9851,23 +12019,39 @@ void main()
 	EGLNativeDisplayType display = reinterpret_cast<EGLNativeDisplayType>(os_win_id[1]);
 #endif
 
-	EGLint const attribute_list[] = {EGL_RED_SIZE, 8, EGL_GREEN_SIZE, 8, EGL_BLUE_SIZE, 8, EGL_ALPHA_SIZE, 8, EGL_DEPTH_SIZE, 16, EGL_SAMPLE_BUFFERS, 1, EGL_SAMPLES, OLC_MSAA_SAMPLES, EGL_NONE};
-	EGLint const context_config[] = {EGL_CONTEXT_CLIENT_VERSION, 2, EGL_NONE};
-	EGLint num_config;
-
 	glRenderContext.display = eglGetDisplay(display);
 	if(glRenderContext.display == EGL_NO_DISPLAY) {
 		std::cout << "Could not create EGL Display" << std::endl;
 	}
+
 	eglInitialize(glRenderContext.display, nullptr, nullptr);
+
+#if OLC_HOST == OLC_HOST_ANDROID
+	glRenderContext.config = FindBestConfig(glRenderContext.display, OLC_MSAA_SAMPLES);
+#else
+	EGLint num_config;
+	EGLint const attribute_list[] = {
+        EGL_RED_SIZE, 8,
+        EGL_GREEN_SIZE, 8,
+        EGL_BLUE_SIZE, 8,
+        EGL_ALPHA_SIZE, 8,
+        EGL_DEPTH_SIZE, 16,
+        EGL_SAMPLE_BUFFERS, 1,
+        EGL_SAMPLES, OLC_MSAA_SAMPLES,
+        EGL_NONE
+    };
 	eglChooseConfig(glRenderContext.display, attribute_list, &glRenderContext.config, 1, &num_config);
-	
+#endif
+
+	EGLint const context_config[] = {EGL_CONTEXT_MAJOR_VERSION, 3, EGL_NONE};
+
 	/* create an EGL rendering context */
 	glRenderContext.context = eglCreateContext(glRenderContext.display, glRenderContext.config, EGL_NO_CONTEXT, context_config);
 	glRenderContext.surface = eglCreateWindowSurface(glRenderContext.display, glRenderContext.config, window_handle, nullptr);
 	if(glRenderContext.surface == EGL_NO_SURFACE) {
 		std::cout << "Could not create EGL Surface" << std::endl;
 	}
+
 	if(!eglMakeCurrent(glRenderContext.display, glRenderContext.surface, glRenderContext.surface, glRenderContext.context))
 	{
 		lastError = RendererError::FailedToCreateRenderContext;
@@ -9882,6 +12066,33 @@ void main()
 			std::cout << "Error: Could not Load OpenGL!\n";
 			lastError = RendererError::NoError;
 			return false;
+		}
+
+		// Store the initial (screen) framebuffer binding
+		// On most platforms the system provides a default framebuffer of 0
+		// However on iOS there is no system buffer and instead a GLKit creates an FBO to use
+		gl.glGetIntegerv(gl.GL_DRAW_FRAMEBUFFER_BINDING_X, (GLint *)&nScreenFBO);
+
+		// Configure Swap Interval (VSync)
+		if (config.VerticalSync)
+		{
+			// Enable VSync - lock to display refresh
+			// May also be governed by OS / driver settings
+			// and desktop compositor settings
+#if !((OLC_HOST == OLC_HOST_EMSCRIPTEN) || (OLC_HOST == OLC_HOST_LINUX_WAYLAND))
+			gl.glSwapInterval(1);
+#else
+			eglSwapInterval(glRenderContext.display, 1);
+#endif
+		}
+		else
+		{
+			// Disable VSync - run like the clappers!
+#if !((OLC_HOST == OLC_HOST_EMSCRIPTEN) || (OLC_HOST == OLC_HOST_LINUX_WAYLAND))
+			gl.glSwapInterval(0);
+#else
+			eglSwapInterval(glRenderContext.display, 0);
+#endif
 		}
 		
 
@@ -9954,24 +12165,31 @@ void main()
 
 		// Create a Frame Buffer Object for off-screen rendering things
 		gl.glGenFramebuffers(1, (GLuint*)&nDefaultFBO);
-		gl.glBindFramebuffer(36160U, nDefaultFBO); // GL_FRAMEBUFFER
+		gl.glBindFramebuffer(gl.GL_FRAMEBUFFER_X, nDefaultFBO); // GL_FRAMEBUFFER
 		// Attach 4 colour buffers
-		std::array<GLenum, 4> attachments = { {36064U, 36065U, 36066U, 36067U} };
+		std::array<GLenum, 4> attachments = 
+		{ {
+			gl.GL_COLOR_ATTACHMENT0_X,
+			gl.GL_COLOR_ATTACHMENT0_X + 1,
+			gl.GL_COLOR_ATTACHMENT0_X + 2,
+			gl.GL_COLOR_ATTACHMENT0_X + 3
+		} };
+
 		gl.glDrawBuffers(4, attachments.data());
 		// Unlink them from any existing image textures
-		//gl.glFramebufferTexture2D(36160U, attachments[0], GL_TEXTURE_2D, 0, 0);
-		//gl.glFramebufferTexture2D(36160U, attachments[1], GL_TEXTURE_2D, 0, 0);
-		//gl.glFramebufferTexture2D(36160U, attachments[2], GL_TEXTURE_2D, 0, 0);
-		//gl.glFramebufferTexture2D(36160U, attachments[3], GL_TEXTURE_2D, 0, 0);
-		// Unbind the FBO
-		gl.glBindFramebuffer(36160U, 0);
+		//gl.glFramebufferTexture2D(gl.GL_FRAMEBUFFER_X, attachments[0], GL_TEXTURE_2D, 0, 0);
+		//gl.glFramebufferTexture2D(gl.GL_FRAMEBUFFER_X, attachments[1], GL_TEXTURE_2D, 0, 0);
+		//gl.glFramebufferTexture2D(gl.GL_FRAMEBUFFER_X, attachments[2], GL_TEXTURE_2D, 0, 0);
+		//gl.glFramebufferTexture2D(gl.GL_FRAMEBUFFER_X, attachments[3], GL_TEXTURE_2D, 0, 0);
 
+		// Unbind the FBO
+		gl.glBindFramebuffer(gl.GL_FRAMEBUFFER_X, nScreenFBO);
 
 		// Create FBOs for MSAA resolve operations
 		gl.glGenFramebuffers(1, &nResolveFBO_Draw);
 		gl.glGenFramebuffers(1, &nResolveFBO_Read);
 
-#if OLC_HOST != OLC_HOST_EMSCRIPTEN
+#if OLC_HOST != OLC_HOST_EMSCRIPTEN && OLC_HOST != OLC_HOST_ANDROID
 		gl.glEnable(GL_TEXTURE_2D); // Turn on texturing
 		gl.glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
 #endif
@@ -9997,7 +12215,7 @@ void main()
 		X11::glXMakeCurrent(display, 0, NULL);
 		X11::glXDestroyContext(display, glRenderContext);
 #endif
-#if OLC_HOST == OLC_HOST_EMSCRIPTEN || OLC_HOST == OLC_HOST_LINUX_WAYLAND
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN || OLC_HOST == OLC_HOST_LINUX_WAYLAND || OLC_HOST == OLC_HOST_ANDROID
 		eglMakeCurrent(glRenderContext.display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
 		eglDestroyContext(glRenderContext.display, glRenderContext.context);
 		eglDestroySurface(glRenderContext.display, glRenderContext.surface);
@@ -10038,13 +12256,13 @@ void main()
 			return false;
 		}
 #endif
-#if OLC_HOST == OLC_HOST_EMSCRIPTEN || OLC_HOST == OLC_HOST_LINUX_WAYLAND
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN || OLC_HOST == OLC_HOST_LINUX_WAYLAND || OLC_HOST == OLC_HOST_ANDROID
 	if(!eglMakeCurrent(glRenderContext.display, glRenderContext.surface, glRenderContext.surface, glRenderContext.context))
 	{
 		lastError = RendererError::FailedToSwitchRenderContext;
 		return false;
 	}
-#endif		
+#endif
 		return true;
 	}
 
@@ -10144,10 +12362,8 @@ void main()
 			mapTextureToRenderbuffer[id] = rboId;
 		}
 
-#if OLC_HOST != OLC_HOST_EMSCRIPTEN
-#if OLC_HOST != OLC_HOST_MACOS		
+#if OLC_HOST != OLC_HOST_EMSCRIPTEN && OLC_HOST != OLC_HOST_MACOS && OLC_HOST != OLC_HOST_ANDROID
 		gl.glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-#endif
 #endif
 
 		mapTextureSizes[id] = vSize;
@@ -10202,7 +12418,7 @@ void main()
 		// which has been blitted to via ResolveMSAA if its an MSAA texture
 		gl.glBindTexture(GL_TEXTURE_2D, image.GetGPUID());
 
-#if OLC_HOST != OLC_HOST_EMSCRIPTEN
+#if OLC_HOST != OLC_HOST_EMSCRIPTEN && OLC_HOST != OLC_HOST_ANDROID
 		gl.glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, image.Data());
 #else		
 		gl.glReadPixels(0, 0, image.Size().x, image.Size().y, GL_RGBA, GL_UNSIGNED_BYTE, image.Data());
@@ -10250,7 +12466,7 @@ void main()
 #if defined(OLC_GPU_ERRORCHECK) && OLC_GPU_ERRORCHECK == 1
 			std::cout << "Warning ATS: Requested source is currently attached as target (" << actualTexId << ") - unbinding FBO\n";
 #endif
-			gl.glBindFramebuffer(gl.GL_FRAMEBUFFER_X, 0);
+			gl.glBindFramebuffer(gl.GL_FRAMEBUFFER_X, nScreenFBO);
 			nCurrentTextureTarget = 0;
 		}
 
@@ -10297,7 +12513,7 @@ void main()
 		if (texid == 0)
 		{
 			// Unbind the FBO (bind default framebuffer)
-			gl.glBindFramebuffer(gl.GL_FRAMEBUFFER_X, 0);
+			gl.glBindFramebuffer(gl.GL_FRAMEBUFFER_X, nScreenFBO);
 			return true;
 		}	
 	
@@ -10442,6 +12658,13 @@ void main()
 	{
 		auto& gl = olc::apis::opengl::gl::Get();
 		int loc = pCurrentShader->GetUniform(name);
+		if (loc == -1)
+		{
+			#if OLC_GPU_ERRORCHECK == 1
+			std::cout << "Warning: Uniform '" << name << "' not found in current shader\n";
+			#endif
+			return false;
+		}
 		gl.glUniform1f(loc, value);
 		return true;
 	}
@@ -10450,6 +12673,13 @@ void main()
 	{
 		auto& gl = olc::apis::opengl::gl::Get();
 		int loc = pCurrentShader->GetUniform(name);
+		if (loc == -1)
+		{
+			#if OLC_GPU_ERRORCHECK == 1
+			std::cout << "Warning: Uniform '" << name << "' not found in current shader\n";
+			#endif
+			return false;
+		}
 		gl.glUniform2fv(loc, 1, value.a().data());
 		return true;
 	}
@@ -10465,6 +12695,13 @@ void main()
 
 		auto& gl = olc::apis::opengl::gl::Get();
 		int loc = pCurrentShader->GetUniform(name);
+		if (loc == -1)
+		{
+			#if OLC_GPU_ERRORCHECK == 1
+			std::cout << "Warning: Uniform '" << name << "' not found in current shader\n";
+			#endif
+			return false;
+		}
 		gl.glUniform4fv(loc, 1, f);
 		return true;
 	}
@@ -10504,23 +12741,11 @@ void main()
 				//gl.glUniformMatrix4fv(shaderDefault.GetUniform("mvp"), 1, true, task.mvpMatrix.data());
 
 				// Shader: Apply Global Tint
-				float f[4] = { 
-					float(task.tint.r) / 255.0f, 
-					float(task.tint.g) / 255.0f, 
-					float(task.tint.b) / 255.0f, 
-					float(task.tint.a) / 255.0f 
-				};
-				
-				gl.glUniform4fv(pCurrentShader->GetUniform("pgeGlobalTint"), 1, f);
+				SetUniform("pgeGlobalTint", task.tint);
 
-				f[0] = 64.0f;
-				f[1] = 64.0f;
-				gl.glUniform2fv(pCurrentShader->GetUniform("pgeTargetSizeInPixels"), 1, vTargetSize.a().data());
-				gl.glUniform2fv(pCurrentShader->GetUniform("pgeInverseTargetSizeInPixels"), 1, ((1.0f / vTargetSize)).a().data());
-				gl.glUniform1f(pCurrentShader->GetUniform("pgeTotalTimeElapsed"), fTotalTime);
-
-
-				
+				SetUniform("pgeTargetSizeInPixels", vTargetSize);
+				SetUniform("pgeInverseTargetSizeInPixels", (1.0f / vTargetSize));
+				SetUniform("pgeTotalTimeElapsed", fTotalTime);
 
 				// Apply Culling modes
 				//if (task.cullmode == GPUTask::CullMode::None)
@@ -10556,6 +12781,8 @@ void main()
 					gl.glUniform1i(pCurrentShader->GetUniform("pgeDrawType"), 1);
 				else if (task.structure == olc::Structure::LineLoop)
 					gl.glUniform1i(pCurrentShader->GetUniform("pgeDrawType"), 1);
+				else if (task.structure == olc::Structure::LineList)
+					gl.glUniform1i(pCurrentShader->GetUniform("pgeDrawType"), 1);
 				else
 					gl.glUniform1i(pCurrentShader->GetUniform("pgeDrawType"), 0);
 
@@ -10567,6 +12794,8 @@ void main()
 					gl.glDrawArrays(GL_TRIANGLES, 0, (GLsizei)task.vertexBuffer.size());
 				else if (task.structure == olc::Structure::Line)
 					gl.glDrawArrays(GL_LINE_STRIP, 0, (GLsizei)task.vertexBuffer.size());
+				else if (task.structure == olc::Structure::LineList)
+					gl.glDrawArrays(GL_LINES, 0, (GLsizei)task.vertexBuffer.size());
 				else if (task.structure == olc::Structure::LineLoop)
 					gl.glDrawArrays(GL_LINE_LOOP, 0, (GLsizei)task.vertexBuffer.size());
 				else if (task.structure == olc::Structure::Point)
@@ -10641,20 +12870,64 @@ void main()
 		X11::glXSwapBuffers(display, window_handle);
 #endif
 
-#if OLC_HOST == OLC_HOST_LINUX_WAYLAND
-	const auto* wayland_window = reinterpret_cast<olc::host::WaylandWindow*>(os_win_id[0]);
-	//auto* window_handle = wayland_window->window;
-	//auto* display = reinterpret_cast<wl_display*>(os_win_id[1]);
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN || OLC_HOST == OLC_HOST_LINUX_WAYLAND
 	eglSwapBuffers(glRenderContext.display, glRenderContext.surface);
 #endif
 
-#if OLC_HOST == OLC_HOST_EMSCRIPTEN
-		eglSwapInterval(glRenderContext.display, bVerticalSyncNow ? 1 : 0);
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN || OLC_HOST == OLC_HOST_ANDROID
+	eglSwapBuffers(glRenderContext.display, glRenderContext.surface);
 #endif
 
 		return true;
 	}
 
+#if OLC_HOST == OLC_HOST_ANDROID
+    EGLConfig Renderer_OGL33::FindBestConfig(EGLDisplay display, int desiredMultisamples)
+    {
+		EGLint numConfigs;
+		EGLConfig bestConfig = nullptr;
+		EGLConfig fallbackConfig = nullptr;
+
+		// Define attribute list for desired configuration
+    	EGLint const attribs[] = {
+			EGL_RENDERABLE_TYPE, EGL_OPENGL_ES3_BIT,
+			EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
+			EGL_RED_SIZE, 8,
+			EGL_GREEN_SIZE, 8,
+			EGL_BLUE_SIZE, 8,
+			EGL_ALPHA_SIZE, 8,
+			EGL_DEPTH_SIZE, 16,
+        	EGL_NONE
+    	};
+
+		// Get all matching configurations
+		eglChooseConfig(display, attribs, nullptr, 0, &numConfigs);
+
+		std::vector<EGLConfig> configs(numConfigs);
+		eglChooseConfig(display, attribs, configs.data(), numConfigs, &numConfigs);
+
+		// Evaluate configurations to find the best that matches desired multisampling
+		for (const auto& config : configs) {
+			EGLint sampleBuffers = 0;
+			EGLint samples = 0;
+
+			eglGetConfigAttrib(display, config, EGL_SAMPLE_BUFFERS, &sampleBuffers);
+			eglGetConfigAttrib(display, config, EGL_SAMPLES, &samples);
+
+			if (sampleBuffers > 0 && samples == desiredMultisamples) {
+				bestConfig = config;
+				break; // Found the best match
+			}
+
+			// Keep track of a fallback configuration
+			if (fallbackConfig == nullptr) {
+				fallbackConfig = config;
+			}
+		}
+
+		return bestConfig ? bestConfig : fallbackConfig;
+    }
+#endif
 
 }
 #endif
@@ -10720,6 +12993,8 @@ void olc::Draw2D::ProcessGPUTasks()
 	for (const auto& task : vecGPUTasks.data)
 		pRenderer->DoGPUTask(task);
 
+	drawMetrics.nGPUTasks += uint32_t(vecGPUTasks.data.size());
+
 	vecGPUTasks.data.clear();
 }
 
@@ -10736,6 +13011,8 @@ void Draw2D::PrepareTargetForSW()
 		// Image is now CPU bound
 		pTarget->BindCPU();
 
+		drawMetrics.nGPUtoCPUTransfers++;
+
 		// Create a scanline buffer the height of this target
 		vScanlines.resize(size_t(pTarget->Size().y), {});
 	}
@@ -10750,6 +13027,8 @@ void Draw2D::PrepareTargetForHW()
 
 		// Image is now GPU bound
 		pTarget->BindGPU();
+
+		drawMetrics.nCPUtoGPUTransfers++;
 	}
 }
 
@@ -10765,6 +13044,8 @@ void Draw2D::PrepareImageForSW(olc::Image& image)
 
 		// Image is now CPU bound
 		image.BindCPU();
+
+		drawMetrics.nGPUtoCPUTransfers++;
 	}
 }
 
@@ -10777,6 +13058,8 @@ void Draw2D::PrepareImageForHW(olc::Image& image)
 
 		// Image is now GPU bound
 		image.BindGPU();
+
+		drawMetrics.nCPUtoGPUTransfers++;
 	}
 
 	// Only resolve MSAA if this image is NOT the current render target
@@ -10791,6 +13074,9 @@ bool olc::Draw2D::SetShader(const olc::gpu::Shader& shader)
 {
 	// Finish all drawing with current shader
 	ProcessGPUTasks();
+
+	drawMetrics.nShaderChanges++;
+
 	// Set new shader
 	return pRenderer->ApplyShader(shader);
 }
@@ -10798,12 +13084,12 @@ bool olc::Draw2D::SetShader(const olc::gpu::Shader& shader)
 bool olc::Draw2D::ResetShader()
 {
 	ProcessGPUTasks();
+	drawMetrics.nShaderChanges++;
 	return pRenderer->ApplyDefaultShader();
 }
 
 bool olc::Draw2D::SetShaderUniform(const std::string& name, const float value)
 {
-
 	return pRenderer->SetUniform(name, value);
 }
 
@@ -10821,6 +13107,16 @@ bool olc::Draw2D::SetShaderTexture(const uint32_t nSlot, olc::Image& image)
 {
 	PrepareImageForHW(image);
 	return pRenderer->AssignTextureSource(nSlot, image.GetGPUID());	
+}
+
+void olc::Draw2D::ResetDrawMetrics()
+{
+	drawMetrics = sDrawMetrics();
+}
+
+olc::Draw2D::sDrawMetrics olc::Draw2D::GetDrawMetrics() const
+{
+	return drawMetrics;
 }
 
 void olc::Draw2D::WorldReset()
@@ -10992,6 +13288,11 @@ const GPUTask& Draw2D::Line(const olc::vf2d& p1, const olc::vf2d& p2, const olc:
 		)));
 }
 
+const LineBatch& olc::Draw2D::Line(olc::LineBatch& batch, const olc::vf2d& p1, const olc::vf2d& p2, const olc::Pixel col)
+{
+	return Line(batch, p1, col, p2, col);
+}
+
 const GPUTask& Draw2D::Line(const olc::vf2d& p1, const olc::Pixel c1, const olc::vf2d& p2, const olc::Pixel c2, const olc::Pixel tint)
 {
 	PrepareTargetForHW();
@@ -11003,6 +13304,17 @@ const GPUTask& Draw2D::Line(const olc::vf2d& p1, const olc::Pixel c1, const olc:
 			{ c1, c2 },
 			tint
 		)));		
+}
+
+const LineBatch& olc::Draw2D::Line(olc::LineBatch& batch, const olc::vf2d& p1, const olc::Pixel c1, const olc::vf2d& p2, const olc::Pixel c2)
+{
+	batch.task.vertexBuffer.resize(batch.task.vertexBuffer.size() + 2);
+	size_t idx = batch.task.vertexBuffer.size() - 2;
+	const olc::vf2d a1 = transformAffine.forwardRound(p1);
+	const olc::vf2d a2 = transformAffine.forwardRound(p2);
+	batch.task.vertexBuffer[idx + 0] = { {a1.x, a1.y, 1.0f, 1.0f}, c1, {0, 0}, {0, 0}, {0, 0}, {0, 0} };
+	batch.task.vertexBuffer[idx + 1] = { {a2.x, a2.y, 1.0f, 1.0f}, c2, {0, 0}, {0, 0}, {0, 0}, {0, 0} };
+	return batch;
 }
 
 const GPUTask& olc::Draw2D::Rect(const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel col, const olc::Pixel tint)
@@ -11026,6 +13338,11 @@ const GPUTask& olc::Draw2D::Rect(const olc::vf2d& pos, const olc::vf2d& size, co
 		)));
 }
 
+const LineBatch& olc::Draw2D::Rect(olc::LineBatch& batch, const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel col)
+{
+	return Rect(batch, pos, size, col, col, col, col);
+}
+
 const GPUTask& olc::Draw2D::Rect(const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel colTL, const olc::Pixel colTR, const olc::Pixel colBL, const olc::Pixel colBR, const olc::Pixel tint)
 {
 	PrepareTargetForHW();
@@ -11042,6 +13359,22 @@ const GPUTask& olc::Draw2D::Rect(const olc::vf2d& pos, const olc::vf2d& size, co
 			{ colTL, colTR,  colBR,  colBL,  colTL },
 			tint
 				)));
+}
+
+const LineBatch& olc::Draw2D::Rect(olc::LineBatch& batch, const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel colTL, const olc::Pixel colTR, const olc::Pixel colBL, const olc::Pixel colBR)
+{
+	const olc::vf2d pTL = olc::vf2d(pos.x, pos.y);
+	const olc::vf2d pTR = olc::vf2d(pos.x + size.x, pos.y);
+	const olc::vf2d pBR = olc::vf2d(pos.x + size.x, pos.y + size.y);
+	const olc::vf2d pBL = olc::vf2d(pos.x, pos.y + size.y);
+
+	Line(batch, pTL, colTL, pTR, colTR);
+	Line(batch, pTR, colTR, pBR, colBR);
+	Line(batch, pBR, colBR, pBL, colBL);
+	Line(batch, pBL, colBL, pTL, colTL);
+
+	return batch;
+
 }
 
 
@@ -11062,6 +13395,13 @@ const GPUTask& olc::Draw2D::FilledRect(const olc::vf2d& pos, const olc::vf2d& si
 		)));
 }
 
+const FilledBatch& olc::Draw2D::FilledRect(olc::FilledBatch& batch, const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel col)
+{
+	FilledTriangle(batch, pos, olc::vf2d(pos.x + size.x, pos.y), olc::vf2d(pos.x + size.x, pos.y + size.y), col, col, col);
+	FilledTriangle(batch, pos, olc::vf2d(pos.x + size.x, pos.y + size.y), olc::vf2d(pos.x, pos.y + size.y), col, col, col);
+	return batch;	
+}
+
 const GPUTask& olc::Draw2D::FilledRect(const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel colTL, const olc::Pixel colTR, const olc::Pixel colBL, const olc::Pixel colBR, const olc::Pixel tint)
 {
 	PrepareTargetForHW();
@@ -11078,6 +13418,13 @@ const GPUTask& olc::Draw2D::FilledRect(const olc::vf2d& pos, const olc::vf2d& si
 		)));
 }
 
+const FilledBatch& olc::Draw2D::FilledRect(olc::FilledBatch& batch, const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel colTL, const olc::Pixel colTR, const olc::Pixel colBL, const olc::Pixel colBR)
+{
+	FilledTriangle(batch, pos, olc::vf2d(pos.x + size.x, pos.y), olc::vf2d(pos.x + size.x, pos.y + size.y), colTL, colTR, colBR);
+	FilledTriangle(batch, pos, olc::vf2d(pos.x + size.x, pos.y + size.y), olc::vf2d(pos.x, pos.y + size.y), colTL, colBR, colBL);
+	return batch;
+}
+
 void olc::Draw2D::RedefineUnitCircleBuffer(const int32_t nFacets)
 {
 	buffUnitCirclePoints.reserve(nFacets + 1);
@@ -11090,86 +13437,41 @@ void olc::Draw2D::RedefineUnitCircleBuffer(const int32_t nFacets)
 
 const GPUTask& olc::Draw2D::Circle(const olc::vf2d& pos, const float& radius, const olc::Pixel col, const olc::Pixel tint, int32_t nFacets)
 {
-	PrepareTargetForHW();
+	return Ellipse(pos, radius, radius, col, tint, nFacets);
+}
 
-	if (nFacets != int32_t(buffUnitCirclePoints.data.size() - 1))
-		RedefineUnitCircleBuffer(nFacets);
-
-	buffPoints.reserve(nFacets + 1);
-	buffColours.reserve(nFacets + 1);
-
-	for (int32_t i = 0; i <= nFacets; i++)
-	{
-		buffPoints.data[i] = transformAffine.forwardRound<float>(buffUnitCirclePoints.data[i] * radius + pos);
-		buffColours.data[i] = col;
-	}
-
-	return vecGPUTasks.data.emplace_back(std::move(
-		TaskDrawPolygon(
-			olc::Structure::Line,
-			buffPoints.data,
-			buffColours.data,
-			tint
-		)));
+const LineBatch& olc::Draw2D::Circle(olc::LineBatch& batch, const olc::vf2d& pos, const float& radius, const olc::Pixel col, int32_t nFacets)
+{
+	return Ellipse(batch, pos, radius, radius, col, nFacets);
 }
 
 const GPUTask& olc::Draw2D::FilledCircle(const olc::vf2d& pos, const float& radius, const olc::Pixel col, const olc::Pixel tint, int32_t nFacets)
 {
-	PrepareTargetForHW();
+	return FilledEllipse(pos, radius, radius, col, tint, nFacets);
+}
 
-	if (nFacets != int32_t(buffUnitCirclePoints.data.size() - 1))
-		RedefineUnitCircleBuffer(nFacets);
-	
-	buffPoints.reserve(nFacets + 2);
-	buffColours.reserve(nFacets + 2);
-	
-	buffPoints.data[0] = transformAffine.forwardRound<float>(pos);
-	buffColours.data[0] = col;
-	for (int32_t i = 0; i <= nFacets; i++)
-	{
-		buffPoints.data[i + 1] = transformAffine.forwardRound<float>(buffUnitCirclePoints.data[i] * radius + pos);
-		buffColours.data[i + 1] = col;
-	}
-
-	return vecGPUTasks.data.emplace_back(std::move(
-		TaskFillPolygon(
-			olc::Structure::Fan,
-			buffPoints.data,
-			buffColours.data,
-			tint
-		)));
+const FilledBatch& olc::Draw2D::FilledCircle(olc::FilledBatch& batch, const olc::vf2d& pos, const float& radius, const olc::Pixel col, int32_t nFacets)
+{
+	return FilledEllipse(batch, pos, radius, radius, col, nFacets);
 }
 
 const GPUTask& olc::Draw2D::FilledCircle(const olc::vf2d& pos, const float& radius, const olc::Pixel colInner, const olc::Pixel colOuter, const olc::Pixel tint, int32_t nFacets)
 {
-	PrepareTargetForHW();
+	return FilledEllipse(pos, radius, radius, colInner, colOuter, tint, nFacets);
+}
 
-	if (nFacets != int32_t(buffUnitCirclePoints.data.size() - 1))
-		RedefineUnitCircleBuffer(nFacets);
-	
-	buffPoints.reserve(nFacets + 2);
-	buffColours.reserve(nFacets + 2);
-
-	buffPoints.data[0] = transformAffine.forwardRound<float>(pos);
-	buffColours.data[0] = colInner;
-	for (int32_t i = 0; i <= nFacets; i++)
-	{
-		buffPoints.data[i + 1] = transformAffine.forwardRound<float>(buffUnitCirclePoints.data[i] * radius + pos);
-		buffColours.data[i + 1] = colOuter;
-	}
-	
-	return vecGPUTasks.data.emplace_back(std::move(
-		TaskFillPolygon(
-			olc::Structure::Fan,
-			buffPoints.data,
-			buffColours.data,
-			tint
-		)));
+const FilledBatch& olc::Draw2D::FilledCircle(olc::FilledBatch& batch, const olc::vf2d& pos, const float& radius, const olc::Pixel colInner, const olc::Pixel colOuter, int32_t nFacets)
+{
+	return FilledEllipse(batch, pos, radius, radius, colInner, colOuter, nFacets);
 }
 
 const GPUTask& olc::Draw2D::Ellipse(const olc::vf2d& pos, const float& rx, const float& ry, const olc::Pixel col, const olc::Pixel tint, int32_t nFacets)
 {
+	// Fundamental for outline circle/ellipse with colour solid/gradient
 	PrepareTargetForHW();
+
+	if (nFacets != int32_t(buffUnitCirclePoints.data.size() - 1))
+		RedefineUnitCircleBuffer(nFacets);
 
 	buffPoints.reserve(nFacets + 1);
 	buffColours.reserve(nFacets + 1);
@@ -11189,33 +13491,43 @@ const GPUTask& olc::Draw2D::Ellipse(const olc::vf2d& pos, const float& rx, const
 		)));
 }
 
-const GPUTask& olc::Draw2D::FilledEllipse(const olc::vf2d& pos, const float& rx, const float& ry, const olc::Pixel col, const olc::Pixel tint, int32_t nFacets)
+const LineBatch& olc::Draw2D::Ellipse(olc::LineBatch& batch, const olc::vf2d& pos, const float& rx, const float& ry, const olc::Pixel col, int32_t nFacets)
 {
-	PrepareTargetForHW();
-		
-	buffPoints.reserve(nFacets + 2);
-	buffColours.reserve(nFacets + 2);
+	// Fundamental for batched outline circle/ellipse with colour solid/gradient
 
-	buffPoints.data[0] = transformAffine.forwardRound<float>(pos);
-	buffColours.data[0] = col;
+	if (nFacets != int32_t(buffUnitCirclePoints.data.size() - 1))
+		RedefineUnitCircleBuffer(nFacets);
+
 	for (int32_t i = 0; i <= nFacets; i++)
-	{		
-		buffPoints.data[i + 1] = transformAffine.forwardRound<float>({ pos.x + rx * buffUnitCirclePoints.data[i].x, pos.y + ry * buffUnitCirclePoints.data[i].y});
-		buffColours.data[i + 1] = col;	
+	{
+		const olc::vf2d a1 = { buffUnitCirclePoints.data[i].x * rx + pos.x, buffUnitCirclePoints.data[i].y * ry + pos.y };
+		const olc::vf2d a2 = { buffUnitCirclePoints.data[(i + 1) % buffUnitCirclePoints.data.size()].x * rx + pos.x, 
+			buffUnitCirclePoints.data[(i + 1) % buffUnitCirclePoints.data.size()].y * ry + pos.y };
+		
+		Line(batch, a1, col, a2, col);
 	}
 
-	return vecGPUTasks.data.emplace_back(std::move(
-		TaskFillPolygon(
-			olc::Structure::Fan,
-			buffPoints.data,
-			buffColours.data,
-			tint
-		)));
+	return batch;
+}
+
+const GPUTask& olc::Draw2D::FilledEllipse(const olc::vf2d& pos, const float& rx, const float& ry, const olc::Pixel col, const olc::Pixel tint, int32_t nFacets)
+{
+	return FilledEllipse(pos, rx, ry, col, col, tint, nFacets);
+}
+
+const FilledBatch& olc::Draw2D::FilledEllipse(olc::FilledBatch& batch, const olc::vf2d& pos, const float& rx, const float& ry, const olc::Pixel col, int32_t nFacets)
+{
+	return FilledEllipse(batch, pos, rx, ry, col, col, nFacets);
 }
 
 const GPUTask& olc::Draw2D::FilledEllipse(const olc::vf2d& pos, const float& rx, const float& ry, const olc::Pixel colInner, const olc::Pixel colOuter, const olc::Pixel tint, int32_t nFacets)
 {
+	// Fundamental for filled circle/ellipse with colour solid/gradient
+
 	PrepareTargetForHW();
+
+	if (nFacets != int32_t(buffUnitCirclePoints.data.size() - 1))
+		RedefineUnitCircleBuffer(nFacets);
 	
 	buffPoints.reserve(nFacets + 2);
 	buffColours.reserve(nFacets + 2);
@@ -11235,6 +13547,27 @@ const GPUTask& olc::Draw2D::FilledEllipse(const olc::vf2d& pos, const float& rx,
 			buffColours.data,
 			tint
 		)));
+}
+
+const FilledBatch& olc::Draw2D::FilledEllipse(olc::FilledBatch& batch, const olc::vf2d& pos, const float& rx, const float& ry, const olc::Pixel colInner, const olc::Pixel colOuter, int32_t nFacets)
+{
+	// Fundamental for batch filled circle/ellipse with colour solid/gradient
+
+	if (nFacets != int32_t(buffUnitCirclePoints.data.size() - 1))
+		RedefineUnitCircleBuffer(nFacets);
+
+	for (int32_t i = 0; i <= nFacets; i++)
+	{
+		olc::vf2d p1 = { pos.x + rx * buffUnitCirclePoints.data[i].x, 
+						 pos.y + ry * buffUnitCirclePoints.data[i].y };
+
+		olc::vf2d p2 = { pos.x + rx * buffUnitCirclePoints.data[(i + 1) % buffUnitCirclePoints.data.size()].x, 
+						 pos.y + ry * buffUnitCirclePoints.data[(i + 1) % buffUnitCirclePoints.data.size()].y };
+
+		FilledTriangle(batch, pos, p1, p2, colInner, colOuter, colOuter);
+	}
+
+	return batch;
 }
 
 const GPUTask& olc::Draw2D::RoundedRect(const olc::vf2d& pos, const olc::vf2d& size, const float& radius, const olc::Pixel col, const olc::Pixel tint, int32_t nFacets)
@@ -11285,6 +13618,52 @@ const GPUTask& olc::Draw2D::RoundedRect(const olc::vf2d& pos, const olc::vf2d& s
 			std::vector<olc::Pixel>(buffPoints.data.size(), col),
 			tint
 		)));
+}
+
+const LineBatch& olc::Draw2D::RoundedRect(olc::LineBatch& batch, const olc::vf2d& pos, const olc::vf2d& size, const float& radius, const olc::Pixel col, int32_t nFacets)
+{
+	buffPoints.reserve((nFacets + 1) * 4 + 1);
+	buffPoints.data.clear();
+
+	olc::vf2d adjustedPos = pos + olc::vf2d(radius, radius);
+	olc::vf2d adjustedSize = size - olc::vf2d(2.0f * radius, 2.0f * radius);
+
+	// Top Left
+	for (int32_t i = 0; i <= nFacets; i++)
+	{
+		float theta = (float(i) / float(nFacets)) * (0.5f * 3.14159265358979323846f) - (1.0f * 3.14159265358979323846f);
+		buffPoints.data.push_back({ adjustedPos.x + radius * cosf(theta), adjustedPos.y + radius * sinf(theta) });
+	}
+
+	// Top Right
+	for (int32_t i = 0; i <= nFacets; i++)
+	{
+		float theta = (float(i) / float(nFacets)) * (0.5f * 3.14159265358979323846f) - (0.5f * 3.14159265358979323846f);
+		buffPoints.data.push_back({ adjustedPos.x + adjustedSize.x + radius * cosf(theta), adjustedPos.y + radius * sinf(theta) });
+	}
+
+	// Bottom Right
+	for (int32_t i = 0; i <= nFacets; i++)
+	{
+		float theta = (float(i) / float(nFacets)) * (0.5f * 3.14159265358979323846f) + (0.0f * 3.14159265358979323846f);
+		buffPoints.data.push_back({ adjustedPos.x + adjustedSize.x + radius * cosf(theta), adjustedPos.y + adjustedSize.y + radius * sinf(theta) });
+	}
+
+	// Bottom Left
+	for (int32_t i = 0; i <= nFacets; i++)
+	{
+		float theta = (float(i) / float(nFacets)) * (0.5f * 3.14159265358979323846f) + (0.5f * 3.14159265358979323846f);
+		buffPoints.data.push_back({ adjustedPos.x + radius * cosf(theta), adjustedPos.y + adjustedSize.y + radius * sinf(theta) });
+	}
+
+	buffPoints.data.push_back({ adjustedPos.x - radius, adjustedPos.y });
+
+	for (size_t i = 0; i < buffPoints.data.size() - 1; i++)
+	{
+		Line(batch, buffPoints.data[i], col, buffPoints.data[i + 1],  col);
+	}
+
+	return batch;
 }
 
 const GPUTask& olc::Draw2D::FilledRoundedRect(const olc::vf2d& pos, const olc::vf2d& size, const float& radius, const olc::Pixel col, const olc::Pixel tint, int32_t nFacets)
@@ -11344,6 +13723,11 @@ const GPUTask& olc::Draw2D::Triangle(const olc::vf2d& p1, const olc::vf2d& p2, c
 	return Triangle(p1, p2, p3, col, col, col, tint);
 }
 
+const LineBatch& olc::Draw2D::Triangle(olc::LineBatch& batch, const olc::vf2d& p1, const olc::vf2d& p2, const olc::vf2d& p3, const olc::Pixel col)
+{
+	return Triangle(batch, p1, p2, p3, col, col, col);
+}
+
 const GPUTask& olc::Draw2D::Triangle(const olc::vf2d& p1, const olc::vf2d& p2, const olc::vf2d& p3, const olc::Pixel c1, const olc::Pixel c2, const olc::Pixel c3, const olc::Pixel tint)
 {
 	PrepareTargetForHW();
@@ -11357,9 +13741,22 @@ const GPUTask& olc::Draw2D::Triangle(const olc::vf2d& p1, const olc::vf2d& p2, c
 		)));
 }
 
+const LineBatch& olc::Draw2D::Triangle(olc::LineBatch& batch, const olc::vf2d& p1, const olc::vf2d& p2, const olc::vf2d& p3, const olc::Pixel c1, const olc::Pixel c2, const olc::Pixel c3)
+{
+	Line(batch, p1, c1, p2, c2);
+	Line(batch, p2, c2, p3, c3);
+	Line(batch, p3, c3, p1, c1);
+	return batch;	
+}
+
 const GPUTask& olc::Draw2D::FilledTriangle(const olc::vf2d& p1, const olc::vf2d& p2, const olc::vf2d& p3, const olc::Pixel col, const olc::Pixel tint)
 {
 	return FilledTriangle(p1, p2, p3, col, col, col, tint);
+}
+
+const FilledBatch& olc::Draw2D::FilledTriangle(olc::FilledBatch& batch, const olc::vf2d& p1, const olc::vf2d& p2, const olc::vf2d& p3, const olc::Pixel col)
+{
+	return FilledTriangle(batch, p1, p2, p3, col, col, col);
 }
 
 const GPUTask& olc::Draw2D::FilledTriangle(const olc::vf2d& p1, const olc::vf2d& p2, const olc::vf2d& p3, const olc::Pixel c1, const olc::Pixel c2, const olc::Pixel c3, const olc::Pixel tint)
@@ -11373,6 +13770,19 @@ const GPUTask& olc::Draw2D::FilledTriangle(const olc::vf2d& p1, const olc::vf2d&
 			{ c1, c2, c3 },
 			tint
 		)));
+}
+
+const FilledBatch& olc::Draw2D::FilledTriangle(olc::FilledBatch& batch, const olc::vf2d& p1, const olc::vf2d& p2, const olc::vf2d& p3, const olc::Pixel c1, const olc::Pixel c2, const olc::Pixel c3)
+{
+	batch.task.vertexBuffer.resize(batch.task.vertexBuffer.size() + 3);
+	size_t idx = batch.task.vertexBuffer.size() - 3;
+	const olc::vf2d a1 = transformAffine.forwardRound(p1);
+	const olc::vf2d a2 = transformAffine.forwardRound(p2);
+	const olc::vf2d a3 = transformAffine.forwardRound(p3);
+	batch.task.vertexBuffer[idx + 0] = { {a1.x, a1.y, 1.0f, 1.0f}, c1, {0, 0}, {0, 0}, {0, 0}, {0, 0} };
+	batch.task.vertexBuffer[idx + 1] = { {a2.x, a2.y, 1.0f, 1.0f}, c2, {0, 0}, {0, 0}, {0, 0}, {0, 0} };
+	batch.task.vertexBuffer[idx + 2] = { {a3.x, a3.y, 1.0f, 1.0f}, c3, {0, 0}, {0, 0}, {0, 0}, {0, 0} };
+	return batch;
 }
 
 const GPUTask& olc::Draw2D::TexturedTriangle(const olc::vf2d& p1, const olc::vf2d& p2, const olc::vf2d& p3, const olc::Pixel c1, const olc::Pixel c2, const olc::Pixel c3, const olc::vf2d& t1, const olc::vf2d& t2, const olc::vf2d& t3, olc::Image& texture, const olc::Pixel tint)
@@ -11396,9 +13806,29 @@ const GPUTask& olc::Draw2D::Polygon(const std::vector<olc::vf2d>& vecPoints, con
 	return Polygon(olc::Structure::LineLoop, vecPoints, std::vector<olc::Pixel>(vecPoints.size(), col), tint);
 }
 
+const LineBatch& olc::Draw2D::Polygon(olc::LineBatch& batch, const std::vector<olc::vf2d>& vecPoints, const olc::Pixel col)
+{
+	for (size_t i = 0; i < vecPoints.size(); i++)
+	{
+		Line(batch, vecPoints[i], col, vecPoints[(i + 1) % vecPoints.size()], col);
+	}
+
+	return batch;
+}
+
 const GPUTask& olc::Draw2D::Polygon(const std::vector<olc::vf2d>& vecPoints, const std::vector<olc::Pixel>& vecColours, const olc::Pixel tint)
 {
 	return Polygon(olc::Structure::LineLoop, vecPoints, vecColours, tint);
+}
+
+const LineBatch& olc::Draw2D::Polygon(olc::LineBatch& batch, const std::vector<olc::vf2d>& vecPoints, const std::vector<olc::Pixel>& vecColours)
+{
+	for(size_t i = 0; i<vecPoints.size(); i++)
+	{
+		Line(batch, vecPoints[i], vecColours[i], vecPoints[(i + 1) % vecPoints.size()], vecColours[(i + 1) % vecColours.size()]);
+	}
+
+	return batch;
 }
 
 const GPUTask& olc::Draw2D::Polygon(const olc::Structure structure, const std::vector<olc::vf2d>& vecPoints, const olc::Pixel col, const olc::Pixel tint)
@@ -11558,28 +13988,35 @@ ImageBatch olc::Draw2D::CreateImageBatch(olc::Image &image)
 	return b;
 }
 
-const GPUTask& olc::Draw2D::Batch(const ImageBatch& batch)
+const GPUTask& olc::Draw2D::Batch(olc::ImageBatch& batch, const olc::Pixel tint)
 {
+	batch.task.tint = tint;
 	return vecGPUTasks.data.emplace_back(batch.task);
 }
 
 FilledBatch olc::Draw2D::CreateFilledBatch()
 {
-	return FilledBatch();
+	FilledBatch b;
+	b.task.structure = olc::Structure::List;
+	return b;
 }
 
-const GPUTask& olc::Draw2D::Batch(const olc::FilledBatch& batch)
+const GPUTask& olc::Draw2D::Batch(olc::FilledBatch& batch, const olc::Pixel tint)
 {
+	batch.task.tint = tint;
 	return vecGPUTasks.data.emplace_back(batch.task);
 }
 
 LineBatch olc::Draw2D::CreateLineBatch()
 {
-	return LineBatch();
+	LineBatch b;
+	b.task.structure = olc::Structure::LineList;	
+	return b;
 }
 
-const GPUTask& olc::Draw2D::Batch(const olc::LineBatch& batch)
+const GPUTask& olc::Draw2D::Batch(olc::LineBatch& batch, const olc::Pixel tint)
 {
+	batch.task.tint = tint;
 	return vecGPUTasks.data.emplace_back(batch.task);
 }
 
@@ -11600,9 +14037,6 @@ const ImageBatch& olc::Draw2D::Image(ImageBatch& batch, olc::ImageRegion image, 
 	batch.task.vertexBuffer.push_back({ {p0.x, p0.y, 1.0f, 1.0f}, tint, {image.coords[0].x, image.coords[0].y}, {0, 0}, {0, 0}, {0, 0} });
 	batch.task.vertexBuffer.push_back({ {p2.x, p2.y, 1.0f, 1.0f}, tint, {image.coords[2].x, image.coords[2].y}, {0, 0}, {0, 0}, {0, 0} });
 	batch.task.vertexBuffer.push_back({ {p3.x, p3.y, 1.0f, 1.0f}, tint, {image.coords[3].x, image.coords[3].y}, {0, 0}, {0, 0}, {0, 0} });
-	
-	batch.task.tint = tint;
-
 	return batch;
 }
 
@@ -11692,9 +14126,6 @@ const ImageBatch& olc::Draw2D::ImageRotated(olc::ImageBatch& batch, olc::ImageRe
 	batch.task.vertexBuffer.push_back({ {p0.x, p0.y, 1.0f, 1.0f}, tint, {image.coords[0].x, image.coords[0].y}, {0, 0}, {0, 0}, {0, 0} });
 	batch.task.vertexBuffer.push_back({ {p2.x, p2.y, 1.0f, 1.0f}, tint, {image.coords[2].x, image.coords[2].y}, {0, 0}, {0, 0}, {0, 0} });
 	batch.task.vertexBuffer.push_back({ {p3.x, p3.y, 1.0f, 1.0f}, tint, {image.coords[3].x, image.coords[3].y}, {0, 0}, {0, 0}, {0, 0} });
-
-	batch.task.tint = tint;
-
 	return batch;
 }
 
@@ -11792,8 +14223,6 @@ const ImageBatch& olc::Draw2D::ImageQuad(olc::ImageBatch& batch, olc::ImageRegio
 		batch.task.vertexBuffer.push_back({ {p0.x, p0.y, q[0], 1.0f}, tint, {q[0] * image.coords[0].x, q[0] * image.coords[0].y}, {0, 0}, {0, 0}, {0, 0}});
 		batch.task.vertexBuffer.push_back({ {p2.x, p2.y, q[2], 1.0f}, tint, {q[2] * image.coords[2].x, q[2] * image.coords[2].y}, {0, 0}, {0, 0}, {0, 0}});
 		batch.task.vertexBuffer.push_back({ {p3.x, p3.y, q[3], 1.0f}, tint, {q[3] * image.coords[3].x, q[3] * image.coords[3].y}, {0, 0}, {0, 0}, {0, 0}});
-
-		batch.task.tint = tint;
 		return batch;
 	}
 
@@ -12379,6 +14808,10 @@ namespace olc
 		pRenderer->PrepareWindowTarget(pHost->GetHostWindowDescriptor(this));
 		CreateImage(GetDefaultImage(), vScreenSize);
 		SetWindowSize(vScreenSize * vPixelSize);
+
+		// Assume 1:1 Relationship for now
+		vViewPos = { 0,0 };
+		vViewSize = vScreenSize * vPixelSize;
 		return true;
 	}
 
@@ -12402,6 +14835,7 @@ namespace olc
 	{
 		// Input Changes
 		mouse.UpdateState();
+		keyboard.UpdateState();
 		
 		draw.SetGPU(pRenderer);
 		draw.SetTarget(GetDefaultImage());
@@ -12438,15 +14872,44 @@ namespace olc
 		}
 
 		draw.ResetShader();
+		draw.WorldReset();		
 
 		// Take the window's completed "screen" and draw it as a textured quad to the backbuffer
 		pRenderer->AssignTextureTarget(0, 0);
-		pRenderer->SetViewport({ 0,0 }, GetWindowSize());
-		pRenderer->ClearViewport(olc::Colour::MAGENTA, true, true);
-		
-		
-		draw.WorldReset();		
-		draw.ImageRect(GetDefaultImage().flipV(), {0.0,0.0}, GetWindowSize());
+
+
+		// === Viewport Handling ===
+		if (config.bRetainAspectRatio)
+		{
+			// Set the viewport to maintain the aspect ratio of GetDefaultImage() and maximise to 
+			// fit within the window client area
+			float fAspectScreen = float(GetDefaultImage().Size().x) / float(GetDefaultImage().Size().y);
+
+			vViewSize.x = (int32_t)vWindowSize.x;
+			vViewSize.y = (int32_t)((float)vViewSize.x / fAspectScreen);
+
+			if (vViewSize.y > vWindowSize.y)
+			{
+				vViewSize.y = vWindowSize.y;
+				vViewSize.x = (int32_t)((float)vViewSize.y * fAspectScreen);
+			}
+
+			vViewPos = (vWindowSize - vViewSize) / 2;			
+		}
+		else
+		{
+			// Stretch to fit window (or 1:1 pixel mapping)
+			vViewPos = { 0,0 };
+			vViewSize = vWindowSize;	
+
+			// Note: Important to keep "View" updated as mouse will need to
+			// know for scaling
+		}
+
+		// Present final composite
+		pRenderer->SetViewport(vViewPos, vViewSize);
+		pRenderer->ClearViewport(config.colClear, true, true);
+		draw.ImageRect(GetDefaultImage().flipV(), { 0.0,0.0 }, vViewSize);
 		draw.ProcessGPUTasks();
 
 		// Update Window's primary surface
@@ -12547,9 +15010,29 @@ namespace olc
 		return mouse;
 	}
 
+	olc::hw::Keyboard& PGEWindow::GetKeyboard()
+	{
+		return keyboard;
+	}
+
+	const olc::vi2d& PGEWindow::ScreenSize()
+	{
+		return GetDefaultImage().Size();
+	}
+
 	bool PGEWindow::olc_OnMouseMove(const olc::vi2d& vMousePos)
 	{
-		mouse.SetPosition(olc::vf2d(vMousePos) / olc::vf2d(GetWindowSize()) * GetDefaultImage().Size());
+		olc::vi2d pos = vMousePos;
+
+		// TODO: Concept in v2d prevents this from being cleaner
+		// Full screen windows may have different scaling
+		pos.x -= vViewPos.x;
+		pos.y -= vViewPos.y;
+
+		// Scale mouse into view coordinates
+		mouse.SetPosition(
+			(olc::vf2d(pos) / olc::vf2d(vWindowSize - (vViewPos * 2)) * GetDefaultImage().Size())
+			.clamp({ 0.0f, 0.0f }, olc::vf2d(GetDefaultImage().Size()-1)));
 		return true;
 	}
 
@@ -12571,58 +15054,219 @@ namespace olc
 		config.vScreenSize = vScreenSize;
 		config.vPixelSize = vPixelSize;
 		config.bFullScreen = bFullScreen;
-
-		return true;
+		return Construct(config);
 	}
 
 	bool PixelGameEngine::Construct(const PGEConfig& cfg)
 	{		
 		config = cfg;
-		return true;
+
+		// This is the earliest point within familiar PGE ecosystem
+		// where we can instatiate the host interface.
+
+		// Initialise Host Interface
+		host = std::make_unique<olc::host::OLC_FRIENDLY_HOST>();
+
+
+		// DEVS!! Please don't merge these just yet
+
+		// Initialise ImageLoader Interface
+#if OLC_HOST == OLC_HOST_WINDOWS
+		imageloader = std::make_unique<olc::imload::ImageLoader_WinGDI>();
+#endif
+
+#if OLC_HOST == OLC_HOST_MACOS
+		imageloader = std::make_unique<olc::imload::ImageLoader_MacOS>();
+#endif
+
+#if OLC_HOST == OLC_HOST_LINUX_X11
+		imageloader = std::make_unique<olc::imload::ImageLoader_LibPNG>();
+#endif
+
+#if OLC_HOST == OLC_HOST_LINUX_WAYLAND
+		imageloader = std::make_unique<olc::imload::ImageLoader_LibPNG>();
+#endif
+
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN
+		imageloader = std::make_unique<olc::imload::ImageLoader_LibPNG>();
+#endif
+
+#if OLC_HOST == OLC_HOST_ANDROID
+		imageloader = std::make_unique<olc::imload::ImageLoader_NDKImageDecoder>(
+			olc::host::Host_Android::androidApp->activity->assetManager
+		);
+#endif
+
+		// Allow host to prepare itself
+		return host->OnApplicationStart(this);
 	}
 
 	bool PixelGameEngine::Start()
+	{		
+		
+
+		bool bStartCheck = host->StartSystem(); // Must block until system is shutdown
+		if(!bStartCheck)
+			std::cout << "PGE Start() Error: Host failed to start\n";
+
+		bool bEndCheck = host->OnApplicationEnd();
+		if (!bEndCheck)
+			std::cout << "PGE Start() Error: Host failed to shutdown cleanly\n";
+
+		return bStartCheck && bEndCheck;
+	}
+
+	bool PixelGameEngine::OnPreContextStart()
 	{
-		// Initialise Host Interface
-		#if OLC_HOST == OLC_HOST_WINDOWS
-		host = std::make_unique<olc::host::Host_Windows_WinAPI>();
-		#endif
-		// Johnnyg63: Added MacOS Host Initialisation
-		#if OLC_HOST == OLC_HOST_MACOS
-		host = std::make_unique<olc::host::Host_Apple_MacOS>();
-		#endif
-		#if OLC_HOST == OLC_HOST_LINUX_X11
-		host = std::make_unique<olc::host::Host_Linux_X11>();
-		#endif
-		#if OLC_HOST == OLC_HOST_LINUX_WAYLAND
-		host = std::make_unique<olc::host::Host_Linux_Wayland>();
-		#endif
-		#if OLC_HOST == OLC_HOST_EMSCRIPTEN
-		host = std::make_unique<olc::host::Host_Web_Emscripten>();
-		#endif
-#if OLC_MULTIWINDOW == OLC_MULTIWINDOW_NO
-		// Create OS window on this thread
-		host->AddWindowFrame(this, { 30,30 }, config.vPixelSize * config.vScreenSize, false);
-		// Create EngineThread - no more windows will be created now. We needed one window
-		// at least to initialise teh rendering subsystem... sigh.
-		coreActive = true;
+		// Create the window!
+		return host->AddWindowFrame(this, { 30,30 }, config.vPixelSize * config.vScreenSize, false);		
+	}
 
-#if OLC_HOST != OLC_HOST_EMSCRIPTEN
-		coreThread = std::thread(&PixelGameEngine::EngineThread, this);
-		// Handle window events on this thread (and block)
-		host->StartSystemEventLoop(true);		
-		// Window has closed its event handler, so shut down gracefully
-		coreActive = false;
-		// Wait for engine thread to terminate
-		coreThread.join();
-#else
-		EngineThread();
-#endif
+	bool PixelGameEngine::OnContextStart()
+	{
+		// The "context" refers to the thread (or execution pathway)
+		// that will be hosting the main rendering loop. Things like
+		// OpenGL contexts are thread specific, so all GPU initialisation
+		// must be performed here for example
 
-#else
+		// If the host doesnt use a thread for its event loop, then
+		// this function will probably be called on the main application 
+		// thread
+
+
+		// Initialise GPU Interface
+		olc::gpu::RendererConfig cfgRenderer;
+		cfgRenderer.VerticalSync = config.bVSync;
+		gpu = std::make_unique<olc::gpu::Renderer_OGL33>();
+
+		gpu->CreateDevice(host->GetHostWindowDescriptor(this), cfgRenderer);
+		if (gpu->GetLastError() != olc::gpu::RendererError::NoError)
+		{
+			std::cout << "PGE OnContextStart() Error: Could not create Renderer\n";
+			return false;
+		}
+
+		// Link this olc::Window to host
+		LinkToHost(host.get());
+		// Link this olc::PGEWindow to renderer and imageloader
+		LinkToRenderer(gpu.get());
+		LinkToImageLoader(imageloader.get());
+
+		// These things require a valid GPU context
+
+		// Create Primary olc::Image - aka "The Screen"
+		olc::ImageConfig cfg;
+		cfg.MSAA = config.bAntiAliasMainScreen;
+		CreateImage(GetDefaultImage(), config.vScreenSize, cfg);
+
+		// Initialise "Classic" Font System
+		olc::pgeguts::CreateClassicFont(this);
+
+		// Prepare Draw2D system
+		draw.SetGPU(gpu.get());
+		gpu->ApplyDefaultShader();
+		draw.SetTarget(GetDefaultImage());
+
+		// User Create GOOOOOOOOO!!!!
+		if (!OnUserCreate())
+		{
+			std::cout << "PGE OnContextStart(): User aborted OnUserCreate()\n";
+			return false;
+		}
+
+		// It's possible to draw things in create so flush any pending GPU tasks
+		draw.ProcessGPUTasks();
+
+		// Set to known default state
+		draw.SetTarget(GetDefaultImage());
+		draw.WorldReset();
+		gpu->ApplyDefaultShader();
+
+		// Fire up the engine!
+		using namespace std::chrono_literals;
+		durationFrameCount = 0s;
+		durationTotalElapsed = 0s;
+		timeFrame1 = std::chrono::steady_clock::now();
+		timeFrame2 = std::chrono::steady_clock::now();
+		frameCount = 0;
+		return true;
+	}
+
+	bool PixelGameEngine::OnContextTick()
+	{
+		// This is called once per frame from the host's system loop
+
+		// Frame Delta Timing - "ElapsedTime" since last core update
+		// ~~~~~~~~~~~~~~~~~~
+		// All timing is synchronous to the primary window, i.e child
+		// windows do not maintain their own frame timing. This is a
+		// deliberate decision as PGE will maintain sync between windows.
+		// Why? Multiple windows are not really the point of PGE and
+		// indeed could just be addional unnecessary complexity. However,
+		// by moving to a Window abstraction we kinda get it for free.
+		// This freedom comes at the expense of complexity. If we allowed
+		// windows to be wholly isolated from the core loop, then the
+		// user is expected to maintain thread safety, context sharing
+		// and resource management. That is not olc::PGE.
+
+		using namespace std::chrono_literals;
 		
-#endif
-		
+		// Calculate last frame time
+		timeFrame1 = std::chrono::steady_clock::now();
+		durationFrame = timeFrame1 - timeFrame2;
+		timeFrame2 = timeFrame1;
+
+		// Accumulate total time elapsed since application start
+		durationTotalElapsed += durationFrame;
+
+		// Our time per frame coefficient
+		float fDT = durationFrame.count();
+
+		// Our Total Time accumulator
+		float fTT = float(durationTotalElapsed.count());
+
+		// Calculate FPS every second
+		frameCount++;
+		durationFrameCount += durationFrame;
+		if (durationFrameCount >= 1s)
+		{
+			durationFrameCount -= 1s;
+			std::string sTitle = "OneLoneCoder.com - Pixel Game Engine 3 - Test - FPS: " + std::to_string(frameCount);
+			SetWindowTitle(sTitle);
+			fps = frameCount;
+			frameCount = 0;
+		}
+
+		// If primary window is to be closed, signal application termination
+		if (olc_ShouldRemove())
+		{
+			return false; // Terminate application
+		}
+		else
+		{
+			// Update Primary Window
+			olc_WindowUpdate(fDT, fTT);
+
+			// Wait for vertical sync with desktop compositor if required. 
+			
+			// Note: Child windows will never vsync as waiting for each buffer swap with vsync
+			// divides up the frame rate budget across the windows.
+			if (gpu->GetConfig().VerticalSync)
+			{
+				host->SyncWithDesktopComposite();
+			}
+		}
+
+		return true; // Keep going
+	}
+
+	bool PixelGameEngine::OnContextEnd()
+	{
+		return true;
+	}
+
+	bool PixelGameEngine::OnPostContextEnd()
+	{
 		return true;
 	}
 
@@ -12634,6 +15278,11 @@ namespace olc
 	double PixelGameEngine::TotalTimeElapsed() const
 	{
 		return durationTotalElapsed.count();
+	}
+
+	size_t PixelGameEngine::GetFPS() const
+	{
+		return fps;
 	}
 
 	bool PixelGameEngine::AddChildWindow(std::shared_ptr<olc::PGEWindow> window, const olc::vi2d& vScreenSize, const olc::vi2d& vPixelSize)
@@ -12659,195 +15308,6 @@ namespace olc
 #endif
 	}
 
-	void PixelGameEngine::CoreUpdate(void* userdata)
-	{
-		using namespace std::chrono_literals;
-		auto pge = reinterpret_cast<olc::PixelGameEngine*>(userdata);	
-#if OLC_MULTIWINDOW == OLC_MULTIWINDOW_YES
-			// Multiwindow system uses one event loop (non blocking) for all windows
-			pge->host->StartSystemEventLoop(false);
-#endif
-
-			// Frame Delta Timing - "ElapsedTime" since last core update
-			// ~~~~~~~~~~~~~~~~~~
-			// All timing is synchronous to the primary window, i.e child
-			// windows do not maintain their own frame timing. This is a
-			// deliberate decision as PGE will maintain sync between windows.
-			// Why? Multiple windows are not really the point of PGE and
-			// indeed could just be addional unnecessary complexity. However,
-			// by moving to a Window abstraction we kinda get it for free.
-			// This freedom comes at the expense of complexity. If we allowed
-			// windows to be wholly isolated from the core loop, then the
-			// user is expected to maintain thread safety, context sharing
-			// and resource management. That is not olc::PGE.
-
-			pge->timeFrame1 = std::chrono::steady_clock::now();
-			pge->durationFrame = pge->timeFrame1 - pge->timeFrame2;
-			pge->timeFrame2 = pge->timeFrame1;
-
-			pge->durationTotalElapsed += pge->durationFrame;
-
-			// Our time per frame coefficient
-			float fDT = pge->durationFrame.count();
-			
-			// Our Total Time accumulator
-			float fTT = float(pge->durationTotalElapsed.count());
-
-			pge->frameCount++;
-			pge->durationFrameCount += pge->durationFrame;
-			
-			if (pge->durationFrameCount >= 1s)
-			{
-				pge->durationFrameCount -= 1s;
-				std::string sTitle = "OneLoneCoder.com - Pixel Game Engine 3 - Test - FPS: " + std::to_string(pge->frameCount);
-				pge->SetWindowTitle(sTitle);
-				pge->frameCount = 0;
-			}
-				
-			
-			
-			// Primary Window
-			if (pge->olc_ShouldRemove())
-			{
-				// Application is to be terminated as primary window has closed
-				pge->coreActive = false;
-#if OLC_HOST == OLC_HOST_EMSCRIPTEN
-				emscripten_cancel_main_loop();
-#endif
-			}
-			else
-			{
-#if OLC_MULTIWINDOW == OLC_MULTIWINDOW_YES
-				// Update Child Windows (if any)
-				for (auto& winChild : deqChildWindows)
-					winChild->olc_WindowUpdate(fDT, fTT);
-
-				// Remove child windows that have requested closure
-				if (!deqChildWindows.empty())
-				{
-					deqChildWindows.erase(std::remove_if(deqChildWindows.begin(), deqChildWindows.end(),
-						[this](const std::shared_ptr<PGEWindow>& w)
-						{
-							if (w->olc_ShouldRemove())
-							{
-								host->CloseWindowFrame(w.get());
-							}
-							return w->olc_ShouldRemove();
-						}
-					), deqChildWindows.end());
-				}
-#endif
-
-				// Update Primary Window
-				pge->olc_WindowUpdate(fDT, fTT);
-
-				// Wait for vertical sync if required. 
-				// Note: Child windows will never vsync as waiting for each buffer swap with vsync
-				// divides up the frame rate budget across the windows.
-				if (pge->gpu->GetConfig().VerticalSync)
-				{
-					pge->host->SyncWithDesktopComposite();
-				}
-			}
-		
-	}	
-	
-	void PixelGameEngine::EngineThread()
-	{
-		using namespace std::chrono_literals;
-		timeFrame2 = std::chrono::steady_clock::now();
-		timeFrame1 = std::chrono::steady_clock::now();
-
-#if OLC_MULTIWINDOW == OLC_MULTIWINDOW_YES
-		// Create Primary Window on EngineThread, event loop also exists for all windows
-		// on this thread, and all windows will be created on this thread
-		host->AddWindowFrame(this, { 30,30 }, config.vPixelSize * config.vScreenSize, false);
-#endif
-		
-		// Initialise ImageLoader Interface
-		#if OLC_HOST == OLC_HOST_WINDOWS
-		imageloader = std::make_unique<olc::imload::ImageLoader_WinGDI>();
-		#endif
-
-		// Initialise ImageLoader Interface
-		#if OLC_HOST == OLC_HOST_MACOS
-		imageloader = std::make_unique<olc::imload::ImageLoader_MacOS>();
-		#endif
-
-		#if OLC_HOST == OLC_HOST_LINUX_X11
-		imageloader = std::make_unique<olc::imload::ImageLoader_LibPNG>();
-		#endif
-
-		#if OLC_HOST == OLC_HOST_LINUX_WAYLAND
-		imageloader = std::make_unique<olc::imload::ImageLoader_LibPNG>();
-		#endif
-
-		#if OLC_HOST == OLC_HOST_EMSCRIPTEN
-		imageloader = std::make_unique<olc::imload::ImageLoader_LibPNG>();
-		#endif
-
-		// Initialise GPU Interface	- This thread is the context
-		olc::gpu::RendererConfig cfgRenderer;
-		cfgRenderer.VerticalSync = config.bVSync;
-
-		gpu = std::make_unique<olc::gpu::Renderer_OGL33>();
-
-		// Link this windows devices
-		LinkToHost(host.get());
-		LinkToRenderer(gpu.get());
-		LinkToImageLoader(imageloader.get());
-
-		// The GPU device can be based upon the primary window configuration. This
-		// gives us completed gpu and host objects to pass to other windows as and
-		// when required
-		gpu->CreateDevice(host->GetHostWindowDescriptor(this), cfgRenderer);
-		if (gpu->GetLastError() != olc::gpu::RendererError::NoError)
-		{
-			//const auto e = gpu->GetLastError(); // For debug visibility
-			std::cout << "Error: Could not create Renderer\n";
-			return;
-		}
-
-
-		
-		olc::ImageConfig cfg;
-		cfg.MSAA = config.bAntiAliasMainScreen;
-		CreateImage(GetDefaultImage(), config.vScreenSize, cfg);
-		
-
-		// Initialise Font System
-		olc::pgeguts::CreateClassicFont(this);
-
-
-		draw.SetGPU(gpu.get());
-		gpu->ApplyDefaultShader();
-		draw.SetTarget(GetDefaultImage());
-
-		if (!OnUserCreate())
-		{
-			// Creation process signalled abort
-			return;
-		}
-
-
-		
-		draw.ProcessGPUTasks();
-		draw.SetTarget(GetDefaultImage());
-
-		// Initialise Input Devices
-
-
-		durationFrameCount = 0s;
-
-		#if OLC_HOST == OLC_HOST_EMSCRIPTEN
-			emscripten_set_main_loop_arg(PixelGameEngine::CoreUpdate, reinterpret_cast<void*>(this), 0, 1);
-		#else
-		while (coreActive)
-		{
-			PixelGameEngine::CoreUpdate(this);
-		}
-		#endif
-	}
 }
 #define PGE_CORE_IMPLEMENTED 1
 #endif
@@ -13123,12 +15583,265 @@ namespace olc::hw
 #define PGE_HW_MOUSE_IMPLEMENTED 1
 #endif
 
+#if defined(OLC_PGE3_APPLICATION) && !defined(PGE_HW_KEYBOARD_IMPLEMENTED)
+namespace olc::hw
+{
+
+    void Keyboard::UseKeyboardLayout(const olc::KeyboardLayout kbl)
+    {
+        mapKeyGlyphs.clear();
+
+		//  Define appropriate glyphs for each key for the selected keyboard layout
+        if (kbl == olc::KeyboardLayout::QWERTY_UK)
+        {
+            mapKeyGlyphs =
+            {
+                // PGE Key, no mods, shift mod, ctrl mod, alt mod
+                {olc::Key::A, {"a", "A", "a", "a"}},
+                {olc::Key::B, {"b", "B", "b", "b"}},
+                {olc::Key::C, {"c", "C", "c", "c"}},
+                {olc::Key::D, {"d", "D", "d", "d"}},
+                {olc::Key::E, {"e", "E", "e", "e"}},
+                {olc::Key::F, {"f", "F", "f", "f"}},
+                {olc::Key::G, {"g", "G", "g", "g"}},
+                {olc::Key::H, {"h", "H", "h", "h"}},
+                {olc::Key::I, {"i", "I", "i", "i"}},
+                {olc::Key::J, {"j", "J", "j", "j"}},
+                {olc::Key::K, {"k", "K", "k", "k"}},
+                {olc::Key::L, {"l", "L", "l", "l"}},
+                {olc::Key::M, {"m", "M", "m", "m"}},
+                {olc::Key::N, {"n", "N", "n", "n"}},
+                {olc::Key::O, {"o", "O", "o", "o"}},
+                {olc::Key::P, {"p", "P", "p", "p"}},
+                {olc::Key::Q, {"q", "Q", "q", "q"}},
+                {olc::Key::R, {"r", "R", "r", "r"}},
+                {olc::Key::S, {"s", "S", "s", "s"}},
+                {olc::Key::T, {"t", "T", "t", "t"}},
+                {olc::Key::U, {"u", "U", "u", "u"}},
+                {olc::Key::V, {"v", "V", "v", "v"}},
+                {olc::Key::W, {"w", "W", "w", "w"}},
+                {olc::Key::X, {"x", "X", "x", "x"}},
+                {olc::Key::Y, {"y", "Y", "y", "y"}},
+                {olc::Key::Z, {"z", "Z", "z", "z"}},
+
+                {olc::Key::K0, {"0", ")", "0", "0"}},
+                {olc::Key::K1, {"1", "!", "1", "1"}},
+                {olc::Key::K2, {"2", "\"","2", "2"}},
+                {olc::Key::K3, {"3", "#", "3", "3"}},
+                {olc::Key::K4, {"4", "$", "4", "4"}},
+                {olc::Key::K5, {"5", "%", "5", "5"}},
+                {olc::Key::K6, {"6", "^", "6", "6"}},
+                {olc::Key::K7, {"7", "&", "7", "7"}},
+                {olc::Key::K8, {"8", "*", "8", "8"}},
+                {olc::Key::K9, {"9", "(", "9", "9"}},
+
+                {olc::Key::NP0, {"0", "0", "0", "0"}},
+                {olc::Key::NP1, {"1", "1", "1", "1"}},
+                {olc::Key::NP2, {"2", "2", "2", "2"}},
+                {olc::Key::NP3, {"3", "3", "3", "3"}},
+                {olc::Key::NP4, {"4", "4", "4", "4"}},
+                {olc::Key::NP5, {"5", "5", "5", "5"}},
+                {olc::Key::NP6, {"6", "6", "6", "6"}},
+                {olc::Key::NP7, {"7", "7", "7", "7"}},
+                {olc::Key::NP8, {"8", "8", "8", "8"}},
+                {olc::Key::NP9, {"9", "9", "9", "9"}},
+                {olc::Key::NP_MUL, {"*", "*", "*", "*"}},
+                {olc::Key::NP_DIV, {"/", "/", "/", "/"}},
+                {olc::Key::NP_ADD, {"+", "+", "+", "+"}},
+                {olc::Key::NP_SUB, {"-", "-", "-", "-"}},
+                {olc::Key::NP_DECIMAL, {".", ".", ".", "."}},
+
+                {olc::Key::PERIOD, {".", ">", ".", "."}},
+                {olc::Key::EQUALS, {"=", "+", "=", "="}},
+                {olc::Key::COMMA, {",", "<", ",", ","}},
+                {olc::Key::MINUS, {"-", "_", "-", "-"}},
+                {olc::Key::SPACE, {" ", " ", " ", " "}},
+                {olc::Key::ENTER, {"\n", "\n ", "\n", "\n"}},
+
+                {olc::Key::OEM_1, {";", ":", ";", ";"}},
+                {olc::Key::OEM_2, {"/", "?", "/", "/"}},
+                {olc::Key::OEM_3, {"\'","@", "\'", "\'"}},
+                {olc::Key::OEM_4, {"[", "{", "[", "["}},
+                {olc::Key::OEM_5, {"\\", "|", "\\", "\\"}},
+                {olc::Key::OEM_6, {"]", "}", "]", "]"}},
+                {olc::Key::OEM_7, {"#", "~", "#", "#"}},
+
+                // Give these keys glyphs so they can be interpreted in text editing
+                {olc::Key::TAB, {"\t", "\t", "\t", "\t"}},
+                {olc::Key::BACK, {"\b", "\b", "\b", "\b"}},
+                {olc::Key::DEL, {"_X", "_X", "_X", "_X"}},
+                {olc::Key::LEFT, {"_L", "_L", "_L", "_L"}},
+                {olc::Key::RIGHT, {"_R", "_R", "_R", "_R"}},
+                {olc::Key::UP, {"_U", "_U", "_U", "_U"}},
+                {olc::Key::DOWN, {"_D", "_D", "_D", "_D"}},
+            };
+        }
+
+        //  Define appropriate glyphs for each key for the selected keyboard layout
+        if (kbl == olc::KeyboardLayout::QWERTY_US)
+        {
+            mapKeyGlyphs =
+            {
+                // PGE Key, no mods, shift mod, ctrl mod, alt mod
+                {olc::Key::A, {"a", "A", "a", "a"}},
+                {olc::Key::B, {"b", "B", "b", "b"}},
+                {olc::Key::C, {"c", "C", "c", "c"}},
+                {olc::Key::D, {"d", "D", "d", "d"}},
+                {olc::Key::E, {"e", "E", "e", "e"}},
+                {olc::Key::F, {"f", "F", "f", "f"}},
+                {olc::Key::G, {"g", "G", "g", "g"}},
+                {olc::Key::H, {"h", "H", "h", "h"}},
+                {olc::Key::I, {"i", "I", "i", "i"}},
+                {olc::Key::J, {"j", "J", "j", "j"}},
+                {olc::Key::K, {"k", "K", "k", "k"}},
+                {olc::Key::L, {"l", "L", "l", "l"}},
+                {olc::Key::M, {"m", "M", "m", "m"}},
+                {olc::Key::N, {"n", "N", "n", "n"}},
+                {olc::Key::O, {"o", "O", "o", "o"}},
+                {olc::Key::P, {"p", "P", "p", "p"}},
+                {olc::Key::Q, {"q", "Q", "q", "q"}},
+                {olc::Key::R, {"r", "R", "r", "r"}},
+                {olc::Key::S, {"s", "S", "s", "s"}},
+                {olc::Key::T, {"t", "T", "t", "t"}},
+                {olc::Key::U, {"u", "U", "u", "u"}},
+                {olc::Key::V, {"v", "V", "v", "v"}},
+                {olc::Key::W, {"w", "W", "w", "w"}},
+                {olc::Key::X, {"x", "X", "x", "x"}},
+                {olc::Key::Y, {"y", "Y", "y", "y"}},
+                {olc::Key::Z, {"z", "Z", "z", "z"}},
+
+                {olc::Key::K0, {"0", ")", "0", "0"}},
+                {olc::Key::K1, {"1", "!", "1", "1"}},
+                {olc::Key::K2, {"2", "@","2", "2"}},
+                {olc::Key::K3, {"3", "#", "3", "3"}},
+                {olc::Key::K4, {"4", "$", "4", "4"}},
+                {olc::Key::K5, {"5", "%", "5", "5"}},
+                {olc::Key::K6, {"6", "^", "6", "6"}},
+                {olc::Key::K7, {"7", "&", "7", "7"}},
+                {olc::Key::K8, {"8", "*", "8", "8"}},
+                {olc::Key::K9, {"9", "(", "9", "9"}},
+
+                {olc::Key::NP0, {"0", "0", "0", "0"}},
+                {olc::Key::NP1, {"1", "1", "1", "1"}},
+                {olc::Key::NP2, {"2", "2", "2", "2"}},
+                {olc::Key::NP3, {"3", "3", "3", "3"}},
+                {olc::Key::NP4, {"4", "4", "4", "4"}},
+                {olc::Key::NP5, {"5", "5", "5", "5"}},
+                {olc::Key::NP6, {"6", "6", "6", "6"}},
+                {olc::Key::NP7, {"7", "7", "7", "7"}},
+                {olc::Key::NP8, {"8", "8", "8", "8"}},
+                {olc::Key::NP9, {"9", "9", "9", "9"}},
+                {olc::Key::NP_MUL, {"*", "*", "*", "*"}},
+                {olc::Key::NP_DIV, {"/", "/", "/", "/"}},
+                {olc::Key::NP_ADD, {"+", "+", "+", "+"}},
+                {olc::Key::NP_SUB, {"-", "-", "-", "-"}},
+                {olc::Key::NP_DECIMAL, {".", ".", ".", "."}},
+
+                {olc::Key::PERIOD, {".", ">", ".", "."}},
+                {olc::Key::EQUALS, {"=", "+", "=", "="}},
+                {olc::Key::COMMA, {",", "<", ",", ","}},
+                {olc::Key::MINUS, {"-", "_", "-", "-"}},
+                {olc::Key::SPACE, {" ", " ", " ", " "}},
+                {olc::Key::ENTER, {"\n", "\n ", "\n", "\n"}},
+
+                {olc::Key::OEM_1, {";", ":", ";", ";"}},
+                {olc::Key::OEM_2, {"/", "?", "/", "/"}},
+                {olc::Key::OEM_3, {"`","~", "`", "`"}},
+                {olc::Key::OEM_4, {"[", "{", "[", "["}},
+                {olc::Key::OEM_5, {"\\", "|", "\\", "\\"}},
+                {olc::Key::OEM_6, {"]", "}", "]", "]"}},
+                {olc::Key::OEM_7, {"'", "\"", "'", "'"}},
+
+                // Give these keys glyphs so they can be interpreted in text editing
+                {olc::Key::TAB, {"\t", "\t", "\t", "\t"}},
+                {olc::Key::BACK, {"\b", "\b", "\b", "\b"}},
+                {olc::Key::DEL, {"_X", "_X", "_X", "_X"}},
+                {olc::Key::LEFT, {"_L", "_L", "_L", "_L"}},
+                {olc::Key::RIGHT, {"_R", "_R", "_R", "_R"}},
+                {olc::Key::UP, {"_U", "_U", "_U", "_U"}},
+                {olc::Key::DOWN, {"_D", "_D", "_D", "_D"}},
+            };
+        }
+    }
+
+    const Button& Keyboard::GetKey(const olc::Key key) const
+    {
+		return keys.at(size_t(key));
+    }
+
+    const std::vector<olc::Key>& Keyboard::GetKeyCache() const
+    {
+		return keyCache[nKeyCacheIndex ^ 0x01]; // Return the inactive cache
+    }
+
+    const std::string Keyboard::GetKeyGlyph(const olc::Key key, const bool shift, const bool ctrl, const bool alt) const
+    {
+        if (mapKeyGlyphs.contains(key))
+        {
+            if(shift)
+                return mapKeyGlyphs.at(key).modShift;
+            else if(ctrl)
+                return mapKeyGlyphs.at(key).modCtrl;
+            else if(alt)
+                return mapKeyGlyphs.at(key).modAlt;
+            else
+				return mapKeyGlyphs.at(key).modNone;
+        }
+
+        return "";
+    }
+
+    void Keyboard::SetKey(const olc::Key key, bool state)
+    {
+        keys_new[size_t(key)] = state;
+
+        // Update key cache
+        if (state)
+        {
+            keyCache[nKeyCacheIndex].push_back(key);
+        }
+	}
+
+   
+    void olc::hw::Keyboard::UpdateState()
+    {
+        for (size_t i = 0; i < keys.size(); i++)
+        {
+            keys[i].bPressed = false;
+            keys[i].bReleased = false;
+            if (keys_new[i] != keys_old[i])
+            {
+                if (keys_new[i])
+                {
+                    keys[i].bPressed = !keys[i].bHeld;
+                    keys[i].bHeld = true;
+                }
+                else
+                {
+                    keys[i].bReleased = true;
+                    keys[i].bHeld = false;
+                }
+            }
+            keys_old[i] = keys_new[i];
+        }
+
+        // Clear the inactive cache
+        keyCache[nKeyCacheIndex ^ 0x01].clear();
+
+        // Swap active cache index
+        nKeyCacheIndex ^= 0x01;
+    }
+}
+#define PGE_HW_KEYBOARD_IMPLEMENTED 1
+#endif
+
 #if defined(OLC_PGE3_APPLICATION) && !defined(PGE_WINDOW_IMPLEMENTED)
 namespace olc
 {
 	Window::Window()
 	{
 		nUniqueID = pgeguts::CreateUID();
+		
 	}
 
 	Window::~Window()
@@ -13138,6 +15851,7 @@ namespace olc
 	void Window::LinkToHost(olc::host::Host* host)
 	{
 		pHost = host;
+		keyboard.UseKeyboardLayout(pHost->GetKeyboardLayout());
 		sFrameTitle = "OneLoneCoder.com - Pixel Game Engine 3";
 		pHost->UpdateWindowFrameTitle(this);
 	}
@@ -13181,6 +15895,12 @@ namespace olc
 	bool Window::olc_OnWindowClose()
 	{
 		bRequestToClose = true;		
+		return true;
+	}
+
+	bool Window::olc_OnKeyPress(const olc::Key key, const bool bPressed)
+	{
+		keyboard.SetKey(key, bPressed);
 		return true;
 	}
 
@@ -13340,48 +16060,41 @@ namespace olc::imload
             return false; // File does not exist
         }
 
-        try {
-            // Create macOS API wrapper image loader
-            olc::apis::macos::ImageLoader loader;
-            
-            // Load the image file
-            if (!loader.loadFromFile(sFileName) || !loader.isLoaded()) {
-                return false; // Failed to load file
-            }
-            
-            // Get image dimensions and info
-            int width, height, bytesPerPixel;
-            loader.getImageInfo(width, height, bytesPerPixel);
-            
-            if (width <= 0 || height <= 0) {
-                return false; // Invalid dimensions
-            }
-            
-            // Get raw pixel data from the loader
-            unsigned char* pixelData = imageloader_getPixelData(loader.getCHandle());
-            if (!pixelData) {
-                return false; // Failed to get pixel data
-            }
-            
-            // Create our olc::Image
-            if (!image.Create({width, height})) {
-                return false; // Failed to create image
-            }
-            
-            // Clear and resize the pixel vector
-            image.GetPixels().clear();
-            image.GetPixels().resize(width * height);
-            
-            // Copy pixel data - assuming the loader provides RGBA data
-            // The api_macos should provide RGBA format with 4 bytes per pixel
-            std::memcpy(image.GetPixels().data(), pixelData, width * height * 4);
-            
-            return true;
+        // Create macOS API wrapper image loader
+        olc::apis::macos::ImageLoader loader;
+        
+        if (!loader.loadFromFile(sFileName) || !loader.isLoaded()) {
+            return false; // Failed to load file
         }
-        catch (const std::exception& e) {
-            // Handle any exceptions from the wrapper
-            return false;
+        
+        // Get image dimensions and info
+        int width, height, bytesPerPixel;
+        loader.getImageInfo(width, height, bytesPerPixel);
+        
+        if (width <= 0 || height <= 0) {
+            return false; // Invalid dimensions
         }
+        
+        // Get raw pixel data from the loader
+        unsigned char* pixelData = imageloader_getPixelData(loader.getCHandle());
+        if (!pixelData) {
+            return false; // Failed to get pixel data
+        }
+        
+        // Create our olc::Image
+        if (!image.Create({width, height})) {
+            return false; // Failed to create image
+        }
+        
+        // Clear and resize the pixel vector
+        image.GetPixels().clear();
+        image.GetPixels().resize(width * height);
+        
+        // The api_macos will provide RGBA format with 4 bytes per pixel
+        std::memcpy(image.GetPixels().data(), pixelData, width * height * 4);
+        
+        return true;
+
     }
 
     bool ImageLoader_MacOS::CreateImageFromMemory(olc::Image& image, const uint8_t* data, const size_t bytes)
@@ -13516,6 +16229,152 @@ namespace olc::imload
 
 }
 #endif
+#if OLC_HOST == OLC_HOST_ANDROID
+#include <android/imagedecoder.h>
+#include <android/log.h>
+#include <vector>
+
+namespace olc::imload
+{
+    bool ImageLoader_NDKImageDecoder::CreateImageFromFile(olc::Image& image, const std::string& sFileName)
+    {
+        AAsset* asset = AAssetManager_open(
+            assetManager,
+            sFileName.c_str(),
+            AASSET_MODE_BUFFER
+        );
+        if (!asset) {
+            return false;
+        }
+
+        AImageDecoder* decoder = nullptr;
+        int status = AImageDecoder_createFromAAsset(
+            asset,
+            &decoder
+        );
+
+        if (status != ANDROID_IMAGE_DECODER_SUCCESS || !decoder) {
+            AAsset_close(asset);
+            return false;
+        }
+
+        const AImageDecoderHeaderInfo* info =
+            AImageDecoder_getHeaderInfo(decoder);
+        if (!info) {
+            AImageDecoder_delete(decoder);
+            AAsset_close(asset);
+            return false;
+        }
+
+        image.Create({
+            AImageDecoderHeaderInfo_getWidth(info),
+            AImageDecoderHeaderInfo_getHeight(info)
+        });
+
+        AImageDecoder_setAndroidBitmapFormat(
+            decoder,
+            ANDROID_BITMAP_FORMAT_RGBA_8888
+        );
+        AImageDecoder_setUnpremultipliedRequired(decoder, true);
+
+        std::vector<uint8_t> pixels(image.Size().x * image.Size().y * 4);
+
+        status = AImageDecoder_decodeImage(
+            decoder,
+            pixels.data(),
+            image.Size().x * 4,
+            pixels.size()
+        );
+
+        AImageDecoder_delete(decoder);
+        AAsset_close(asset);
+
+        for (size_t i = 0; i < pixels.size(); i += 4) {
+            int32_t x = static_cast<int32_t>(i / 4) % image.Size().x;
+            int32_t y = static_cast<int32_t>(i / 4) / image.Size().x;
+            uint8_t r = pixels[i];
+            uint8_t g = pixels[i + 1];
+            uint8_t b = pixels[i + 2];
+            uint8_t a = pixels[i + 3];
+            image.Pixel({x, y}) = olc::Pixel(r, g, b, a);
+        }
+
+        return status == ANDROID_IMAGE_DECODER_SUCCESS;
+    }
+
+    bool ImageLoader_NDKImageDecoder::CreateImageFromMemory(Image &image, const uint8_t *data, const size_t bytes)
+    {
+        AImageDecoder* decoder = nullptr;
+        int status = AImageDecoder_createFromBuffer(
+            data,
+            bytes,
+            &decoder
+        );
+
+        if (status != ANDROID_IMAGE_DECODER_SUCCESS || !decoder) {
+            return false;
+        }
+
+        const AImageDecoderHeaderInfo* info =
+            AImageDecoder_getHeaderInfo(decoder);
+        if (!info) {
+            AImageDecoder_delete(decoder);
+            return false;
+        }
+
+        image.Create({
+         AImageDecoderHeaderInfo_getWidth(info),
+         AImageDecoderHeaderInfo_getHeight(info)
+        });
+
+        AImageDecoder_setAndroidBitmapFormat(
+            decoder,
+            ANDROID_BITMAP_FORMAT_RGBA_8888
+        );
+        AImageDecoder_setUnpremultipliedRequired(decoder, true);
+
+        std::vector<uint8_t> pixels(image.Size().x * image.Size().y * 4);
+
+        status = AImageDecoder_decodeImage(
+            decoder,
+            pixels.data(),
+            image.Size().x * 4,
+            pixels.size()
+        );
+
+        AImageDecoder_delete(decoder);
+
+        for (size_t i = 0; i < pixels.size(); i += 4) {
+            int32_t x = static_cast<int32_t>(i / 4) % image.Size().x;
+            int32_t y = static_cast<int32_t>(i / 4) / image.Size().x;
+            uint8_t r = pixels[i];
+            uint8_t g = pixels[i + 1];
+            uint8_t b = pixels[i + 2];
+            uint8_t a = pixels[i + 3];
+            image.Pixel({x, y}) = olc::Pixel(r, g, b, a);
+        }
+
+        return status == ANDROID_IMAGE_DECODER_SUCCESS;
+    }
+
+    bool ImageLoader_NDKImageDecoder::CreateImageFromMemory(Image &image, const std::vector<uint8_t> &data)
+    {
+        return CreateImageFromMemory(image, data.data(), data.size());
+    }
+
+    bool ImageLoader_NDKImageDecoder::WriteImageToFile(const Image &image, const std::string &sFileName)
+    {
+        // No solution for now
+        return false;
+    }
+
+    bool ImageLoader_NDKImageDecoder::WriteImageToMemoryFile(Image &image, const std::vector<uint8_t> &data)
+    {
+        // No solution for now
+        return false;
+    }
+}
+#endif
 #define PGE_IMAGELOADER_IMPLEMENTED 1
 #endif
 
@@ -13536,4 +16395,3 @@ So you scrolled all this way huh ? In that case:
 */
 
 // Thank you for using olcPixelGameEngine! :)
-

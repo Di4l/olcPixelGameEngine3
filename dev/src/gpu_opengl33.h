@@ -73,7 +73,7 @@ namespace olc
 		
 		protected: // These may need some thinking about re multiple window
 			//olc::apis::opengl::glDeviceContext_t glDeviceContext = 0;
-#if OLC_HOST == OLC_HOST_EMSCRIPTEN || OLC_HOST == OLC_HOST_LINUX_WAYLAND
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN || OLC_HOST == OLC_HOST_LINUX_WAYLAND || OLC_HOST == OLC_HOST_ANDROID
 	olc::apis::opengl::glRenderContext_t glRenderContext;
 #else
 	olc::apis::opengl::glRenderContext_t glRenderContext = 0;
@@ -83,6 +83,7 @@ namespace olc
 			uint32_t nDefaultVB = 0;
 			uint32_t nDefaultVA = 0;
 			uint32_t nDefaultFBO = 0;
+			uint32_t nScreenFBO = 0;
 			olc::Image imgBlank;
 			olc::vf2d vTargetSize;
 
@@ -98,6 +99,10 @@ namespace olc
 			std::unordered_map<uint32_t, uint32_t> mapTextureToRenderbuffer;
 
 			const Shader* pCurrentShader = nullptr;
+
+#if OLC_HOST == OLC_HOST_ANDROID
+			EGLConfig FindBestConfig(EGLDisplay display, int desiredMultisamples = OLC_MSAA_SAMPLES);
+#endif
 
 		};
 	}

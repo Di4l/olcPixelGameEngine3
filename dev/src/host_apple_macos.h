@@ -34,23 +34,18 @@ namespace olc
 {
     namespace host
     {
-        
         // Manages our MacOS Host
         class Host_Apple_MacOS : public olc::host::Host
         {
         public:
-            
             olc::Window* pPGEwindow = nullptr;                  // Pointer to PGE Window
-            //GLint glSwapInterval = 0;                         // VSync disbaled by default
             
         public:
-            Host_Apple_MacOS() = default;
+            Host_Apple_MacOS();
             virtual ~Host_Apple_MacOS() {};
             
         public:
-            // Check/Get last error
             HostError GetLastError() const { return lastError; }
-
 
         public:
             virtual bool StartSystemEventLoop(bool bBlockIfPossible = false) override;
@@ -60,17 +55,17 @@ namespace olc
 
 			virtual std::vector<void*> GetHostWindowDescriptor(olc::Window* pWindow) override;
 			
-			
 			virtual bool ConnectHostResourceToRenderer() override;
 
 			// Wait for entire host desktop refresh (for smooooth vsync),
 			virtual bool SyncWithDesktopComposite() override;
 
+            virtual olc::KeyboardLayout GetKeyboardLayout() const override;
+
         protected:
 			HostError lastError = HostError::None;
 
         public:
-          
             // MacOS Application and Window pointers
             std::unique_ptr<olc::apis::macos::Application> pMacApplication = nullptr;
             std::unique_ptr<olc::apis::macos::Window> pMacOSWindow = nullptr;
@@ -79,10 +74,11 @@ namespace olc
 
             void* pMacGLConextObj = nullptr;
             std::once_flag intialAppFlag;
-    
             
-        private:
-                       
+            // Map of system keycodes to olc::Keycodes
+            std::unordered_map<int32_t, olc::Key> mapKeys;
+    
+        private:      
             enum MAINTASKS{
                 NONE,
                 CREATE_OPENGL_RENDERER,
@@ -102,7 +98,7 @@ namespace olc
             
             std::vector<void*> vMacOSWindowDescriptors; // Vector to hold window descriptors
             bool enableVSync = false;                   // VSync enabled flag
-            bool bSkipFrame = false;                     // Flag to indicate if frame should be skipped 
+            bool bSkipFrame = false;                    // Flag to indicate if frame should be skipped 
 
             // Thread synchronization for PGE Thread V Main thread
             mutable std::mutex      mainThreadPendingTasksMutex;    // Mutex for main thread pending tasks
@@ -121,11 +117,16 @@ namespace olc
                 double height = 600.0;
             } frameBounds;
 
-             // TODO: Should these be private?
             void MacApplicationEventsHandler();
             void MacWindowEventsHandler();
             void MacEventsHandler();
             void MacOpenGLContextEventsHandler();
+            
+
+            // When modifier flag changes the keycode it will return true, else false
+            bool ModifiersFlagsHandler(const olc::apis::macos::KeyEvent& data, bool pressed);
+            
+            bool bNumLockActive = true; // Num Lock state, we assume it's active at start
             
         };
     }

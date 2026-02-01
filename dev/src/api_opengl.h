@@ -37,7 +37,6 @@
 	#include <GL/gl.h>
 
 	#define OGL_LOAD(t) reinterpret_cast<t##_t*>(eglGetProcAddress(#t))
-
 #endif
 
 #if OLC_HOST == OLC_HOST_MACOS
@@ -66,6 +65,19 @@
 	#define GL_CLAMP GL_CLAMP_TO_EDGE
 
 	#define OGL_LOAD(t) ::t
+#endif
+
+#if OLC_HOST == OLC_HOST_ANDROID
+    #include <EGL/egl.h>
+    #include <GLES3/gl3.h>
+    #define GL_GLEXT_PROTOTYPES
+    #include <GLES3/gl3ext.h>
+    #define CALLSTYLE
+    #undef GL_CLAMP
+    #define GL_CLAMP GL_CLAMP_TO_EDGE
+    #define GL_LINE 0
+    #define GL_FILL 0
+    #define OGL_LOAD(t) reinterpret_cast<t##_t*>(eglGetProcAddress(#t))
 #endif
 
 #if !defined(CALLSTYLE)
@@ -105,7 +117,7 @@ namespace olc
 		typedef X11::GLXContext glRenderContext_t;
 #endif
 
-#if OLC_HOST == OLC_HOST_EMSCRIPTEN || OLC_HOST == OLC_HOST_LINUX_WAYLAND
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN || OLC_HOST == OLC_HOST_LINUX_WAYLAND || OLC_HOST == OLC_HOST_ANDROID
 	typedef void CALLSTYLE glShaderSource_t(GLuint shader, GLsizei size, const GLchar *const * string, const GLint * length);
 	typedef void glDeviceContext_t;
 	typedef struct
@@ -157,9 +169,10 @@ namespace olc
 		typedef void CALLSTYLE glDeleteRenderbuffers_t(GLsizei n, const GLuint* renderbuffers);
 		typedef void CALLSTYLE glGetInternalformativ_t(GLenum target, GLenum internalformat, GLenum pname, GLsizei bufSize, GLint* params);
 		typedef void CALLSTYLE glGetShaderiv_t(GLuint shader, GLenum pname, GLint* params);
+		typedef void CALLSTYLE glGetIntegerv_t(GLenum pname, GLint *data);
 
 #if OLC_HOST == OLC_HOST_WINDOWS
-		typedef void CALLSTYLE glSwapInterval_t(GLsizei n);
+		typedef void CALLSTYLE wglSwapIntervalEXT_t(GLsizei n);
 #endif
 
 		// A little GL class (singleton)
@@ -217,6 +230,10 @@ namespace olc
 			glDeleteRenderbuffers_t* _glDeleteRenderbuffers = nullptr;
 			glGetInternalformativ_t* _glGetInternalformativ = nullptr;
 			glGetShaderiv_t* _glGetShaderiv = nullptr;
+			glGetIntegerv_t *_glGetIntegerv = nullptr;
+#if OLC_HOST == OLC_HOST_WINDOWS
+			wglSwapIntervalEXT_t* _wglSwapIntervalEXT = nullptr;
+#endif
 
 
 		public:
@@ -265,8 +282,6 @@ namespace olc
 			void glGetInternalformativ(GLenum target, GLenum internalformat, GLenum pname, GLsizei bufSize, GLint* params);
 			void glGetShaderiv(GLuint shader, GLenum pname, GLint* params);
 
-
-
 			// OpenGL1.2 Proxies (just keeps things tidy imo)
 			void glGenTextures(GLsizei n, GLuint* textures);
 			void glBindTexture(GLenum target, GLuint texture);
@@ -287,6 +302,11 @@ namespace olc
 			void glGetTexImage(GLenum target, GLint level, GLenum format, GLenum type, void* pixels);
 			void glHint(GLenum target, GLenum mode);
 			void glPolygonMode(GLenum face, GLenum mode);
+			
+			void glGetIntegerv(GLenum pname, GLint *data);
+
+
+			void glSwapInterval(GLsizei n);
 
 			// Constants
 			static constexpr GLenum GL_FRAMEBUFFER_COMPLETE_X = 0x8CD5;

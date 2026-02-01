@@ -6,6 +6,8 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+option(BUILD_WAYLAND "Build example programs with Wayland" OFF)
+
 ######################################################################
 # Directories
 file(GLOB SOURCES "*.cpp")
@@ -14,6 +16,79 @@ if(EMSCRIPTEN)
     # build Cache: libpng, zlib
     execute_process(COMMAND "${EMSCRIPTEN_ROOT_PATH}/embuilder${EMCC_SUFFIX}" build libpng zlib)
     set(CMAKE_EXECUTABLE_SUFFIX .html)
+endif()
+
+if(UNIX AND BUILD_WAYLAND)
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(XKBCOMMON REQUIRED xkbcommon)
+    pkg_check_modules(WAYLAND_CLIENT REQUIRED wayland-client)
+    pkg_check_modules(WAYLAND_EGL REQUIRED wayland-egl)
+    pkg_check_modules(EGL REQUIRED egl)
+
+    find_package(OpenGL REQUIRED)
+    find_package(PNG REQUIRED)
+    find_package(Threads REQUIRED)
+
+    # Find wayland-scanner
+    find_program(WAYLAND_SCANNER wayland-scanner REQUIRED)
+
+    # Check for wayland protocols
+    set(XDG_SHELL_PROTOCOL "/usr/share/wayland-protocols/stable/xdg-shell/xdg-shell.xml")
+    set(XDG_DECORATION_PROTOCOL "/usr/share/wayland-protocols/unstable/xdg-decoration/xdg-decoration-unstable-v1.xml")
+
+    if(NOT EXISTS ${XDG_SHELL_PROTOCOL})
+        message(FATAL_ERROR "xdg-shell protocol not found. You may need to install wayland-protocols via your package manager")
+    endif()
+
+    if(NOT EXISTS ${XDG_DECORATION_PROTOCOL})
+        message(FATAL_ERROR "xdg-decoration protocol not found. You may need to install wayland-protocols via your package manager")
+    endif()
+
+    # Generate wayland protocol files
+    set(XDG_SHELL_C ${CMAKE_CURRENT_BINARY_DIR}/xdg-shell.c)
+    set(XDG_SHELL_H ${CMAKE_CURRENT_BINARY_DIR}/xdg-shell.h)
+    set(XDG_DECORATION_C ${CMAKE_CURRENT_BINARY_DIR}/xdg-decoration.c)
+    set(XDG_DECORATION_H ${CMAKE_CURRENT_BINARY_DIR}/xdg-decoration.h)
+
+    add_custom_command(
+        OUTPUT ${XDG_SHELL_C}
+        COMMAND ${WAYLAND_SCANNER} private-code ${XDG_SHELL_PROTOCOL} ${XDG_SHELL_C}
+        DEPENDS ${XDG_SHELL_PROTOCOL}
+        VERBATIM
+    )
+
+    add_custom_command(
+        OUTPUT ${XDG_SHELL_H}
+        COMMAND ${WAYLAND_SCANNER} client-header ${XDG_SHELL_PROTOCOL} ${XDG_SHELL_H}
+        DEPENDS ${XDG_SHELL_PROTOCOL}
+        VERBATIM
+    )
+
+    add_custom_command(
+        OUTPUT ${XDG_DECORATION_C}
+        COMMAND ${WAYLAND_SCANNER} private-code ${XDG_DECORATION_PROTOCOL} ${XDG_DECORATION_C}
+        DEPENDS ${XDG_DECORATION_PROTOCOL}
+        VERBATIM
+    )
+
+    add_custom_command(
+        OUTPUT ${XDG_DECORATION_H}
+        COMMAND ${WAYLAND_SCANNER} client-header ${XDG_DECORATION_PROTOCOL} ${XDG_DECORATION_H}
+        DEPENDS ${XDG_DECORATION_PROTOCOL}
+        VERBATIM
+    )
+
+    # Create a library for the wayland protocol files
+    add_library(wayland_protocols STATIC
+        ${XDG_SHELL_C}
+        ${XDG_SHELL_H}
+        ${XDG_DECORATION_C}
+        ${XDG_DECORATION_H}
+    )
+
+    target_include_directories(wayland_protocols PUBLIC
+        ${CMAKE_CURRENT_BINARY_DIR}
+    )
 endif()
 
 foreach(source ${SOURCES})
@@ -33,14 +108,29 @@ foreach(source ${SOURCES})
             target_link_libraries(${EXE_NAME} PRIVATE "-framework Foundation")
         endif()
     endif()
-
+    
     if(UNIX AND NOT APPLE AND NOT EMSCRIPTEN)
-        target_link_libraries(${EXE_NAME} PRIVATE png)
-        target_link_libraries(${EXE_NAME} PRIVATE GL)
-        target_link_libraries(${EXE_NAME} PRIVATE X11)
-        target_link_libraries(${EXE_NAME} PRIVATE pthread)
+        if(BUILD_WAYLAND)
+            target_compile_definitions(${EXE_NAME} PRIVATE OLC_HOST=3)
+
+            target_link_libraries(${EXE_NAME} PRIVATE
+                wayland_protocols
+                ${XKBCOMMON_LIBRARIES}
+                ${WAYLAND_CLIENT_LIBRARIES}
+                ${WAYLAND_EGL_LIBRARIES}
+                ${EGL_LIBRARIES}
+                OpenGL::GL
+                PNG::PNG
+                Threads::Threads
+            )            
+
+        else() # x11
+            target_link_libraries(${EXE_NAME} PRIVATE png)
+            target_link_libraries(${EXE_NAME} PRIVATE GL)
+            target_link_libraries(${EXE_NAME} PRIVATE pthread)
+            target_link_libraries(${EXE_NAME} PRIVATE X11)
+        endif()
         
-        target_compile_options(${EXE_NAME} PRIVATE -fmax-errors=5)
     endif()
 
     if(WIN32 AND NOT MSVC AND NOT EMSCRIPTEN)

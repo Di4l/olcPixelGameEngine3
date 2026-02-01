@@ -25,6 +25,7 @@
 
 //! START DECLARATION
 #if !defined(PGE_CORE_DECLARED)
+
 namespace olc
 {
 	// A grouping of all settable PGE properties
@@ -43,7 +44,7 @@ namespace olc
 		// Allow the window to be resized by user
 		bool bResizeable = true;
 		// Synchronise rendering with monitor
-		bool bVSync = false;
+		bool bVSync = OLC_DEFAULT_VSYNC;
 		// Behave like a host window, resizing the screen in response to window resize
 		bool bRealWindow = false;
 		// Ensure aspect ratio of "screen" is mainatined regardless of window size
@@ -54,6 +55,8 @@ namespace olc
 		bool bAllowChildWindows = true;
 		// Creates a "DefaultImage" with anti-aliased properties
 		bool bAntiAliasMainScreen = false;
+		// Default clear colour for the primary drawing surface
+		olc::Pixel colClear = olc::Colour::BLACK;
 	};
 
 	// A PGE Window is a window with drawing and input capabilities a la olc::PixelGameEngine
@@ -96,7 +99,10 @@ namespace olc
 
 		// Input devices are handled by a regular olc::Window, but for convenience...
 		olc::hw::Mouse& GetMouse();
+		olc::hw::Keyboard& GetKeyboard();
 		
+		// Returns the current size of the "screen" in pixels
+		const olc::vi2d& ScreenSize();
 
 	protected:
 		bool olc_OnMouseMove(const olc::vi2d& vMousePos) override;
@@ -112,11 +118,20 @@ namespace olc
 		olc::Image imgPrimary;
 		olc::gpu::Renderer* pRenderer = nullptr;
 		olc::imload::ImageLoader* pImageLoader = nullptr;
+		olc::vi2d vViewPos = { 0,0 };
+		olc::vi2d vViewSize = { 0,0 };
+
+	protected:
+		// PGE Configuration
+		PGEConfig config;
 	};
 
 	// The olc::PixelGameEngine3 core, manages the main window, child windows, engine loop, timing and devices
 	class PixelGameEngine : public PGEWindow
 	{
+		// Host needs access to private methods
+		friend class olc::host::OLC_FRIENDLY_HOST;
+
 	public:
 		PixelGameEngine();
 		virtual ~PixelGameEngine();
@@ -137,12 +152,23 @@ namespace olc
 	public:
 		float FrameTimeElapsed() const;
 		double TotalTimeElapsed() const;
+		size_t GetFPS() const;
 
 	public: // Child Windows
 		bool AddChildWindow(std::shared_ptr<olc::PGEWindow> window, const olc::vi2d& vScreenSize, const olc::vi2d& vPixelSize);
 	
-	public: // Core Update
-		static void CoreUpdate(void* userdata);
+
+	private: // Called from Host
+		// Called before any context threads start
+		bool OnPreContextStart();
+		// Called after context thread started, before anything else
+		bool OnContextStart();
+		// Called once per tick on context thread
+		bool OnContextTick();
+		// Called at end of context thread, after everything else
+		bool OnContextEnd();
+		// Called after all context threads ended
+		bool OnPostContextEnd();
 		
 	private:
 		// Window Management
@@ -155,20 +181,14 @@ namespace olc
 		std::chrono::duration<float> durationFrameCount{ 0 };
 		std::chrono::duration<double> durationTotalElapsed{ 0 };
 		size_t frameCount = 0;
-
-		// PGE Configuration
-		PGEConfig config;
-
-		// Core Thread
-		std::thread coreThread;
-		std::atomic<bool> coreActive;
-		void EngineThread();
+		size_t fps = 0;
 
 		// These interfaces are created dynamically by the PGE core
 		// after the environment is understood (or specified by config)
 		std::unique_ptr<olc::gpu::Renderer> gpu;
 		std::unique_ptr<olc::host::Host> host;
 		std::unique_ptr<olc::imload::ImageLoader> imageloader;
+
 	};
 }
 #define PGE_CORE_DECLARED 1

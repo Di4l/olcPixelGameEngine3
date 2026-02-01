@@ -39,7 +39,7 @@
 		#define OLC_HOST OLC_HOST_WINDOWS
 	#endif
 
-	#if defined(__linux__) || defined(__FreeBSD__)
+	#if (defined(__linux__) || defined(__FreeBSD__)) && !defined(__ANDROID__)
 		// Note: Assumes X11 atm
 		#define OLC_HOST OLC_HOST_LINUX_X11
 	#endif
@@ -77,6 +77,7 @@
 #define OLC_IMAGELOADER_WINGDI 2
 #define OLC_IMAGELOADER_MACOS 3
 #define OLC_IMAGELOADER_LIB_PNG 4
+#define OLC_IMAGELOADER_NDK_IMAGEDECODER 5
 
 #if OLC_HOST == OLC_HOST_MACOS
 	#undef OLC_IMAGELOADER
@@ -91,6 +92,11 @@
 #if OLC_HOST == OLC_HOST_EMSCRIPTEN
 	#undef OLC_IMAGELOADER
 	#define OLC_IMAGELOADER OLC_IMAGELOADER_LIB_PNG
+#endif
+
+#if OLC_HOST == OLC_HOST_ANDROID
+    #undef OLC_IMAGELOADER
+    #define OLC_IMAGELOADER OLC_IMAGELOADER_NDK_IMAGEDECODER
 #endif
 
 #if !defined(OLC_IMAGELOADER)
@@ -108,9 +114,13 @@
 
 #define OLC_MOUSE_BUTTONS 5
 
+#define OLC_DEFAULT_KEYBOARD_LAYOUT olc::KeyboardLayout::QWERTY_UK
+
 #define OLC_GPU_MAX_VERTICES 8192
 #define OLC_GPU_ERRORCHECK 0
 #define OLC_MSAA_SAMPLES 4
+#define OLC_DEFAULT_CIRCLE_FACETS 16
+#define OLC_DEFAULT_VSYNC true
 
 #define LICENCE_DEFAULT "OneLoneCoder.com - Pixel Game Engine 3 - "
 
@@ -121,5 +131,29 @@
 
 template<typename... Args>
 inline constexpr void olc_IgnoreUnused(Args&&...) noexcept {}
+
+#if OLC_HOST == OLC_HOST_WINDOWS
+#define OLC_FRIENDLY_HOST Host_Windows_WinAPI
+#endif
+
+#if OLC_HOST == OLC_HOST_MACOS
+#define OLC_FRIENDLY_HOST Host_Apple_MacOS
+#endif
+
+#if OLC_HOST == OLC_HOST_LINUX_X11
+#define OLC_FRIENDLY_HOST Host_Linux_X11
+#endif
+
+#if OLC_HOST == OLC_HOST_LINUX_WAYLAND
+#define OLC_FRIENDLY_HOST Host_Linux_Wayland
+#endif
+
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN
+#define OLC_FRIENDLY_HOST Host_Web_Emscripten
+#endif
+
+#if OLC_HOST == OLC_HOST_ANDROID
+#define OLC_FRIENDLY_HOST Host_Android
+#endif
 
 //! END CONFIGURATION
