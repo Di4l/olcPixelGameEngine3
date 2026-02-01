@@ -4,6 +4,7 @@
 #include <atomic>
 #include <cstdint>
 #include <cstring>
+#include <thread>
 #include <vector>
 #include <unordered_map>
 //! END STDHEADER
@@ -96,16 +97,11 @@ namespace olc::host
         Host_Linux_Wayland();
         ~Host_Linux_Wayland();
 
-        bool StartSystemEventLoop(bool bBlockIfPossible = false) override;
-        void TerminateSystemEventLoop() override;
         bool AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen) override;
         bool CloseWindowFrame(olc::Window* pWindow) override;
         bool UpdateWindowFrameTitle(olc::Window* pWindow) override;
 
         std::vector<void*> GetHostWindowDescriptor(olc::Window* pWindow) override;
-        
-        
-        bool ConnectHostResourceToRenderer() override;
 
         olc::KeyboardLayout GetKeyboardLayout() const override;
         void UpdateKeyboardLayout();
@@ -113,6 +109,15 @@ namespace olc::host
         // Wait for entire host desktop refresh (for smooooth vsync)
         bool SyncWithDesktopComposite() override;
 
+    public:
+        bool OnApplicationStart(olc::PixelGameEngine* pPrimary) override;
+        bool StartSystem() override;
+        bool StopSystem() override;
+        bool OnSystemThreadStart() override;
+        bool OnSystemTick() override;
+        bool OnSystemThreadEnd() override;
+        bool OnApplicationEnd() override;
+    
         // Various callbacks from the wayland protocol
         static void registry_handle_global_callback(void* data, wl_registry* registry, uint32_t name, const char* interface, uint32_t version);
         static void registry_handle_global_remove_callback(void* data, wl_registry* registry, uint32_t name);
@@ -184,7 +189,7 @@ namespace olc::host
 
         std::unordered_map<size_t, WaylandWindow> mapUID2Window;
         std::unordered_map<size_t, olc::Window*> mapUID2OlcWindow;
-        std::atomic<bool> terminate {false};
+        std::atomic<bool> systemActive {true};
         std::unordered_map<uint32_t, olc::Key> mapKeys;
         olc::KeyboardLayout keyboardLayout{OLC_DEFAULT_KEYBOARD_LAYOUT};
     };
