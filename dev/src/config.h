@@ -133,7 +133,7 @@ template<typename... Args>
 inline constexpr void olc_IgnoreUnused(Args&&...) noexcept {}
 
 #if OLC_HOST == OLC_HOST_WINDOWS
-#define OLC_FRIENDLY_HOST Host_Windows_WinAPI;
+#define OLC_FRIENDLY_HOST Host_Windows_WinAPI
 #endif
 
 #if OLC_HOST == OLC_HOST_MACOS
