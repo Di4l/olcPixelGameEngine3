@@ -132,4 +132,28 @@
 template<typename... Args>
 inline constexpr void olc_IgnoreUnused(Args&&...) noexcept {}
 
+#if OLC_HOST == OLC_HOST_WINDOWS
+#define OLC_FRIENDLY_HOST Host_Windows_WinAPI
+#endif
+
+#if OLC_HOST == OLC_HOST_MACOS
+#define OLC_FRIENDLY_HOST Host_Apple_MacOS
+#endif
+
+#if OLC_HOST == OLC_HOST_LINUX_X11
+#define OLC_FRIENDLY_HOST Host_Linux_X11
+#endif
+
+#if OLC_HOST == OLC_HOST_LINUX_WAYLAND
+#define OLC_FRIENDLY_HOST Host_Linux_Wayland
+#endif
+
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN
+#define OLC_FRIENDLY_HOST Host_Web_Emscripten
+#endif
+
+#if OLC_HOST == OLC_HOST_ANDROID
+#define OLC_FRIENDLY_HOST Host_Android
+#endif
+
 //! END CONFIGURATION

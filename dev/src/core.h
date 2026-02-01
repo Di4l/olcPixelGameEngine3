@@ -129,6 +129,9 @@ namespace olc
 	// The olc::PixelGameEngine3 core, manages the main window, child windows, engine loop, timing and devices
 	class PixelGameEngine : public PGEWindow
 	{
+		// Host needs access to private methods
+		friend class olc::host::OLC_FRIENDLY_HOST;
+
 	public:
 		PixelGameEngine();
 		virtual ~PixelGameEngine();
@@ -154,8 +157,18 @@ namespace olc
 	public: // Child Windows
 		bool AddChildWindow(std::shared_ptr<olc::PGEWindow> window, const olc::vi2d& vScreenSize, const olc::vi2d& vPixelSize);
 	
-	public: // Core Update
-		static void CoreUpdate(void* userdata);
+
+	private: // Called from Host
+		// Called before any context threads start
+		bool OnPreContextStart();
+		// Called after context thread started, before anything else
+		bool OnContextStart();
+		// Called once per tick on context thread
+		bool OnContextTick();
+		// Called at end of context thread, after everything else
+		bool OnContextEnd();
+		// Called after all context threads ended
+		bool OnPostContextEnd();
 		
 	private:
 		// Window Management
@@ -170,16 +183,12 @@ namespace olc
 		size_t frameCount = 0;
 		size_t fps = 0;
 
-		// Core Thread
-		std::thread coreThread;
-		std::atomic<bool> coreActive;
-		void EngineThread();
-
 		// These interfaces are created dynamically by the PGE core
 		// after the environment is understood (or specified by config)
 		std::unique_ptr<olc::gpu::Renderer> gpu;
 		std::unique_ptr<olc::host::Host> host;
 		std::unique_ptr<olc::imload::ImageLoader> imageloader;
+
 	};
 }
 #define PGE_CORE_DECLARED 1

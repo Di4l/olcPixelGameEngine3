@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <vector>
 #include <unordered_map>
+#include <thread>
 //! END STDHEADER
 
 //! START CUSTOMHEADER
@@ -51,9 +52,7 @@ namespace olc
 {
 	namespace host
 	{
-
-
-
+		// Host for Windows OS - Single Window Only!
 		class Host_Windows_WinAPI : public olc::host::Host
 		{
 			
@@ -63,30 +62,47 @@ namespace olc
 			virtual ~Host_Windows_WinAPI() {};
 
 
-		public:
-			bool StartSystemEventLoop(bool bBlockIfPossible = false);
-			void TerminateSystemEventLoop();
-			bool AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen);			
-			bool CloseWindowFrame(olc::Window* pWindow);
-			bool UpdateWindowFrameTitle(olc::Window* pWindow);
-			
-			std::vector<void*> GetHostWindowDescriptor(olc::Window* pWindow);
-			bool ConnectHostResourceToRenderer();
+		public: // OS Window Handling
+			// Make OS Create a window frame, associated with olc::Window
+			bool AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen) override;
+			// Make OS Close a window frame, associated with olc::Window
+			bool CloseWindowFrame(olc::Window* pWindow) override;
+			// Make OS Update a window frame title, associated with olc::Window
+			bool UpdateWindowFrameTitle(olc::Window* pWindow) override;
+			// Get OS-specific window descriptor(s) for given olc::Window
+			std::vector<void*> GetHostWindowDescriptor(olc::Window* pWindow) override;
+			// Wait for OS desktop refresh (for smooooth vsync)
+			bool SyncWithDesktopComposite() override;
 
-
-			// Wait for entire host desktop refresh (for smooooth vsync)
-			bool SyncWithDesktopComposite();
-
-			LRESULT OnWindowEvent(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
-
+		public: // OS Specific Environment Information
 			olc::KeyboardLayout GetKeyboardLayout() const override;
 
-			std::string test;
+		public:
+			// Called at very start of application
+			bool OnApplicationStart(olc::PixelGameEngine* pPrimary) override;
+			// Called to start the host - this may mean different things on different hosts
+			bool StartSystem() override;
+			// Called to stop the host, and shutdown all resources
+			bool StopSystem() override;
+			// Called at start of system event loop
+			bool OnSystemThreadStart() override;
+			// Called to perform primary window update
+			bool OnSystemTick() override;
+			// Called at end of system event loop
+			bool OnSystemThreadEnd() override;
+			// Called at very end of application
+			bool OnApplicationEnd() override;
 
-		private:
+
+
+		private: // Windows OS Specific Things
 			std::unordered_map<size_t, HWND> mapUID2HWND;
 			std::unordered_map<HWND, olc::Window*> mapHWND2PTR;
 			std::wstring ConvertS2W(std::string s);
+			std::atomic<bool> systemActive = false;
+
+		public:
+			LRESULT OnWindowEvent(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
 			// Map of system keycodes to olc::Keycodes
 			std::unordered_map<int32_t, olc::Key> mapKeys;

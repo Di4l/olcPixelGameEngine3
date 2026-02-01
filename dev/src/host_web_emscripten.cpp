@@ -7,6 +7,80 @@ namespace olc::host
     std::unordered_map<std::string, olc::Window*> Host_Web_Emscripten::mapCanvasId2PTR;
     std::unordered_map<size_t, std::unique_ptr<Host_Web_Emscripten::CallbackData>> Host_Web_Emscripten::mapUID2CallbackData;
 
+    // Called at very start of application
+    bool Host_Web_Emscripten::OnApplicationStart(olc::PixelGameEngine* pPrimary)
+    {
+        std::cout << "Emscripten: OnApplicationStart.\n";
+        pPrimaryPGE = pPrimary;
+        return true;
+    }
+    
+    void Host_Web_Emscripten::MainLoop(void* userData)
+    {
+        auto pHost = reinterpret_cast<Host_Web_Emscripten*>(userData);
+
+        if(!pHost->OnSystemTick())
+        {
+            pHost->StopSystem();
+        }
+    }
+
+    // Called to start the host - this may mean different things on different hosts
+    bool Host_Web_Emscripten::StartSystem()
+    {
+		// Pre-context start hook
+		pPrimaryPGE->OnPreContextStart();
+
+        if(!OnSystemThreadStart())
+        {
+            // PGE->ContextStart() failed, or user aborted OnUserCreate()
+            return false;
+        }
+        
+        emscripten_set_main_loop_arg(Host_Web_Emscripten::MainLoop, reinterpret_cast<void*>(this), 0, 1);
+        
+        // EMSCRIPTEN QUIRK: this code is never reached, the main loop is simulating a while(true);
+        
+        return true;
+    }
+    
+    // Called to stop the host, and shutdown all resources
+    bool Host_Web_Emscripten::StopSystem()
+    {
+        std::cout << "Emscripten: StopSystem.\n";
+        OnSystemThreadEnd();
+        pPrimaryPGE->OnPostContextEnd();
+        emscripten_cancel_main_loop();
+        return true;
+    }
+
+    // Called at start of system event loop
+    bool Host_Web_Emscripten::OnSystemThreadStart()
+    {
+        std::cout << "Emscripten: OnSystemThreadStart.\n";
+        return pPrimaryPGE->OnContextStart();
+    }
+    
+    // Called to perform primary window update
+    bool Host_Web_Emscripten::OnSystemTick()
+    {
+        return pPrimaryPGE->OnContextTick();
+    }
+    
+    // Called at end of system event loop
+    bool Host_Web_Emscripten::OnSystemThreadEnd()
+    {
+        std::cout << "Emscripten: OnSystemThreadEnd.\n";
+        return pPrimaryPGE->OnContextEnd();
+    }
+    
+    // Called at very end of application
+    bool Host_Web_Emscripten::OnApplicationEnd()
+    {
+        std::cout << "Emscripten: OnApplicationEnd.\n";
+        return true;
+    }
+
     Host_Web_Emscripten::Host_Web_Emscripten()
     {
         std::cout << "Emscripten: host constructed.\n";
@@ -163,12 +237,6 @@ namespace olc::host
         mapKeys[DOM_PK_COMMA] = Key::COMMA;
         mapKeys[DOM_PK_MINUS] = Key::MINUS;
         mapKeys[DOM_PK_PERIOD] = Key::PERIOD;
-    }
-
-    bool Host_Web_Emscripten::StartSystemEventLoop(bool bBlockIfPossible)
-    {
-        std::cout << "Emscripten: StartSystemEventLoop called, but not used.\n";
-        return true;
     }
 
     bool Host_Web_Emscripten::AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen)
@@ -471,12 +539,6 @@ namespace olc::host
         }
         
         return {};
-    }
-
-    bool Host_Web_Emscripten::ConnectHostResourceToRenderer()
-    {
-        std::cout << "Emscripten: ConnectHostResourceToRenderer not implemented.\n";
-        return true;
     }
 
     // Wait for entire host desktop refresh (for smooooth vsync)

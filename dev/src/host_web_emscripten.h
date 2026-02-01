@@ -22,18 +22,33 @@ namespace olc::host
     {
     public:
         Host_Web_Emscripten();
-        bool StartSystemEventLoop(bool bBlockIfPossible = false) override;
         bool AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen) override;
         bool CloseWindowFrame(olc::Window* pWindow) override;
         bool UpdateWindowFrameTitle(olc::Window* pWindow) override;
 
         std::vector<void*> GetHostWindowDescriptor(olc::Window* pWindow) override;
         
-        bool ConnectHostResourceToRenderer() override;
-
         // Wait for entire host desktop refresh (for smooooth vsync)
         bool SyncWithDesktopComposite() override;
         olc::KeyboardLayout GetKeyboardLayout() const override;
+    
+    public:
+        // Called at very start of application
+        bool OnApplicationStart(olc::PixelGameEngine* pPrimary) override;
+        // Called to start the host - this may mean different things on different hosts
+        bool StartSystem() override;
+        // Called to stop the host, and shutdown all resources
+        bool StopSystem() override;
+        // Called at start of system event loop
+        bool OnSystemThreadStart() override;
+        // Called to perform primary window update
+        bool OnSystemTick() override;
+        // Called at end of system event loop
+        bool OnSystemThreadEnd() override;
+        // Called at very end of application
+        bool OnApplicationEnd() override;
+        
+        static void MainLoop(void* userData);
 
     public: // event callbacks
         static EM_BOOL keyboard_callback(int eventType, const EmscriptenKeyboardEvent* e, void* userData);
@@ -58,6 +73,7 @@ namespace olc::host
 		static bool olc_OnWindowPosition(olc::Window* pWindow, const olc::vi2d& vWindowPos);
 		static bool olc_OnWindowSize(olc::Window* pWindow, const olc::vi2d& vWindowSize);
 		static bool olc_OnWindowClose(olc::Window* pWindow);
+    
     private: // helpers
         static olc::Window* GetWindowFromCanvasId(std::string canvasId);
         
@@ -72,7 +88,6 @@ namespace olc::host
         static std::unordered_map<size_t, std::string> mapUID2CanvasId;
         static std::unordered_map<size_t, std::unique_ptr<CallbackData>> mapUID2CallbackData;
         static std::unordered_map<std::string, olc::Window*> mapCanvasId2PTR;
-        std::atomic<bool> terminate {false};
         
         // Map of system keycodes to olc::Keycodes
         std::unordered_map<int32_t, olc::Key> mapKeys;

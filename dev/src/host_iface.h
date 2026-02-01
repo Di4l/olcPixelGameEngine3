@@ -54,6 +54,8 @@ namespace olc
 		#endif
 	}
 
+	class PixelGameEngine;
+
 	namespace host
 	{
 
@@ -80,25 +82,41 @@ namespace olc
 			// Check/Get last error
 			HostError GetLastError() const { return lastError; }
 
-		public: 
-			virtual bool StartSystemEventLoop(bool bBlockIfPossible = false) = 0;
-			virtual void TerminateSystemEventLoop() = 0;
-			virtual bool AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen) = 0;
+		public: // OS Window Handling
+			// Make OS Create a window frame, associated with olc::Window
+			virtual bool AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen) = 0;			
+			// Make OS Close a window frame, associated with olc::Window
 			virtual bool CloseWindowFrame(olc::Window* pWindow) = 0;
+			// Make OS Update a window frame title, associated with olc::Window
 			virtual bool UpdateWindowFrameTitle(olc::Window* pWindow) = 0;
-
+			// Get OS-specific window descriptor(s) for given olc::Window
 			virtual std::vector<void*> GetHostWindowDescriptor(olc::Window* pWindow) = 0;
-			
-			
-			virtual bool ConnectHostResourceToRenderer() = 0;
-
-			// Wait for entire host desktop refresh (for smooooth vsync)
+			// Wait for OS desktop refresh (for smooooth vsync)
 			virtual bool SyncWithDesktopComposite() = 0;
 
+		public: // OS Specific Environment Information
 			virtual olc::KeyboardLayout GetKeyboardLayout() const = 0;
+
+		public: // Platform Specific OS<->PGE Linkage
+			// Called at very start of application
+			virtual bool OnApplicationStart(olc::PixelGameEngine* pPrimary) = 0;
+			// Called to start the host - this may mean different things on different hosts
+			// It MUST block until system is requested to exit
+			virtual bool StartSystem() = 0;
+			// Called to stop the host, and shutdown all resources
+			virtual bool StopSystem() = 0;
+			// Called at start of system event loop
+			virtual bool OnSystemThreadStart() = 0;
+			// Called to perform primary window update
+			virtual bool OnSystemTick() = 0;
+			// Called at end of system event loop
+			virtual bool OnSystemThreadEnd() = 0;
+			// Called at very end of application
+			virtual bool OnApplicationEnd() = 0;
 
 		protected:
 			HostError lastError = HostError::None;
+			olc::PixelGameEngine* pPrimaryPGE = nullptr;
 		};
 	}
 }
