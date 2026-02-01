@@ -319,6 +319,10 @@ namespace olc
 		host = std::make_unique<olc::host::Host_Web_Emscripten>();
 #endif
 
+#if OLC_HOST == OLC_HOST_ANDROID
+		host = std::make_unique<olc::host::Host_Android>();
+#endif
+
 		// DEVS!! Please don't merge these just yet
 
 		// Initialise ImageLoader Interface
@@ -342,12 +346,20 @@ namespace olc
 		imageloader = std::make_unique<olc::imload::ImageLoader_LibPNG>();
 #endif
 
+#if OLC_HOST == OLC_HOST_ANDROID
+		imageloader = std::make_unique<olc::imload::ImageLoader_NDKImageDecoder>(
+			olc::host::Host_Android::androidApp->activity->assetManager
+		);
+#endif
+
 		// Allow host to prepare itself
 		return host->OnApplicationStart(this);
 	}
 
 	bool PixelGameEngine::Start()
 	{		
+		
+
 		bool bStartCheck = host->StartSystem(); // Must block until system is shutdown
 		if(!bStartCheck)
 			std::cout << "PGE Start() Error: Host failed to start\n";
@@ -357,34 +369,12 @@ namespace olc
 			std::cout << "PGE Start() Error: Host failed to shutdown cleanly\n";
 
 		return bStartCheck && bEndCheck;
+	}
 
-
-//		// Johnnyg63: Added MacOS Host Initialisation
-//
-//#if OLC_MULTIWINDOW == OLC_MULTIWINDOW_NO
-//		// Create OS window on this thread
-//		host->AddWindowFrame(this, { 30,30 }, config.vPixelSize * config.vScreenSize, false);
-//		// Create EngineThread - no more windows will be created now. We needed one window
-//		// at least to initialise teh rendering subsystem... sigh.
-//		coreActive = true;
-//
-//#if OLC_HOST != OLC_HOST_EMSCRIPTEN
-//		coreThread = std::thread(&PixelGameEngine::EngineThread, this);
-//		// Handle window events on this thread (and block)
-//		host->StartSystemEventLoop(true);		
-//		// Window has closed its event handler, so shut down gracefully
-//		coreActive = false;
-//		// Wait for engine thread to terminate
-//		coreThread.join();
-//#else
-//		EngineThread();
-//#endif
-//
-//#else
-//		
-//#endif
-		//
-		//return true;
+	bool PixelGameEngine::OnPreContextStart()
+	{
+		// Create the window!
+		return host->AddWindowFrame(this, { 30,30 }, config.vPixelSize * config.vScreenSize, false);		
 	}
 
 	bool PixelGameEngine::OnContextStart()
@@ -398,8 +388,6 @@ namespace olc
 		// this function will probably be called on the main application 
 		// thread
 
-		// Create the window!
-		host->AddWindowFrame(this, { 30,30 }, config.vPixelSize * config.vScreenSize, false);
 
 		// Initialise GPU Interface
 		olc::gpu::RendererConfig cfgRenderer;
@@ -500,6 +488,7 @@ namespace olc
 			durationFrameCount -= 1s;
 			std::string sTitle = "OneLoneCoder.com - Pixel Game Engine 3 - Test - FPS: " + std::to_string(frameCount);
 			SetWindowTitle(sTitle);
+			fps = frameCount;
 			frameCount = 0;
 		}
 
@@ -531,6 +520,11 @@ namespace olc
 		return true;
 	}
 
+	bool PixelGameEngine::OnPostContextEnd()
+	{
+		return true;
+	}
+
 	float PixelGameEngine::FrameTimeElapsed() const
 	{
 		return durationFrame.count();
@@ -539,6 +533,11 @@ namespace olc
 	double PixelGameEngine::TotalTimeElapsed() const
 	{
 		return durationTotalElapsed.count();
+	}
+
+	size_t PixelGameEngine::GetFPS() const
+	{
+		return fps;
 	}
 
 	bool PixelGameEngine::AddChildWindow(std::shared_ptr<olc::PGEWindow> window, const olc::vi2d& vScreenSize, const olc::vi2d& vPixelSize)
@@ -563,6 +562,40 @@ namespace olc
 		return false;
 #endif
 	}
+
+}
+//! END IMPLEMENTATION
+
+// DEVS!! All your old stuff is below here for reference, but will be removed later
+
+//		// Johnnyg63: Added MacOS Host Initialisation
+//
+//#if OLC_MULTIWINDOW == OLC_MULTIWINDOW_NO
+//		// Create OS window on this thread
+//		host->AddWindowFrame(this, { 30,30 }, config.vPixelSize * config.vScreenSize, false);
+//		// Create EngineThread - no more windows will be created now. We needed one window
+//		// at least to initialise teh rendering subsystem... sigh.
+//		coreActive = true;
+//
+//#if OLC_HOST != OLC_HOST_EMSCRIPTEN
+//		coreThread = std::thread(&PixelGameEngine::EngineThread, this);
+//		// Handle window events on this thread (and block)
+//		host->StartSystemEventLoop(true);		
+//		// Window has closed its event handler, so shut down gracefully
+//		coreActive = false;
+//		// Wait for engine thread to terminate
+//		coreThread.join();
+//#else
+//		EngineThread();
+//#endif
+//
+//#else
+//		
+//#endif
+		//
+		//return true;
+
+
 
 //	void PixelGameEngine::CoreUpdate(void* userdata)
 //	{
@@ -652,8 +685,7 @@ namespace olc
 //		}
 //		#endif
 //	}
-}
-//! END IMPLEMENTATION
+
 
 
 

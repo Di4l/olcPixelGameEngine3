@@ -94,6 +94,9 @@ namespace olc
 			// Wait for OS desktop refresh (for smooooth vsync)
 			virtual bool SyncWithDesktopComposite() = 0;
 
+		public: // OS Specific Environment Information
+			virtual olc::KeyboardLayout GetKeyboardLayout() const = 0;
+
 		public: // Platform Specific OS<->PGE Linkage
 			// Called at very start of application
 			virtual bool OnApplicationStart(olc::PixelGameEngine* pPrimary) = 0;
@@ -110,8 +113,6 @@ namespace olc
 			virtual bool OnSystemThreadEnd() = 0;
 			// Called at very end of application
 			virtual bool OnApplicationEnd() = 0;
-
-			virtual olc::KeyboardLayout GetKeyboardLayout() const = 0;
 
 		protected:
 			HostError lastError = HostError::None;

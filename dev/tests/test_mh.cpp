@@ -158,7 +158,7 @@ public:
 		//return true;
 
 
-		if (mouse.GetButton(1).bHeld)
+		//if (mouse.GetButton(1).bHeld)
 		{
 			fAngle += 0.5f * fElapsedTime;
 		}
@@ -308,7 +308,8 @@ public:
 
 		draw.String({ 10, 10 }, mouse.GetPosition().str(), olc::Colour::BLACK);
 
-		
+		if (keyboard.GetKey(olc::Key::ESCAPE).bPressed)
+			return false; // End application
 
 		return true;
 
@@ -620,7 +621,7 @@ int main()
 
 	cfg.vPixelSize = { 4,4 };
 	cfg.vScreenSize = { 256, 240 };
-	//cfg.bVSync = true;
+	cfg.bVSync = false;
 
 	//if (demo.Construct({ 1280, 960 }, { 1, 1 }, cfg))
 	if(demo.Construct(cfg))

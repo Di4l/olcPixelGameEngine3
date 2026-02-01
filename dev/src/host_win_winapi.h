@@ -52,9 +52,7 @@ namespace olc
 {
 	namespace host
 	{
-
-
-
+		// Host for Windows OS - Single Window Only!
 		class Host_Windows_WinAPI : public olc::host::Host
 		{
 			
@@ -75,6 +73,9 @@ namespace olc
 			std::vector<void*> GetHostWindowDescriptor(olc::Window* pWindow) override;
 			// Wait for OS desktop refresh (for smooooth vsync)
 			bool SyncWithDesktopComposite() override;
+
+		public: // OS Specific Environment Information
+			olc::KeyboardLayout GetKeyboardLayout() const override;
 
 		public:
 			// Called at very start of application
@@ -99,7 +100,6 @@ namespace olc
 			std::unordered_map<HWND, olc::Window*> mapHWND2PTR;
 			std::wstring ConvertS2W(std::string s);
 			std::atomic<bool> systemActive = false;
-			bool SystemEventLoop(const bool bBlockIfPossible = true);
 
 		public:
 			LRESULT OnWindowEvent(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);

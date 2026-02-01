@@ -3087,6 +3087,8 @@ namespace olc
 		#endif
 	}
 
+	class PixelGameEngine;
+
 	namespace host
 	{
 
@@ -3113,25 +3115,41 @@ namespace olc
 			// Check/Get last error
 			HostError GetLastError() const { return lastError; }
 
-		public: 
-			virtual bool StartSystemEventLoop(bool bBlockIfPossible = false) = 0;
-			virtual void TerminateSystemEventLoop() = 0;
-			virtual bool AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen) = 0;
+		public: // OS Window Handling
+			// Make OS Create a window frame, associated with olc::Window
+			virtual bool AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen) = 0;			
+			// Make OS Close a window frame, associated with olc::Window
 			virtual bool CloseWindowFrame(olc::Window* pWindow) = 0;
+			// Make OS Update a window frame title, associated with olc::Window
 			virtual bool UpdateWindowFrameTitle(olc::Window* pWindow) = 0;
-
+			// Get OS-specific window descriptor(s) for given olc::Window
 			virtual std::vector<void*> GetHostWindowDescriptor(olc::Window* pWindow) = 0;
-			
-			
-			virtual bool ConnectHostResourceToRenderer() = 0;
-
-			// Wait for entire host desktop refresh (for smooooth vsync)
+			// Wait for OS desktop refresh (for smooooth vsync)
 			virtual bool SyncWithDesktopComposite() = 0;
 
+		public: // OS Specific Environment Information
 			virtual olc::KeyboardLayout GetKeyboardLayout() const = 0;
+
+		public: // Platform Specific OS<->PGE Linkage
+			// Called at very start of application
+			virtual bool OnApplicationStart(olc::PixelGameEngine* pPrimary) = 0;
+			// Called to start the host - this may mean different things on different hosts
+			// It MUST block until system is requested to exit
+			virtual bool StartSystem() = 0;
+			// Called to stop the host, and shutdown all resources
+			virtual bool StopSystem() = 0;
+			// Called at start of system event loop
+			virtual bool OnSystemThreadStart() = 0;
+			// Called to perform primary window update
+			virtual bool OnSystemTick() = 0;
+			// Called at end of system event loop
+			virtual bool OnSystemThreadEnd() = 0;
+			// Called at very end of application
+			virtual bool OnApplicationEnd() = 0;
 
 		protected:
 			HostError lastError = HostError::None;
+			olc::PixelGameEngine* pPrimaryPGE = nullptr;
 		};
 	}
 }
@@ -3270,6 +3288,19 @@ namespace olc
 	
 	public: // Core Update
 		static void CoreUpdate(void* userdata);
+
+
+	public: // Called from Host
+		// Called before any context threads start
+		bool OnPreContextStart();
+		// Called after context thread started, before anything else
+		bool OnContextStart();
+		// Called once per tick on context thread
+		bool OnContextTick();
+		// Called at end of context thread, after everything else
+		bool OnContextEnd();
+		// Called after all context threads ended
+		bool OnPostContextEnd();
 		
 	private:
 		// Window Management
@@ -3359,30 +3390,48 @@ namespace olc
 			virtual ~Host_Windows_WinAPI() {};
 
 
-		public:
-			bool StartSystemEventLoop(bool bBlockIfPossible = false);
-			void TerminateSystemEventLoop();
-			bool AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen);			
-			bool CloseWindowFrame(olc::Window* pWindow);
-			bool UpdateWindowFrameTitle(olc::Window* pWindow);
-			
-			std::vector<void*> GetHostWindowDescriptor(olc::Window* pWindow);
-			bool ConnectHostResourceToRenderer();
+		public: // OS Window Handling
+			// Make OS Create a window frame, associated with olc::Window
+			bool AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen) override;
+			// Make OS Close a window frame, associated with olc::Window
+			bool CloseWindowFrame(olc::Window* pWindow) override;
+			// Make OS Update a window frame title, associated with olc::Window
+			bool UpdateWindowFrameTitle(olc::Window* pWindow) override;
+			// Get OS-specific window descriptor(s) for given olc::Window
+			std::vector<void*> GetHostWindowDescriptor(olc::Window* pWindow) override;
+			// Wait for OS desktop refresh (for smooooth vsync)
+			bool SyncWithDesktopComposite() override;
 
-
-			// Wait for entire host desktop refresh (for smooooth vsync)
-			bool SyncWithDesktopComposite();
-
-			LRESULT OnWindowEvent(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
-
+		public: // OS Specific Environment Information
 			olc::KeyboardLayout GetKeyboardLayout() const override;
 
-			std::string test;
+		public:
+			// Called at very start of application
+			bool OnApplicationStart(olc::PixelGameEngine* pPrimary) override;
+			// Called to start the host - this may mean different things on different hosts
+			bool StartSystem() override;
+			// Called to stop the host, and shutdown all resources
+			bool StopSystem() override;
+			// Called at start of system event loop
+			bool OnSystemThreadStart() override;
+			// Called to perform primary window update
+			bool OnSystemTick() override;
+			// Called at end of system event loop
+			bool OnSystemThreadEnd() override;
+			// Called at very end of application
+			bool OnApplicationEnd() override;
 
-		private:
+
+
+		private: // Windows OS Specific Things
 			std::unordered_map<size_t, HWND> mapUID2HWND;
 			std::unordered_map<HWND, olc::Window*> mapHWND2PTR;
 			std::wstring ConvertS2W(std::string s);
+			std::atomic<bool> systemActive = false;
+			bool SystemEventLoop(const bool bBlockIfPossible = true);
+
+		public:
+			LRESULT OnWindowEvent(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
 			// Map of system keycodes to olc::Keycodes
 			std::unordered_map<int32_t, olc::Key> mapKeys;
@@ -5630,12 +5679,118 @@ namespace olc::imload
 #if OLC_HOST == OLC_HOST_WINDOWS
 namespace olc::host
 {
+	bool Host_Windows_WinAPI::OnApplicationStart(olc::PixelGameEngine* pPrimary)
+	{
+		pPrimaryPGE = pPrimary;
+		return true;
+	}
+
+	bool Host_Windows_WinAPI::StartSystem()
+	{
+		// Pre-context start hook
+		pPrimaryPGE->OnPreContextStart();
+
+		// Mark system as active
+		systemActive = true;
+
+		// Create system thread - handles gpu context
+		std::thread threadSystem([this]()
+			{
+				// Notify start of system thread
+				if (!this->OnSystemThreadStart())
+				{
+					// PGE->OnContextStart() failed, or user aborted OnUserCreate()
+					return;
+				}
+
+				// Main system loop
+				while (systemActive)
+				{
+					// Perform primary window update
+					if (!this->OnSystemTick())
+					{
+						StopSystem();
+					}
+				}
+
+				// Notify end of system thread
+				if (!this->OnSystemThreadEnd())
+				{
+					// PGE->OnContextEnd() failed
+					return;
+				}
+			});
+
+		// Blocking event loop on this thread - handles windows
+		SystemEventLoop(true);
+
+		systemActive = false;
+		if(threadSystem.joinable())
+			threadSystem.join();
+
+		// Post-context end hook
+		return pPrimaryPGE->OnPostContextEnd();
+	}
+
+	bool Host_Windows_WinAPI::StopSystem()
+	{
+		systemActive = false;
+		return true;
+	}
+
+	bool Host_Windows_WinAPI::OnSystemThreadStart()
+	{
+		return pPrimaryPGE->OnContextStart();
+	}
+
+	bool Host_Windows_WinAPI::OnSystemTick()
+	{
+		return pPrimaryPGE->OnContextTick();
+	}
+
+	bool Host_Windows_WinAPI::OnSystemThreadEnd()
+	{
+		return pPrimaryPGE->OnContextEnd();
+	}
+
+	bool Host_Windows_WinAPI::OnApplicationEnd()
+	{
+		return true;
+	}
+
+
+
+	// ALL WINDOWS SPECIFIC GUBBINS BELOW HERE
+
+
 	// Forward Declaration
 	static LRESULT CALLBACK WINAPI_EventHandler(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
+	// Windows app needs an event loop somewhere. This is blocking of course. This loop handles
+	// all windows created for this host.
+	bool Host_Windows_WinAPI::SystemEventLoop(bool bBlockIfPossible)
+	{
+		if (bBlockIfPossible)
+		{
+			MSG msg;
+			while (GetMessage(&msg, NULL, 0, 0) > 0)
+			{
+				TranslateMessage(&msg);
+				DispatchMessage(&msg);
+			}
+		}
+		else
+		{
+			MSG msg;
+			while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE) > 0)
+			{
+				TranslateMessage(&msg);
+				DispatchMessage(&msg);
+			}
+		}
 
-
-	
+		return true;    
+	}
 
 	// Static linkage to lpfnWndProc - the hWnd is tagged with meta-info to get
 	// access to the actual host instance, which can more conveninetly process
@@ -5796,38 +5951,6 @@ namespace olc::host
 		mapKeys[VK_OEM_PERIOD] = Key::PERIOD;	// the period key on any keyboard
 	}
 
-	// Windows app needs an event loop somewhere. This is blocking of course. This loop handles
-	// all windows created for this host.
-	bool Host_Windows_WinAPI::StartSystemEventLoop(bool bBlockIfPossible)
-	{
-		if (bBlockIfPossible)
-		{
-			MSG msg;
-			while (GetMessage(&msg, NULL, 0, 0) > 0)
-			{
-				TranslateMessage(&msg);
-				DispatchMessage(&msg);
-			}
-		}
-		else
-		{
-			MSG msg;
-			while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE) > 0)
-			{
-				TranslateMessage(&msg);
-				DispatchMessage(&msg);
-			}
-		}
-
-		return true;
-	}
-
-	void Host_Windows_WinAPI::TerminateSystemEventLoop()
-	{
-		// Post windows WM_QUIT message
-		//PostQuitMessage(0);
-	}
-
 	bool Host_Windows_WinAPI::AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen)
 	{
 		olc_IgnoreUnused(bFullScreen);
@@ -5938,11 +6061,6 @@ namespace olc::host
 		return { mapUID2HWND[pWindow->GetUID()] };
 	}
 
-	bool Host_Windows_WinAPI::ConnectHostResourceToRenderer()
-	{
-		return false;
-	}
-
 	bool Host_Windows_WinAPI::SyncWithDesktopComposite()
 	{
 		return DwmFlush() == S_OK;
@@ -5989,10 +6107,6 @@ namespace olc::host
 			//		case WM_MOUSELEAVE: ptrPGE->olc_UpdateMouseFocus(false);                                    return 0;
 			//		case WM_SETFOCUS:	ptrPGE->olc_UpdateKeyFocus(true);                                       return 0;
 			//		case WM_KILLFOCUS:	ptrPGE->olc_UpdateKeyFocus(false);                                      return 0;
-			//		case WM_KEYDOWN:	ptrPGE->olc_UpdateKeyState(int32_t(wParam), true);                      return 0;
-			//		case WM_KEYUP:		ptrPGE->olc_UpdateKeyState(int32_t(wParam), false);                     return 0;
-			//		case WM_SYSKEYDOWN: ptrPGE->olc_UpdateKeyState(int32_t(wParam), true);						return 0;
-			//		case WM_SYSKEYUP:	ptrPGE->olc_UpdateKeyState(int32_t(wParam), false);						return 0;
 
 		case WM_KEYDOWN:
 			{
@@ -6011,6 +6125,24 @@ namespace olc::host
 				}
 				break;
 			}
+
+		case WM_SYSKEYDOWN:
+		{
+			if (mapKeys.contains(int32_t(wParam)))
+			{
+				window->olc_OnKeyPress(mapKeys[int32_t(wParam)], true);
+			}
+			break;
+		}
+
+		case WM_SYSKEYUP:
+		{
+			if (mapKeys.contains(int32_t(wParam)))
+			{
+				window->olc_OnKeyPress(mapKeys[int32_t(wParam)], false);
+			}
+			break;
+		}
 
 		case WM_LBUTTONDOWN:
 			{
@@ -14731,72 +14863,239 @@ namespace olc
 		config.vScreenSize = vScreenSize;
 		config.vPixelSize = vPixelSize;
 		config.bFullScreen = bFullScreen;
-		return true;
+		return Construct(config);
 	}
 
 	bool PixelGameEngine::Construct(const PGEConfig& cfg)
 	{		
 		config = cfg;
-		return true;
+
+		// This is the earliest point within familiar PGE ecosystem
+		// where we can instatiate the host interface.
+
+		// Initialise Host Interface
+#if OLC_HOST == OLC_HOST_WINDOWS
+		host = std::make_unique<olc::host::Host_Windows_WinAPI>();
+#endif
+
+#if OLC_HOST == OLC_HOST_MACOS
+		host = std::make_unique<olc::host::Host_Apple_MacOS>();
+#endif
+
+#if OLC_HOST == OLC_HOST_LINUX_X11
+		host = std::make_unique<olc::host::Host_Linux_X11>();
+#endif
+
+#if OLC_HOST == OLC_HOST_LINUX_WAYLAND
+		host = std::make_unique<olc::host::Host_Linux_Wayland>();
+#endif
+
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN
+		host = std::make_unique<olc::host::Host_Web_Emscripten>();
+#endif
+
+#if OLC_HOST == OLC_HOST_ANDROID
+		host = std::make_unique<olc::host::Host_Android>();
+#endif
+
+		// DEVS!! Please don't merge these just yet
+
+		// Initialise ImageLoader Interface
+#if OLC_HOST == OLC_HOST_WINDOWS
+		imageloader = std::make_unique<olc::imload::ImageLoader_WinGDI>();
+#endif
+
+#if OLC_HOST == OLC_HOST_MACOS
+		imageloader = std::make_unique<olc::imload::ImageLoader_MacOS>();
+#endif
+
+#if OLC_HOST == OLC_HOST_LINUX_X11
+		imageloader = std::make_unique<olc::imload::ImageLoader_LibPNG>();
+#endif
+
+#if OLC_HOST == OLC_HOST_LINUX_WAYLAND
+		imageloader = std::make_unique<olc::imload::ImageLoader_LibPNG>();
+#endif
+
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN
+		imageloader = std::make_unique<olc::imload::ImageLoader_LibPNG>();
+#endif
+
+#if OLC_HOST == OLC_HOST_ANDROID
+		imageloader = std::make_unique<olc::imload::ImageLoader_NDKImageDecoder>(
+			olc::host::Host_Android::androidApp->activity->assetManager
+		);
+#endif
+
+		// Allow host to prepare itself
+		return host->OnApplicationStart(this);
 	}
 
 	bool PixelGameEngine::Start()
-	{
-		// Initialise Host Interface
-		#if OLC_HOST == OLC_HOST_WINDOWS
-		host = std::make_unique<olc::host::Host_Windows_WinAPI>();
-		#endif
-		// Johnnyg63: Added MacOS Host Initialisation
-		#if OLC_HOST == OLC_HOST_MACOS
-		host = std::make_unique<olc::host::Host_Apple_MacOS>();
-		#endif
-		#if OLC_HOST == OLC_HOST_LINUX_X11
-		host = std::make_unique<olc::host::Host_Linux_X11>();
-		#endif
-		#if OLC_HOST == OLC_HOST_LINUX_WAYLAND
-		host = std::make_unique<olc::host::Host_Linux_Wayland>();
-		#endif
-		#if OLC_HOST == OLC_HOST_EMSCRIPTEN
-		host = std::make_unique<olc::host::Host_Web_Emscripten>();
-        #endif
-        #if OLC_HOST == OLC_HOST_ANDROID
-        host = std::make_unique<olc::host::Host_Android>();
-        auto hostPtr = (dynamic_cast<olc::host::Host_Android*>(host.get()));
-        #endif
-#if OLC_MULTIWINDOW == OLC_MULTIWINDOW_NO
-		// Create OS window on this thread
-		host->AddWindowFrame(this, { 30,30 }, config.vPixelSize * config.vScreenSize, false);
-		// Create EngineThread - no more windows will be created now. We needed one window
-		// at least to initialise teh rendering subsystem... sigh.
-		coreActive = true;
+	{		
+		
 
-#if OLC_HOST != OLC_HOST_EMSCRIPTEN && OLC_HOST != OLC_HOST_ANDROID
-		// Create EngineThread
-		coreThread = std::thread(&PixelGameEngine::EngineThread, this);
-		// Handle window events on this thread (and block)
-		host->StartSystemEventLoop(true);		
-		// Window has closed its event handler, so shut down gracefully
-		coreActive = false;
-		// Wait for engine thread to terminate
-		coreThread.join();
-#elif OLC_HOST == OLC_HOST_ANDROID
-        // We need to wait for the APP_CMD_INIT_WINDOW command before starting the loop
-        __android_log_print(ANDROID_LOG_DEBUG, "PGE ANDROID", "Initializing...");
-        while (!hostPtr->IsInitialized()) {
-			host->StartSystemEventLoop(false);
+		bool bStartCheck = host->StartSystem(); // Must block until system is shutdown
+		if(!bStartCheck)
+			std::cout << "PGE Start() Error: Host failed to start\n";
+
+		bool bEndCheck = host->OnApplicationEnd();
+		if (!bEndCheck)
+			std::cout << "PGE Start() Error: Host failed to shutdown cleanly\n";
+
+		return bStartCheck && bEndCheck;
+	}
+
+	bool PixelGameEngine::OnPreContextStart()
+	{
+		// Create the window!
+		return host->AddWindowFrame(this, { 30,30 }, config.vPixelSize * config.vScreenSize, false);		
+	}
+
+	bool PixelGameEngine::OnContextStart()
+	{
+		// The "context" refers to the thread (or execution pathway)
+		// that will be hosting the main rendering loop. Things like
+		// OpenGL contexts are thread specific, so all GPU initialisation
+		// must be performed here for example
+
+		// If the host doesnt use a thread for its event loop, then
+		// this function will probably be called on the main application 
+		// thread
+
+
+		// Initialise GPU Interface
+		olc::gpu::RendererConfig cfgRenderer;
+		cfgRenderer.VerticalSync = config.bVSync;
+		gpu = std::make_unique<olc::gpu::Renderer_OGL33>();
+
+		gpu->CreateDevice(host->GetHostWindowDescriptor(this), cfgRenderer);
+		if (gpu->GetLastError() != olc::gpu::RendererError::NoError)
+		{
+			std::cout << "PGE OnContextStart() Error: Could not create Renderer\n";
+			return false;
 		}
 
-        __android_log_print(ANDROID_LOG_DEBUG, "PGE ANDROID", "Initialized Successfully");
+		// Link this olc::Window to host and renderer resources
+		LinkToHost(host.get());
+		// Link this olc::PGEWindow to renderer and imageloader
+		LinkToRenderer(gpu.get());
+		LinkToImageLoader(imageloader.get());
 
-        EngineThread();
-#else
-        EngineThread();
-#endif
+		// These things require a valid GPU context
 
-#else
+		// Create Primary olc::Image - aka "The Screen"
+		olc::ImageConfig cfg;
+		cfg.MSAA = config.bAntiAliasMainScreen;
+		CreateImage(GetDefaultImage(), config.vScreenSize, cfg);
+
+		// Initialise "Classic" Font System
+		olc::pgeguts::CreateClassicFont(this);
+
+		// Prepare Draw2D system
+		draw.SetGPU(gpu.get());
+		gpu->ApplyDefaultShader();
+		draw.SetTarget(GetDefaultImage());
+
+		// User Create GOOOOOOOOO!!!!
+		if (!OnUserCreate())
+		{
+			std::cout << "PGE OnContextStart(): User aborted OnUserCreate()\n";
+			return false;
+		}
+
+		// It's possible to draw things in create so flush any pending GPU tasks
+		draw.ProcessGPUTasks();
+
+		// Set to known default state
+		draw.SetTarget(GetDefaultImage());
+		draw.WorldReset();
+		gpu->ApplyDefaultShader();
+
+		// Fire up the engine!
+		using namespace std::chrono_literals;
+		durationFrameCount = 0s;
+		durationTotalElapsed = 0s;
+		timeFrame1 = std::chrono::steady_clock::now();
+		timeFrame2 = std::chrono::steady_clock::now();
+		frameCount = 0;
+		return true;
+	}
+
+	bool PixelGameEngine::OnContextTick()
+	{
+		// This is called once per frame from the host's system loop
+
+		// Frame Delta Timing - "ElapsedTime" since last core update
+		// ~~~~~~~~~~~~~~~~~~
+		// All timing is synchronous to the primary window, i.e child
+		// windows do not maintain their own frame timing. This is a
+		// deliberate decision as PGE will maintain sync between windows.
+		// Why? Multiple windows are not really the point of PGE and
+		// indeed could just be addional unnecessary complexity. However,
+		// by moving to a Window abstraction we kinda get it for free.
+		// This freedom comes at the expense of complexity. If we allowed
+		// windows to be wholly isolated from the core loop, then the
+		// user is expected to maintain thread safety, context sharing
+		// and resource management. That is not olc::PGE.
+
+		using namespace std::chrono_literals;
 		
-#endif
-		
+		// Calculate last frame time
+		timeFrame1 = std::chrono::steady_clock::now();
+		durationFrame = timeFrame1 - timeFrame2;
+		timeFrame2 = timeFrame1;
+
+		// Accumulate total time elapsed since application start
+		durationTotalElapsed += durationFrame;
+
+		// Our time per frame coefficient
+		float fDT = durationFrame.count();
+
+		// Our Total Time accumulator
+		float fTT = float(durationTotalElapsed.count());
+
+		// Calculate FPS every second
+		frameCount++;
+		durationFrameCount += durationFrame;
+		if (durationFrameCount >= 1s)
+		{
+			durationFrameCount -= 1s;
+			std::string sTitle = "OneLoneCoder.com - Pixel Game Engine 3 - Test - FPS: " + std::to_string(frameCount);
+			SetWindowTitle(sTitle);
+			frameCount = 0;
+		}
+
+		// If primary window is to be closed, signal application termination
+		if (olc_ShouldRemove())
+		{
+			return false; // Terminate application
+		}
+		else
+		{
+			// Update Primary Window
+			olc_WindowUpdate(fDT, fTT);
+
+			// Wait for vertical sync with desktop compositor if required. 
+			
+			// Note: Child windows will never vsync as waiting for each buffer swap with vsync
+			// divides up the frame rate budget across the windows.
+			if (gpu->GetConfig().VerticalSync)
+			{
+				host->SyncWithDesktopComposite();
+			}
+		}
+
+		return true; // Keep going
+	}
+
+	bool PixelGameEngine::OnContextEnd()
+	{
+		return true;
+	}
+
+	bool PixelGameEngine::OnPostContextEnd()
+	{
 		return true;
 	}
 
@@ -14810,19 +15109,12 @@ namespace olc
 		return durationTotalElapsed.count();
 	}
 
-	size_t PixelGameEngine::GetFPS() const
-	{
-		return fps;
-	}
-
 	bool PixelGameEngine::AddChildWindow(std::shared_ptr<olc::PGEWindow> window, const olc::vi2d& vScreenSize, const olc::vi2d& vPixelSize)
 	{
 #if OLC_MULTIWINDOW == OLC_MULTIWINDOW_YES
 		// Link this olc::Window to a host resource
 		if (host)
 		{
-			// TODO: Connect to config
-
 			host->AddWindowFrame(window.get(), { 30,30 }, vScreenSize * vPixelSize, false);
 			window->LinkToHost(host.get());
 			window->LinkToRenderer(gpu.get());
@@ -14830,7 +15122,6 @@ namespace olc
 
 			//gpu->RetargetDevice(host->GetHostWindowDescriptor(window.get()));
 			window->Create(vScreenSize, vPixelSize);
-			
 			deqChildWindows.push_back(window);
 		}
 		return true;
@@ -14841,206 +15132,6 @@ namespace olc
 #endif
 	}
 
-	void PixelGameEngine::CoreUpdate(void* userdata)
-	{
-		using namespace std::chrono_literals;
-		auto pge = reinterpret_cast<olc::PixelGameEngine*>(userdata);	
-#if OLC_MULTIWINDOW == OLC_MULTIWINDOW_YES
-			// Multiwindow system uses one event loop (non blocking) for all windows
-			pge->host->StartSystemEventLoop(false);
-#endif
-
-			// Frame Delta Timing - "ElapsedTime" since last core update
-			// ~~~~~~~~~~~~~~~~~~
-			// All timing is synchronous to the primary window, i.e child
-			// windows do not maintain their own frame timing. This is a
-			// deliberate decision as PGE will maintain sync between windows.
-			// Why? Multiple windows are not really the point of PGE and
-			// indeed could just be addional unnecessary complexity. However,
-			// by moving to a Window abstraction we kinda get it for free.
-			// This freedom comes at the expense of complexity. If we allowed
-			// windows to be wholly isolated from the core loop, then the
-			// user is expected to maintain thread safety, context sharing
-			// and resource management. That is not olc::PGE.
-
-			pge->timeFrame1 = std::chrono::steady_clock::now();
-			pge->durationFrame = pge->timeFrame1 - pge->timeFrame2;
-			pge->timeFrame2 = pge->timeFrame1;
-
-			pge->durationTotalElapsed += pge->durationFrame;
-
-			// Our time per frame coefficient
-			float fDT = pge->durationFrame.count();
-			
-			// Our Total Time accumulator
-			float fTT = float(pge->durationTotalElapsed.count());
-
-			pge->frameCount++;
-			pge->durationFrameCount += pge->durationFrame;
-			
-			if (pge->durationFrameCount >= 1s)
-			{
-				pge->durationFrameCount -= 1s;
-				pge->fps = pge->frameCount;
-				std::string sTitle = "OneLoneCoder.com - Pixel Game Engine 3 - Test - FPS: " + std::to_string(pge->frameCount);
-				pge->SetWindowTitle(sTitle);
-				pge->frameCount = 0;
-			}
-				
-			
-			
-			// Primary Window
-			if (pge->olc_ShouldRemove())
-			{
-				// Application is to be terminated as primary window has closed
-				pge->coreActive = false;
-#if OLC_HOST == OLC_HOST_EMSCRIPTEN
-				emscripten_cancel_main_loop();
-#endif
-			}
-			else
-			{
-#if OLC_MULTIWINDOW == OLC_MULTIWINDOW_YES
-				// Update Child Windows (if any)
-				for (auto& winChild : deqChildWindows)
-					winChild->olc_WindowUpdate(fDT, fTT);
-
-				// Remove child windows that have requested closure
-				if (!deqChildWindows.empty())
-				{
-					deqChildWindows.erase(std::remove_if(deqChildWindows.begin(), deqChildWindows.end(),
-						[this](const std::shared_ptr<PGEWindow>& w)
-						{
-							if (w->olc_ShouldRemove())
-							{
-								host->CloseWindowFrame(w.get());
-							}
-							return w->olc_ShouldRemove();
-						}
-					), deqChildWindows.end());
-				}
-#endif
-
-				// Update Primary Window
-				pge->olc_WindowUpdate(fDT, fTT);
-
-				// Wait for vertical sync if required. 
-				// Note: Child windows will never vsync as waiting for each buffer swap with vsync
-				// divides up the frame rate budget across the windows.
-				if (pge->gpu->GetConfig().VerticalSync)
-				{
-					pge->host->SyncWithDesktopComposite();
-				}
-			}
-		
-	}
-
-    void PixelGameEngine::EngineThread()
-    {
-        using namespace std::chrono_literals;
-        timeFrame2 = std::chrono::steady_clock::now();
-        timeFrame1 = std::chrono::steady_clock::now();
-
-#if OLC_MULTIWINDOW == OLC_MULTIWINDOW_YES
-        // Create Primary Window on EngineThread, event loop also exists for all windows
-        // on this thread, and all windows will be created on this thread
-        host->AddWindowFrame(this, { 30,30 }, config.vPixelSize * config.vScreenSize, false);
-#endif
-
-        // Initialise ImageLoader Interface
-#if OLC_HOST == OLC_HOST_WINDOWS
-        imageloader = std::make_unique<olc::imload::ImageLoader_WinGDI>();
-#endif
-
-        // Initialise ImageLoader Interface
-#if OLC_HOST == OLC_HOST_MACOS
-        imageloader = std::make_unique<olc::imload::ImageLoader_MacOS>();
-#endif
-
-#if OLC_HOST == OLC_HOST_LINUX_X11
-        imageloader = std::make_unique<olc::imload::ImageLoader_LibPNG>();
-#endif
-
-#if OLC_HOST == OLC_HOST_LINUX_WAYLAND
-        imageloader = std::make_unique<olc::imload::ImageLoader_LibPNG>();
-#endif
-
-#if OLC_HOST == OLC_HOST_EMSCRIPTEN
-        imageloader = std::make_unique<olc::imload::ImageLoader_LibPNG>();
-#endif
-
-#if OLC_HOST == OLC_HOST_ANDROID
-        imageloader = std::make_unique<olc::imload::ImageLoader_NDKImageDecoder>(
-            olc::host::Host_Android::androidApp->activity->assetManager
-        );
-#endif
-
-        // Initialise GPU Interface	- This thread is the context
-        olc::gpu::RendererConfig cfgRenderer;
-        cfgRenderer.VerticalSync = config.bVSync;
-
-        gpu = std::make_unique<olc::gpu::Renderer_OGL33>();
-
-        // Link this windows devices
-        LinkToHost(host.get());
-        LinkToRenderer(gpu.get());
-        LinkToImageLoader(imageloader.get());
-
-        // The GPU device can be based upon the primary window configuration. This
-        // gives us completed gpu and host objects to pass to other windows as and
-        // when required
-        gpu->CreateDevice(host->GetHostWindowDescriptor(this), cfgRenderer);
-        if (gpu->GetLastError() != olc::gpu::RendererError::NoError)
-        {
-            //const auto e = gpu->GetLastError(); // For debug visibility
-            std::cout << "Error: Could not create Renderer\n";
-            return;
-        }
-
-
-
-        olc::ImageConfig cfg;
-        cfg.MSAA = config.bAntiAliasMainScreen;
-        CreateImage(GetDefaultImage(), config.vScreenSize, cfg);
-
-
-        // Initialise Font System
-        olc::pgeguts::CreateClassicFont(this);
-
-
-        draw.SetGPU(gpu.get());
-        gpu->ApplyDefaultShader();
-        draw.SetTarget(GetDefaultImage());
-
-        if (!OnUserCreate())
-        {
-            // Creation process signalled abort
-            return;
-        }
-
-        draw.ProcessGPUTasks();
-        draw.SetTarget(GetDefaultImage());
-
-        // Initialise Input Devices
-
-
-        durationFrameCount = 0s;
-
-#if OLC_HOST == OLC_HOST_EMSCRIPTEN
-        emscripten_set_main_loop_arg(PixelGameEngine::CoreUpdate, reinterpret_cast<void*>(this), 0, 1);
-#else
-        while (coreActive)
-        {
-#if OLC_HOST == OLC_HOST_ANDROID
-            if (!host->StartSystemEventLoop(false)) {
-                coreActive = false;
-            }
-#endif
-            PixelGameEngine::CoreUpdate(this);
-        }
-		host->TerminateSystemEventLoop();
-#endif
-    }
 }
 #define PGE_CORE_IMPLEMENTED 1
 #endif

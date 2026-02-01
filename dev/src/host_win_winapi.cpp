@@ -12,9 +12,13 @@ namespace olc::host
 
 	bool Host_Windows_WinAPI::StartSystem()
 	{
+		// Pre-context start hook
+		pPrimaryPGE->OnPreContextStart();
+
+		// Mark system as active
 		systemActive = true;
 
-		// Create system thread
+		// Create system thread - handles gpu context
 		std::thread threadSystem([this]()
 			{
 				// Notify start of system thread
@@ -42,7 +46,20 @@ namespace olc::host
 				}
 			});
 
-		return SystemEventLoop(true);
+		// Blocking event loop on this thread - handles windows
+		MSG msg;
+		while (GetMessage(&msg, NULL, 0, 0) > 0 && systemActive)
+		{
+			TranslateMessage(&msg);
+			DispatchMessage(&msg);
+		}
+
+		systemActive = false;
+		if(threadSystem.joinable())
+			threadSystem.join();
+
+		// Post-context end hook
+		return pPrimaryPGE->OnPostContextEnd();
 	}
 
 	bool Host_Windows_WinAPI::StopSystem()
@@ -73,37 +90,12 @@ namespace olc::host
 
 
 
-
+	// ALL WINDOWS SPECIFIC GUBBINS BELOW HERE
 
 
 	// Forward Declaration
 	static LRESULT CALLBACK WINAPI_EventHandler(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
-	// Windows app needs an event loop somewhere. This is blocking of course. This loop handles
-	// all windows created for this host.
-	bool Host_Windows_WinAPI::SystemEventLoop(bool bBlockIfPossible)
-	{
-		if (bBlockIfPossible)
-		{
-			MSG msg;
-			while (GetMessage(&msg, NULL, 0, 0) > 0)
-			{
-				TranslateMessage(&msg);
-				DispatchMessage(&msg);
-			}
-		}
-		else
-		{
-			MSG msg;
-			while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE) > 0)
-			{
-				TranslateMessage(&msg);
-				DispatchMessage(&msg);
-			}
-		}
-
-		return true;    
-	}
 
 	// Static linkage to lpfnWndProc - the hWnd is tagged with meta-info to get
 	// access to the actual host instance, which can more conveninetly process
@@ -264,38 +256,6 @@ namespace olc::host
 		mapKeys[VK_OEM_PERIOD] = Key::PERIOD;	// the period key on any keyboard
 	}
 
-	// Windows app needs an event loop somewhere. This is blocking of course. This loop handles
-	// all windows created for this host.
-	bool Host_Windows_WinAPI::StartSystemEventLoop(bool bBlockIfPossible)
-	{
-		if (bBlockIfPossible)
-		{
-			MSG msg;
-			while (GetMessage(&msg, NULL, 0, 0) > 0)
-			{
-				TranslateMessage(&msg);
-				DispatchMessage(&msg);
-			}
-		}
-		else
-		{
-			MSG msg;
-			while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE) > 0)
-			{
-				TranslateMessage(&msg);
-				DispatchMessage(&msg);
-			}
-		}
-
-		return true;
-	}
-
-	void Host_Windows_WinAPI::TerminateSystemEventLoop()
-	{
-		// Post windows WM_QUIT message
-		//PostQuitMessage(0);
-	}
-
 	bool Host_Windows_WinAPI::AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen)
 	{
 		olc_IgnoreUnused(bFullScreen);
@@ -411,19 +371,6 @@ namespace olc::host
 		return DwmFlush() == S_OK;
 	}
 
-
-
-
-
-
-
-
-
-
-
-
-
-
 	LRESULT Host_Windows_WinAPI::OnWindowEvent(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 	{
 		if (!mapHWND2PTR.contains(hWnd))
@@ -465,10 +412,6 @@ namespace olc::host
 			//		case WM_MOUSELEAVE: ptrPGE->olc_UpdateMouseFocus(false);                                    return 0;
 			//		case WM_SETFOCUS:	ptrPGE->olc_UpdateKeyFocus(true);                                       return 0;
 			//		case WM_KILLFOCUS:	ptrPGE->olc_UpdateKeyFocus(false);                                      return 0;
-			//		case WM_KEYDOWN:	ptrPGE->olc_UpdateKeyState(int32_t(wParam), true);                      return 0;
-			//		case WM_KEYUP:		ptrPGE->olc_UpdateKeyState(int32_t(wParam), false);                     return 0;
-			//		case WM_SYSKEYDOWN: ptrPGE->olc_UpdateKeyState(int32_t(wParam), true);						return 0;
-			//		case WM_SYSKEYUP:	ptrPGE->olc_UpdateKeyState(int32_t(wParam), false);						return 0;
 
 		case WM_KEYDOWN:
 			{
@@ -487,6 +430,24 @@ namespace olc::host
 				}
 				break;
 			}
+
+		case WM_SYSKEYDOWN:
+		{
+			if (mapKeys.contains(int32_t(wParam)))
+			{
+				window->olc_OnKeyPress(mapKeys[int32_t(wParam)], true);
+			}
+			break;
+		}
+
+		case WM_SYSKEYUP:
+		{
+			if (mapKeys.contains(int32_t(wParam)))
+			{
+				window->olc_OnKeyPress(mapKeys[int32_t(wParam)], false);
+			}
+			break;
+		}
 
 		case WM_LBUTTONDOWN:
 			{
@@ -562,6 +523,7 @@ namespace olc::host
 				break;
 				//return DefWindowProc(hWnd, uMsg, wParam, lParam);
 			}
+
 		case WM_DESTROY:	
 			PostQuitMessage(0); 
 			DestroyWindow(hWnd);
