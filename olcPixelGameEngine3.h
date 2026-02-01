@@ -4522,11 +4522,11 @@ namespace olc
             void MacEventsHandler();
             void MacOpenGLContextEventsHandler();
             
-            /*
-             Note for Mac Users: Apple-branded extended keyboards often do not have a physical "NumLock" key; they act as "NumLock On" by default.
-             This behavior (where the key triggers the function flag) is more common when using third-party mechanical keyboards or specialized numpads on macOS.
-             */
-            void ModifiersFlagsHandler(const olc::apis::macos::KeyEvent& data, bool pressed);
+
+            // When modifier flag changes the keycode it will return true, else false
+            bool ModifiersFlagsHandler(const olc::apis::macos::KeyEvent& data, bool pressed);
+            
+            bool bNumLockActive = true; // Num Lock state, we assume it's active at start
             
         };
     }
@@ -6320,7 +6320,7 @@ namespace olc::host {
         mapKeys[111] = Key::F12;
 
         // Arrow Keys
-        mapKeys[125] = Key::DOWN;
+        mapKeys[125] = Key::DOWN; 
         mapKeys[123] = Key::LEFT;
         mapKeys[124] = Key::RIGHT;
         mapKeys[126] = Key::UP;
@@ -6697,17 +6697,47 @@ namespace olc::host {
         
     }
 
-    void Host_Apple_MacOS::ModifiersFlagsHandler(const olc::apis::macos::KeyEvent& event, bool pressed) {
+    bool Host_Apple_MacOS::ModifiersFlagsHandler(const olc::apis::macos::KeyEvent& event, bool pressed) {
         
+        bool bisHandled = false;
         if (event.modifierFlags & NSEventModifierFlagCapsLock) {
             pPGEwindow->olc_OnKeyPress(Key::CAPS_LOCK, pressed);
         }
         if (event.modifierFlags & NSEventModifierFlagShift) {
             pPGEwindow->olc_OnKeyPress(Key::SHIFT, pressed);
+            if(event.keyCode == 39)
+            {
+                // The @ symbol does not change position from US - UK keyboards on MacOS, so we handle it here
+                pPGEwindow->olc_OnKeyPress(mapKeys[50], pressed);
+                return true;
+            }
+            
         }
         if (event.modifierFlags & NSEventModifierFlagControl) {
             pPGEwindow->olc_OnKeyPress(Key::CTRL, pressed);
         }
+        
+        if(event.modifierFlags & NSEventModifierFlagNumericPad) {
+            if(event.keyCode == 71 && pressed) // NumLock keycode
+            {
+                // We only tottle the NumLock state on key press to minic the latching of the key
+                bNumLockActive = !bNumLockActive;
+            }
+            
+            if(!bNumLockActive)
+            {
+                // 84 down, 86 left, 88 right, 91 up >>> 125 down, 123 left, 124 right, 126 up
+                if(event.keyCode == 84) pPGEwindow->olc_OnKeyPress(mapKeys[125], pressed);
+                if(event.keyCode == 86) pPGEwindow->olc_OnKeyPress(mapKeys[123], pressed);
+                if(event.keyCode == 88) pPGEwindow->olc_OnKeyPress(mapKeys[124], pressed);
+                if(event.keyCode == 91) pPGEwindow->olc_OnKeyPress(mapKeys[126], pressed);
+                return true;
+            }
+            
+
+        }
+            
+        return bisHandled;
         
     }
 
@@ -6719,13 +6749,13 @@ namespace olc::host {
 
         // Set up keyboard event handlers
         pMacOSEventHandler->onKeyDown([&](const olc::apis::macos::KeyEvent& event) {
-            ModifiersFlagsHandler(event, true);
-            pPGEwindow->olc_OnKeyPress(mapKeys[event.keyCode], true);
+            if(!ModifiersFlagsHandler(event, true))
+                pPGEwindow->olc_OnKeyPress(mapKeys[event.keyCode], true);
         });
         
         pMacOSEventHandler->onKeyUp([&](const olc::apis::macos::KeyEvent& event) {
-            ModifiersFlagsHandler(event, false);
-            pPGEwindow->olc_OnKeyPress(mapKeys[event.keyCode], false);
+            if(!ModifiersFlagsHandler(event, false))
+               pPGEwindow->olc_OnKeyPress(mapKeys[event.keyCode], false);
 
         });
         
