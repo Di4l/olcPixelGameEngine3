@@ -65,6 +65,7 @@ namespace olc
 
 		public:
 			bool StartSystemEventLoop(bool bBlockIfPossible = false);
+			void TerminateSystemEventLoop();
 			bool AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen);			
 			bool CloseWindowFrame(olc::Window* pWindow);
 			bool UpdateWindowFrameTitle(olc::Window* pWindow);
