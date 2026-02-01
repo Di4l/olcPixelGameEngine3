@@ -1,14 +1,109 @@
 #include "host_win_winapi.h"
+#include "core.h"
 
 //! START IMPLEMENTATION
 namespace olc::host
 {
+	bool Host_Windows_WinAPI::OnApplicationStart(olc::PixelGameEngine* pPrimary)
+	{
+		pPrimaryPGE = pPrimary;
+		return true;
+	}
+
+	bool Host_Windows_WinAPI::StartSystem()
+	{
+		systemActive = true;
+
+		// Create system thread
+		std::thread threadSystem([this]()
+			{
+				// Notify start of system thread
+				if (!this->OnSystemThreadStart())
+				{
+					// PGE->OnContextStart() failed, or user aborted OnUserCreate()
+					return;
+				}
+
+				// Main system loop
+				while (systemActive)
+				{
+					// Perform primary window update
+					if (!this->OnSystemTick())
+					{
+						StopSystem();
+					}
+				}
+
+				// Notify end of system thread
+				if (!this->OnSystemThreadEnd())
+				{
+					// PGE->OnContextEnd() failed
+					return;
+				}
+			});
+
+		return SystemEventLoop(true);
+	}
+
+	bool Host_Windows_WinAPI::StopSystem()
+	{
+		systemActive = false;
+		return true;
+	}
+
+	bool Host_Windows_WinAPI::OnSystemThreadStart()
+	{
+		return pPrimaryPGE->OnContextStart();
+	}
+
+	bool Host_Windows_WinAPI::OnSystemTick()
+	{
+		return pPrimaryPGE->OnContextTick();
+	}
+
+	bool Host_Windows_WinAPI::OnSystemThreadEnd()
+	{
+		return pPrimaryPGE->OnContextEnd();
+	}
+
+	bool Host_Windows_WinAPI::OnApplicationEnd()
+	{
+		return true;
+	}
+
+
+
+
+
+
 	// Forward Declaration
 	static LRESULT CALLBACK WINAPI_EventHandler(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
+	// Windows app needs an event loop somewhere. This is blocking of course. This loop handles
+	// all windows created for this host.
+	bool Host_Windows_WinAPI::SystemEventLoop(bool bBlockIfPossible)
+	{
+		if (bBlockIfPossible)
+		{
+			MSG msg;
+			while (GetMessage(&msg, NULL, 0, 0) > 0)
+			{
+				TranslateMessage(&msg);
+				DispatchMessage(&msg);
+			}
+		}
+		else
+		{
+			MSG msg;
+			while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE) > 0)
+			{
+				TranslateMessage(&msg);
+				DispatchMessage(&msg);
+			}
+		}
 
-
-	
+		return true;    
+	}
 
 	// Static linkage to lpfnWndProc - the hWnd is tagged with meta-info to get
 	// access to the actual host instance, which can more conveninetly process
@@ -311,15 +406,23 @@ namespace olc::host
 		return { mapUID2HWND[pWindow->GetUID()] };
 	}
 
-	bool Host_Windows_WinAPI::ConnectHostResourceToRenderer()
-	{
-		return false;
-	}
-
 	bool Host_Windows_WinAPI::SyncWithDesktopComposite()
 	{
 		return DwmFlush() == S_OK;
 	}
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 	LRESULT Host_Windows_WinAPI::OnWindowEvent(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 	{

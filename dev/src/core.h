@@ -156,6 +156,12 @@ namespace olc
 	
 	public: // Core Update
 		static void CoreUpdate(void* userdata);
+
+
+	public: // Called from Host
+		bool OnContextStart();
+		bool OnContextTick();
+		bool OnContextEnd();
 		
 	private:
 		// Window Management
