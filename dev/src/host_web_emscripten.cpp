@@ -43,7 +43,7 @@ namespace olc::host
         
         emscripten_set_main_loop_arg(Host_Web_Emscripten::MainLoop, reinterpret_cast<void*>(this), 0, 1);
         
-        // This code is never reached!!
+        // EMSCRIPTEN QUIRK: this code is never reached, the main loop is simulating a while(true);
 
         return true;
     }
