@@ -42,15 +42,37 @@ namespace olc::imload
     // Create an image resource based on an image file asset in memory
     bool ImageLoader_STB_Image::CreateImageFromMemory(olc::Image& image, const uint8_t* data, const size_t bytes)
     {
-        return false;
+        stbi_uc* pixelData = nullptr;
+        int width = 0, height = 0, cmp = 0;
+        pixelData = stbi_load_from_memory(data, bytes, &width, &height, &cmp, 4);
+        if(!pixelData)
+            return false;
+
+        image.Create({width, height});
+        std::memcpy(reinterpret_cast<void*>(image.Data()), pixelData, width * height * 4);
+        
+        delete[] pixelData;
+
+        return true;
     }
     
     // Create an image resource based on an image file asset in memory
     bool ImageLoader_STB_Image::CreateImageFromMemory(olc::Image& image, const std::vector<uint8_t>& data)
     {
-        return false;
+        stbi_uc* pixelData = nullptr;
+        int width = 0, height = 0, cmp = 0;
+        pixelData = stbi_load_from_memory(data.data(), data.size(), &width, &height, &cmp, 4);
+        if(!pixelData)
+            return false;
+
+        image.Create({width, height});
+        std::memcpy(reinterpret_cast<void*>(image.Data()), pixelData, width * height * 4);
+        
+        delete[] pixelData;
+
+        return true;
     }
-    
+
     // Store an image as a file asset on disk
     bool ImageLoader_STB_Image::WriteImageToFile(const olc::Image& image, const std::string& sFileName) 
     {
