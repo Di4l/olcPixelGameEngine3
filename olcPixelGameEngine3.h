@@ -205,38 +205,44 @@
 	#define OLC_GPU OLC_GPU_OPENGL33
 #endif
 
-
-
 #define OLC_IMAGELOADER_NONE 1
 #define OLC_IMAGELOADER_WINGDI 2
 #define OLC_IMAGELOADER_MACOS 3
 #define OLC_IMAGELOADER_LIB_PNG 4
 #define OLC_IMAGELOADER_NDK_IMAGEDECODER 5
+#define OLC_IMAGELOADER_STB_IMAGE 6
 
-#if OLC_HOST == OLC_HOST_MACOS
-	#undef OLC_IMAGELOADER
-	#define OLC_IMAGELOADER OLC_IMAGELOADER_MACOS
-#endif
-
-#if OLC_HOST == OLC_HOST_LINUX_X11 || OLC_HOST == OLC_HOST_LINUX_WAYLAND
-	#undef OLC_IMAGELOADER
-	#define OLC_IMAGELOADER OLC_IMAGELOADER_LIB_PNG
-#endif
-
-#if OLC_HOST == OLC_HOST_EMSCRIPTEN
-	#undef OLC_IMAGELOADER
-	#define OLC_IMAGELOADER OLC_IMAGELOADER_LIB_PNG
-#endif
-
-#if OLC_HOST == OLC_HOST_ANDROID
-    #undef OLC_IMAGELOADER
-    #define OLC_IMAGELOADER OLC_IMAGELOADER_NDK_IMAGEDECODER
+#if defined(OLC_USE_STB_IMAGE)
+	#define OLC_IMAGELOADER OLC_IMAGELOADER_STB_IMAGE
+	#define OLC_IMAGELOADER_CLASS ImageLoader_STB_Image
 #endif
 
 #if !defined(OLC_IMAGELOADER)
-	#define OLC_IMAGELOADER OLC_IMAGELOADER_WINGDI
-#endif
+	#if OLC_HOST == OLC_HOST_WINDOWS
+		#define OLC_IMAGELOADER OLC_IMAGELOADER_WINGDI
+		#define OLC_IMAGELOADER_CLASS ImageLoader_WinGDI
+	#endif
 
+	#if OLC_HOST == OLC_HOST_MACOS
+		#define OLC_IMAGELOADER OLC_IMAGELOADER_MACOS
+		#define OLC_IMAGELOADER_CLASS ImageLoader_MacOS
+	#endif
+
+	#if OLC_HOST == OLC_HOST_LINUX_X11 || OLC_HOST == OLC_HOST_LINUX_WAYLAND
+		#define OLC_IMAGELOADER OLC_IMAGELOADER_LIB_PNG
+		#define OLC_IMAGELOADER_CLASS ImageLoader_LibPNG
+	#endif
+
+	#if OLC_HOST == OLC_HOST_EMSCRIPTEN
+		#define OLC_IMAGELOADER OLC_IMAGELOADER_LIB_PNG
+		#define OLC_IMAGELOADER_CLASS ImageLoader_LibPNG
+	#endif
+
+	#if OLC_HOST == OLC_HOST_ANDROID
+		#define OLC_IMAGELOADER OLC_IMAGELOADER_NDK_IMAGEDECODER
+		#define OLC_IMAGELOADER_CLASS ImageLoader_NDKImageDecoder
+	#endif
+#endif
 
 #define OLC_MULTIWINDOW_NO 1
 #define OLC_MULTIWINDOW_YES 2
@@ -5648,7 +5654,7 @@ namespace olc::imload
 #endif
 #endif
 
-#if OLC_HOST == OLC_HOST_ANDROID
+#if OLC_IMAGELOADER == OLC_IMAGELOADER_NDK_IMAGEDECODER
 #include <android/asset_manager.h>
 
 #if !defined(PGE_IMAGELOADER_NDK_IMAGEDECODER_DECLARED)
@@ -5685,10 +5691,33 @@ namespace olc::imload
 #endif
 #endif
 
+#if OLC_IMAGELOADER == OLC_IMAGELOADER_STB_IMAGE
+#if !defined(PGE_IMAGELOADER_LIB_PNG_DECLARED)
+namespace olc::imload
+{
+    class ImageLoader_STB_Image : public ImageLoader
+    {	
+        // Create an image resource based on an image file asset on disk
+        bool CreateImageFromFile(olc::Image& image, const std::string& sFileName) override;
 
+        // Create an image resource based on an image file asset in memory
+        bool CreateImageFromMemory(olc::Image& image, const uint8_t* data, const size_t bytes) override;
 
+        // Create an image resource based on an image file asset in memory
+        bool CreateImageFromMemory(olc::Image& image, const std::vector<uint8_t>& data) override;
 
+        // Store an image as a file asset on disk
+        bool WriteImageToFile(const olc::Image& image, const std::string& sFileName) override;
 
+        // Store an image as a file asset in memory
+        bool WriteImageToMemoryFile(olc::Image& image, const std::vector<uint8_t>& data) override;
+
+    };
+}
+
+#define PGE_IMAGELOADER_LIB_PNG_DECLARED 1
+#endif
+#endif
 
 
 #if defined(OLC_PGE3_APPLICATION) && !defined(PGE_HOST_IMPLEMENTED)
@@ -15071,30 +15100,12 @@ namespace olc
 		// DEVS!! Please don't merge these just yet
 
 		// Initialise ImageLoader Interface
-#if OLC_HOST == OLC_HOST_WINDOWS
-		imageloader = std::make_unique<olc::imload::ImageLoader_WinGDI>();
-#endif
-
-#if OLC_HOST == OLC_HOST_MACOS
-		imageloader = std::make_unique<olc::imload::ImageLoader_MacOS>();
-#endif
-
-#if OLC_HOST == OLC_HOST_LINUX_X11
-		imageloader = std::make_unique<olc::imload::ImageLoader_LibPNG>();
-#endif
-
-#if OLC_HOST == OLC_HOST_LINUX_WAYLAND
-		imageloader = std::make_unique<olc::imload::ImageLoader_LibPNG>();
-#endif
-
-#if OLC_HOST == OLC_HOST_EMSCRIPTEN
-		imageloader = std::make_unique<olc::imload::ImageLoader_LibPNG>();
-#endif
-
 #if OLC_HOST == OLC_HOST_ANDROID
-		imageloader = std::make_unique<olc::imload::ImageLoader_NDKImageDecoder>(
+		imageloader = std::make_unique<olc::imload::OLC_IMAGELOADER_CLASS>(
 			olc::host::Host_Android::androidApp->activity->assetManager
 		);
+#else
+		imageloader = std::make_unique<olc::imload::OLC_IMAGELOADER_CLASS>();
 #endif
 
 		// Allow host to prepare itself
@@ -16229,7 +16240,7 @@ namespace olc::imload
 
 }
 #endif
-#if OLC_HOST == OLC_HOST_ANDROID
+#if OLC_IMAGELOADER == OLC_IMAGELOADER_NDK_IMAGEDECODER
 #include <android/imagedecoder.h>
 #include <android/log.h>
 #include <vector>
@@ -16375,6 +16386,72 @@ namespace olc::imload
     }
 }
 #endif
+#if OLC_IMAGELOADER == OLC_IMAGELOADER_STB_IMAGE
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "stb_image_write.h"
+
+namespace olc::imload
+{
+
+    // Create an image resource based on an image file asset on disk
+    bool ImageLoader_STB_Image::CreateImageFromFile(olc::Image& image, const std::string& sFileName)
+    {
+        std::cout << "ImageLoader: using stb image to load " << sFileName << ".\n";
+        
+        // Open file
+        if(!std::filesystem::exists(sFileName))
+        {
+            std::cout << "Error: failed to load image <" << sFileName << "> - file not found.\n";
+            return false;
+        }
+        
+        stbi_uc* bytes = nullptr;
+        int width = 0, height = 0, cmp = 0;
+        bytes = stbi_load(sFileName.c_str(), &width, &height, &cmp, 4);
+
+        if(!bytes)
+        {
+            std::cout << "Error: failed to load image <" << sFileName << "> - failed to allocate memory.\n";
+            return false;
+        }
+        
+        image.Create({width, height});
+        std::memcpy(reinterpret_cast<void*>(image.Data()), bytes, width * height * 4);
+
+        delete[] bytes;
+        
+        return true;
+    }
+    
+    // Create an image resource based on an image file asset in memory
+    bool ImageLoader_STB_Image::CreateImageFromMemory(olc::Image& image, const uint8_t* data, const size_t bytes)
+    {
+        return false;
+    }
+    
+    // Create an image resource based on an image file asset in memory
+    bool ImageLoader_STB_Image::CreateImageFromMemory(olc::Image& image, const std::vector<uint8_t>& data)
+    {
+        return false;
+    }
+    
+    // Store an image as a file asset on disk
+    bool ImageLoader_STB_Image::WriteImageToFile(const olc::Image& image, const std::string& sFileName) 
+    {
+        return false;
+    }
+    
+    // Store an image as a file asset in memory
+    bool ImageLoader_STB_Image::WriteImageToMemoryFile(olc::Image& image, const std::vector<uint8_t>& data)
+    {
+        return false;
+    }
+
+}
+#endif
+
 #define PGE_IMAGELOADER_IMPLEMENTED 1
 #endif
 

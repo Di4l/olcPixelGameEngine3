@@ -81,3 +81,7 @@ examples/xdg-decoration.o
 examples/xdg-shell.c
 examples/xdg-shell.h
 examples/xdg-shell.o
+
+# stb image headerss
+stb_image_write.h
+stb_image.h
