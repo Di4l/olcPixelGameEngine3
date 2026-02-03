@@ -4875,6 +4875,12 @@ namespace olc::host
 #include <android/log.h>
 #include <jni.h>
 
+#define LOGI(...) ((void)__android_log_print(ANDROID_LOG_INFO, "olcPGE3", __VA_ARGS__))
+#define LOGW(...) ((void)__android_log_print(ANDROID_LOG_WARN, "olcPGE3", __VA_ARGS__))
+#define LOGE(...) ((void)__android_log_print(ANDROID_LOG_ERROR, "olcPGE3", __VA_ARGS__))
+#define LOGD(...) ((void)__android_log_print(ANDROID_LOG_DEBUG, "olcPGE3", __VA_ARGS__))
+#define LOGF(...) ((void)__android_log_print(ANDROID_LOG_FATAL, "olcPGE3", __VA_ARGS__))
+
 // We allow users to create a normal main function for android apps
 extern int main(int argc, char** argv);
 
@@ -4885,19 +4891,29 @@ namespace olc::host
     {
     public:
         Host_Android();
-        bool StartSystemEventLoop(bool bBlockIfPossible) override;
+
         bool AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen) override;
         bool CloseWindowFrame(olc::Window* pWindow) override;
         bool UpdateWindowFrameTitle(olc::Window* pWindow) override;
-
-        std::vector<void*> GetHostWindowDescriptor(olc::Window* pWindow) override;
-
-        bool ConnectHostResourceToRenderer() override;
-
-        // Wait for entire host desktop refresh (for smooooth vsync)
         bool SyncWithDesktopComposite() override;
-
+        std::vector<void*> GetHostWindowDescriptor(olc::Window* pWindow) override;
         olc::KeyboardLayout GetKeyboardLayout() const override;
+
+        // Called at very start of application
+        bool OnApplicationStart(olc::PixelGameEngine* pPrimary) override;
+        // Called to start the host - this may mean different things on different hosts
+        // It MUST block until system is requested to exit
+        bool StartSystem() override;
+        // Called to stop the host, and shutdown all resources
+        bool StopSystem() override;
+        // Called at start of system event loop
+        bool OnSystemThreadStart() override;
+        // Called to perform primary window update
+        bool OnSystemTick() override;
+        // Called at end of system event loop
+        bool OnSystemThreadEnd() override;
+        // Called at very end of application
+        bool OnApplicationEnd() override;
 
         void OnAppCmd(AndroidApp* app, int32_t cmd);
         int32_t OnInputEvent(AndroidApp* app, AInputEvent* event);
@@ -4906,15 +4922,20 @@ namespace olc::host
 
         void ShowKeyboard(bool bShow);
 
-        // TODO: file loading support (temporaru)
+        // TODO: file loading support (temporary)
         std::vector<uint8_t> OpenFile(const std::string& sFileName);
         std::string OpenTextFile(const std::string& sFileName);
 
         static AndroidApp* androidApp;
     protected:
         olc::Window* pgeWindow = nullptr;
-        std::atomic<bool> initialized{false};
+        std::atomic<bool> initialized{false}, systemActive{false};
         bool shiftOn = false;
+
+        void PollEvents(
+            const std::function<bool()>& funcContinue,
+            bool bBlocking = false
+        );
     };
 
     class JNI
@@ -5659,9 +5680,6 @@ namespace olc::imload
     class ImageLoader_NDKImageDecoder : public ImageLoader
     {
     public:
-        ImageLoader_NDKImageDecoder() = default;
-        ImageLoader_NDKImageDecoder(AAssetManager* assetManager) : assetManager(assetManager) {}
-
         // Create an image resource based on an image file asset on disk
         bool CreateImageFromFile(olc::Image& image, const std::string& sFileName) override;
 
@@ -5676,9 +5694,6 @@ namespace olc::imload
 
         // Store an image as a file asset in memory
         bool WriteImageToMemoryFile(olc::Image& image, const std::vector<uint8_t>& data) override;
-
-    protected:
-        AAssetManager* assetManager = nullptr;
     };
 }
 #define PGE_IMAGELOADER_NDK_IMAGEDECODER_DECLARED 1
@@ -10750,56 +10765,126 @@ namespace olc::host
         return host->OnInputEvent(app, event);
     }
 
-    bool Host_Android::StartSystemEventLoop(bool bBlockIfPossible)
+    bool Host_Android::StartSystem()
     {
-        int events;
-        struct android_poll_source* source = nullptr;
+        pPrimaryPGE->OnPreContextStart();
 
-        if (ALooper_pollOnce(
-            bBlockIfPossible || !initialized ? -1 : 0,
-            nullptr,
-            &events,
-            (void**)&source
-        ) >= 0) {
-            if (source) source->process(androidApp, source);
+        PollEvents(
+            [this]() {
+                return !initialized.load();
+            },
+            true
+        );
+
+        if (androidApp->destroyRequested)
+        {
+            return false;
         }
 
-        if (!androidApp || !initialized) return true;
+        systemActive = true;
 
-        if (androidApp->destroyRequested != 0) return false;
+        std::thread threadSys([this]() {
+            if (!OnSystemThreadStart())
+            {
+                StopSystem();
+                return;
+            }
 
+            while (systemActive.load())
+            {
+                if (!OnSystemTick())
+                {
+                    StopSystem();
+                }
+            }
+
+            if (!this->OnSystemThreadEnd())
+            {
+                return;
+            }
+        });
+
+        PollEvents(
+            [this]() {
+                return systemActive.load() && !androidApp->destroyRequested;
+            },
+            true
+        );
+
+        systemActive = false;
+        if (threadSys.joinable())
+        {
+            threadSys.join();
+        }
+
+        return pPrimaryPGE->OnPostContextEnd();
+    }
+
+    bool Host_Android::StopSystem()
+    {
+        systemActive = false;
+        return true;
+    }
+
+    bool Host_Android::OnSystemThreadStart()
+    {
+        return pPrimaryPGE->OnContextStart();
+    }
+
+    bool Host_Android::OnSystemTick()
+    {
+        return pPrimaryPGE->OnContextTick();;
+    }
+
+    bool Host_Android::OnSystemThreadEnd()
+    {
+        return pPrimaryPGE->OnContextEnd();
+    }
+
+    bool Host_Android::OnApplicationStart(olc::PixelGameEngine* pPrimary)
+    {
+        pPrimaryPGE = pPrimary;
+        return true;
+    }
+
+    bool Host_Android::OnApplicationEnd()
+    {
         return true;
     }
 
     void Host_Android::OnAppCmd(struct android_app *app, int32_t cmd)
     {
         auto host = reinterpret_cast<olc::host::Host_Android*>(app->userData);
+        if (!host->pgeWindow) return;
+
         switch (cmd) {
             case APP_CMD_WINDOW_RESIZED:
                 host->pgeWindow->olc_OnWindowSize({
                   ANativeWindow_getWidth(app->window),
                   ANativeWindow_getHeight(app->window)
                 });
-                __android_log_print(ANDROID_LOG_DEBUG, "PGE ANDROID",
-                                    "APP_CMD_WINDOW_RESIZED received: %dx%d",
-                                    ANativeWindow_getWidth(app->window),
-                                    ANativeWindow_getHeight(app->window));
+                LOGD("APP_CMD_WINDOW_RESIZED: %dx%d",
+                      ANativeWindow_getWidth(app->window),
+                      ANativeWindow_getHeight(app->window));
                 break;
             case APP_CMD_INIT_WINDOW:
                 if (app->window) {
                     host->initialized = true;
-                    __android_log_print(ANDROID_LOG_DEBUG, "PGE ANDROID",
-                                        "APP_CMD_INIT_WINDOW received with Window");
+                    LOGD("APP_CMD_INIT_WINDOW received with Window");
                 }
                 break;
             case APP_CMD_TERM_WINDOW: {
                 host->pgeWindow->olc_OnWindowClose();
+                host->initialized = false;
+                LOGD("APP_CMD_TERM_WINDOW received");
             } break;
             case APP_CMD_GAINED_FOCUS: {
                 host->pgeWindow->olc_OnMouseFocus(true);
+                LOGD("APP_CMD_GAINED_FOCUS received");
             } break;
             case APP_CMD_LOST_FOCUS: {
                 host->pgeWindow->olc_OnMouseFocus(false);
+                LOGD("APP_CMD_LOST_FOCUS received");
             } break;
             default: break;
         }
@@ -10808,6 +10893,8 @@ namespace olc::host
     int32_t Host_Android::OnInputEvent(AndroidApp *app, AInputEvent *event)
     {
         auto host = reinterpret_cast<olc::host::Host_Android*>(app->userData);
+        if (!host->pgeWindow) return 0;
+
         auto type = AInputEvent_getType(event);
         
         if (type == AINPUT_EVENT_TYPE_MOTION) {
@@ -10911,11 +10998,6 @@ namespace olc::host
     std::vector<void*> Host_Android::GetHostWindowDescriptor(olc::Window *pWindow)
     {
         return { reinterpret_cast<void*>(androidApp->window) };
-    }
-
-    bool Host_Android::ConnectHostResourceToRenderer()
-    {
-        return true;
     }
 
     bool Host_Android::SyncWithDesktopComposite()
@@ -11132,15 +11214,35 @@ namespace olc::host
 
         return content;
     }
+    
+    void Host_Android::PollEvents(const std::function<bool()>& funcContinue, bool bBlocking)
+    {
+        while (funcContinue()) {
+            int events;
+            struct android_poll_source* source;
+
+            const int timeOut = bBlocking ? -1 : 0;
+            const int ident = ALooper_pollOnce(timeOut, nullptr, &events, (void**)&source);
+            
+            if (ident >= 0) {
+                if (source) {
+                    source->process(androidApp, source);
+                }
+            } else if (!bBlocking) {
+                break;
+            }
+        }
+    }
+    
 }
 
 void android_main(struct android_app* app)
 {
-    char arg0[] = "olcPixelGameEngine 3.0";
+    char arg0[] = "olc::PixelGameEngine 3.0";
     char* argv[] = { arg0, nullptr };
     
-    olc::host::JNI::Init(app);
     olc::host::Host_Android::androidApp = app;
+    olc::host::JNI::Init(app);
 
     (void)main(1, argv);
 
@@ -11150,7 +11252,7 @@ void android_main(struct android_app* app)
         int events;
         struct android_poll_source* source;
 
-        while (ALooper_pollOnce(0, nullptr, &events, (void**)&source) > ALOOPER_POLL_TIMEOUT) {
+        if (ALooper_pollOnce(0, nullptr, &events, (void**)&source) > ALOOPER_POLL_TIMEOUT) {
             if (source) {
                 source->process(app, source);
             }
@@ -15092,9 +15194,7 @@ namespace olc
 #endif
 
 #if OLC_HOST == OLC_HOST_ANDROID
-		imageloader = std::make_unique<olc::imload::ImageLoader_NDKImageDecoder>(
-			olc::host::Host_Android::androidApp->activity->assetManager
-		);
+		imageloader = std::make_unique<olc::imload::ImageLoader_NDKImageDecoder>();
 #endif
 
 		// Allow host to prepare itself
@@ -16239,7 +16339,7 @@ namespace olc::imload
     bool ImageLoader_NDKImageDecoder::CreateImageFromFile(olc::Image& image, const std::string& sFileName)
     {
         AAsset* asset = AAssetManager_open(
-            assetManager,
+            olc::host::Host_Android::androidApp->activity->assetManager,
             sFileName.c_str(),
             AASSET_MODE_BUFFER
         );

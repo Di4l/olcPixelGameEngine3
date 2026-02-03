@@ -326,9 +326,7 @@ namespace olc
 #endif
 
 #if OLC_HOST == OLC_HOST_ANDROID
-		imageloader = std::make_unique<olc::imload::ImageLoader_NDKImageDecoder>(
-			olc::host::Host_Android::androidApp->activity->assetManager
-		);
+		imageloader = std::make_unique<olc::imload::ImageLoader_NDKImageDecoder>();
 #endif
 
 		// Allow host to prepare itself
