@@ -663,7 +663,18 @@ namespace olc::host
         if(itr != mapKeys.end()) {
             auto olc_key = itr->second;
             auto* pge_window = mapUID2OlcWindow[active_window_id];
-            pge_window->olc_OnKeyPress(olc_key, state == WL_KEYBOARD_KEY_STATE_PRESSED);
+            
+            switch (state) {
+                case WL_KEYBOARD_KEY_STATE_RELEASED:
+                    pge_window->olc_OnKeyPress(olc_key, false);
+                    break;
+                case WL_KEYBOARD_KEY_STATE_REPEATED:
+                    pge_window->olc_OnKeyPress(olc_key, false);
+                    // Intentional fallthrough
+                case WL_KEYBOARD_KEY_STATE_PRESSED:
+                    pge_window->olc_OnKeyPress(olc_key, true);
+                    break;
+            }
         }
     }
 
