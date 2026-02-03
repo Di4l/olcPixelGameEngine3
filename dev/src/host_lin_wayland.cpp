@@ -355,6 +355,7 @@ namespace olc::host
 
         if (capabilities & WL_SEAT_CAPABILITY_KEYBOARD && keyboard == nullptr) {
             keyboard = wl_seat_get_keyboard(seat);
+            keyboard_version = wl_keyboard_get_version(keyboard);
             wl_keyboard_add_listener(keyboard, &wayland::keyboard_listener, this);
         }
     }
@@ -664,16 +665,25 @@ namespace olc::host
             auto olc_key = itr->second;
             auto* pge_window = mapUID2OlcWindow[active_window_id];
             
-            switch (state) {
-                case WL_KEYBOARD_KEY_STATE_RELEASED:
-                    pge_window->olc_OnKeyPress(olc_key, false);
-                    break;
-                case WL_KEYBOARD_KEY_STATE_REPEATED:
-                    pge_window->olc_OnKeyPress(olc_key, false);
-                    // Intentional fallthrough
-                case WL_KEYBOARD_KEY_STATE_PRESSED:
-                    pge_window->olc_OnKeyPress(olc_key, true);
-                    break;
+            // Wayland keyboard version 10 and above support key repeat and release states
+            if(keyboard_version >= 10)
+            {
+                switch (state) {
+                    case WL_KEYBOARD_KEY_STATE_RELEASED:
+                        pge_window->olc_OnKeyPress(olc_key, false);
+                        break;
+                    case WL_KEYBOARD_KEY_STATE_REPEATED:
+                        pge_window->olc_OnKeyPress(olc_key, false);
+                        // Intentional fallthrough
+                    case WL_KEYBOARD_KEY_STATE_PRESSED:
+                        pge_window->olc_OnKeyPress(olc_key, true);
+                        break;
+                }
+            }
+            else
+            {
+                // Ubuntu still parties like its 1999 apparently
+                pge_window->olc_OnKeyPress(olc_key, state == WL_KEYBOARD_KEY_STATE_PRESSED);
             }
         }
     }
