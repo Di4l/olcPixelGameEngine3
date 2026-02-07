@@ -4,33 +4,47 @@
 
 #if OLC_HOST == OLC_HOST_WINDOWS
 #include "host_win_winapi.h"
-#include "imload_wingdi.h"
 #endif
 
 // Johnnyg63: Added define for MACOS
 #if OLC_HOST == OLC_HOST_MACOS
 #include "host_apple_macos.h"
-#include "imload_macos.h"
 #endif
 
 #if OLC_HOST == OLC_HOST_LINUX_X11
 #include "host_lin_x11.h"
-#include "imload_lib_png.h"
 #endif
 
 #if OLC_HOST == OLC_HOST_LINUX_WAYLAND
 #include "host_lin_wayland.h"
-#include "imload_lib_png.h"
 #endif
 
 #if OLC_HOST == OLC_HOST_EMSCRIPTEN
 #include "host_web_emscripten.h"
-#include "imload_lib_png.h"
 #endif
 
 #if OLC_HOST == OLC_HOST_ANDROID
 #include "host_android.h"
+#endif
+
+#if OLC_IMAGELOADER == OLC_IMAGELOADER_WINGDI
+#include "imload_wingdi.h"
+#endif
+
+#if OLC_IMAGELOADER == OLC_IMAGELOADER_MACOS
+#include "imload_macos.h"
+#endif
+
+#if OLC_IMAGELOADER == OLC_IMAGELOADER_LIB_PNG
+#include "imload_lib_png.h"
+#endif
+
+#if OLC_IMAGELOADER == OLC_IMAGELOADER_NDK_IMAGEDECODER
 #include "imload_android.h"
+#endif
+
+#if OLC_IMAGELOADER == OLC_IMAGELOADER_STB_IMAGE
+#include "imload_stb_image.h"
 #endif
 
 //! START IMPLEMENTATION
@@ -305,30 +319,12 @@ namespace olc
 		// DEVS!! Please don't merge these just yet
 
 		// Initialise ImageLoader Interface
-#if OLC_HOST == OLC_HOST_WINDOWS
-		imageloader = std::make_unique<olc::imload::ImageLoader_WinGDI>();
-#endif
-
-#if OLC_HOST == OLC_HOST_MACOS
-		imageloader = std::make_unique<olc::imload::ImageLoader_MacOS>();
-#endif
-
-#if OLC_HOST == OLC_HOST_LINUX_X11
-		imageloader = std::make_unique<olc::imload::ImageLoader_LibPNG>();
-#endif
-
-#if OLC_HOST == OLC_HOST_LINUX_WAYLAND
-		imageloader = std::make_unique<olc::imload::ImageLoader_LibPNG>();
-#endif
-
-#if OLC_HOST == OLC_HOST_EMSCRIPTEN
-		imageloader = std::make_unique<olc::imload::ImageLoader_LibPNG>();
-#endif
-
 #if OLC_HOST == OLC_HOST_ANDROID
-		imageloader = std::make_unique<olc::imload::ImageLoader_NDKImageDecoder>(
+		imageloader = std::make_unique<olc::imload::OLC_IMAGELOADER_CLASS>(
 			olc::host::Host_Android::androidApp->activity->assetManager
 		);
+#else
+		imageloader = std::make_unique<olc::imload::OLC_IMAGELOADER_CLASS>();
 #endif
 
 		// Allow host to prepare itself
