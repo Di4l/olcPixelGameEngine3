@@ -3231,7 +3231,7 @@ namespace olc
 
 	public:
 		// Returns the image that represents the primary drawing surface
-		olc::Image& GetDefaultImage();
+		olc::Image& GetScreen();
 		olc::Draw2D& GetDraw();
 
 		// Input devices are handled by a regular olc::Window, but for convenience...
@@ -15097,7 +15097,7 @@ namespace olc
 	{
 		//pRenderer->RetargetDevice(pHost->GetHostWindowDescriptor(this));
 		pRenderer->PrepareWindowTarget(pHost->GetHostWindowDescriptor(this));
-		CreateImage(GetDefaultImage(), vScreenSize);
+		CreateImage(GetScreen(), vScreenSize);
 		SetWindowSize(vScreenSize * vPixelSize);
 
 		// Assume 1:1 Relationship for now
@@ -15129,7 +15129,7 @@ namespace olc
 		keyboard.UpdateState();
 		
 		draw.SetGPU(pRenderer);
-		draw.SetTarget(GetDefaultImage());
+		draw.SetTarget(GetScreen());
 
 		pRenderer->DisplayPrepare(fElapsedTime, fTotalElapsedTime);
 
@@ -15157,9 +15157,9 @@ namespace olc
 		// Finialise any outstanding tasks
 		draw.ProcessGPUTasks();
 
-		if (GetDefaultImage().GetConfig().MSAA)
+		if (GetScreen().GetConfig().MSAA)
 		{
-			pRenderer->ResolveMSAA(uint32_t(GetDefaultImage().GetGPUID()));
+			pRenderer->ResolveMSAA(uint32_t(GetScreen().GetGPUID()));
 		}
 
 		draw.ResetShader();
@@ -15174,7 +15174,7 @@ namespace olc
 		{
 			// Set the viewport to maintain the aspect ratio of GetDefaultImage() and maximise to 
 			// fit within the window client area
-			float fAspectScreen = float(GetDefaultImage().Size().x) / float(GetDefaultImage().Size().y);
+			float fAspectScreen = float(GetScreen().Size().x) / float(GetScreen().Size().y);
 
 			vViewSize.x = (int32_t)vWindowSize.x;
 			vViewSize.y = (int32_t)((float)vViewSize.x / fAspectScreen);
@@ -15200,7 +15200,7 @@ namespace olc
 		// Present final composite
 		pRenderer->SetViewport(vViewPos, vViewSize);
 		pRenderer->ClearViewport(config.colClear, true, true);
-		draw.ImageRect(GetDefaultImage().flipV(), { 0.0,0.0 }, vViewSize);
+		draw.ImageRect(GetScreen().flipV(), { 0.0,0.0 }, vViewSize);
 		draw.ProcessGPUTasks();
 
 		// Update Window's primary surface
@@ -15286,7 +15286,7 @@ namespace olc
 		pImageLoader = imload;
 	}
 
-	olc::Image& PGEWindow::GetDefaultImage()
+	olc::Image& PGEWindow::GetScreen()
 	{
 		return imgPrimary;
 	}
@@ -15308,7 +15308,7 @@ namespace olc
 
 	const olc::vi2d& PGEWindow::ScreenSize()
 	{
-		return GetDefaultImage().Size();
+		return GetScreen().Size();
 	}
 
 	bool PGEWindow::olc_OnMouseMove(const olc::vi2d& vMousePos)
@@ -15322,8 +15322,8 @@ namespace olc
 
 		// Scale mouse into view coordinates
 		mouse.SetPosition(
-			(olc::vf2d(pos) / olc::vf2d(vWindowSize - (vViewPos * 2)) * GetDefaultImage().Size())
-			.clamp({ 0.0f, 0.0f }, olc::vf2d(GetDefaultImage().Size()-1)));
+			(olc::vf2d(pos) / olc::vf2d(vWindowSize - (vViewPos * 2)) * GetScreen().Size())
+			.clamp({ 0.0f, 0.0f }, olc::vf2d(GetScreen().Size()-1)));
 		return true;
 	}
 
@@ -15430,7 +15430,7 @@ namespace olc
 		// Create Primary olc::Image - aka "The Screen"
 		olc::ImageConfig cfg;
 		cfg.MSAA = config.bAntiAliasMainScreen;
-		CreateImage(GetDefaultImage(), config.vScreenSize, cfg);
+		CreateImage(GetScreen(), config.vScreenSize, cfg);
 
 		// Initialise "Classic" Font System
 		olc::pgeguts::CreateClassicFont(this);
@@ -15438,7 +15438,7 @@ namespace olc
 		// Prepare Draw2D system
 		draw.SetGPU(gpu.get());
 		gpu->ApplyDefaultShader();
-		draw.SetTarget(GetDefaultImage());
+		draw.SetTarget(GetScreen());
 
 		// User Create GOOOOOOOOO!!!!
 		if (!OnUserCreate())
@@ -15451,7 +15451,7 @@ namespace olc
 		draw.ProcessGPUTasks();
 
 		// Set to known default state
-		draw.SetTarget(GetDefaultImage());
+		draw.SetTarget(GetScreen());
 		draw.WorldReset();
 		gpu->ApplyDefaultShader();
 

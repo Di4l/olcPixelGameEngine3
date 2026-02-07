@@ -19,7 +19,7 @@ public:
 		fTotalTime += fElapsedTime;
 
 		draw.Clear(olc::Colour::RED);
-		draw.WorldRotate(fTotalTime, GetDefaultImage().Size() / 2);
+		draw.WorldRotate(fTotalTime, GetScreen().Size() / 2);
 		draw.FilledRect({ 10,10 }, { 20,20 }, olc::Colour::BLUE);
 		return true;
 	}
@@ -125,7 +125,7 @@ public:
 		vecLogos.resize(x);
 		for (auto& a : vecLogos)
 		{
-			a.pos = olc::vf2d(float(rand() % GetDefaultImage().Size().x), float(rand() % GetDefaultImage().Size().y));
+			a.pos = olc::vf2d(float(rand() % GetScreen().Size().x), float(rand() % GetScreen().Size().y));
 			//a.vel = olc::vf2d(rand() % 100 - 50, rand() % 100 - 50);
 			a.angvel = 1.1f;
 		}
@@ -247,7 +247,7 @@ public:
 			imLogo);*/
 
 
-		draw.SetTarget(GetDefaultImage());
+		draw.SetTarget(GetScreen());
 		draw.Clear(olc::Colour::CYAN);
 
 		/*draw.Triangle(vecTestPoints[0], vecTestPoints[1], vecTestPoints[2],
