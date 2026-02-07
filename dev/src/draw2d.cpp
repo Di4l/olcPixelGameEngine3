@@ -1148,10 +1148,10 @@ const GPUTask& olc::Draw2D::ImageRotated(olc::ImageRegion image, const olc::vf2d
 	olc::vf2d size = image.regionsize * scale;
 
 	std::vector<olc::vf2d> vPoints(4);
-	vPoints[0] = (olc::vf2d(0.0f, 0.0f) - center) * scale;
-	vPoints[1] = (olc::vf2d(size.x, 0.0f) - center) * scale;
-	vPoints[2] = (size - center) * scale;
-	vPoints[3] = (olc::vf2d(0.0f, size.y) - center) * scale;
+	vPoints[0] = olc::vf2d(0.0f, 0.0f) - (center * scale);
+	vPoints[1] = olc::vf2d(size.x, 0.0f) - (center * scale);
+	vPoints[2] = size - (center * scale);
+	vPoints[3] = olc::vf2d(0.0f, size.y) - (center * scale);
 
 	float c = cos(theta), s = sin(theta);
 	for (size_t i = 0; i < 4; i++)

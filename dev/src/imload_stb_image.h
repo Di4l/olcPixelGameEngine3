@@ -9,7 +9,7 @@
 //! END STDHEADER
 
 //! START DECLARATION
-#if !defined(PGE_IMAGELOADER_LIB_PNG_DECLARED)
+#if !defined(PGE_IMAGELOADER_STB_DECLARED)
 namespace olc::imload
 {
     class ImageLoader_STB_Image : public ImageLoader
@@ -32,6 +32,6 @@ namespace olc::imload
     };
 }
 
-#define PGE_IMAGELOADER_LIB_PNG_DECLARED 1
+#define PGE_IMAGELOADER_STB_DECLARED 1
 #endif
 //! END DECLARATION
