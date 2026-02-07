@@ -1,5 +1,7 @@
 #include "imload_android.h"
 
+#include "host_android.h"
+
 //! START IMPLEMENTATION
 #include <android/imagedecoder.h>
 #include <android/log.h>
@@ -10,7 +12,7 @@ namespace olc::imload
     bool ImageLoader_NDKImageDecoder::CreateImageFromFile(olc::Image& image, const std::string& sFileName)
     {
         AAsset* asset = AAssetManager_open(
-            assetManager,
+            olc::host::Host_Android::androidApp->activity->assetManager,
             sFileName.c_str(),
             AASSET_MODE_BUFFER
         );

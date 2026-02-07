@@ -18,9 +18,6 @@ namespace olc::imload
     class ImageLoader_NDKImageDecoder : public ImageLoader
     {
     public:
-        ImageLoader_NDKImageDecoder() = default;
-        ImageLoader_NDKImageDecoder(AAssetManager* assetManager) : assetManager(assetManager) {}
-
         // Create an image resource based on an image file asset on disk
         bool CreateImageFromFile(olc::Image& image, const std::string& sFileName) override;
 
@@ -35,9 +32,6 @@ namespace olc::imload
 
         // Store an image as a file asset in memory
         bool WriteImageToMemoryFile(olc::Image& image, const std::vector<uint8_t>& data) override;
-
-    protected:
-        AAssetManager* assetManager = nullptr;
     };
 }
 #define PGE_IMAGELOADER_NDK_IMAGEDECODER_DECLARED 1
