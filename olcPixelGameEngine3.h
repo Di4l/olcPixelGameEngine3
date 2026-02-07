@@ -94,7 +94,7 @@
 	Primary Contributors
 	~~~~~~~~~~~~~~~~~~~~
 	@javidx9 (aka David Barr, OneLoneCoder)
-	@Moros1198, @dandistine, @johnnyg63, @iCiaran
+	@Moros1198, @dandistine, @johnnyg63, @iCiaran, @DCubix
 
 	With assistance from all of the developers of olc::PixelGameEngine 2 over the years,
 	and the many community contributors that have provided bug fixes, suggestions,
@@ -5747,7 +5747,7 @@ namespace olc::imload
 #endif
 
 #if OLC_IMAGELOADER == OLC_IMAGELOADER_STB_IMAGE
-#if !defined(PGE_IMAGELOADER_LIB_PNG_DECLARED)
+#if !defined(PGE_IMAGELOADER_STB_DECLARED)
 namespace olc::imload
 {
     class ImageLoader_STB_Image : public ImageLoader
@@ -5770,7 +5770,7 @@ namespace olc::imload
     };
 }
 
-#define PGE_IMAGELOADER_LIB_PNG_DECLARED 1
+#define PGE_IMAGELOADER_STB_DECLARED 1
 #endif
 #endif
 
@@ -14371,10 +14371,10 @@ const GPUTask& olc::Draw2D::ImageRotated(olc::ImageRegion image, const olc::vf2d
 	olc::vf2d size = image.regionsize * scale;
 
 	std::vector<olc::vf2d> vPoints(4);
-	vPoints[0] = (olc::vf2d(0.0f, 0.0f) - center) * scale;
-	vPoints[1] = (olc::vf2d(size.x, 0.0f) - center) * scale;
-	vPoints[2] = (size - center) * scale;
-	vPoints[3] = (olc::vf2d(0.0f, size.y) - center) * scale;
+	vPoints[0] = olc::vf2d(0.0f, 0.0f) - (center * scale);
+	vPoints[1] = olc::vf2d(size.x, 0.0f) - (center * scale);
+	vPoints[2] = size - (center * scale);
+	vPoints[3] = olc::vf2d(0.0f, size.y) - (center * scale);
 
 	float c = cos(theta), s = sin(theta);
 	for (size_t i = 0; i < 4; i++)
@@ -16690,15 +16690,37 @@ namespace olc::imload
     // Create an image resource based on an image file asset in memory
     bool ImageLoader_STB_Image::CreateImageFromMemory(olc::Image& image, const uint8_t* data, const size_t bytes)
     {
-        return false;
+        stbi_uc* pixelData = nullptr;
+        int width = 0, height = 0, cmp = 0;
+        pixelData = stbi_load_from_memory(data, bytes, &width, &height, &cmp, 4);
+        if(!pixelData)
+            return false;
+
+        image.Create({width, height});
+        std::memcpy(reinterpret_cast<void*>(image.Data()), pixelData, width * height * 4);
+        
+        delete[] pixelData;
+
+        return true;
     }
     
     // Create an image resource based on an image file asset in memory
     bool ImageLoader_STB_Image::CreateImageFromMemory(olc::Image& image, const std::vector<uint8_t>& data)
     {
-        return false;
+        stbi_uc* pixelData = nullptr;
+        int width = 0, height = 0, cmp = 0;
+        pixelData = stbi_load_from_memory(data.data(), data.size(), &width, &height, &cmp, 4);
+        if(!pixelData)
+            return false;
+
+        image.Create({width, height});
+        std::memcpy(reinterpret_cast<void*>(image.Data()), pixelData, width * height * 4);
+        
+        delete[] pixelData;
+
+        return true;
     }
-    
+
     // Store an image as a file asset on disk
     bool ImageLoader_STB_Image::WriteImageToFile(const olc::Image& image, const std::string& sFileName) 
     {

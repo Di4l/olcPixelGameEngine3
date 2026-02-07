@@ -94,7 +94,7 @@
 	Primary Contributors
 	~~~~~~~~~~~~~~~~~~~~
 	@javidx9 (aka David Barr, OneLoneCoder)
-	@Moros1198, @dandistine, @johnnyg63, @iCiaran
+	@Moros1198, @dandistine, @johnnyg63, @iCiaran, @DCubix
 
 	With assistance from all of the developers of olc::PixelGameEngine 2 over the years,
 	and the many community contributors that have provided bug fixes, suggestions,
