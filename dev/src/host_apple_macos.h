@@ -48,19 +48,34 @@ namespace olc
             HostError GetLastError() const { return lastError; }
 
         public:
-            virtual bool StartSystemEventLoop(bool bBlockIfPossible = false) override;
 			virtual bool AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen) override;
 			virtual bool CloseWindowFrame(olc::Window* pWindow) override;
 			virtual bool UpdateWindowFrameTitle(olc::Window* pWindow) override;
 
 			virtual std::vector<void*> GetHostWindowDescriptor(olc::Window* pWindow) override;
-			
-			virtual bool ConnectHostResourceToRenderer() override;
 
 			// Wait for entire host desktop refresh (for smooooth vsync),
 			virtual bool SyncWithDesktopComposite() override;
 
-            virtual olc::KeyboardLayout GetKeyboardLayout() const override;
+            public: // OS Specific Environment Information
+                virtual olc::KeyboardLayout GetKeyboardLayout() const override;
+
+            public: // Platform Specific OS<->PGE Linkage
+                // Called at very start of application
+                virtual bool OnApplicationStart(olc::PixelGameEngine* pPrimary) override;
+                // Called to start the host - this may mean different things on different hosts
+                // It MUST block until system is requested to exit
+                virtual bool StartSystem() override;
+                // Called to stop the host, and shutdown all resources
+                virtual bool StopSystem() override;
+                // Called at start of system event loop
+                virtual bool OnSystemThreadStart() override;
+                // Called to perform primary window update
+                virtual bool OnSystemTick() override;
+                // Called at end of system event loop
+                virtual bool OnSystemThreadEnd() override;
+                // Called at very end of application
+                virtual bool OnApplicationEnd() override;
 
         protected:
 			HostError lastError = HostError::None;
@@ -108,6 +123,8 @@ namespace olc
             mutable std::mutex      pgeThreadPendingTasksMutex;    // Mutex for PGE thread pending tasks
             std::condition_variable pgeThreadResetCondition;       // Condition variable for PGE thread reset
             std::atomic<bool>       isPGEThreadResetting{true};    // Atomic flag for resetting PGE thread
+            
+            std::atomic<bool>       systemActive = false;          // Atomic flag for system active state
 
             struct sFrameBounds
             {
@@ -122,10 +139,8 @@ namespace olc
             void MacEventsHandler();
             void MacOpenGLContextEventsHandler();
             
-
             // When modifier flag changes the keycode it will return true, else false
             bool ModifiersFlagsHandler(const olc::apis::macos::KeyEvent& data, bool pressed);
-            
             bool bNumLockActive = true; // Num Lock state, we assume it's active at start
             
         };

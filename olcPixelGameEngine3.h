@@ -205,38 +205,44 @@
 	#define OLC_GPU OLC_GPU_OPENGL33
 #endif
 
-
-
 #define OLC_IMAGELOADER_NONE 1
 #define OLC_IMAGELOADER_WINGDI 2
 #define OLC_IMAGELOADER_MACOS 3
 #define OLC_IMAGELOADER_LIB_PNG 4
 #define OLC_IMAGELOADER_NDK_IMAGEDECODER 5
+#define OLC_IMAGELOADER_STB_IMAGE 6
 
-#if OLC_HOST == OLC_HOST_MACOS
-	#undef OLC_IMAGELOADER
-	#define OLC_IMAGELOADER OLC_IMAGELOADER_MACOS
-#endif
-
-#if OLC_HOST == OLC_HOST_LINUX_X11 || OLC_HOST == OLC_HOST_LINUX_WAYLAND
-	#undef OLC_IMAGELOADER
-	#define OLC_IMAGELOADER OLC_IMAGELOADER_LIB_PNG
-#endif
-
-#if OLC_HOST == OLC_HOST_EMSCRIPTEN
-	#undef OLC_IMAGELOADER
-	#define OLC_IMAGELOADER OLC_IMAGELOADER_LIB_PNG
-#endif
-
-#if OLC_HOST == OLC_HOST_ANDROID
-    #undef OLC_IMAGELOADER
-    #define OLC_IMAGELOADER OLC_IMAGELOADER_NDK_IMAGEDECODER
+#if defined(OLC_USE_STB_IMAGE)
+	#define OLC_IMAGELOADER OLC_IMAGELOADER_STB_IMAGE
+	#define OLC_IMAGELOADER_CLASS ImageLoader_STB_Image
 #endif
 
 #if !defined(OLC_IMAGELOADER)
-	#define OLC_IMAGELOADER OLC_IMAGELOADER_WINGDI
-#endif
+	#if OLC_HOST == OLC_HOST_WINDOWS
+		#define OLC_IMAGELOADER OLC_IMAGELOADER_WINGDI
+		#define OLC_IMAGELOADER_CLASS ImageLoader_WinGDI
+	#endif
 
+	#if OLC_HOST == OLC_HOST_MACOS
+		#define OLC_IMAGELOADER OLC_IMAGELOADER_MACOS
+		#define OLC_IMAGELOADER_CLASS ImageLoader_MacOS
+	#endif
+
+	#if OLC_HOST == OLC_HOST_LINUX_X11 || OLC_HOST == OLC_HOST_LINUX_WAYLAND
+		#define OLC_IMAGELOADER OLC_IMAGELOADER_LIB_PNG
+		#define OLC_IMAGELOADER_CLASS ImageLoader_LibPNG
+	#endif
+
+	#if OLC_HOST == OLC_HOST_EMSCRIPTEN
+		#define OLC_IMAGELOADER OLC_IMAGELOADER_LIB_PNG
+		#define OLC_IMAGELOADER_CLASS ImageLoader_LibPNG
+	#endif
+
+	#if OLC_HOST == OLC_HOST_ANDROID
+		#define OLC_IMAGELOADER OLC_IMAGELOADER_NDK_IMAGEDECODER
+		#define OLC_IMAGELOADER_CLASS ImageLoader_NDKImageDecoder
+	#endif
+#endif
 
 #define OLC_MULTIWINDOW_NO 1
 #define OLC_MULTIWINDOW_YES 2
@@ -3466,6 +3472,7 @@ extern "C" {
     void application_initialize          (struct Application* self);
     void application_activate            (struct Application* self);
     void application_run                 (struct Application* self);
+    void application_stop                (struct Application* self);
     void application_destroy             (struct Application* self);
     const char* application_getSystemLocale (struct Application* self);
     
@@ -3641,6 +3648,14 @@ namespace olc {
                 void run() noexcept {
                     if (app_) application_run(app_);
                 }
+                
+                void terminate() noexcept {
+                    if (app_) {
+                        application_stop(app_);
+                        app_ = nullptr;
+                    }
+                }
+                
 
                 // Add this method to get system locale
                 std::string getSystemLocale() const {
@@ -3747,6 +3762,13 @@ namespace olc {
                     }
                 }
 
+                void destoryWindow() {
+                    if (window_) {
+                        window_destroy(window_);
+                        free(window_);
+                        window_ = nullptr;
+                    }
+                }
                 // Get underlying C handle (Are you brave enough to use it?)
                 struct ::Window* getCHandle() const noexcept { return window_; }
                 
@@ -4028,6 +4050,13 @@ namespace olc {
                 ~OpenGLRenderer() {
                     if (renderer_) {
                         opengl_destroy(renderer_);
+                    }
+                }
+                
+                void destoryContext() noexcept {
+                    if (renderer_) {
+                        opengl_destroy(renderer_);
+                        renderer_ = nullptr;
                     }
                 }
                 
@@ -4448,19 +4477,34 @@ namespace olc
             HostError GetLastError() const { return lastError; }
 
         public:
-            virtual bool StartSystemEventLoop(bool bBlockIfPossible = false) override;
 			virtual bool AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen) override;
 			virtual bool CloseWindowFrame(olc::Window* pWindow) override;
 			virtual bool UpdateWindowFrameTitle(olc::Window* pWindow) override;
 
 			virtual std::vector<void*> GetHostWindowDescriptor(olc::Window* pWindow) override;
-			
-			virtual bool ConnectHostResourceToRenderer() override;
 
 			// Wait for entire host desktop refresh (for smooooth vsync),
 			virtual bool SyncWithDesktopComposite() override;
 
-            virtual olc::KeyboardLayout GetKeyboardLayout() const override;
+            public: // OS Specific Environment Information
+                virtual olc::KeyboardLayout GetKeyboardLayout() const override;
+
+            public: // Platform Specific OS<->PGE Linkage
+                // Called at very start of application
+                virtual bool OnApplicationStart(olc::PixelGameEngine* pPrimary) override;
+                // Called to start the host - this may mean different things on different hosts
+                // It MUST block until system is requested to exit
+                virtual bool StartSystem() override;
+                // Called to stop the host, and shutdown all resources
+                virtual bool StopSystem() override;
+                // Called at start of system event loop
+                virtual bool OnSystemThreadStart() override;
+                // Called to perform primary window update
+                virtual bool OnSystemTick() override;
+                // Called at end of system event loop
+                virtual bool OnSystemThreadEnd() override;
+                // Called at very end of application
+                virtual bool OnApplicationEnd() override;
 
         protected:
 			HostError lastError = HostError::None;
@@ -4508,6 +4552,8 @@ namespace olc
             mutable std::mutex      pgeThreadPendingTasksMutex;    // Mutex for PGE thread pending tasks
             std::condition_variable pgeThreadResetCondition;       // Condition variable for PGE thread reset
             std::atomic<bool>       isPGEThreadResetting{true};    // Atomic flag for resetting PGE thread
+            
+            std::atomic<bool>       systemActive = false;          // Atomic flag for system active state
 
             struct sFrameBounds
             {
@@ -4522,10 +4568,8 @@ namespace olc
             void MacEventsHandler();
             void MacOpenGLContextEventsHandler();
             
-
             // When modifier flag changes the keycode it will return true, else false
             bool ModifiersFlagsHandler(const olc::apis::macos::KeyEvent& data, bool pressed);
-            
             bool bNumLockActive = true; // Num Lock state, we assume it's active at start
             
         };
@@ -4666,6 +4710,7 @@ namespace olc::host
         wl_seat* seat{nullptr};
         wl_pointer* pointer{nullptr};
         wl_keyboard* keyboard{nullptr};
+        uint32_t keyboard_version{0};
         xkb_context* kb_context{nullptr};
         xkb_state* kb_state{nullptr};
         xkb_keymap* kb_keymap;
@@ -5143,7 +5188,8 @@ namespace olc::host
         #define CALLSTYLE
         #define OGL_LOAD(t) &::t
         #define GL_GLEXT_PROTOTYPES
-        #define GL_CLAMP GL_CLAMP_TO_EDGE
+        #undef GL_CLAMP
+		#define GL_CLAMP GL_CLAMP_TO_EDGE
         #include <stddef.h>                         // Correct issue with Unknown type name 'ptrdiff_t'
         #include <OpenGL/OpenGL.h>
         #include <OpenGL/gl3.h>
@@ -5669,7 +5715,7 @@ namespace olc::imload
 #endif
 #endif
 
-#if OLC_HOST == OLC_HOST_ANDROID
+#if OLC_IMAGELOADER == OLC_IMAGELOADER_NDK_IMAGEDECODER
 #include <android/asset_manager.h>
 
 #if !defined(PGE_IMAGELOADER_NDK_IMAGEDECODER_DECLARED)
@@ -5700,10 +5746,33 @@ namespace olc::imload
 #endif
 #endif
 
+#if OLC_IMAGELOADER == OLC_IMAGELOADER_STB_IMAGE
+#if !defined(PGE_IMAGELOADER_LIB_PNG_DECLARED)
+namespace olc::imload
+{
+    class ImageLoader_STB_Image : public ImageLoader
+    {	
+        // Create an image resource based on an image file asset on disk
+        bool CreateImageFromFile(olc::Image& image, const std::string& sFileName) override;
 
+        // Create an image resource based on an image file asset in memory
+        bool CreateImageFromMemory(olc::Image& image, const uint8_t* data, const size_t bytes) override;
 
+        // Create an image resource based on an image file asset in memory
+        bool CreateImageFromMemory(olc::Image& image, const std::vector<uint8_t>& data) override;
 
+        // Store an image as a file asset on disk
+        bool WriteImageToFile(const olc::Image& image, const std::string& sFileName) override;
 
+        // Store an image as a file asset in memory
+        bool WriteImageToMemoryFile(olc::Image& image, const std::vector<uint8_t>& data) override;
+
+    };
+}
+
+#define PGE_IMAGELOADER_LIB_PNG_DECLARED 1
+#endif
+#endif
 
 
 #if defined(OLC_PGE3_APPLICATION) && !defined(PGE_HOST_IMPLEMENTED)
@@ -6382,7 +6451,7 @@ namespace olc::host {
         mapKeys[33] = Key::OEM_4;       // On US and UK keyboards this is the '[{' key
         mapKeys[42] = Key::OEM_5;       // On US keyboard this is '\|' key. 
         mapKeys[30] = Key::OEM_6;       // On US and UK keyboards this is the ']}' key
-        mapKeys[39] = Key::OEM_7;       // On US keyboard this is the single/double quote key. On UK, this is the single quote/@ symbol key (TODO: I think MAC is always @)
+        mapKeys[39] = Key::OEM_7;       // On US keyboard this is the single/double quote key. On UK, this is the single quote/@ symbol key
         mapKeys[10] = Key::OEM_8;       // Section sign § (varies by keyboard)
         mapKeys[24] = Key::EQUALS;      // Equal sign =
         mapKeys[43] = Key::COMMA;       // Comma ,
@@ -6391,9 +6460,69 @@ namespace olc::host {
 
     }
 
-    bool Host_Apple_MacOS::StartSystemEventLoop(bool bBlockIfPossible){
-        (void)(bBlockIfPossible); // Remove unused variable warning
 
+bool Host_Apple_MacOS::AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen){
+    pPGEwindow = pWindow;
+    pPGEwindow->SetWindowPosition(vWindowPos);
+    pPGEwindow->SetWindowSize(vWindowSize);
+    pPGEwindow->LinkToHost(this);
+
+    frameBounds.x = 0.0;
+    frameBounds.y = 0.0;
+    frameBounds.width = static_cast<double>(vWindowSize.x);
+    frameBounds.height = static_cast<double>(vWindowSize.y);
+    
+    return true;
+}
+
+bool Host_Apple_MacOS::CloseWindowFrame(olc::Window* pWindow){
+    pWindow->olc_OnWindowClose();
+    return true;
+}
+
+bool Host_Apple_MacOS::UpdateWindowFrameTitle(olc::Window* pWindow){
+    if (!pMacOSWindow) return false;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        pMacOSWindow->setTitle(pWindow->GetWindowTitle().c_str());
+    });
+    return true;
+}
+
+std::vector<void*> Host_Apple_MacOS::GetHostWindowDescriptor(olc::Window* pWindow){
+    
+    // Ensure OpenGL renderer is created
+    if(pMacOSOpenGLRenderer == nullptr)
+        CreateCGLContextObj();
+
+    return vMacOSWindowDescriptors;
+   
+}
+
+
+bool Host_Apple_MacOS::SyncWithDesktopComposite()
+{
+    /*
+     core.h SyncWithDesktopComposite is only called when vSync is enabled on each frame,
+     the method of enabling vSync varies between platforms, For macos we use a local var enableVSync,
+     set to false and toggle it on first call, so that vSync is only enabled once
+     */
+    
+    if(!enableVSync)
+    {
+        pMacOSOpenGLRenderer->enableVsync();
+        enableVSync = true;
+    }
+    
+    return enableVSync;
+}
+
+    bool Host_Apple_MacOS::OnApplicationStart(olc::PixelGameEngine* pPrimary){
+        pPrimaryPGE = pPrimary;
+        return true;
+    }
+
+    bool Host_Apple_MacOS::StartSystem(){
+        
         // Create MacOS Application instance
         pMacApplication = std::make_unique<olc::apis::macos::Application>();
 
@@ -6422,76 +6551,106 @@ namespace olc::host {
         pMacOSWindow->show();
         pMacOSEventHandler->enable();
         
+        //--- Start up our engine threading system -----
+        // Pre-context start hook
+        pPrimaryPGE->OnPreContextStart();
+        
+        // Start the PGE context on the main thread
+        // Mark system as active
+        systemActive = true;
+
+        // Create system thread - handles gpu context
+        std::thread threadSystem([this]()
+        {
+            // Notify start of system thread
+            if (!this->OnSystemThreadStart())
+            {
+                // PGE->OnContextStart() failed, or user aborted OnUserCreate()
+                return;
+            }
+
+            // Main system loop
+            while (systemActive)
+            {
+                // Perform primary window update
+                if (!this->OnSystemTick())
+                {
+                    StopSystem();
+                }
+            }
+
+            // Notify end of system thread
+            if (!this->OnSystemThreadEnd())
+            {
+                // PGE->OnContextEnd() failed
+                return;
+            }
+        });
+
+        
         // Start the main event loop (this will block)
         pMacApplication->run();
+                
+        // Once the application run loop ends, join the system thread
+        systemActive = false;
+        if(threadSystem.joinable())
+            threadSystem.join();
 
-        return true;
+        // Post-context end hook
+        return pPrimaryPGE->OnPostContextEnd();
+
     }
 
-    bool Host_Apple_MacOS::AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen){       
-        pPGEwindow = pWindow;
-        pPGEwindow->SetWindowPosition(vWindowPos);
-        pPGEwindow->SetWindowSize(vWindowSize); // Temporary small size to avoid large window on creation
-        pPGEwindow->LinkToHost(this);
+    bool Host_Apple_MacOS::StopSystem()
+    {
+        dispatch_sync(dispatch_get_main_queue(), ^{
+            // clean up and close application
+            if (pMacOSOpenGLRenderer)
+            {
+                pMacOSOpenGLRenderer->destoryContext();
+                pMacOSOpenGLRenderer = nullptr;
+            }
+            if (pMacOSWindow)
+            {
+                pMacOSWindow->destoryWindow();
+                pMacOSWindow = nullptr;
+            }
+            if (pMacApplication)
+            {
+                pMacApplication->terminate();
+            }
 
-        frameBounds.x = 0.0;
-        frameBounds.y = 0.0;
-        frameBounds.width = static_cast<double>(vWindowSize.x);
-        frameBounds.height = static_cast<double>(vWindowSize.y);
-        
-        return true;
-    }
-
-
-    bool Host_Apple_MacOS::CloseWindowFrame(olc::Window* pWindow){
-        if (!pMacOSWindow) return false;
-        if (!pWindow) return false;
-        pWindow->olc_OnWindowClose();
-        return true;
-    }
-
-    bool Host_Apple_MacOS::UpdateWindowFrameTitle(olc::Window* pWindow){
-        if (!pMacOSWindow) return false;
-        dispatch_async(dispatch_get_main_queue(), ^{
-            pMacOSWindow->setTitle(pWindow->GetWindowTitle().c_str());
         });
         return true;
     }
 
-    std::vector<void*> Host_Apple_MacOS::GetHostWindowDescriptor(olc::Window* pWindow){
-        // While the PGE is running, if there are pending main thread tasks, process them, this causes PGE to wait
+    bool Host_Apple_MacOS::OnSystemThreadStart()
+    {
+        // Hold back threading until application is fully initialized
         bSkipFrame = ExecutePendingMainThreadTasks();
-        
-        // Ensure OpenGL renderer is created
-        if(pMacOSOpenGLRenderer == nullptr)
-            CreateCGLContextObj();
-
-        return vMacOSWindowDescriptors;
-       
+        return pPrimaryPGE->OnContextStart();
     }
 
-    bool Host_Apple_MacOS::ConnectHostResourceToRenderer()
+    bool Host_Apple_MacOS::OnSystemTick()
     {
-        return false;
+        // Execute any pending main thread tasks
+        bSkipFrame = ExecutePendingMainThreadTasks();
+        return pPrimaryPGE->OnContextTick();
     }
 
-    bool Host_Apple_MacOS::SyncWithDesktopComposite()
+    bool Host_Apple_MacOS::OnSystemThreadEnd()
     {
-        /*
-         core.h SyncWithDesktopComposite is only called when vSync is enabled on each frame,
-         the method of enabling vSync varies between platforms, For macos we use a local var enableVSync,
-         set to false and toggle it on first call, so that vSync is only enabled once
-         */
-        
-        if(!enableVSync)
-        {
-            pMacOSOpenGLRenderer->enableVsync();
-            enableVSync = true;
-        }
-        
-        return enableVSync;
+        return pPrimaryPGE->OnContextEnd();
     }
 
+    bool Host_Apple_MacOS::OnApplicationEnd()
+    {
+        return true;
+    }
+
+
+//-- OS Window Event Handling -----
+   
     olc::KeyboardLayout Host_Apple_MacOS::GetKeyboardLayout() const
     {
         // Get system locale from MacOS Application
@@ -6688,7 +6847,6 @@ namespace olc::host {
         });
 
         pMacOSWindow->setWindowWillCloseCallback([&]() {
-            // TODO: Johnngy63 - Implement any pre-close logic if needed
             pPGEwindow->olc_OnWindowClose();
             pPGEwindow->olc_ShouldRemove();
         });
@@ -6856,6 +7014,7 @@ static constexpr const char* kSharedApplicationSel              = "sharedApplica
 static constexpr const char* kActivateIgnoringOtherAppsSel      = "activateIgnoringOtherApps:";
 static constexpr const char* kSetActivationPolicySel            = "setActivationPolicy:";
 static constexpr const char* kRunSel                            = "run";
+static constexpr const char* kTerminateSel                      = "terminate:";
 
 // NSApplicationDelegate lifecycle methods
 static constexpr const char* kApplicationWillFinishLaunchingSel = "applicationWillFinishLaunching:";
@@ -6953,7 +7112,7 @@ static constexpr const char* kCurrentLocaleSel                  = "currentLocale
 static constexpr const char* kLocaleIdentifierSel               = "localeIdentifier";
 
 
-// Default values and configuration settings 
+// Default values and configuration settings
 static constexpr const char* kWindowTitle                       = "C macOS OpenGL Framework";
 static constexpr double kDefaultWindowWidth                     = 800.0;
 static constexpr double kDefaultWindowHeight                    = 600.0;
@@ -6969,7 +7128,7 @@ static constexpr int kFlippedOffset                             = 1;
 static constexpr int kNoButton                                  = -1;
 
 
-// Objective-C method type encoding constants 
+// Objective-C method type encoding constants
 // Type encoding for methods returning BOOL with no parameters: "c@:"
 static constexpr const char* kBoolMethodTypeEncoding = "c@:";
 
@@ -6988,7 +7147,7 @@ namespace ObjectiveCSEL {
     static SEL allocSel, initSel, setDelegateSel, releaseSel, isKindOfClassSel = nullptr;
 
     // NSApplication lifecycle and management selectors
-    static SEL sharedApplicationSel, activateIgnoringOtherAppsSel, setActivationPolicySel,runSel = nullptr;
+    static SEL sharedApplicationSel, activateIgnoringOtherAppsSel, setActivationPolicySel,runSel, terminateSEL = nullptr;
 
     // NSApplicationDelegate lifecycle methods
     static SEL applicationWillFinishLaunchingSel, applicationDidFinishLaunchingSel, applicationWillTerminateSel, applicationDidBecomeActiveSel, applicationWillResignActiveSel = nullptr;
@@ -7036,6 +7195,7 @@ namespace ObjectiveCSEL {
         activateIgnoringOtherAppsSel        = sel_registerName(kActivateIgnoringOtherAppsSel);
         setActivationPolicySel              = sel_registerName(kSetActivationPolicySel);
         runSel                              = sel_registerName(kRunSel);
+        terminateSEL                        = sel_registerName(kTerminateSel);
 
         // NSApplicationDelegate lifecycle methods
         applicationWillFinishLaunchingSel   = sel_registerName(kApplicationWillFinishLaunchingSel);
@@ -8039,6 +8199,12 @@ extern "C" {
         ((void(*)(id, SEL))objc_msgSend)(self->nsApp, ObjectiveCSEL::runSel);
     }
 
+    void application_stop(Application* self) {
+        if (self && self->nsApp) {
+            ((void(*)(id, SEL, id))objc_msgSend)(self->nsApp, ObjectiveCSEL::terminateSEL, self->nsApp);
+        }
+    }
+
     // Destroy the application
     void application_destroy(Application* self) {
         if (self) {
@@ -8048,7 +8214,7 @@ extern "C" {
 
      // Get system locale identifier
     const char* application_getSystemLocale(Application* self) {
-        (void)self; 
+        (void)self;
         
         // Get NSLocale class
         Class NSLocaleClass = objc_getClass(kNSLocaleClass);
@@ -9622,6 +9788,7 @@ namespace olc::host
 
         if (capabilities & WL_SEAT_CAPABILITY_KEYBOARD && keyboard == nullptr) {
             keyboard = wl_seat_get_keyboard(seat);
+            keyboard_version = wl_keyboard_get_version(keyboard);
             wl_keyboard_add_listener(keyboard, &wayland::keyboard_listener, this);
         }
     }
@@ -9930,7 +10097,29 @@ namespace olc::host
         if(itr != mapKeys.end()) {
             auto olc_key = itr->second;
             auto* pge_window = mapUID2OlcWindow[active_window_id];
-            pge_window->olc_OnKeyPress(olc_key, state == WL_KEYBOARD_KEY_STATE_PRESSED);
+            
+            // Wayland keyboard version 10 and above support key repeat and release states
+            #ifdef WL_KEYBOARD_KEY_STATE_REPEATED_SINCE_VERSION
+            if(keyboard_version >= 10)
+            {
+                switch (state) {
+                    case WL_KEYBOARD_KEY_STATE_RELEASED:
+                        pge_window->olc_OnKeyPress(olc_key, false);
+                        break;
+                    case WL_KEYBOARD_KEY_STATE_REPEATED:
+                        pge_window->olc_OnKeyPress(olc_key, false);
+                        // Intentional fallthrough
+                    case WL_KEYBOARD_KEY_STATE_PRESSED:
+                        pge_window->olc_OnKeyPress(olc_key, true);
+                        break;
+                }
+            }
+            else
+            #endif
+            {
+                // Ubuntu still parties like its 1999 apparently
+                pge_window->olc_OnKeyPress(olc_key, state == WL_KEYBOARD_KEY_STATE_PRESSED);
+            }
         }
     }
 
@@ -15173,28 +15362,12 @@ namespace olc
 		// DEVS!! Please don't merge these just yet
 
 		// Initialise ImageLoader Interface
-#if OLC_HOST == OLC_HOST_WINDOWS
-		imageloader = std::make_unique<olc::imload::ImageLoader_WinGDI>();
-#endif
-
-#if OLC_HOST == OLC_HOST_MACOS
-		imageloader = std::make_unique<olc::imload::ImageLoader_MacOS>();
-#endif
-
-#if OLC_HOST == OLC_HOST_LINUX_X11
-		imageloader = std::make_unique<olc::imload::ImageLoader_LibPNG>();
-#endif
-
-#if OLC_HOST == OLC_HOST_LINUX_WAYLAND
-		imageloader = std::make_unique<olc::imload::ImageLoader_LibPNG>();
-#endif
-
-#if OLC_HOST == OLC_HOST_EMSCRIPTEN
-		imageloader = std::make_unique<olc::imload::ImageLoader_LibPNG>();
-#endif
-
 #if OLC_HOST == OLC_HOST_ANDROID
-		imageloader = std::make_unique<olc::imload::ImageLoader_NDKImageDecoder>();
+		imageloader = std::make_unique<olc::imload::OLC_IMAGELOADER_CLASS>(
+			olc::host::Host_Android::androidApp->activity->assetManager
+		);
+#else
+		imageloader = std::make_unique<olc::imload::OLC_IMAGELOADER_CLASS>();
 #endif
 
 		// Allow host to prepare itself
@@ -16329,7 +16502,7 @@ namespace olc::imload
 
 }
 #endif
-#if OLC_HOST == OLC_HOST_ANDROID
+#if OLC_IMAGELOADER == OLC_IMAGELOADER_NDK_IMAGEDECODER
 #include <android/imagedecoder.h>
 #include <android/log.h>
 #include <vector>
@@ -16475,6 +16648,72 @@ namespace olc::imload
     }
 }
 #endif
+#if OLC_IMAGELOADER == OLC_IMAGELOADER_STB_IMAGE
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "stb_image_write.h"
+
+namespace olc::imload
+{
+
+    // Create an image resource based on an image file asset on disk
+    bool ImageLoader_STB_Image::CreateImageFromFile(olc::Image& image, const std::string& sFileName)
+    {
+        std::cout << "ImageLoader: using stb image to load " << sFileName << ".\n";
+        
+        // Open file
+        if(!std::filesystem::exists(sFileName))
+        {
+            std::cout << "Error: failed to load image <" << sFileName << "> - file not found.\n";
+            return false;
+        }
+        
+        stbi_uc* bytes = nullptr;
+        int width = 0, height = 0, cmp = 0;
+        bytes = stbi_load(sFileName.c_str(), &width, &height, &cmp, 4);
+
+        if(!bytes)
+        {
+            std::cout << "Error: failed to load image <" << sFileName << "> - failed to allocate memory.\n";
+            return false;
+        }
+        
+        image.Create({width, height});
+        std::memcpy(reinterpret_cast<void*>(image.Data()), bytes, width * height * 4);
+
+        delete[] bytes;
+        
+        return true;
+    }
+    
+    // Create an image resource based on an image file asset in memory
+    bool ImageLoader_STB_Image::CreateImageFromMemory(olc::Image& image, const uint8_t* data, const size_t bytes)
+    {
+        return false;
+    }
+    
+    // Create an image resource based on an image file asset in memory
+    bool ImageLoader_STB_Image::CreateImageFromMemory(olc::Image& image, const std::vector<uint8_t>& data)
+    {
+        return false;
+    }
+    
+    // Store an image as a file asset on disk
+    bool ImageLoader_STB_Image::WriteImageToFile(const olc::Image& image, const std::string& sFileName) 
+    {
+        return false;
+    }
+    
+    // Store an image as a file asset in memory
+    bool ImageLoader_STB_Image::WriteImageToMemoryFile(olc::Image& image, const std::vector<uint8_t>& data)
+    {
+        return false;
+    }
+
+}
+#endif
+
 #define PGE_IMAGELOADER_IMPLEMENTED 1
 #endif
 

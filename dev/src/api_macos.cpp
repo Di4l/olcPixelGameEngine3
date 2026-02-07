@@ -29,6 +29,7 @@ static constexpr const char* kSharedApplicationSel              = "sharedApplica
 static constexpr const char* kActivateIgnoringOtherAppsSel      = "activateIgnoringOtherApps:";
 static constexpr const char* kSetActivationPolicySel            = "setActivationPolicy:";
 static constexpr const char* kRunSel                            = "run";
+static constexpr const char* kTerminateSel                      = "terminate:";
 
 // NSApplicationDelegate lifecycle methods
 static constexpr const char* kApplicationWillFinishLaunchingSel = "applicationWillFinishLaunching:";
@@ -126,7 +127,7 @@ static constexpr const char* kCurrentLocaleSel                  = "currentLocale
 static constexpr const char* kLocaleIdentifierSel               = "localeIdentifier";
 
 
-// Default values and configuration settings 
+// Default values and configuration settings
 static constexpr const char* kWindowTitle                       = "C macOS OpenGL Framework";
 static constexpr double kDefaultWindowWidth                     = 800.0;
 static constexpr double kDefaultWindowHeight                    = 600.0;
@@ -142,7 +143,7 @@ static constexpr int kFlippedOffset                             = 1;
 static constexpr int kNoButton                                  = -1;
 
 
-// Objective-C method type encoding constants 
+// Objective-C method type encoding constants
 // Type encoding for methods returning BOOL with no parameters: "c@:"
 static constexpr const char* kBoolMethodTypeEncoding = "c@:";
 
@@ -161,7 +162,7 @@ namespace ObjectiveCSEL {
     static SEL allocSel, initSel, setDelegateSel, releaseSel, isKindOfClassSel = nullptr;
 
     // NSApplication lifecycle and management selectors
-    static SEL sharedApplicationSel, activateIgnoringOtherAppsSel, setActivationPolicySel,runSel = nullptr;
+    static SEL sharedApplicationSel, activateIgnoringOtherAppsSel, setActivationPolicySel,runSel, terminateSEL = nullptr;
 
     // NSApplicationDelegate lifecycle methods
     static SEL applicationWillFinishLaunchingSel, applicationDidFinishLaunchingSel, applicationWillTerminateSel, applicationDidBecomeActiveSel, applicationWillResignActiveSel = nullptr;
@@ -209,6 +210,7 @@ namespace ObjectiveCSEL {
         activateIgnoringOtherAppsSel        = sel_registerName(kActivateIgnoringOtherAppsSel);
         setActivationPolicySel              = sel_registerName(kSetActivationPolicySel);
         runSel                              = sel_registerName(kRunSel);
+        terminateSEL                        = sel_registerName(kTerminateSel);
 
         // NSApplicationDelegate lifecycle methods
         applicationWillFinishLaunchingSel   = sel_registerName(kApplicationWillFinishLaunchingSel);
@@ -1212,6 +1214,12 @@ extern "C" {
         ((void(*)(id, SEL))objc_msgSend)(self->nsApp, ObjectiveCSEL::runSel);
     }
 
+    void application_stop(Application* self) {
+        if (self && self->nsApp) {
+            ((void(*)(id, SEL, id))objc_msgSend)(self->nsApp, ObjectiveCSEL::terminateSEL, self->nsApp);
+        }
+    }
+
     // Destroy the application
     void application_destroy(Application* self) {
         if (self) {
@@ -1221,7 +1229,7 @@ extern "C" {
 
      // Get system locale identifier
     const char* application_getSystemLocale(Application* self) {
-        (void)self; 
+        (void)self;
         
         // Get NSLocale class
         Class NSLocaleClass = objc_getClass(kNSLocaleClass);

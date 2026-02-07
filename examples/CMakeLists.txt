@@ -7,6 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(BUILD_WAYLAND "Build example programs with Wayland" OFF)
+option(USE_STB "Use stb_image.h for image loading" OFF)
 
 ######################################################################
 # Directories
@@ -95,6 +96,10 @@ foreach(source ${SOURCES})
     get_filename_component(EXE_NAME ${source} NAME_WE)
     add_executable(${EXE_NAME} ${source})
     target_link_libraries(${EXE_NAME} PRIVATE olcPixelGameEngine3)
+    
+    if(USE_STB)
+        target_compile_definitions(${EXE_NAME} PRIVATE OLC_USE_STB_IMAGE=1)
+    endif()
 
     if(APPLE)
         if(CMAKE_SYSTEM_NAME STREQUAL "iOS")

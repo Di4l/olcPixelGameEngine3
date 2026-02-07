@@ -95,6 +95,14 @@ namespace olc {
                 void run() noexcept {
                     if (app_) application_run(app_);
                 }
+                
+                void terminate() noexcept {
+                    if (app_) {
+                        application_stop(app_);
+                        app_ = nullptr;
+                    }
+                }
+                
 
                 // Add this method to get system locale
                 std::string getSystemLocale() const {
@@ -201,6 +209,13 @@ namespace olc {
                     }
                 }
 
+                void destoryWindow() {
+                    if (window_) {
+                        window_destroy(window_);
+                        free(window_);
+                        window_ = nullptr;
+                    }
+                }
                 // Get underlying C handle (Are you brave enough to use it?)
                 struct ::Window* getCHandle() const noexcept { return window_; }
                 
@@ -482,6 +497,13 @@ namespace olc {
                 ~OpenGLRenderer() {
                     if (renderer_) {
                         opengl_destroy(renderer_);
+                    }
+                }
+                
+                void destoryContext() noexcept {
+                    if (renderer_) {
+                        opengl_destroy(renderer_);
+                        renderer_ = nullptr;
                     }
                 }
                 
