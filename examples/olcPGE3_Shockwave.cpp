@@ -121,7 +121,7 @@ public:
 		shaderExample.CreateUniform("sw_radius");
 
 		// Create off-screen image to draw to
-		CreateImage(imgWithoutFX, GetDefaultImage().Size());
+		CreateImage(imgWithoutFX, GetScreen().Size());
 
 		// Load a fake game scene to demonstrate effect on
 		CreateImageFromFile(imgGameScene, "./assets/gamescene.png");
@@ -156,7 +156,7 @@ public:
 		
 				
 		// Copy image to screen with new shader
-		draw.SetTarget(GetDefaultImage());
+		draw.SetTarget(GetScreen());
 
 		// Set the custom shader
 		draw.SetShader(shaderExample);		

@@ -94,7 +94,7 @@ namespace olc
 
 	public:
 		// Returns the image that represents the primary drawing surface
-		olc::Image& GetDefaultImage();
+		olc::Image& GetScreen();
 		olc::Draw2D& GetDraw();
 
 		// Input devices are handled by a regular olc::Window, but for convenience...

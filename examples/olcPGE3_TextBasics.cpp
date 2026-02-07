@@ -58,7 +58,7 @@ public:
 
 		// Determine how many characters fit on the screen
 		olc::vf2d vSizeOfChar = draw.GetTextSize("A");
-		olc::vf2d nVisibleChars = GetDefaultImage().Size() / vSizeOfChar;
+		olc::vf2d nVisibleChars = GetScreen().Size() / vSizeOfChar;
 
 		// Update ticker
 		fTickerTime += fElapsedTime;

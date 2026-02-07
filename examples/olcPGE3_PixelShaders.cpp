@@ -133,7 +133,7 @@ public:
 		shaderExample.CreateUniform("amplitude");
 
 		// Create off-screen image to draw to
-		CreateImage(imgWithoutFX, GetDefaultImage().Size());
+		CreateImage(imgWithoutFX, GetScreen().Size());
 
 		// Load a small image to draw for fun
 		CreateImageFromFile(imgMini, "./assets/minsanity_texture.png");
@@ -184,7 +184,7 @@ public:
 		draw.Image(imgMini, mouse.GetPosition());
 
 		// Copy image to screen with new shader
-		draw.SetTarget(GetDefaultImage());
+		draw.SetTarget(GetScreen());
 		
 		// Set the custom shader
 		draw.SetShader(shaderExample);
