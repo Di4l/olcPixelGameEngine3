@@ -1393,7 +1393,7 @@ namespace olc
 		// Constructs resultant matrices when transformation changes
 		inline constexpr void update()
 		{
-			m_mForward = m_mRotate * m_mShear * m_mScale * m_mTranslate;
+			m_mForward = m_mScale * m_mRotate * m_mShear * m_mTranslate;
 			m_mInverse = m_mForward.invert();
 		}
 
