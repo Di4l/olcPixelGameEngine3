@@ -49,6 +49,7 @@ extern "C" {
     void application_initialize          (struct Application* self);
     void application_activate            (struct Application* self);
     void application_run                 (struct Application* self);
+    void application_stop                (struct Application* self);
     void application_destroy             (struct Application* self);
     const char* application_getSystemLocale (struct Application* self);
     

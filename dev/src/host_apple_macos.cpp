@@ -1,5 +1,6 @@
 #include "config.h"
 #include "host_apple_macos.h"
+#include "core.h"
 #include <dispatch/queue.h>
 #if OLC_HOST == OLC_HOST_MACOS
 
@@ -126,7 +127,7 @@ namespace olc::host {
         mapKeys[33] = Key::OEM_4;       // On US and UK keyboards this is the '[{' key
         mapKeys[42] = Key::OEM_5;       // On US keyboard this is '\|' key. 
         mapKeys[30] = Key::OEM_6;       // On US and UK keyboards this is the ']}' key
-        mapKeys[39] = Key::OEM_7;       // On US keyboard this is the single/double quote key. On UK, this is the single quote/@ symbol key (TODO: I think MAC is always @)
+        mapKeys[39] = Key::OEM_7;       // On US keyboard this is the single/double quote key. On UK, this is the single quote/@ symbol key
         mapKeys[10] = Key::OEM_8;       // Section sign § (varies by keyboard)
         mapKeys[24] = Key::EQUALS;      // Equal sign =
         mapKeys[43] = Key::COMMA;       // Comma ,
@@ -135,9 +136,69 @@ namespace olc::host {
 
     }
 
-    bool Host_Apple_MacOS::StartSystemEventLoop(bool bBlockIfPossible){
-        (void)(bBlockIfPossible); // Remove unused variable warning
 
+bool Host_Apple_MacOS::AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen){
+    pPGEwindow = pWindow;
+    pPGEwindow->SetWindowPosition(vWindowPos);
+    pPGEwindow->SetWindowSize(vWindowSize);
+    pPGEwindow->LinkToHost(this);
+
+    frameBounds.x = 0.0;
+    frameBounds.y = 0.0;
+    frameBounds.width = static_cast<double>(vWindowSize.x);
+    frameBounds.height = static_cast<double>(vWindowSize.y);
+    
+    return true;
+}
+
+bool Host_Apple_MacOS::CloseWindowFrame(olc::Window* pWindow){
+    pWindow->olc_OnWindowClose();
+    return true;
+}
+
+bool Host_Apple_MacOS::UpdateWindowFrameTitle(olc::Window* pWindow){
+    if (!pMacOSWindow) return false;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        pMacOSWindow->setTitle(pWindow->GetWindowTitle().c_str());
+    });
+    return true;
+}
+
+std::vector<void*> Host_Apple_MacOS::GetHostWindowDescriptor(olc::Window* pWindow){
+    
+    // Ensure OpenGL renderer is created
+    if(pMacOSOpenGLRenderer == nullptr)
+        CreateCGLContextObj();
+
+    return vMacOSWindowDescriptors;
+   
+}
+
+
+bool Host_Apple_MacOS::SyncWithDesktopComposite()
+{
+    /*
+     core.h SyncWithDesktopComposite is only called when vSync is enabled on each frame,
+     the method of enabling vSync varies between platforms, For macos we use a local var enableVSync,
+     set to false and toggle it on first call, so that vSync is only enabled once
+     */
+    
+    if(!enableVSync)
+    {
+        pMacOSOpenGLRenderer->enableVsync();
+        enableVSync = true;
+    }
+    
+    return enableVSync;
+}
+
+    bool Host_Apple_MacOS::OnApplicationStart(olc::PixelGameEngine* pPrimary){
+        pPrimaryPGE = pPrimary;
+        return true;
+    }
+
+    bool Host_Apple_MacOS::StartSystem(){
+        
         // Create MacOS Application instance
         pMacApplication = std::make_unique<olc::apis::macos::Application>();
 
@@ -166,76 +227,106 @@ namespace olc::host {
         pMacOSWindow->show();
         pMacOSEventHandler->enable();
         
+        //--- Start up our engine threading system -----
+        // Pre-context start hook
+        pPrimaryPGE->OnPreContextStart();
+        
+        // Start the PGE context on the main thread
+        // Mark system as active
+        systemActive = true;
+
+        // Create system thread - handles gpu context
+        std::thread threadSystem([this]()
+        {
+            // Notify start of system thread
+            if (!this->OnSystemThreadStart())
+            {
+                // PGE->OnContextStart() failed, or user aborted OnUserCreate()
+                return;
+            }
+
+            // Main system loop
+            while (systemActive)
+            {
+                // Perform primary window update
+                if (!this->OnSystemTick())
+                {
+                    StopSystem();
+                }
+            }
+
+            // Notify end of system thread
+            if (!this->OnSystemThreadEnd())
+            {
+                // PGE->OnContextEnd() failed
+                return;
+            }
+        });
+
+        
         // Start the main event loop (this will block)
         pMacApplication->run();
+                
+        // Once the application run loop ends, join the system thread
+        systemActive = false;
+        if(threadSystem.joinable())
+            threadSystem.join();
 
-        return true;
+        // Post-context end hook
+        return pPrimaryPGE->OnPostContextEnd();
+
     }
 
-    bool Host_Apple_MacOS::AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen){       
-        pPGEwindow = pWindow;
-        pPGEwindow->SetWindowPosition(vWindowPos);
-        pPGEwindow->SetWindowSize(vWindowSize); // Temporary small size to avoid large window on creation
-        pPGEwindow->LinkToHost(this);
+    bool Host_Apple_MacOS::StopSystem()
+    {
+        dispatch_sync(dispatch_get_main_queue(), ^{
+            // clean up and close application
+            if (pMacOSOpenGLRenderer)
+            {
+                pMacOSOpenGLRenderer->destoryContext();
+                pMacOSOpenGLRenderer = nullptr;
+            }
+            if (pMacOSWindow)
+            {
+                pMacOSWindow->destoryWindow();
+                pMacOSWindow = nullptr;
+            }
+            if (pMacApplication)
+            {
+                pMacApplication->terminate();
+            }
 
-        frameBounds.x = 0.0;
-        frameBounds.y = 0.0;
-        frameBounds.width = static_cast<double>(vWindowSize.x);
-        frameBounds.height = static_cast<double>(vWindowSize.y);
-        
-        return true;
-    }
-
-
-    bool Host_Apple_MacOS::CloseWindowFrame(olc::Window* pWindow){
-        if (!pMacOSWindow) return false;
-        if (!pWindow) return false;
-        pWindow->olc_OnWindowClose();
-        return true;
-    }
-
-    bool Host_Apple_MacOS::UpdateWindowFrameTitle(olc::Window* pWindow){
-        if (!pMacOSWindow) return false;
-        dispatch_async(dispatch_get_main_queue(), ^{
-            pMacOSWindow->setTitle(pWindow->GetWindowTitle().c_str());
         });
         return true;
     }
 
-    std::vector<void*> Host_Apple_MacOS::GetHostWindowDescriptor(olc::Window* pWindow){
-        // While the PGE is running, if there are pending main thread tasks, process them, this causes PGE to wait
+    bool Host_Apple_MacOS::OnSystemThreadStart()
+    {
+        // Hold back threading until application is fully initialized
         bSkipFrame = ExecutePendingMainThreadTasks();
-        
-        // Ensure OpenGL renderer is created
-        if(pMacOSOpenGLRenderer == nullptr)
-            CreateCGLContextObj();
-
-        return vMacOSWindowDescriptors;
-       
+        return pPrimaryPGE->OnContextStart();
     }
 
-    bool Host_Apple_MacOS::ConnectHostResourceToRenderer()
+    bool Host_Apple_MacOS::OnSystemTick()
     {
-        return false;
+        // Execute any pending main thread tasks
+        bSkipFrame = ExecutePendingMainThreadTasks();
+        return pPrimaryPGE->OnContextTick();
     }
 
-    bool Host_Apple_MacOS::SyncWithDesktopComposite()
+    bool Host_Apple_MacOS::OnSystemThreadEnd()
     {
-        /*
-         core.h SyncWithDesktopComposite is only called when vSync is enabled on each frame,
-         the method of enabling vSync varies between platforms, For macos we use a local var enableVSync,
-         set to false and toggle it on first call, so that vSync is only enabled once
-         */
-        
-        if(!enableVSync)
-        {
-            pMacOSOpenGLRenderer->enableVsync();
-            enableVSync = true;
-        }
-        
-        return enableVSync;
+        return pPrimaryPGE->OnContextEnd();
     }
 
+    bool Host_Apple_MacOS::OnApplicationEnd()
+    {
+        return true;
+    }
+
+
+//-- OS Window Event Handling -----
+   
     olc::KeyboardLayout Host_Apple_MacOS::GetKeyboardLayout() const
     {
         // Get system locale from MacOS Application
@@ -432,7 +523,6 @@ namespace olc::host {
         });
 
         pMacOSWindow->setWindowWillCloseCallback([&]() {
-            // TODO: Johnngy63 - Implement any pre-close logic if needed
             pPGEwindow->olc_OnWindowClose();
             pPGEwindow->olc_ShouldRemove();
         });

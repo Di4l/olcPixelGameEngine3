@@ -45,7 +45,8 @@
         #define CALLSTYLE
         #define OGL_LOAD(t) &::t
         #define GL_GLEXT_PROTOTYPES
-        #define GL_CLAMP GL_CLAMP_TO_EDGE
+        #undef GL_CLAMP
+		#define GL_CLAMP GL_CLAMP_TO_EDGE
         #include <stddef.h>                         // Correct issue with Unknown type name 'ptrdiff_t'
         #include <OpenGL/OpenGL.h>
         #include <OpenGL/gl3.h>
