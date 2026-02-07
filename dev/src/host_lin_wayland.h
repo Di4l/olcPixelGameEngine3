@@ -82,6 +82,7 @@ namespace olc::host
         wl_seat* seat{nullptr};
         wl_pointer* pointer{nullptr};
         wl_keyboard* keyboard{nullptr};
+        uint32_t keyboard_version{0};
         xkb_context* kb_context{nullptr};
         xkb_state* kb_state{nullptr};
         xkb_keymap* kb_keymap;
