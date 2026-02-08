@@ -100,6 +100,9 @@
 	and the many community contributors that have provided bug fixes, suggestions,
 	criticisms, and encouragement from the OneLoneCoder Discord server, YouTube & GitHub.
 
+	Saladin, if you're out there, I know you would have been a proud contributer to this.
+	I miss you buddy.
+
 	Version History
 	~~~~~~~~~~~~~~~
 	v3.00: It begins...
@@ -947,6 +950,338 @@ namespace olc
 #define PGE_VECTOR2D_DECLARED 1
 #endif
 
+#if !defined(PGE_VECTOR4D_DECLARED)
+namespace olc
+{
+	/*
+		A complete 4D geometric vector structure, with a variety
+		of useful utility functions and operator overloads.
+	*/
+	template<class T>
+	struct v_4d
+	{
+		static_assert(std::is_arithmetic<T>::value, "olc::v_4d<type> must be numeric");
+
+		union
+		{
+#pragma warning(disable:4201) // Top MSVC whinging about anonymous structs
+			struct
+			{
+				// x-axis component
+				T x;
+				// y-axis component
+				T y;
+				// z-axis component
+				T z;
+				// w-axis component
+				T w;
+			};
+#pragma warning(default:4201)
+
+			std::array<T, 4> xyzw = { {0,0,0,1} };
+		};
+
+		// Default constructor
+		inline constexpr v_4d() = default;
+
+		// Specific constructor
+		inline constexpr v_4d(T _x, T _y, T _z, T _w = 1) : x(_x), y(_y), z(_z), w(_w)
+		{}
+
+		inline constexpr v_4d(const v_2d<T>& v, T _z, T _w) : x(v.x), y(v.y), z(_z), w(_w)
+		{}
+
+		inline constexpr v_4d(const v_2d<T>& v1, const v_2d<T>& v2) : x(v1.x), y(v1.y), z(v2.x), w(v2.y)
+		{}
+
+		// Copy constructor
+		inline constexpr v_4d(const v_4d& v) = default;
+
+		// Assignment operator
+		inline constexpr v_4d& operator=(const v_4d& v) = default;
+
+
+		inline constexpr std::array<T, 4> a() const
+		{
+			return xyzw;
+		}
+
+		inline constexpr v_2d<T> xy() const
+		{
+			return v_2d<T>(x, y);
+		}
+
+		inline constexpr v_2d<T> zw() const
+		{
+			return v_2d<T>(z, w);
+		}
+
+		// Returns magnitude of vector
+		inline constexpr auto mag() const
+		{
+			return std::sqrt(x * x + y * y + z * z + w * w);
+		}
+
+		// Returns magnitude squared of vector (useful for fast comparisons)
+		inline constexpr T mag2() const
+		{
+			return x * x + y * y + z * z + w * w;
+		}
+
+		// Returns normalised version of vector
+		inline constexpr v_4d norm() const
+		{
+			auto r = 1 / mag();
+			return v_4d(x * r, y * r, z * r, w * r);
+		}
+
+		// Rounds all components down
+		inline constexpr v_4d floor() const
+		{
+			return v_4d(std::floor(x), std::floor(y), std::floor(z), std::floor(w));
+		}
+
+		// Rounds all components accurately
+		inline constexpr v_4d round() const
+		{
+			return v_4d(std::round(x), std::round(y), std::round(z), std::round(w));
+		}
+
+		// Rounds all components up
+		inline constexpr v_4d ceil() const
+		{
+			return v_4d(std::ceil(x), std::ceil(y), std::ceil(z), std::ceil(w));
+		}
+
+		// Returns 'element-wise' max of this and another vector
+		inline constexpr v_4d max(const v_4d& v) const
+		{
+			return v_4d(std::max(x, v.x), std::max(y, v.y), std::max(z, v.z), std::max(w, v.w));
+		}
+
+		// Returns 'element-wise' min of this and another vector
+		inline constexpr v_4d min(const v_4d& v) const
+		{
+			return v_4d(std::min(x, v.x), std::min(y, v.y), std::min(z, v.z), std::min(w, v.w));
+		}
+
+		// Returns 'element-wise' abs of this vector
+		inline constexpr v_4d abs() const
+		{
+			return v_4d(std::abs(x), std::abs(y), std::abs(z), std::abs(w));
+		}
+
+		// Calculates scalar dot product between this and another vector
+		inline constexpr auto dot(const v_4d& rhs) const
+		{
+			return this->x * rhs.x + this->y * rhs.y + this->z * rhs.z + this->w * rhs.w;
+		}
+
+		// Calculates cross product between this and another vector
+		inline constexpr v_4d cross(const v_4d& rhs) const
+		{
+			return v_4d(this->y * rhs.z - this->z * rhs.y, this->z * rhs.x - this->x * rhs.z, this->x * rhs.y - this->y * rhs.x, 0);
+		}
+
+		// Clamp the components of this vector in between the 'element-wise' minimum and maximum of 2 other vectors
+		inline constexpr v_4d clamp(const v_4d& v1, const v_4d& v2) const
+		{
+			return this->max(v1).min(v2);
+		}
+
+		// Linearly interpolate between this vector, and another vector, given normalised parameter 't'
+		inline constexpr v_4d lerp(const v_4d& v1, const double t) const
+		{
+			return (*this) * (T(1.0 - t)) + (v1 * T(t));
+		}
+
+		// Compare if this vector is numerically equal to another
+		inline constexpr bool operator == (const v_4d& rhs) const
+		{
+			return (this->x == rhs.x && this->y == rhs.y && this->z == rhs.z && this->w == rhs.w);
+		}
+
+		// Compare if this vector is not numerically equal to another
+		inline constexpr bool operator != (const v_4d& rhs) const
+		{
+			return (this->x != rhs.x || this->y != rhs.y || this->z != rhs.z || this->w != rhs.w);
+		}
+
+		// Return this vector as a std::string, of the form "(x,y,z,w)"
+		inline std::string str() const
+		{
+			return std::string("(") + std::to_string(this->x) + "," + std::to_string(this->y) + "," + std::to_string(this->z) + "," + std::to_string(this->w) + ")";
+		}
+
+		// Allow 'casting' from other v_4d types
+		template<class F>
+		inline constexpr operator v_4d<F>() const
+		{
+			return { static_cast<F>(this->x), static_cast<F>(this->y), static_cast<F>(this->z), static_cast<F>(this->w) };
+		}
+	};
+
+	// Multiplication operator overloads between vectors and scalars, and vectors and vectors
+	template<olc::numeric TL, class TR>
+	inline constexpr auto operator * (const TL& lhs, const v_4d<TR>& rhs)
+	{
+		return v_4d(lhs * rhs.x, lhs * rhs.y, lhs * rhs.z, lhs * rhs.w);
+	}
+
+	template<class TL, olc::numeric TR>
+	inline constexpr auto operator * (const v_4d<TL>& lhs, const TR& rhs)
+	{
+		return v_4d(lhs.x * rhs, lhs.y * rhs, lhs.z * rhs, lhs.w * rhs);
+	}
+
+	template<class TL, class TR>
+	inline constexpr auto operator * (const v_4d<TL>& lhs, const v_4d<TR>& rhs)
+	{
+		return v_4d(lhs.x * rhs.x, lhs.y * rhs.y, lhs.z * rhs.z, lhs.w * rhs.w);
+	}
+
+	template<class TL, olc::numeric TR>
+	inline constexpr auto operator *= (v_4d<TL>& lhs, const TR& rhs)
+	{
+		lhs = lhs * rhs;
+		return lhs;
+	}
+
+	// Division operator overloads between vectors and scalars, and vectors and vectors
+	template<olc::numeric TL, class TR>
+	inline constexpr auto operator / (const TL& lhs, const v_4d<TR>& rhs)
+	{
+		return v_4d(lhs / rhs.x, lhs / rhs.y, lhs / rhs.z, lhs / rhs.w);
+	}
+
+	template<class TL, olc::numeric TR>
+	inline constexpr auto operator / (const v_4d<TL>& lhs, const TR& rhs)
+	{
+		return v_4d(lhs.x / rhs, lhs.y / rhs, lhs.z / rhs, lhs.w / rhs);
+	}
+
+	template<class TL, class TR>
+	inline constexpr auto operator / (const v_4d<TL>& lhs, const v_4d<TR>& rhs)
+	{
+		return v_4d(lhs.x / rhs.x, lhs.y / rhs.y, lhs.z / rhs.z, lhs.w / rhs.w);
+	}
+
+	template<class TL, olc::numeric TR>
+	inline constexpr auto operator /= (v_4d<TL>& lhs, const TR& rhs)
+	{
+		lhs = lhs / rhs;
+		return lhs;
+	}
+
+	// Unary Addition operator (pointless but i like the platinum trophies)
+	template<class T>
+	inline constexpr auto operator + (const v_4d<T>& lhs)
+	{
+		return v_4d(+lhs.x, +lhs.y, +lhs.z, +lhs.w);
+	}
+
+	// Addition operator overloads between vectors and scalars, and vectors and vectors
+	template<olc::numeric TL, class TR>
+	inline constexpr auto operator + (const TL& lhs, const v_4d<TR>& rhs)
+	{
+		return v_4d(lhs + rhs.x, lhs + rhs.y, lhs + rhs.z, lhs + rhs.w);
+	}
+
+	template<class TL, olc::numeric TR>
+	inline constexpr auto operator + (const v_4d<TL>& lhs, const TR& rhs)
+	{
+		return v_4d(lhs.x + rhs, lhs.y + rhs, lhs.z + rhs, lhs.w + rhs);
+	}
+
+	template<class TL, class TR>
+	inline constexpr auto operator + (const v_4d<TL>& lhs, const v_4d<TR>& rhs)
+	{
+		return v_4d(lhs.x + rhs.x, lhs.y + rhs.y, lhs.z + rhs.z, lhs.w + rhs.w);
+	}
+
+	template<class TL, olc::numeric TR>
+	inline constexpr auto operator += (v_4d<TL>& lhs, const TR& rhs)
+	{
+		lhs = lhs + rhs;
+		return lhs;
+	}
+
+	template<class TL, class TR>
+	inline constexpr auto operator += (v_4d<TL>& lhs, const v_4d<TR>& rhs)
+	{
+		lhs = lhs + rhs;
+		return lhs;
+	}
+
+	// Unary negation operator overoad for inverting a vector
+	template<class T>
+	inline constexpr auto operator - (const v_4d<T>& lhs)
+	{
+		return v_4d(-lhs.x, -lhs.y, -lhs.z, -lhs.w);
+	}
+
+	// Subtraction operator overloads between vectors and scalars, and vectors and vectors
+	template<olc::numeric TL, class TR>
+	inline constexpr auto operator - (const TL& lhs, const v_4d<TR>& rhs)
+	{
+		return v_4d(lhs - rhs.x, lhs - rhs.y, lhs - rhs.z, lhs - rhs.w);
+	}
+
+	template<class TL, olc::numeric TR>
+	inline constexpr auto operator - (const v_4d<TL>& lhs, const TR& rhs)
+	{
+		return v_4d(lhs.x - rhs, lhs.y - rhs, lhs.z - rhs, lhs.w - rhs);
+	}
+
+	template<class TL, class TR>
+	inline constexpr auto operator - (const v_4d<TL>& lhs, const v_4d<TR>& rhs)
+	{
+		return v_4d(lhs.x - rhs.x, lhs.y - rhs.y, lhs.z - rhs.z, lhs.w - rhs.w);
+	}
+
+	template<class TL, olc::numeric TR>
+	inline constexpr auto operator -= (v_4d<TL>& lhs, const TR& rhs)
+	{
+		lhs = lhs - rhs;
+		return lhs;
+	}
+
+	// Greater/Less-Than Operator overloads - mathematically useless, but handy for "sorted" container storage
+	template<class TL, class TR>
+	inline constexpr bool operator < (const v_4d<TL>& lhs, const v_4d<TR>& rhs)
+	{
+		return (lhs.w < rhs.w) 
+			|| (lhs.w == rhs.w && lhs.z < rhs.z) 
+			|| (lhs.w == rhs.w && lhs.z == rhs.z && lhs.y < rhs.y) 
+			|| (lhs.w == rhs.w && lhs.z == rhs.z && lhs.y == rhs.y && lhs.x < rhs.x);
+	}
+
+	template<class TL, class TR>
+	inline constexpr bool operator > (const v_4d<TL>& lhs, const v_4d<TR>& rhs)
+	{
+		return (lhs.w > rhs.w) 
+			|| (lhs.w == rhs.w && lhs.z > rhs.z) 
+			|| (lhs.w == rhs.w && lhs.z == rhs.z && lhs.y > rhs.y) 
+			|| (lhs.w == rhs.w && lhs.z == rhs.z && lhs.y == rhs.y && lhs.x > rhs.x);
+	}
+
+	// Allow olc::v_4d to play nicely with std::cout
+	template<class T>
+	inline std::ostream& operator << (std::ostream& os, const v_4d<T>& rhs)
+	{
+		os << rhs.str();
+		return os;
+	}
+
+	// Convenient types ready-to-go
+	typedef v_4d<int32_t> vi4d;
+	typedef v_4d<uint32_t> vu4d;
+	typedef v_4d<float> vf4d;
+	typedef v_4d<double> vd4d;
+}
+#define PGE_VECTOR4D_DECLARED 1
+#endif
+
 #if !defined(PGE_MATRIX3D_DECLARED)
 namespace olc
 {
@@ -1173,6 +1508,357 @@ namespace olc
 	typedef m_3d<double> md3d;
 }
 #define PGE_MATRIX3D_DECLARED 1
+#endif
+
+#if !defined(PGE_MATRIX4D_DECLARED)
+namespace olc
+{
+
+	/*
+		A complete 4x4 Matrix structure, with a variety
+		of useful utility functions and operator overloads
+		specifically targeting 3D graphical transformations
+
+		as per https://en.wikipedia.org/wiki/Transformation_matrix
+
+		Access: column, row
+	*/
+
+	/*
+	 
+	
+	Because Matrices can be defined all sort sof ways, I have included this little
+	description to clarify how this particular implementation works. For the end
+	user's ease of use, the transformations are designed to mimic those found on
+	Wikipedias page on transformation matrices, which are in column-major order. 
+	
+	Memory layout of the 4x4 matrix is as follows idx = R * 4 + C:
+
+		  0x00  0x01  0x02  0x3
+	0x00  | 0,0 | 1,0 | 2,0 | 3,0 |
+	0x04  | 0,1 | 1,1 | 2,1 | 3,1 |
+	0x08  | 0,2 | 1,2 | 2,2 | 3,2 |
+	0x0C  | 0,3 | 1,3 | 2,3 | 3,3 |
+
+	This is row-major order (in storage) but we really only access this
+	via the idx operator (col, row) so it is effectively column-major order 
+	for the user. 
+
+	This is because in graphics we typically want to multiply a vector on 
+	the right of the matrix, and we want the translation components to be in 
+	the last column.
+
+	Matrix * Vector multiplication is as follows:
+
+	| m11 m12 m13 m14 |   | v1 |   | r1 | (m11*v1 + m12*v2 + m13*v3 + m14*v4)
+	| m21 m22 m23 m24 | * | v2 | = | r2 | (m21*v1 + m22*v2 + m23*v3 + m24*v4)
+	| m31 m32 m33 m34 |   | v3 |   | r3 | (m31*v1 + m32*v2 + m33*v3 + m34*v4)
+	| m41 m42 m43 m44 |   | v4 |   | r4 | (m41*v1 + m42*v2 + m43*v3 + m44*v4)
+
+	Matrix * Matrix multiplication is as follows:
+
+	| a11 a12 a13 a14 |   | b11 b12 b13 b14 |   | r11 r12 r13 r14 | (a11*b11 + a12*b21 + a13*b31 + a14*b41) ...
+	| a21 a22 a23 a24 | * | b21 b22 b23 b24 | = | r21 r22 r23 r24 | (a21*b11 + a22*b21 + a23*b31 + a24*b41) ...
+	| a31 a32 a33 a34 |   | b31 b32 b33 b34 |   | r31 r32 r33 r34 | (a31*b11 + a32*b21 + a33*b31 + a34*b41) ...
+	| a41 a42 a43 a44 |   | b41 b42 b43 b44 |   | r41 r42 r43 r44 | (a41*b11 + a42*b21 + a43*b31 + a44*b41) ...
+
+	Example Translation:
+
+	| 1 0 0 Tx |   | x |   | x' | (1*x + 0*y + 0*z + Tx*1) (x + tx)
+	| 0 1 0 Ty | * | y | = | y' | (0*x + 1*y + 0*z + Ty*1) (y + ty)
+	| 0 0 1 Tz |   | z |   | z' | (0*x + 0*y + 1*z + Tz*1) (z + tz)
+	| 0 0 0 1  |   | 1 |   | x' | (0*x + 0*y + 0*z +  1*1) (1)
+
+	Example Rotation around Y axis:
+	| cθ  0 sθ 0 |   | x |   | x' | (cosθ*x + 0*y + sinθ*z + 0*1)  (x*cosθ + z*sinθ)
+	| 0   1 0  0 | * | y | = | y' | (0*x + 1*y + 0*z + 0*1)        (y)
+	| -sθ 0 cθ 0 |   | z |   | z' | (-sinθ*x + 0*y + cosθ*z + 0*1) (z*cosθ - x*sinθ)
+	| 0   0 0  1 |   | 1 |   | x' | (0*x + 0*y + 0*z + 1*1)        (1)
+
+	P' = Projection * View * World * P
+
+	*/
+
+
+
+	template<class T>
+	struct m_4d
+	{
+		static_assert(std::is_arithmetic<T>::value, "olc::m_4d<type> must be numeric");
+
+		// The 4x4 elements!
+		std::array<T, 16> m{ {0 } };
+
+		// Constructor created identity matrix
+		inline constexpr m_4d()
+		{
+			identity();
+		}
+
+		// Copy constructor
+		inline constexpr m_4d(const m_4d& mat) = default;
+
+		// Assignment operator
+		inline constexpr m_4d& operator=(const m_4d& mat) = default;
+
+		// Retrieve a specific element's 1D index
+		inline constexpr size_t idx(const size_t c, const size_t r) const
+		{
+			return r * 4 + c; // Column-major order (for user) but row-major order in storage
+		}
+
+		// Retrieve non-const access to specific element
+		inline constexpr T& operator()(const size_t col, const size_t row)
+		{
+			return m[idx(col, row)];
+		}
+
+		// Retrieve const access to specific element
+		inline constexpr const T& operator()(const size_t col, const size_t row) const
+		{
+			return m[idx(col, row)];
+		}
+
+		// Set all elements to 0
+		inline constexpr void clear()
+		{
+			std::fill(m.begin(), m.end(), T(0));
+		}
+
+		// Create identity matrix
+		inline constexpr void identity()
+		{
+			clear();
+			auto& me = (*this);
+			me(0, 0) = T(1);
+			me(1, 1) = T(1);
+			me(2, 2) = T(1);
+			me(3, 3) = T(1);
+		}
+
+		inline constexpr auto transpose() const
+		{
+			olc::m_4d<T> out;
+			auto& me = (*this);
+			for (int i = 0; i < 4; i++)
+				for (int j = 0; j < 4; j++)
+					out(i, j) = me(j, i);
+			return out;
+		}
+
+		// Create translation matrix via components
+		template<typename Q>
+		inline constexpr void translate(const Q x, const Q y, const Q z)
+		{
+			identity();
+			auto& me = (*this);
+			me(3, 0) = T(x);
+			me(3, 1) = T(y);
+			me(3, 2) = T(z);
+		}
+
+		// Create translation matrix via vector (x, y, z components)
+		template<typename Q>
+		inline constexpr void translate(const olc::v_4d<Q>& v)
+		{
+			translate(v.x, v.y, v.z);
+		}
+
+		// Create scaling matrix via components
+		template<typename Q>
+		inline constexpr void scale(const Q x, const Q y, const Q z)
+		{
+			identity();
+			auto& me = (*this);
+			me(0, 0) = T(x);
+			me(1, 1) = T(y);
+			me(2, 2) = T(z);
+		}
+
+		// Create scaling matrix via vector (x, y, z components)
+		template<typename Q>
+		inline constexpr void scale(const olc::v_4d<Q>& v)
+		{
+			scale(v.x, v.y, v.z);
+		}
+
+		// Create rotation matrix around X axis with radians
+		template<typename Q>
+		inline constexpr void rotateX(const Q rads)
+		{
+			identity();
+			auto& me = (*this);
+			me(1, 1) = std::cos(T(rads));
+			me(1, 2) = std::sin(T(rads));
+			me(2, 1) = -me(1, 2);
+			me(2, 2) = me(1, 1);
+		}
+
+		// Create rotation matrix around Y axis with radians
+		template<typename Q>
+		inline constexpr void rotateY(const Q rads)
+		{
+			identity();
+			auto& me = (*this);
+			me(0, 0) = std::cos(T(rads));
+			me(0, 2) = -std::sin(T(rads));
+			me(2, 0) = -me(0, 2);
+			me(2, 2) = me(0, 0);
+		}
+
+		// Create rotation matrix around Z axis with radians
+		template<typename Q>
+		inline constexpr void rotateZ(const Q rads)
+		{
+			identity();
+			auto& me = (*this);
+			me(0, 0) = std::cos(T(rads));
+			me(0, 1) = std::sin(T(rads));
+			me(1, 0) = -me(0, 1);
+			me(1, 1) = me(0, 0);
+		}
+
+		// Create perspective projection matrix
+		template<typename Q>
+		inline constexpr void perspective(const Q fov, const Q ratio, const Q nearplane, const Q farplane)
+		{
+			identity();
+			auto& me = (*this);
+			T invFOV = T(1) / tan(fov * T(0.5));
+
+			me(0,0) = invFOV / ratio;  // X scale
+			me(1,1) = invFOV;         // Y scale
+			me(2,2) = (farplane + nearplane) / (nearplane - farplane);      // Z mapping
+			me(3,2) = (2.0f * farplane * nearplane) / (nearplane - farplane); // Z offset
+			me(2,3) = -1.0f;           // Perspective divide by -Z
+			me(3,3) = 0.0f;
+		}
+
+		// Create orthographic projection matrix
+		template<typename Q>
+		inline constexpr void orthographic(const Q left, const Q right, const Q bottom, const Q top, const Q near1, const Q far1)
+		{
+			identity();
+			auto& me = (*this);
+			me(0, 0) = T(2) / (right - left);
+			me(1, 1) = T(2) / (top - bottom);
+			me(2, 2) = T(-2) / (far1 - near1);
+			me(3, 0) = -(right + left) / (right - left);
+			me(3, 1) = -(top + bottom) / (top - bottom);
+			me(3, 2) = -(far1 + near1) / (far1 - near1);
+		}
+
+		// Return inverted matrix
+		inline constexpr auto invert() const
+		{
+			// Using Gauss-Jordan elimination - AI special this :P
+			olc::m_4d<T> out;
+			auto& me = (*this);
+
+			T A2323 = me(2, 2) * me(3, 3) - me(2, 3) * me(3, 2);
+			T A1323 = me(2, 1) * me(3, 3) - me(2, 3) * me(3, 1);
+			T A1223 = me(2, 1) * me(3, 2) - me(2, 2) * me(3, 1);
+			T A0323 = me(2, 0) * me(3, 3) - me(2, 3) * me(3, 0);
+			T A0223 = me(2, 0) * me(3, 2) - me(2, 2) * me(3, 0);
+			T A0123 = me(2, 0) * me(3, 1) - me(2, 1) * me(3, 0);
+			T A2313 = me(1, 2) * me(3, 3) - me(1, 3) * me(3, 2);
+			T A1313 = me(1, 1) * me(3, 3) - me(1, 3) * me(3, 1);
+			T A1213 = me(1, 1) * me(3, 2) - me(1, 2) * me(3, 1);
+			T A2312 = me(1, 2) * me(2, 3) - me(1, 3) * me(2, 2);
+			T A1312 = me(1, 1) * me(2, 3) - me(1, 3) * me(2, 1);
+			T A1212 = me(1, 1) * me(2, 2) - me(1, 2) * me(2, 1);
+			T A0313 = me(1, 0) * me(3, 3) - me(1, 3) * me(3, 0);
+			T A0213 = me(1, 0) * me(3, 2) - me(1, 2) * me(3, 0);
+			T A0312 = me(1, 0) * me(2, 3) - me(1, 3) * me(2, 0);
+			T A0212 = me(1, 0) * me(2, 2) - me(1, 2) * me(2, 0);
+			T A0113 = me(1, 0) * me(3, 1) - me(1, 1) * me(3, 0);
+			T A0112 = me(1, 0) * me(2, 1) - me(1, 1) * me(2, 0);
+
+			T det = me(0, 0) * (me(1, 1) * A2323 - me(1, 2) * A1323 + me(1, 3) * A1223)
+				- me(0, 1) * (me(1, 0) * A2323 - me(1, 2) * A0323 + me(1, 3) * A0223)
+				+ me(0, 2) * (me(1, 0) * A1323 - me(1, 1) * A0323 + me(1, 3) * A0123)
+				- me(0, 3) * (me(1, 0) * A1223 - me(1, 1) * A0223 + me(1, 2) * A0123);
+
+			T invdet = T(1) / det;
+
+			out(0, 0) = invdet * (me(1, 1) * A2323 - me(1, 2) * A1323 + me(1, 3) * A1223);
+			out(0, 1) = invdet * -(me(0, 1) * A2323 - me(0, 2) * A1323 + me(0, 3) * A1223);
+			out(0, 2) = invdet * (me(0, 1) * A2313 - me(0, 2) * A1313 + me(0, 3) * A1213);
+			out(0, 3) = invdet * -(me(0, 1) * A2312 - me(0, 2) * A1312 + me(0, 3) * A1212);
+			out(1, 0) = invdet * -(me(1, 0) * A2323 - me(1, 2) * A0323 + me(1, 3) * A0223);
+			out(1, 1) = invdet * (me(0, 0) * A2323 - me(0, 2) * A0323 + me(0, 3) * A0223);
+			out(1, 2) = invdet * -(me(0, 0) * A2313 - me(0, 2) * A0313 + me(0, 3) * A0213);
+			out(1, 3) = invdet * (me(0, 0) * A2312 - me(0, 2) * A0312 + me(0, 3) * A0212);
+			out(2, 0) = invdet * (me(1, 0) * A1323 - me(1, 1) * A0323 + me(1, 3) * A0123);
+			out(2, 1) = invdet * -(me(0, 0) * A1323 - me(0, 1) * A0323 + me(0, 3) * A0123);
+			out(2, 2) = invdet * (me(0, 0) * A1313 - me(0, 1) * A0313 + me(0, 3) * A0113);
+			out(2, 3) = invdet * -(me(0, 0) * A1312 - me(0, 1) * A0312 + me(0, 3) * A0112);
+			out(3, 0) = invdet * -(me(1, 0) * A1223 - me(1, 1) * A0223 + me(1, 2) * A0123);
+			out(3, 1) = invdet * (me(0, 0) * A1223 - me(0, 1) * A0223 + me(0, 2) * A0123);
+			out(3, 2) = invdet * -(me(0, 0) * A1213 - me(0, 1) * A0213 + me(0, 2) * A0113);
+			out(3, 3) = invdet * (me(0, 0) * A1212 - me(0, 1) * A0212 + me(0, 2) * A0112);
+
+			return out;
+		}
+
+		// Transform a vector by this matrix
+		template<typename Q>
+		inline constexpr auto operator * (const olc::v_4d<Q>& v) const
+		{
+			auto& me = *this;
+			olc::v_4d<Q> vOut;
+			vOut.x = Q(me(0, 0) * v.x + me(1, 0) * v.y + me(2, 0) * v.z + me(3, 0) * v.w);
+			vOut.y = Q(me(0, 1) * v.x + me(1, 1) * v.y + me(2, 1) * v.z + me(3, 1) * v.w);
+			vOut.z = Q(me(0, 2) * v.x + me(1, 2) * v.y + me(2, 2) * v.z + me(3, 2) * v.w);
+			vOut.w = Q(me(0, 3) * v.x + me(1, 3) * v.y + me(2, 3) * v.z + me(3, 3) * v.w);
+			return vOut;
+		}
+
+		// Multiply this matrix with another
+		template<typename Q>
+		inline constexpr auto operator * (const olc::m_4d<Q>& rhs) const
+		{
+			auto& me = *this;
+			olc::m_4d<T> out;
+			for (size_t c = 0; c < 4; c++)
+				for (size_t r = 0; r < 4; r++)
+					out(c, r) = me(0, r) * rhs(c, 0) + me(1, r) * rhs(c, 1) + me(2, r) * rhs(c, 2) + me(3, r) * rhs(c, 3);
+			return out;
+		}
+
+		// Transform a vector of v_4d by this matrix
+		template<typename Q>
+		inline constexpr auto transform(const std::vector<olc::v_4d<Q>>& v)
+		{
+			std::vector<olc::v_4d<Q>> o(v.size());
+			std::transform(v.begin(), v.end(), o.begin(), [this](const olc::v_4d<Q>& i) {return (*this) * i; });
+			return o;
+		}
+
+		// Return this matrix as a std::string
+		inline std::string str() const
+		{
+			const auto& me = *this;
+			return std::string("[") + std::to_string(me(0, 0)) + "," + std::to_string(me(1, 0)) + "," + std::to_string(me(2, 0)) + "," + std::to_string(me(3, 0)) + "]\n"
+				+ "[" + std::to_string(me(0, 1)) + "," + std::to_string(me(1, 1)) + "," + std::to_string(me(2, 1)) + "," + std::to_string(me(3, 1)) + "]\n"
+				+ "[" + std::to_string(me(0, 2)) + "," + std::to_string(me(1, 2)) + "," + std::to_string(me(2, 2)) + "," + std::to_string(me(3, 2)) + "]\n"
+				+ "[" + std::to_string(me(0, 3)) + "," + std::to_string(me(1, 3)) + "," + std::to_string(me(2, 3)) + "," + std::to_string(me(3, 3)) + "]\n";
+		}
+	};
+
+	// Allow olc::m_4d to play nicely with std::cout
+	template<class T>
+	inline std::ostream& operator << (std::ostream& os, const m_4d<T>& rhs)
+	{
+		os << rhs.str();
+		return os;
+	}
+
+	// Convenient types ready-to-go
+	typedef m_4d<float> mf4d;
+	typedef m_4d<double> md4d;
+}
+#define PGE_MATRIX4D_DECLARED 1
 #endif
 
 #if !defined(PGE_TRANSFORM2D_DECLARED)
@@ -1728,6 +2414,9 @@ namespace olc
 		// Use hardware wire drawing
 		bool bWireframe = false;
 
+		// Define how to interpret vertex buffer
+		bool bIs3D = false;
+
 		// Overall biasing colour (great for blends)
 		olc::Pixel tint = olc::Colour::WHITE;
 
@@ -1903,6 +2592,8 @@ namespace olc
 		class Renderer;
 		class Shader;
 	}
+
+	class Draw3D;
 	
 	// These "opaque" structs are merely to help with
 	// type differentiation of various GPUTask types
@@ -1915,6 +2606,8 @@ namespace olc
 
 	class Draw2D
 	{
+		friend class olc::Draw3D;
+
 	public:
 		Draw2D();
 
@@ -2794,6 +3487,183 @@ namespace olc
 #define PGE_DRAW2D_DECLARED
 #endif
 
+#if !defined(PGE_DRAW3D_DECLARED)
+namespace olc
+{
+	namespace gpu
+	{
+		class Renderer;
+		class Shader;
+	}
+
+	class Draw3D
+	{
+
+
+	public:
+		Draw3D(olc::Draw2D& d2d);
+
+		// Associate this drawing toolbox with a renderer
+		void SetGPU(olc::gpu::Renderer* const renderer);
+		void ProcessGPUTasks();
+
+	public:
+		// Sets the drawing target of this drawing toolbox
+		void SetTarget(olc::Image& image);
+		// Get the current drawing target
+		olc::Image& GetTarget();
+		// Get Size of drawing target (aka GetTarget()->Size())
+		olc::vi2d GetTargetSize();
+		// Set the area in the target to 3d draw to
+		void SetViewport(const olc::vi2d& pos, const olc::vi2d& size);
+
+	public: // Applied Matrices
+		void MatrixReset();
+		void SetModelMatrix(const olc::mf4d& mat);
+		const olc::mf4d& GetModelMatrix() const;
+		void SetViewMatrix(const olc::mf4d& mat);
+		const olc::mf4d& GetViewMatrix() const;
+		void SetProjectionMatrix(const olc::mf4d& mat);
+		const olc::mf4d& GetProjectionMatrix() const;
+		void SetMVPMatrix(const olc::mf4d& mat);
+		const olc::mf4d& GetMVPMatrix() const;
+
+	public: // Applied Rendering Modes
+		void SetCullMode(const olc::GPUTask::CullMode mode);
+		void EnableDepth(const bool bEnable);
+
+	public: // Primitive Drawing Functions
+		// Clear entire draw target to specific colour
+		void Clear(const olc::Pixel& col);
+
+		GPUTask& Line(
+			const olc::vf4d& vStart,
+			const olc::vf4d& vEnd,
+			const olc::Pixel& col = olc::Colour::WHITE,
+			const olc::Pixel tint = olc::Colour::WHITE);
+
+		GPUTask& Mesh(
+			const olc::Structure structure,
+			const std::vector<olc::vf4d>& vPoints,
+			const std::vector<olc::Pixel>& vColours,
+			const olc::Pixel tint = olc::Colour::WHITE);
+
+		GPUTask& Mesh(
+			const olc::Structure structure,
+			const std::vector<olc::vf4d>& vPoints,
+			const std::vector<olc::Pixel>& vColours,
+			const std::vector<olc::vf2d>& vUVs,
+			olc::Image& texture,
+			const olc::Pixel tint = olc::Colour::WHITE);
+		
+
+
+	public: // GPU Task Creator Functions (not normally called by user)
+		GPUTask TaskWireMesh(
+			olc::Structure structure,
+			const std::vector<olc::vf4d>& vPoints,
+			const std::vector<olc::Pixel>& vColours,
+			const olc::Pixel tint = olc::Colour::WHITE);
+
+		GPUTask TaskFillMesh(
+			olc::Structure structure,
+			const std::vector<olc::vf4d>& vPoints,
+			const std::vector<olc::Pixel>& vColours,
+			const olc::Pixel tint = olc::Colour::WHITE);
+		
+		GPUTask TaskTexturedMesh(
+			olc::Structure structure,
+			const std::vector<olc::vf4d>& vPoints,
+			const std::vector<olc::Pixel>& vColours,
+			const std::vector<olc::vf2d>& vTexCoords,
+			olc::Image* const image,
+			const olc::Pixel tint = olc::Colour::WHITE);
+
+	public:
+		// Change the shader used for subsequent GPU drawing tasks
+		bool SetShader(const olc::gpu::Shader& shader);
+		// Reset to default shader for subsequent GPU drawing tasks
+		bool ResetShader();
+		// Set uniform variable for subsequent GPU drawing tasks
+		bool SetShaderUniform(const std::string& name, const float value);
+		// Set uniform variable for subsequent GPU drawing tasks
+		bool SetShaderUniform(const std::string& name, const olc::vf2d& value);
+		// Set uniform variable for subsequent GPU drawing tasks
+		bool SetShaderUniform(const std::string& name, const olc::Pixel value);
+		// Assign an image to a texture slot for subsequent GPU drawing tasks
+		bool SetShaderTexture(const uint32_t nSlot, olc::Image& image);
+
+	public:
+		struct sDrawMetrics
+		{
+			uint32_t nGPUTasks = 0;
+			uint32_t nGPUtoCPUTransfers = 0;
+			uint32_t nCPUtoGPUTransfers = 0;
+			uint32_t nShaderChanges = 0;
+		};
+
+		void ResetDrawMetrics();
+		sDrawMetrics GetDrawMetrics() const;
+
+	private:
+		sDrawMetrics drawMetrics;
+
+
+
+
+	protected:
+		// Checks residency of image resource, and brings it to cpu RAM for r/w
+		void PrepareTargetForSW();
+		// Checks residency of image resource, and brings it to gpu VRAM for r/w
+		void PrepareTargetForHW();
+
+		// Checks residency of image resource, and brings it to cpu RAM for r/w
+		void PrepareImageForSW(olc::Image& image);
+		// Checks residency of image resource, and brings it to gpu VRAM for r/w
+		void PrepareImageForHW(olc::Image& image);
+
+		olc::Image* pTarget = nullptr;
+		olc::gpu::Renderer* pRenderer = nullptr;
+
+		mf4d matModel;
+		mf4d matView;
+		mf4d matProjection;
+		mf4d matVP;
+		mf4d matMVP;
+		olc::vf2d vViewportPos = { 0, 0 };
+		olc::vi2d vViewportSize = { 0, 0 };
+		olc::GPUTask::CullMode cullMode = olc::GPUTask::CullMode::None;
+		bool bDepth = true;
+
+		olc::Draw2D& draw2d;
+	
+	private:
+		// Simple dynamic buffer that only grows as needed
+		template<typename T>
+		struct buffer
+		{
+			std::vector<T> data;
+
+			void reserve(size_t n)
+			{
+				if (n > data.capacity())
+					data.reserve(n);
+
+				// Ensure size matches requested so we
+				// can index into it directly
+				data.resize(n);
+			}
+		};
+
+		// Thread local buffers to avoid repeated allocations
+		static thread_local buffer<olc::vf4d> buffPoints;
+		static thread_local buffer<olc::Pixel> buffColours;
+		static thread_local buffer<olc::GPUTask> vecGPUTasks;
+	};
+}
+#define PGE_DRAW3D_DECLARED
+#endif
+
 #if !defined(PGE_HARDWAREINPUT_DECLARED)
 namespace olc
 {
@@ -3200,6 +4070,7 @@ namespace olc
 	class PGEWindow : public Window
 	{
 	public:
+		PGEWindow();
 		bool Create(const olc::vi2d& vScreenSize, const olc::vi2d& vPixelSize);
 	
 	public:
@@ -3249,6 +4120,7 @@ namespace olc
 
 	protected:
 		olc::Draw2D draw;
+		olc::Draw3D draw3d;
 		
 		
 	private:
@@ -5312,6 +6184,8 @@ namespace olc
 		typedef void CALLSTYLE glGetInternalformativ_t(GLenum target, GLenum internalformat, GLenum pname, GLsizei bufSize, GLint* params);
 		typedef void CALLSTYLE glGetShaderiv_t(GLuint shader, GLenum pname, GLint* params);
 		typedef void CALLSTYLE glGetIntegerv_t(GLenum pname, GLint *data);
+		typedef void CALLSTYLE glGetRenderbufferParameteriv_t(GLenum target, GLenum pname, GLint* params);
+		typedef void CALLSTYLE glRenderbufferStorage_t(GLenum target, GLenum internalformat, GLsizei width, GLsizei height);
 
 #if OLC_HOST == OLC_HOST_WINDOWS
 		typedef void CALLSTYLE wglSwapIntervalEXT_t(GLsizei n);
@@ -5373,6 +6247,8 @@ namespace olc
 			glGetInternalformativ_t* _glGetInternalformativ = nullptr;
 			glGetShaderiv_t* _glGetShaderiv = nullptr;
 			glGetIntegerv_t *_glGetIntegerv = nullptr;
+			glGetRenderbufferParameteriv_t* _glGetRenderbufferParameteriv = nullptr;
+			glRenderbufferStorage_t* _glRenderbufferStorage = nullptr;
 #if OLC_HOST == OLC_HOST_WINDOWS
 			wglSwapIntervalEXT_t* _wglSwapIntervalEXT = nullptr;
 #endif
@@ -5423,6 +6299,8 @@ namespace olc
 			void glDeleteRenderbuffers(GLsizei n, const GLuint* renderbuffers);
 			void glGetInternalformativ(GLenum target, GLenum internalformat, GLenum pname, GLsizei bufSize, GLint* params);
 			void glGetShaderiv(GLuint shader, GLenum pname, GLint* params);
+			void glGetRenderbufferParameteriv(GLenum target, GLenum pname, GLint* params);
+			void glRenderbufferStorage(GLenum target, GLenum internalformat, GLsizei width, GLsizei height);
 
 			// OpenGL1.2 Proxies (just keeps things tidy imo)
 			void glGenTextures(GLsizei n, GLuint* textures);
@@ -5444,7 +6322,7 @@ namespace olc
 			void glGetTexImage(GLenum target, GLint level, GLenum format, GLenum type, void* pixels);
 			void glHint(GLenum target, GLenum mode);
 			void glPolygonMode(GLenum face, GLenum mode);
-			
+			void glFrontFace(GLenum mode);
 			void glGetIntegerv(GLenum pname, GLint *data);
 
 
@@ -5469,8 +6347,9 @@ namespace olc
 			static constexpr GLenum GL_SAMPLES_X = 0x80A9;
 			static constexpr GLenum GL_COMPILE_STATUS_X = 0x8B81;
 			static constexpr GLenum GL_INFO_LOG_LENGTH_X = 0x8B84;
-
-
+			static constexpr GLenum GL_DEPTH_COMPONENT24 = 0x81A6;
+			static constexpr GLenum GL_DEPTH_ATTACHMENT_X = 0x8D00;
+			static constexpr GLenum GL_RENDERBUFFER_SAMPLES_X = 0x8CAB;
 		private:
 			bool CheckError(const std::source_location loc = std::source_location::current());
 
@@ -5574,6 +6453,10 @@ namespace olc
 			std::unordered_map<uint32_t, uint32_t> mapTextureToRenderbuffer;
 
 			const Shader* pCurrentShader = nullptr;
+
+			uint32_t nDepthRBO = 0;              // Shared depth renderbuffer
+			olc::vi2d vCurrentDepthSize = {0, 0}; // Track current depth buffer size
+			int32_t nCurrentDepthSamples = 0;     // Track current MSAA sample count
 
 #if OLC_HOST == OLC_HOST_ANDROID
 			EGLConfig FindBestConfig(EGLDisplay display, int desiredMultisamples = OLC_MSAA_SAMPLES);
@@ -11589,6 +12472,8 @@ namespace olc::apis::opengl
 		bLoaded &= (_glDeleteRenderbuffers = OGL_LOAD(glDeleteRenderbuffers)) != nullptr;
 		bLoaded &= (_glGetInternalformativ = OGL_LOAD(glGetInternalformativ)) != nullptr;
 		bLoaded &= (_glGetShaderiv = OGL_LOAD(glGetShaderiv)) != nullptr;
+		bLoaded &= (_glGetRenderbufferParameteriv = OGL_LOAD(glGetRenderbufferParameteriv)) != nullptr;
+		bLoaded &= (_glRenderbufferStorage = OGL_LOAD(glRenderbufferStorage)) != nullptr;
 
 		// Do we really need to do this? - jx9
 #if OLC_HOST != OLC_HOST_WINDOWS
@@ -11766,6 +12651,12 @@ namespace olc::apis::opengl
 		::glPolygonMode(face, mode);
 		CheckError();
 #endif
+	}
+
+	void gl::glFrontFace(GLenum mode)
+	{
+		::glFrontFace(mode);
+		CheckError();
 	}
 
 	void gl::glSwapInterval(GLsizei n)
@@ -12016,6 +12907,18 @@ namespace olc::apis::opengl
 	void gl::glGetIntegerv(GLenum pname, GLint *data)
 	{
 		_glGetIntegerv(pname, data);
+		CheckError();
+	}
+
+	void gl::glGetRenderbufferParameteriv(GLenum target, GLenum pname, GLint* params)
+	{
+		_glGetRenderbufferParameteriv(target, pname, params);
+		CheckError();
+	}
+
+	void gl::glRenderbufferStorage(GLenum target, GLenum internalformat, GLsizei width, GLsizei height)
+	{
+		_glRenderbufferStorage(target, internalformat, width, height);
 		CheckError();
 	}
 }
@@ -12456,7 +13359,17 @@ void main()
 
 		// Create a Frame Buffer Object for off-screen rendering things
 		gl.glGenFramebuffers(1, (GLuint*)&nDefaultFBO);
-		gl.glBindFramebuffer(gl.GL_FRAMEBUFFER_X, nDefaultFBO); // GL_FRAMEBUFFER
+		gl.glBindFramebuffer(gl.GL_FRAMEBUFFER_X, nDefaultFBO);
+
+		// Create a shared depth renderbuffer (will be resized dynamically)
+		gl.glGenRenderbuffers(1, &nDepthRBO);
+		gl.glBindRenderbuffer(gl.GL_RENDERBUFFER_X, nDepthRBO);
+		// Allocate with a default size (will be resized when needed)
+		gl.glRenderbufferStorage(gl.GL_RENDERBUFFER_X, gl.GL_DEPTH_COMPONENT24, 1024, 1024);
+		gl.glFramebufferRenderbuffer(gl.GL_FRAMEBUFFER_X, gl.GL_DEPTH_ATTACHMENT_X, gl.GL_RENDERBUFFER_X, nDepthRBO);
+		vCurrentDepthSize = {1024, 1024};
+		nCurrentDepthSamples = 0;
+
 		// Attach 4 colour buffers
 		std::array<GLenum, 4> attachments = 
 		{ {
@@ -12480,11 +13393,18 @@ void main()
 		gl.glGenFramebuffers(1, &nResolveFBO_Draw);
 		gl.glGenFramebuffers(1, &nResolveFBO_Read);
 
+		// PGE Specific requirements
+
+		// Texturing Enabled
 #if OLC_HOST != OLC_HOST_EMSCRIPTEN && OLC_HOST != OLC_HOST_ANDROID
 		gl.glEnable(GL_TEXTURE_2D); // Turn on texturing
 		gl.glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
 #endif
+		// Alpha Blending Enabled
 		gl.glEnable(GL_BLEND);
+
+		// Front Face is Counter-Clockwise
+		gl.glFrontFace(GL_CCW);
 
 		lastError = RendererError::NoError;
 		return true;
@@ -12492,8 +13412,15 @@ void main()
 
 	bool Renderer_OGL33::DestroyDevice()
 	{
-		//auto& gl = olc::apis::opengl::gl::Get();
-
+		auto& gl = olc::apis::opengl::gl::Get();
+		
+		// Delete depth renderbuffer
+		if (nDepthRBO != 0)
+		{
+			gl.glDeleteRenderbuffers(1, &nDepthRBO);
+			nDepthRBO = 0;
+		}
+	
 #if OLC_HOST == OLC_HOST_WINDOWS
 		wglDeleteContext(glRenderContext);
 #endif
@@ -12811,6 +13738,60 @@ void main()
 		// Bind FBO
 		gl.glBindFramebuffer(gl.GL_FRAMEBUFFER_X, nDefaultFBO);
 
+		// Resize depth buffer to match target texture dimensions
+		olc::vi2d targetSize = mapTextureSizes[texid];
+		int32_t targetSamples = 0;
+
+		// Check if this is an MSAA texture
+		bool bIsMSAA = mapTextureToRenderbuffer.contains(texid);
+		if (bIsMSAA)
+		{
+			// Get the MSAA sample count from the color renderbuffer
+			uint32_t rboId = mapTextureToRenderbuffer[texid];
+			gl.glBindRenderbuffer(gl.GL_RENDERBUFFER_X, rboId);
+			gl.glGetRenderbufferParameteriv(gl.GL_RENDERBUFFER_X, gl.GL_RENDERBUFFER_SAMPLES_X, &targetSamples);
+		}
+
+		// Only resize if dimensions or sample count changed
+		if (targetSize != vCurrentDepthSize || targetSamples != nCurrentDepthSamples)
+		{
+			gl.glBindRenderbuffer(gl.GL_RENDERBUFFER_X, nDepthRBO);
+			
+			if (bIsMSAA && targetSamples > 0)
+			{
+				// Allocate MSAA depth buffer
+				gl.glRenderbufferStorageMultisample(
+					gl.GL_RENDERBUFFER_X,
+					targetSamples,
+					gl.GL_DEPTH_COMPONENT24,
+					targetSize.x,
+					targetSize.y
+				);
+			}
+			else
+			{
+				// Allocate regular depth buffer
+				gl.glRenderbufferStorage(
+					gl.GL_RENDERBUFFER_X,
+					gl.GL_DEPTH_COMPONENT24,
+					targetSize.x,
+					targetSize.y
+				);
+			}
+			
+			// Update tracked size and samples
+			vCurrentDepthSize = targetSize;
+			nCurrentDepthSamples = targetSamples;
+			
+			// Re-attach depth buffer to FBO
+			gl.glFramebufferRenderbuffer(
+				gl.GL_FRAMEBUFFER_X, 
+				gl.GL_DEPTH_ATTACHMENT_X, 
+				gl.GL_RENDERBUFFER_X, 
+				nDepthRBO
+			);
+		}
+
 		// Allocate target buffers - pick the single attachment corresponding to 'slot'
 		std::array<GLenum, 8> attachments =
 		{ { 
@@ -13022,42 +14003,36 @@ void main()
 				
 				// Copy data from CPU to GPU
 				gl.glBufferData(gl.GL_ARRAY_BUFFER_X, sizeof(GPUTask::Vertex) * task.vertexBuffer.size(), task.vertexBuffer.data(), gl.GL_STREAM_DRAW_X);
-				
-				
+								
 				// Configure shader with expected values
-
-
-
-				// Shader: Apply MVP Matrix
-				//gl.glUniformMatrix4fv(shaderDefault.GetUniform("mvp"), 1, true, task.mvpMatrix.data());
-
-				// Shader: Apply Global Tint
 				SetUniform("pgeGlobalTint", task.tint);
-
 				SetUniform("pgeTargetSizeInPixels", vTargetSize);
 				SetUniform("pgeInverseTargetSizeInPixels", (1.0f / vTargetSize));
 				SetUniform("pgeTotalTimeElapsed", fTotalTime);
 
+				
+
 				// Apply Culling modes
-				//if (task.cullmode == GPUTask::CullMode::None)
-				//{
-				//	gl.glCullFace(GL_FRONT);
-				//	gl.glDisable(GL_CULL_FACE);
-				//}
-				//else if (task.cullmode == GPUTask::CullMode::ClockWise)
-				//{
-				//	gl.glCullFace(GL_FRONT);
-				//	gl.glEnable(GL_CULL_FACE);
-				//}
-				//else if (task.cullmode == GPUTask::CullMode::CounterClockWise)
-				//{
-				//	gl.glCullFace(GL_BACK);
-				//	gl.glEnable(GL_CULL_FACE);
-				//}
+				if (task.cullmode == GPUTask::CullMode::None)
+				{
+					gl.glDisable(GL_CULL_FACE);
+				}
+				else if (task.cullmode == GPUTask::CullMode::ClockWise)
+				{
+					gl.glCullFace(GL_FRONT);
+					gl.glEnable(GL_CULL_FACE);
+				}
+				else if (task.cullmode == GPUTask::CullMode::CounterClockWise)
+				{
+					gl.glCullFace(GL_BACK);
+					gl.glEnable(GL_CULL_FACE);
+				}
 
 				//// Apply Depth Testing (if required)
-				//if (task.bDepth)
-				//	gl.glEnable(GL_DEPTH_TEST);
+				if (task.bDepth)
+					gl.glEnable(GL_DEPTH_TEST);
+
+				glDepthFunc(GL_LESS);
 
 				gl.glEnable(GL_BLEND);
 				//gl.glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -13066,16 +14041,24 @@ void main()
 				if (task.bWireframe)
 					gl.glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
-				if (task.structure == olc::Structure::Point)
-					gl.glUniform1i(pCurrentShader->GetUniform("pgeDrawType"), 1);
-				else if (task.structure == olc::Structure::Line)
-					gl.glUniform1i(pCurrentShader->GetUniform("pgeDrawType"), 1);
-				else if (task.structure == olc::Structure::LineLoop)
-					gl.glUniform1i(pCurrentShader->GetUniform("pgeDrawType"), 1);
-				else if (task.structure == olc::Structure::LineList)
-					gl.glUniform1i(pCurrentShader->GetUniform("pgeDrawType"), 1);
+				if (task.bIs3D)
+				{
+					gl.glUniform1i(pCurrentShader->GetUniform("pgeDrawType"), 2);
+					gl.glUniformMatrix4fv(pCurrentShader->GetUniform("pgeMVP"), 1, true, task.mvpMatrix.data());
+				}
 				else
-					gl.glUniform1i(pCurrentShader->GetUniform("pgeDrawType"), 0);
+				{
+					if (task.structure == olc::Structure::Point)
+						gl.glUniform1i(pCurrentShader->GetUniform("pgeDrawType"), 1);
+					else if (task.structure == olc::Structure::Line)
+						gl.glUniform1i(pCurrentShader->GetUniform("pgeDrawType"), 1);
+					else if (task.structure == olc::Structure::LineLoop)
+						gl.glUniform1i(pCurrentShader->GetUniform("pgeDrawType"), 1);
+					else if (task.structure == olc::Structure::LineList)
+						gl.glUniform1i(pCurrentShader->GetUniform("pgeDrawType"), 1);
+					else
+						gl.glUniform1i(pCurrentShader->GetUniform("pgeDrawType"), 0);
+				}
 
 				if (task.structure == olc::Structure::Fan)
 					gl.glDrawArrays(GL_TRIANGLE_FAN, 0, (GLsizei)task.vertexBuffer.size());
@@ -13109,7 +14092,7 @@ void main()
 	bool Renderer_OGL33::ClearViewport(const olc::Pixel col, bool bDepth, bool bStencil)
 	{
 		auto& gl = olc::apis::opengl::gl::Get();
-		gl.glClearColor(float(col.r) / 255.0f, float(col.g) / 255.0f, float(col.b) / 255.0f, float(col.a) / 255.0f);
+		gl.glClearColor(float(col.r) / 255.0f, float(col.g) / 255.0f, float(col.b) / 255.0f, float(col.a) / 255.0f);		
 		gl.glClear(GL_COLOR_BUFFER_BIT | (bDepth ? GL_DEPTH_BUFFER_BIT : 0) | (bStencil ? GL_STENCIL_BUFFER_BIT : 0));		
 		return true;
 	}
@@ -15090,9 +16073,276 @@ void olc::Draw2D::swRasterShadedLine(const olc::vi2d& v1, const olc::vi2d& v2, c
 #define PGE_DRAW2D_IMPLEMENTED 1
 #endif
 
+#if defined(OLC_PGE3_APPLICATION) && !defined(PGE_DRAW3D_IMPLEMENTED)
+thread_local Draw3D::buffer<olc::vf4d> Draw3D::buffPoints;
+thread_local Draw3D::buffer<olc::Pixel> Draw3D::buffColours;
+thread_local Draw3D::buffer<olc::GPUTask> Draw3D::vecGPUTasks;
+
+olc::Draw3D::Draw3D(olc::Draw2D& d2d) : draw2d(d2d)
+{
+	MatrixReset();
+}
+
+void olc::Draw3D::SetGPU(olc::gpu::Renderer* const renderer)
+{
+	draw2d.SetGPU(renderer);
+}
+
+void olc::Draw3D::ProcessGPUTasks()
+{
+	draw2d.ProcessGPUTasks();
+}
+
+void olc::Draw3D::SetTarget(olc::Image& image)
+{
+	draw2d.SetTarget(image);
+}
+
+olc::Image& olc::Draw3D::GetTarget()
+{
+	return draw2d.GetTarget();
+}
+
+olc::vi2d olc::Draw3D::GetTargetSize()
+{
+	return draw2d.GetTargetSize();
+}
+
+void olc::Draw3D::SetViewport(const olc::vi2d& pos, const olc::vi2d& size)
+{
+	draw2d.pRenderer->SetViewport(pos, size);
+}
+
+bool olc::Draw3D::SetShader(const olc::gpu::Shader& shader)
+{
+	return draw2d.SetShader(shader);
+}
+
+bool olc::Draw3D::ResetShader()
+{
+	return draw2d.ResetShader();
+}
+
+bool olc::Draw3D::SetShaderUniform(const std::string& name, const float value)
+{
+	return draw2d.SetShaderUniform(name, value);
+}
+
+bool olc::Draw3D::SetShaderUniform(const std::string& name, const olc::vf2d& value)
+{
+	return draw2d.SetShaderUniform(name, value);
+}
+
+bool olc::Draw3D::SetShaderUniform(const std::string& name, const olc::Pixel value)
+{
+	return draw2d.SetShaderUniform(name, value);
+}
+
+bool olc::Draw3D::SetShaderTexture(const uint32_t nSlot, olc::Image& image)
+{
+	return draw2d.SetShaderTexture(nSlot, image);
+}
+
+void olc::Draw3D::PrepareTargetForSW()
+{
+	draw2d.PrepareTargetForSW();
+}
+
+void olc::Draw3D::PrepareTargetForHW()
+{
+	draw2d.PrepareTargetForHW();
+}
+
+void olc::Draw3D::PrepareImageForSW(olc::Image& image)
+{
+	draw2d.PrepareImageForSW(image);
+}
+
+void olc::Draw3D::PrepareImageForHW(olc::Image& image)
+{
+	draw2d.PrepareImageForHW(image);
+}
+
+
+
+
+
+void olc::Draw3D::MatrixReset()
+{
+	matMVP.identity();
+	matModel.identity();	
+	matView.identity();
+	matProjection.identity();
+}
+
+void olc::Draw3D::SetModelMatrix(const olc::mf4d& mat)
+{
+	matModel = mat;	
+	matMVP = matVP * matModel;
+}
+
+const olc::mf4d& olc::Draw3D::GetModelMatrix() const
+{
+	return matModel;
+}
+
+void olc::Draw3D::SetViewMatrix(const olc::mf4d& mat)
+{
+	matView = mat;
+	matVP =  matProjection * matView;
+	matMVP = matVP * matModel;
+}
+
+const olc::mf4d& olc::Draw3D::GetViewMatrix() const
+{
+	return matView;
+}
+
+void olc::Draw3D::SetProjectionMatrix(const olc::mf4d& mat)
+{
+	matProjection = mat;
+	matVP = matProjection * matView;
+	matMVP = matVP * matModel;
+}
+
+const olc::mf4d& olc::Draw3D::GetProjectionMatrix() const
+{
+	return matProjection;
+}
+
+void olc::Draw3D::SetMVPMatrix(const olc::mf4d& mat)
+{
+	matMVP = mat;
+}
+
+const olc::mf4d& olc::Draw3D::GetMVPMatrix() const
+{
+	return matMVP;
+}
+
+void olc::Draw3D::SetCullMode(const olc::GPUTask::CullMode mode)
+{
+	cullMode = mode;
+}
+
+void olc::Draw3D::EnableDepth(const bool bEnable)
+{
+	bDepth = bEnable;
+}
+
+
+
+GPUTask olc::Draw3D::TaskWireMesh(olc::Structure structure, const std::vector<olc::vf4d>& vPoints, const std::vector<olc::Pixel>& vColours, const olc::Pixel tint)
+{
+	GPUTask task;
+	task.structure = structure;
+	task.tint = tint;
+	task.vertexBuffer.resize(vPoints.size());
+	task.bWireframe = true;
+	task.bDepth = bDepth;
+	task.cullmode = cullMode;
+	task.bIs3D = true;
+	task.mvpMatrix = matMVP.m;
+
+	for (size_t i = 0; i < vPoints.size(); i++)
+		task.vertexBuffer[i] = { {vPoints[i].x, vPoints[i].y, vPoints[i].z, vPoints[i].w}, vColours[i], {0, 0}, {0, 0}, {0, 0}, {0, 0}};
+	return task;
+}
+
+GPUTask olc::Draw3D::TaskFillMesh(olc::Structure structure, const std::vector<olc::vf4d>& vPoints, const std::vector<olc::Pixel>& vColours, const olc::Pixel tint)
+{
+	GPUTask task;
+	task.structure = structure;
+	task.tint = tint;
+	task.vertexBuffer.resize(vPoints.size());
+	task.bDepth = bDepth;
+	task.cullmode = cullMode;
+	task.bIs3D = true;
+	task.mvpMatrix = matMVP.m;
+
+	for (size_t i = 0; i < vPoints.size(); i++)
+		task.vertexBuffer[i] = { {vPoints[i].x, vPoints[i].y, vPoints[i].z, vPoints[i].w}, vColours[i], {0, 0}, {0, 0}, {0, 0}, {0, 0} };
+	return task;
+}
+
+GPUTask olc::Draw3D::TaskTexturedMesh(olc::Structure structure, const std::vector<olc::vf4d>& vPoints, const std::vector<olc::Pixel>& vColours, const std::vector<olc::vf2d>& vTexCoords, olc::Image* const image, const olc::Pixel tint)
+{
+	GPUTask task;
+	task.structure = structure;
+	task.tint = tint;
+	task.vertexBuffer.resize(vPoints.size());
+	task.pImage = image;
+	task.bIs3D = true;
+	task.bDepth = bDepth;
+	task.cullmode = cullMode;
+	task.mvpMatrix = matMVP.m;
+	for (size_t i = 0; i < vPoints.size(); i++)
+		task.vertexBuffer[i] = { {vPoints[i].x, vPoints[i].y, vPoints[i].z, vPoints[i].w}, vColours[i], {vTexCoords[i].x, vTexCoords[i].y}, {0, 0}, {0, 0}, {0, 0} };
+	return task;
+}
+
+void olc::Draw3D::Clear(const olc::Pixel& col)
+{
+	draw2d.Clear(col);
+}
+
+GPUTask& olc::Draw3D::Line(const olc::vf4d& vStart, const olc::vf4d& vEnd, const olc::Pixel& col, const olc::Pixel tint)
+{
+	PrepareTargetForHW();
+
+	return draw2d.vecGPUTasks.data.emplace_back(std::move(
+		TaskWireMesh(
+			olc::Structure::Line,
+			{ vStart, vEnd },
+			{ col, col },
+			tint
+		)));
+}
+
+GPUTask& olc::Draw3D::Mesh(const olc::Structure structure, const std::vector<olc::vf4d>& vPoints, const std::vector<olc::Pixel>& vColours, const olc::Pixel tint)
+{
+	PrepareTargetForHW();
+
+	return draw2d.vecGPUTasks.data.emplace_back(std::move(
+		TaskWireMesh(
+			structure,
+			vPoints,
+			vColours,
+			tint
+		)));
+
+}
+
+GPUTask& olc::Draw3D::Mesh(const olc::Structure structure, const std::vector<olc::vf4d>& vPoints, const std::vector<olc::Pixel>& vColours, const std::vector<olc::vf2d>& vUVs, olc::Image& texture, const olc::Pixel tint)
+{
+	PrepareImageForHW(texture);
+	PrepareTargetForHW();
+	return draw2d.vecGPUTasks.data.emplace_back(std::move(
+		TaskTexturedMesh(
+			structure,
+			vPoints,
+			vColours,
+			vUVs,
+			&texture,
+			tint
+		)));
+}
+
+
+
+
+
+
+#define PGE_DRAW3D_IMPLEMENTED 1
+#endif
+
 #if defined(OLC_PGE3_APPLICATION) && !defined(PGE_CORE_IMPLEMENTED)
 namespace olc
 {
+	PGEWindow::PGEWindow() : Window(), draw(), draw3d(draw)
+	{
+	}
+
 	bool PGEWindow::Create(const olc::vi2d& vScreenSize, const olc::vi2d& vPixelSize)
 	{
 		//pRenderer->RetargetDevice(pHost->GetHostWindowDescriptor(this));

@@ -5,7 +5,7 @@
 #include <cstdint>
 #include <string>
 #include <array>
-#include <cmath>
+#include <algorithm>
 //! END STDHEADER
 
 //! START CUSTOMHEADER
