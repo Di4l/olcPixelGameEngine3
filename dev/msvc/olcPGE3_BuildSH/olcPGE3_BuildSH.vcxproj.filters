@@ -75,6 +75,9 @@
     <ClCompile Include="..\..\..\examples\olcPGE3_WorldTransform.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\examples\olcPGE3_Camera2D_Tiles.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Image Include="..\..\..\examples\assets\minsanity_texture.png">
