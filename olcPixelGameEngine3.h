@@ -15362,13 +15362,7 @@ namespace olc
 		// DEVS!! Please don't merge these just yet
 
 		// Initialise ImageLoader Interface
-#if OLC_HOST == OLC_HOST_ANDROID
-		imageloader = std::make_unique<olc::imload::OLC_IMAGELOADER_CLASS>(
-			olc::host::Host_Android::androidApp->activity->assetManager
-		);
-#else
 		imageloader = std::make_unique<olc::imload::OLC_IMAGELOADER_CLASS>();
-#endif
 
 		// Allow host to prepare itself
 		return host->OnApplicationStart(this);
