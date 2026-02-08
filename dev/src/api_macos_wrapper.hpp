@@ -672,6 +672,19 @@ namespace olc {
                 KeyEvent& operator=(const KeyEvent&) = default;
             };
             
+            struct FlagsChangedEvent {
+                unsigned int modifierFlags;
+
+                FlagsChangedEvent(unsigned int mods) noexcept
+                    : modifierFlags(mods) {}
+                
+                // Move constructor and assignment for better performance
+                FlagsChangedEvent(FlagsChangedEvent&&) noexcept = default;
+                FlagsChangedEvent& operator=(FlagsChangedEvent&&) noexcept = default;
+                FlagsChangedEvent(const FlagsChangedEvent&) = default;
+                FlagsChangedEvent& operator=(const FlagsChangedEvent&) = default;
+            };
+
             // Mouse event data structure
             struct MouseEvent {
                 double x, y;
@@ -704,6 +717,7 @@ namespace olc {
                 Window& window_;
                 std::function<void(const KeyEvent&)>    keyDownHandler_;
                 std::function<void(const KeyEvent&)>    keyUpHandler_;
+                std::function<void(const FlagsChangedEvent&)>  flagsChangedHandler_;
                 std::function<void(const MouseEvent&)>  mouseDownHandler_;
                 std::function<void(const MouseEvent&)>  mouseUpHandler_;
                 std::function<void(const MouseEvent&)>  mouseMovedHandler_;
@@ -724,6 +738,14 @@ namespace olc {
                         (eventHandler->*handler)(KeyEvent(keyCode, characters, modifierFlags));
                     }
                 }
+
+                template<typename EventType, typename HandlerType>
+                static void flagsChangedCallback(unsigned int modifierFlags, void* userData, HandlerType EventHandler::*handler) {
+                    auto* eventHandler = static_cast<EventHandler*>(userData);
+                    if (eventHandler && (eventHandler->*handler)) {
+                        (eventHandler->*handler)(FlagsChangedEvent(modifierFlags));
+                    }
+                }
                 
                 template<typename EventType, typename HandlerType>
                 static void mouseCallback(double x, double y, int buttonNumber, unsigned int modifierFlags, void* userData, HandlerType EventHandler::*handler) {
@@ -742,6 +764,10 @@ namespace olc {
                     keyCallback<KeyEvent>(keyCode, characters, modifierFlags, userData, &EventHandler::keyUpHandler_);
                 }
                 
+                static void flagsChangedCallback(unsigned int modifierFlags, void* userData) {
+                    flagsChangedCallback<FlagsChangedEvent>(modifierFlags, userData, &EventHandler::flagsChangedHandler_);
+                }
+
                 static void mouseDownCallback(double x, double y, int buttonNumber, unsigned int modifierFlags, void* userData) {
                     mouseCallback<MouseEvent>(x, y, buttonNumber, modifierFlags, userData, &EventHandler::mouseDownHandler_);
                 }
@@ -824,6 +850,11 @@ namespace olc {
                 void onKeyUp(std::function<void(const KeyEvent&)> handler) {
                     keyUpHandler_ = std::move(handler);
                     window_setKeyUpCallback(window_.getCHandle(), keyUpCallback, this);
+                }
+                
+                void onFlagsChanged(std::function<void(const FlagsChangedEvent&)> handler) {
+                    flagsChangedHandler_ = std::move(handler);
+                    window_setFlagsChangedCallback(window_.getCHandle(), flagsChangedCallback, this);
                 }
                 
                 void onMouseDown(std::function<void(const MouseEvent&)> handler) {

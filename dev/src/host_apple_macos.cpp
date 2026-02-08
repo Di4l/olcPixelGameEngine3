@@ -546,51 +546,6 @@ bool Host_Apple_MacOS::SyncWithDesktopComposite()
         
     }
 
-    bool Host_Apple_MacOS::ModifiersFlagsHandler(const olc::apis::macos::KeyEvent& event, bool pressed) {
-        
-        bool bisHandled = false;
-        if (event.modifierFlags & NSEventModifierFlagCapsLock) {
-            pPGEwindow->olc_OnKeyPress(Key::CAPS_LOCK, pressed);
-        }
-        if (event.modifierFlags & NSEventModifierFlagShift) {
-            pPGEwindow->olc_OnKeyPress(Key::SHIFT, pressed);
-            if(event.keyCode == 39)
-            {
-                // The @ symbol does not change position from US - UK keyboards on MacOS, so we handle it here
-                pPGEwindow->olc_OnKeyPress(mapKeys[50], pressed);
-                return true;
-            }
-            
-        }
-        if (event.modifierFlags & NSEventModifierFlagControl) {
-            pPGEwindow->olc_OnKeyPress(Key::CTRL, pressed);
-        }
-        
-        if(event.modifierFlags & NSEventModifierFlagNumericPad) {
-            if(event.keyCode == 71 && pressed) // NumLock keycode
-            {
-                // We only tottle the NumLock state on key press to minic the latching of the key
-                bNumLockActive = !bNumLockActive;
-            }
-            
-            if(!bNumLockActive)
-            {
-                // 84 down, 86 left, 88 right, 91 up >>> 125 down, 123 left, 124 right, 126 up
-                if(event.keyCode == 84) pPGEwindow->olc_OnKeyPress(mapKeys[125], pressed);
-                if(event.keyCode == 86) pPGEwindow->olc_OnKeyPress(mapKeys[123], pressed);
-                if(event.keyCode == 88) pPGEwindow->olc_OnKeyPress(mapKeys[124], pressed);
-                if(event.keyCode == 91) pPGEwindow->olc_OnKeyPress(mapKeys[126], pressed);
-                return true;
-            }
-            
-
-        }
-            
-        return bisHandled;
-        
-    }
-
-
     void Host_Apple_MacOS::MacEventsHandler()
     {
         // General MacOS key event handling code here
@@ -598,16 +553,82 @@ bool Host_Apple_MacOS::SyncWithDesktopComposite()
 
         // Set up keyboard event handlers
         pMacOSEventHandler->onKeyDown([&](const olc::apis::macos::KeyEvent& event) {
-            if(!ModifiersFlagsHandler(event, true))
-                pPGEwindow->olc_OnKeyPress(mapKeys[event.keyCode], true);
-        });
-        
-        pMacOSEventHandler->onKeyUp([&](const olc::apis::macos::KeyEvent& event) {
-            if(!ModifiersFlagsHandler(event, false))
-               pPGEwindow->olc_OnKeyPress(mapKeys[event.keyCode], false);
+            unsigned short keyCode = event.keyCode;
 
+            if(!bNumLockActive)
+            {
+                // 84 down, 86 left, 88 right, 91 up >>> 125 down, 123 left, 124 right, 126 up
+                switch(keyCode)
+                {
+                    case 84: keyCode = 125; break;
+                    case 86: keyCode = 123; break;
+                    case 88: keyCode = 124; break;
+                    case 91: keyCode = 126; break;
+                    default: break;
+                }
+            }
+
+            // The @ symbol does not change position from US - UK keyboards on MacOS, so we handle it here
+            if(event.modifierFlags & NSEventModifierFlagShift && event.keyCode == 39)
+                keyCode = 50;
+            
+            pPGEwindow->olc_OnKeyPress(mapKeys[keyCode], true);
         });
-        
+
+        pMacOSEventHandler->onKeyUp([&](const olc::apis::macos::KeyEvent& event) {
+            unsigned short keyCode = event.keyCode;
+
+            if(!bNumLockActive)
+            {
+                // 84 down, 86 left, 88 right, 91 up >>> 125 down, 123 left, 124 right, 126 up
+                switch(keyCode)
+                {
+                    case 84: keyCode = 125; break;
+                    case 86: keyCode = 123; break;
+                    case 88: keyCode = 124; break;
+                    case 91: keyCode = 126; break;
+                    default: break;
+                }
+            }
+
+            // The @ symbol does not change position from US - UK keyboards on MacOS, so we handle it here
+            if(event.modifierFlags & NSEventModifierFlagShift && event.keyCode == 39)
+                keyCode = 50;
+            
+            pPGEwindow->olc_OnKeyPress(mapKeys[keyCode], false);
+        });
+
+        // Set up keyboard flag event handlers
+        pMacOSEventHandler->onFlagsChanged([&](const olc::apis::macos::FlagsChangedEvent& event) {
+
+            static unsigned int prevFlags = 0;
+            unsigned int changedFlags = event.modifierFlags ^ prevFlags;
+            
+            // Check For Shift key
+            if (changedFlags & NSEventModifierFlagShift) {
+                bool isPressed = event.modifierFlags & NSEventModifierFlagShift;
+                pPGEwindow->olc_OnKeyPress(Key::SHIFT, isPressed);
+            }
+            
+            // Check for Control key
+            if (changedFlags & NSEventModifierFlagControl) {
+                bool isPressed = event.modifierFlags & NSEventModifierFlagControl;
+                pPGEwindow->olc_OnKeyPress(Key::CTRL, isPressed);
+            }
+            
+            // Check for numeric pad modifier
+            if (changedFlags & NSEventModifierFlagNumericPad) {
+                bool isPressed = event.modifierFlags & NSEventModifierFlagNumericPad;
+                if(isPressed)
+                    bNumLockActive = !bNumLockActive;
+
+                std::cout << "NumLockActive " << bNumLockActive << "\n";
+            }
+            
+            // caps lock doesn't appear to trigger any event
+            prevFlags = event.modifierFlags;
+        });
+
         // Set up mouse event handlers
         pMacOSEventHandler->onMouseDown([&](const olc::apis::macos::MouseEvent& event) {
                 pPGEwindow->olc_OnMouseButton(event.buttonNumber, true);

@@ -106,6 +106,7 @@ extern "C" {
     // Event handler setup
     void window_setKeyDownCallback          (struct Window* self, KeyEventCallback callback, void* userData);
     void window_setKeyUpCallback            (struct Window* self, KeyEventCallback callback, void* userData);
+    void window_setFlagsChangedCallback     (Window* self, void (*callback)(unsigned int, void*), void* userData);
     void window_setMouseDownCallback        (struct Window* self, MouseEventCallback callback, void* userData);
     void window_setMouseUpCallback          (struct Window* self, MouseEventCallback callback, void* userData);
     void window_setMouseMovedCallback       (struct Window* self, MouseEventCallback callback, void* userData);
