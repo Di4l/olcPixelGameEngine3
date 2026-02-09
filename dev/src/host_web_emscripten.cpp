@@ -237,6 +237,14 @@ namespace olc::host
         mapKeys[DOM_PK_COMMA] = Key::COMMA;
         mapKeys[DOM_PK_MINUS] = Key::MINUS;
         mapKeys[DOM_PK_PERIOD] = Key::PERIOD;
+        
+        // define mouse buttons
+        mapMouseButtons[0] = 0; // left click
+        mapMouseButtons[1] = 2; // middle click
+        mapMouseButtons[2] = 1; // right click
+        mapMouseButtons[3] = 3;
+        mapMouseButtons[4] = 4;
+
     }
 
     bool Host_Web_Emscripten::AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen)
@@ -387,37 +395,36 @@ namespace olc::host
         
         //Mouse Movement
         if (eventType == EMSCRIPTEN_EVENT_MOUSEMOVE)
+        {
             olc_OnMouseMove(pCallbackData->pWindow, {e->targetX, e->targetY});
-
-
-        //Mouse button press
-        if (e->button == 0) // left click
-        {
-            if (eventType == EMSCRIPTEN_EVENT_MOUSEDOWN)
-                olc_OnMouseButton(pCallbackData->pWindow, 0, true);
-            else if (eventType == EMSCRIPTEN_EVENT_MOUSEUP)
-                olc_OnMouseButton(pCallbackData->pWindow, 0, false);
+            return EM_FALSE;
         }
 
-        if (e->button == 2) // right click
+        switch(eventType)
         {
-            if (eventType == EMSCRIPTEN_EVENT_MOUSEDOWN)
-                olc_OnMouseButton(pCallbackData->pWindow, 1, true);
-            else if (eventType == EMSCRIPTEN_EVENT_MOUSEUP)
-                olc_OnMouseButton(pCallbackData->pWindow, 1, false);    
+            case EMSCRIPTEN_EVENT_MOUSEDOWN:
+            {
+                auto it = pCallbackData->pHost->mapMouseButtons.find(e->button);
+                if(it != pCallbackData->pHost->mapMouseButtons.end())
+                {
+                    olc_OnMouseButton(pCallbackData->pWindow, it->second, true);
+                }
+                return EM_TRUE;
+            }
+            break;
+            case EMSCRIPTEN_EVENT_MOUSEUP: // deliberate fallthrough
+            {
+                auto it = pCallbackData->pHost->mapMouseButtons.find(e->button);
+                if(it != pCallbackData->pHost->mapMouseButtons.end())
+                {
+                    olc_OnMouseButton(pCallbackData->pWindow, it->second, false);
+                }
+                return EM_TRUE;
+            }
+            break;
+            default: break;
         }
-
-        if (e->button == 1) // middle click
-        {
-            if (eventType == EMSCRIPTEN_EVENT_MOUSEDOWN)
-                olc_OnMouseButton(pCallbackData->pWindow, 2, true);
-            else if (eventType == EMSCRIPTEN_EVENT_MOUSEUP)
-                olc_OnMouseButton(pCallbackData->pWindow, 2, false);
-
-            //at the moment only middle mouse needs to consume events.
-            return EM_TRUE;
-        }
-
+        
         return EM_FALSE;
     }
 
