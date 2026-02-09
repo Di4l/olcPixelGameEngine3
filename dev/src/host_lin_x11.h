@@ -64,6 +64,7 @@ namespace olc::host
         std::atomic<bool> systemActive {true};
 
         std::unordered_map<uint32_t, olc::Key> mapKeys;
+        std::unordered_map<int, int> mapMouseButtons;
 
         // Keyboard Layout Variables
         olc::KeyboardLayout keyboardLayout = OLC_DEFAULT_KEYBOARD_LAYOUT;

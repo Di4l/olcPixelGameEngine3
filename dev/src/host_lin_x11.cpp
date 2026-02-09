@@ -71,6 +71,12 @@ namespace olc::host
         mapKeys[XK_minus] = Key::MINUS;			// the minus key on any keyboard			
 
         mapKeys[XK_Caps_Lock] = Key::CAPS_LOCK;
+
+        mapMouseButtons[1] = 0; // left click
+        mapMouseButtons[2] = 2; // middle click
+        mapMouseButtons[3] = 1; // right click
+        mapMouseButtons[8] = 3;
+        mapMouseButtons[9] = 4;
     }
 
     bool Host_Linux_X11::OnApplicationStart(olc::PixelGameEngine* pPrimary)
@@ -183,28 +189,31 @@ namespace olc::host
                 else if (xev.type == ButtonPress)
                 {
                     if(auto* pge_window = get_pge_window(xev.xbutton.window); pge_window) {
+                        auto it = mapMouseButtons.find(xev.xbutton.button);
+                        if(it != mapMouseButtons.end())
+                        {
+                            pge_window->olc_OnMouseButton(mapMouseButtons[xev.xbutton.button], true);
+                            continue; // Thank you. NEXT!!!
+                        }
+                        
+                        // If we make it here, we may be dealing with scrolling buttons
                         switch (xev.xbutton.button)
                         {
-                        case 1:	pge_window->olc_OnMouseButton(0, true); break;
-                        case 2:	pge_window->olc_OnMouseButton(2, true); break;
-                        case 3:	pge_window->olc_OnMouseButton(1, true); break;
-                        case 4:	pge_window->olc_OnMouseWheel(120); break;
-                        case 5:	pge_window->olc_OnMouseWheel(-120); break;
-                        default: break;
+                            case 4:	pge_window->olc_OnMouseWheel(120); break;
+                            case 5:	pge_window->olc_OnMouseWheel(-120); break;
+                            default: break;
                         }
-                    
                     }
                 }
                 else if (xev.type == ButtonRelease)
                 {
                     if(auto* pge_window = get_pge_window(xev.xbutton.window); pge_window) {
-                        switch (xev.xbutton.button)
+                        auto it = mapMouseButtons.find(xev.xbutton.button);
+                        if(it != mapMouseButtons.end())
                         {
-                        case 1:	pge_window->olc_OnMouseButton(0, false); break;
-                        case 2:	pge_window->olc_OnMouseButton(2, false); break;
-                        case 3:	pge_window->olc_OnMouseButton(1, false); break;
-                        default: break;
-                        }               
+                            pge_window->olc_OnMouseButton(mapMouseButtons[xev.xbutton.button], false);
+                            continue; // Thank you. NEXT!!!
+                        }
                     }
                 }
                 else if (xev.type == MotionNotify)
