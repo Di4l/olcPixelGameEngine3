@@ -68,10 +68,10 @@ public:
 		if(mouse.GetButton(2).bPressed) // Middle click
             SpawnParticles(mousePos, olc::Colour::GREEN, 20);
 
-		if(mouse.GetButton(3).bHeld)
+		if(mouse.GetButton(3).bPressed)
             SpawnParticles(mousePos, olc::Colour::MAGENTA, 20);
 
-		if(mouse.GetButton(4).bHeld)
+		if(mouse.GetButton(4).bPressed)
             SpawnParticles(mousePos, olc::Colour::TANGERINE, 20);
 
 		// Update and Draw Particles
