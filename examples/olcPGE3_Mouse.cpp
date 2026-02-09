@@ -68,6 +68,12 @@ public:
 		if(mouse.GetButton(2).bPressed) // Middle click
             SpawnParticles(mousePos, olc::Colour::GREEN, 20);
 
+		if(mouse.GetButton(3).bHeld)
+            SpawnParticles(mousePos, olc::Colour::MAGENTA, 20);
+
+		if(mouse.GetButton(4).bHeld)
+            SpawnParticles(mousePos, olc::Colour::TANGERINE, 20);
+
 		// Update and Draw Particles
 		for(auto &p : vecParticles)
 		{
@@ -98,7 +104,13 @@ public:
         
 		if(mouse.GetButton(2).bHeld)
             draw.Circle(mousePos, 22, olc::Colour::GREEN);
+
+		if(mouse.GetButton(3).bHeld)
+            draw.Circle(mousePos, 26, olc::Colour::MAGENTA);
         
+		if(mouse.GetButton(4).bHeld)
+            draw.Circle(mousePos, 28, olc::Colour::TANGERINE);
+		
 		// Instructions
 		draw.String({10, 10}, "Mouse Example\n\nClick all the buttons!\nScroll the wheel!", olc::Colour::YELLOW);
 		
