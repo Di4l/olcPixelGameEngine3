@@ -40,6 +40,12 @@
     <Filter Include="Hosts\Android Specific">
       <UniqueIdentifier>{0020e19e-b8ce-4218-a5ee-8a5716c9f01a}</UniqueIdentifier>
     </Filter>
+    <Filter Include="GPUs">
+      <UniqueIdentifier>{a89dec37-58b8-40e6-b475-c62b7e443d0f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Hardware">
+      <UniqueIdentifier>{b5b02d3b-7b70-4ef1-a2e2-516cbaa9da51}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\pixel.h">
@@ -75,37 +81,7 @@
     <ClInclude Include="..\src\polyform.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\gputask.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\host_iface.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\gpu_iface.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\api_opengl.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\gpu_opengl33.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\olcpge3.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\imload_iface.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\hw_input.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\hw_mouse.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\hw_keyboard.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\hw_touch.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\src\font.h">
@@ -165,18 +141,45 @@
     <ClInclude Include="..\src\matrix4d.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\host_iface.h">
+      <Filter>Hosts</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\gpu_iface.h">
+      <Filter>GPUs</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\gpu_opengl33.h">
+      <Filter>GPUs</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\gputask.h">
+      <Filter>GPUs</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\api_opengl.h">
+      <Filter>GPUs</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\hw_input.h">
+      <Filter>Hardware</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\hw_keyboard.h">
+      <Filter>Hardware</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\hw_mouse.h">
+      <Filter>Hardware</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\hw_touch.h">
+      <Filter>Hardware</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\imload_iface.h">
+      <Filter>Hosts</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\extension.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\core.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\src\window.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\api_opengl.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\gpu_opengl33.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\src\image.cpp">
@@ -186,12 +189,6 @@
       <Filter>Source Files\tests</Filter>
     </ClCompile>
     <ClCompile Include="..\src\draw.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\gpu_iface.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\hw_mouse.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\src\font.cpp">
@@ -224,17 +221,29 @@
     <ClCompile Include="..\src\host_lin_wayland.cpp">
       <Filter>Hosts\Wayland Specific</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\hw_keyboard.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\host_android.cpp">
       <Filter>Hosts\Android Specific</Filter>
     </ClCompile>
     <ClCompile Include="..\src\imload_android.cpp">
       <Filter>Hosts\Android Specific</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\gpu_opengl33.cpp">
+      <Filter>GPUs</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\gpu_iface.cpp">
+      <Filter>GPUs</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\api_opengl.cpp">
+      <Filter>GPUs</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\hw_mouse.cpp">
+      <Filter>Hardware</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\hw_keyboard.cpp">
+      <Filter>Hardware</Filter>
+    </ClCompile>
     <ClCompile Include="..\src\imload_stb_image.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Hosts</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

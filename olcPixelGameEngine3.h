@@ -3765,6 +3765,72 @@ namespace olc
 #define PGE_HOST_IFACE_DECLARED 1
 #endif
 
+#if !defined(PGE_EXTENSION_DECLARED)
+namespace olc
+{
+	class PixelGameEngine;
+	class PGEWindow;
+
+	namespace hw
+	{
+		class Mouse;
+		class Keyboard;
+	}
+
+	// System level extension
+	class PGESystemExtension
+	{
+		friend class olc::PixelGameEngine;
+		friend class olc::PGEWindow;
+		friend class olc::hw::Mouse;
+		friend class olc::hw::Keyboard;
+
+	private:
+		// Called when extension is installed, usually in PGE Constructor
+		// Return true to continue application
+		virtual bool OnInstall([[maybe_unused]] olc::PixelGameEngine* pge) { return true; }
+		// Called after PGE is established, but before OnUserCreate()
+		// Return true to continue application
+		virtual bool OnBeforeUserCreate([[maybe_unused]] olc::PixelGameEngine* pge) { return true; }
+		// Called after OnUserCreate(), but before the first call to OnUserUpdate()
+		// Return true to continue application
+		virtual bool OnAfterUserCreate([[maybe_unused]] olc::PixelGameEngine* pge) { return true; }
+		// Called at the start of each frame, before OnUserUpdate()
+		// Return true if you wish to block OnUserUpdate() from being called this frame
+		virtual bool OnBeforeSystemUpdate([[maybe_unused]] olc::PixelGameEngine* pge, [[maybe_unused]] float fElapsedTime) { return false; }
+		// Called at the end of each frame, after OnUserUpdate()
+		// Return true to continue application
+		virtual bool OnAfterSystemUpdate([[maybe_unused]] olc::PixelGameEngine* pge, [[maybe_unused]] float fElapsedTime) { return true; }
+	};
+
+	// Window level extension
+	class PGEWindowExtension
+	{
+		friend class olc::PGEWindow;
+		friend class olc::hw::Mouse;
+		friend class olc::hw::Keyboard;
+
+	private:
+		// Called when extension is installed, usually in PGE Constructor
+		// Return true to continue application
+		virtual bool OnInstall([[maybe_unused]] olc::PGEWindow* pge) { return true; }
+		// Called after PGE is established, but before OnUserCreate()
+		// Return true to continue application
+		virtual bool OnBeforeUserCreate([[maybe_unused]] olc::PGEWindow* pge) { return true; }
+		// Called after OnUserCreate(), but before the first call to OnUserUpdate()
+		// Return true to continue application
+		virtual bool OnAfterUserCreate([[maybe_unused]] olc::PGEWindow* pge) { return true; }
+		// Called at the start of each frame, before OnUserUpdate()
+		// Return true if you wish to block OnUserUpdate() from being called this frame
+		virtual bool OnBeforeUserUpdate([[maybe_unused]] olc::PGEWindow* pge, [[maybe_unused]] float &fElapsedTime) { return false; }
+		// Called at the end of each frame, after OnUserUpdate()
+		// Return true to indicate you have modified something
+		virtual bool OnAfterUserUpdate([[maybe_unused]] olc::PGEWindow* pge, [[maybe_unused]] float fElapsedTime) { return false; }
+	};
+}
+#define PGE_EXTENSION_DECLARED 1
+#endif
+
 #if !defined(PGE_CORE_DECLARED)
 
 namespace olc
@@ -3862,6 +3928,10 @@ namespace olc
 		olc::vi2d vViewPos = { 0,0 };
 		olc::vi2d vViewSize = { 0,0 };
 
+	protected: // Extensions
+		bool InstallWindowExtension(olc::PGEWindowExtension* pgex);
+		std::vector<olc::PGEWindowExtension*> vecWindowExtensions;
+
 	protected:
 		// PGE Configuration
 		PGEConfig config;
@@ -3897,6 +3967,10 @@ namespace olc
 
 	public: // Child Windows
 		bool AddChildWindow(std::shared_ptr<olc::PGEWindow> window, const olc::vi2d& vScreenSize, const olc::vi2d& vPixelSize);
+
+	protected:
+		bool InstallSystemExtension(olc::PGESystemExtension* pgex);
+		
 	
 
 	private: // Called from Host
@@ -3914,6 +3988,10 @@ namespace olc
 	private:
 		// Window Management
 		std::deque<std::shared_ptr<PGEWindow>> deqChildWindows;
+
+		// Extensions
+		std::vector<olc::PGESystemExtension*> vecSystemExtensions;
+		
 
 		// Frame Timing & Overall Clocking
 		std::chrono::steady_clock::time_point timeFrame1;
@@ -3934,6 +4012,7 @@ namespace olc
 }
 #define PGE_CORE_DECLARED 1
 #endif
+
 
 
 
@@ -15545,6 +15624,8 @@ namespace olc
 
 	bool PGEWindow::olc_WindowUpdate(const float fElapsedTime, const float fTotalElapsedTime)
 	{
+		float fDT = fElapsedTime;
+
 		// Input Changes
 		mouse.UpdateState();
 		keyboard.UpdateState();
@@ -15552,42 +15633,63 @@ namespace olc
 		draw.SetGPU(pRenderer);
 		draw.SetTarget(GetScreen());
 
-		pRenderer->DisplayPrepare(fElapsedTime, fTotalElapsedTime);
+		pRenderer->DisplayPrepare(fDT, fTotalElapsedTime);
 
 #if OLC_MULTIWINDOW == OLC_MULTIWINDOW_YES
 		pRenderer->RetargetDevice(pHost->GetHostWindowDescriptor(this));
 #endif
 		pRenderer->ApplyDefaultShader();
 
-
-
-		// User Update
-		if (!OnUserUpdate(fElapsedTime) || bRequestToClose)
+		bool bBlockUserUpdate = false;
+		for (const auto& pgex : vecWindowExtensions)
 		{
-			// User has requested termination of window by returning false
-			if (OnUserDestroy())
+			bBlockUserUpdate |= pgex->OnBeforeUserUpdate(this, fDT);
+		}
+
+		if (!bBlockUserUpdate)
+		{
+			// User Update
+			if (!OnUserUpdate(fDT) || bRequestToClose)
 			{
-				// User has confirmed window destruction by returning true
-				bShouldRemove = true;
+				// User has requested termination of window by returning false
+				if (OnUserDestroy())
+				{
+					// User has confirmed window destruction by returning true
+					bShouldRemove = true;
+				}
+				else
+					bRequestToClose = false; // User vetoed closure
 			}
-			else
-				bRequestToClose = false; // User vetoed closure
+			
+			// Finialise any outstanding tasks
+			draw.ProcessGPUTasks();
+
+			if (GetScreen().GetConfig().MSAA)
+			{
+				pRenderer->ResolveMSAA(uint32_t(GetScreen().GetGPUID()));
+			}
+
+			draw.ResetShader();
+			draw.WorldReset();		
 		}
 
-
-		// Finialise any outstanding tasks
-		draw.ProcessGPUTasks();
-
-		if (GetScreen().GetConfig().MSAA)
+		for (const auto& pgex : vecWindowExtensions)
 		{
-			pRenderer->ResolveMSAA(uint32_t(GetScreen().GetGPUID()));
+			if (pgex->OnAfterUserUpdate(this, fDT))
+			{
+				// Finialise any outstanding tasks
+				draw.ProcessGPUTasks();
+
+				if (GetScreen().GetConfig().MSAA)
+				{
+					pRenderer->ResolveMSAA(uint32_t(GetScreen().GetGPUID()));
+				}
+
+				draw.ResetShader();
+				draw.WorldReset();				
+			}
 		}
 
-		draw.ResetShader();
-		draw.WorldReset();		
-
-		// Take the window's completed "screen" and draw it as a textured quad to the backbuffer
-		pRenderer->AssignTextureTarget(0, 0);
 
 
 		// === Viewport Handling ===
@@ -15618,6 +15720,9 @@ namespace olc
 			// know for scaling
 		}
 
+		// Take the window's completed "screen" and draw it as a textured quad to the backbuffer
+		pRenderer->AssignTextureTarget(0, 0);
+
 		// Present final composite
 		pRenderer->SetViewport(vViewPos, vViewSize);
 		pRenderer->ClearViewport(config.colClear, true, true);
@@ -15629,6 +15734,12 @@ namespace olc
 		pRenderer->DisplayDraw(pHost->GetHostWindowDescriptor(this));
 
 		return true;
+	}
+
+	bool PGEWindow::InstallWindowExtension(olc::PGEWindowExtension* pgex)
+	{
+		vecWindowExtensions.push_back(pgex);
+		return pgex->OnInstall(this);
 	}
 
 	bool PGEWindow::CreateImage(olc::Image& image, const olc::vi2d& size, const ImageConfig& cfg)
@@ -15855,11 +15966,45 @@ namespace olc
 		gpu->ApplyDefaultShader();
 		draw.SetTarget(GetScreen());
 
+		for (const auto& pgex : vecSystemExtensions)
+		{
+			if(!pgex->OnBeforeUserCreate(this))
+			{
+				std::cout << "PGE OnContextStart(): User aborted in extension OnBeforeUserCreate()\n";
+				return false;
+			}
+		}
+
+		// It's possible to draw things in create so flush any pending GPU tasks
+		draw.ProcessGPUTasks();
+
+		// Set to known default state
+		draw.SetTarget(GetScreen());
+		draw.WorldReset();
+		gpu->ApplyDefaultShader();
+
 		// User Create GOOOOOOOOO!!!!
 		if (!OnUserCreate())
 		{
 			std::cout << "PGE OnContextStart(): User aborted OnUserCreate()\n";
 			return false;
+		}
+
+		// It's possible to draw things in create so flush any pending GPU tasks
+		draw.ProcessGPUTasks();
+
+		// Set to known default state
+		draw.SetTarget(GetScreen());
+		draw.WorldReset();
+		gpu->ApplyDefaultShader();
+
+		for (const auto& pgex : vecSystemExtensions)
+		{
+			if (!pgex->OnAfterUserCreate(this))
+			{
+				std::cout << "PGE OnContextStart(): User aborted in extension OnAfterUserCreate()\n";
+				return false;
+			}
 		}
 
 		// It's possible to draw things in create so flush any pending GPU tasks
@@ -15932,8 +16077,26 @@ namespace olc
 		}
 		else
 		{
+			for (const auto& pgex : vecSystemExtensions)
+			{
+				if (!pgex->OnBeforeSystemUpdate(this, fDT))
+				{
+					std::cout << "PGE OnContextTick(): User aborted in extension OnAfterUserCreate()\n";
+					return false;
+				}
+			}
+
 			// Update Primary Window
 			olc_WindowUpdate(fDT, fTT);
+
+			for (const auto& pgex : vecSystemExtensions)
+			{
+				if (!pgex->OnAfterSystemUpdate(this, fDT))
+				{
+					std::cout << "PGE OnContextTick(): User aborted in extension OnAfterSystemUpdate()\n";
+					return false;
+				}
+			}
 
 			// Wait for vertical sync with desktop compositor if required. 
 			
@@ -15994,6 +16157,12 @@ namespace olc
 		olc_IgnoreUnused(window, vScreenSize, vPixelSize);
 		return false;
 #endif
+	}
+
+	bool PixelGameEngine::InstallSystemExtension(olc::PGESystemExtension* pgex)
+	{
+		vecSystemExtensions.push_back(pgex);
+		return pgex->OnInstall(this);
 	}
 
 }
