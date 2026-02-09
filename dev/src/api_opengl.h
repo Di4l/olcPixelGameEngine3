@@ -334,7 +334,7 @@ namespace olc
 			static constexpr GLenum GL_SAMPLES_X = 0x80A9;
 			static constexpr GLenum GL_COMPILE_STATUS_X = 0x8B81;
 			static constexpr GLenum GL_INFO_LOG_LENGTH_X = 0x8B84;
-			static constexpr GLenum GL_DEPTH_COMPONENT24 = 0x81A6;
+			static constexpr GLenum GL_DEPTH_COMPONENT24_X = 0x81A6;
 			static constexpr GLenum GL_DEPTH_ATTACHMENT_X = 0x8D00;
 			static constexpr GLenum GL_RENDERBUFFER_SAMPLES_X = 0x8CAB;
 		private:

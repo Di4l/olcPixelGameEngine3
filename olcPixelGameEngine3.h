@@ -6347,7 +6347,7 @@ namespace olc
 			static constexpr GLenum GL_SAMPLES_X = 0x80A9;
 			static constexpr GLenum GL_COMPILE_STATUS_X = 0x8B81;
 			static constexpr GLenum GL_INFO_LOG_LENGTH_X = 0x8B84;
-			static constexpr GLenum GL_DEPTH_COMPONENT24 = 0x81A6;
+			static constexpr GLenum GL_DEPTH_COMPONENT24_X = 0x81A6;
 			static constexpr GLenum GL_DEPTH_ATTACHMENT_X = 0x8D00;
 			static constexpr GLenum GL_RENDERBUFFER_SAMPLES_X = 0x8CAB;
 		private:
@@ -13365,7 +13365,7 @@ void main()
 		gl.glGenRenderbuffers(1, &nDepthRBO);
 		gl.glBindRenderbuffer(gl.GL_RENDERBUFFER_X, nDepthRBO);
 		// Allocate with a default size (will be resized when needed)
-		gl.glRenderbufferStorage(gl.GL_RENDERBUFFER_X, gl.GL_DEPTH_COMPONENT24, 1024, 1024);
+		gl.glRenderbufferStorage(gl.GL_RENDERBUFFER_X, gl.GL_DEPTH_COMPONENT24_X, 1024, 1024);
 		gl.glFramebufferRenderbuffer(gl.GL_FRAMEBUFFER_X, gl.GL_DEPTH_ATTACHMENT_X, gl.GL_RENDERBUFFER_X, nDepthRBO);
 		vCurrentDepthSize = {1024, 1024};
 		nCurrentDepthSamples = 0;
@@ -13763,7 +13763,7 @@ void main()
 				gl.glRenderbufferStorageMultisample(
 					gl.GL_RENDERBUFFER_X,
 					targetSamples,
-					gl.GL_DEPTH_COMPONENT24,
+					gl.GL_DEPTH_COMPONENT24_X,
 					targetSize.x,
 					targetSize.y
 				);
@@ -13773,7 +13773,7 @@ void main()
 				// Allocate regular depth buffer
 				gl.glRenderbufferStorage(
 					gl.GL_RENDERBUFFER_X,
-					gl.GL_DEPTH_COMPONENT24,
+					gl.GL_DEPTH_COMPONENT24_X,
 					targetSize.x,
 					targetSize.y
 				);
