@@ -382,12 +382,12 @@ public:
 		olc::mf4d matView;
 		olc::mf4d matWorld;
 
-		draw3d.SetViewport({ 0,0 }, GetScreen().Size());
-		draw3d.MatrixReset();
+		draw.SetViewport({ 0,0 }, GetScreen().Size());
+		draw.MatrixReset();
 		matProj.perspective(90.0f * 3.14159f / 180.0f, float(ScreenSize().x) / float(ScreenSize().y), 0.1f, 1000.0f);
 
-		draw3d.SetProjectionMatrix(matProj);
-		draw3d.SetViewMatrix(matView);
+		draw.SetProjectionMatrix(matProj);
+		draw.SetViewMatrix(matView);
 
 		if (keyboard.GetKey(olc::Key::LEFT).bHeld)
 			vCubePos.x -= 5.0f * fElapsedTime;
@@ -403,24 +403,24 @@ public:
 			vCubePos.z -= 5.0f * fElapsedTime;
 
 		matWorld.translate(vCubePos);
-		draw3d.SetModelMatrix(matWorld);
+		draw.SetModelMatrix(matWorld);
 
 		for(int x = 0; x < 10; x++)
 			for (int y = 0; y < 10; y++)
 				for (int z = 0; z < 10; z++)
 				{
 					matWorld.translate(vCubePos + olc::vf4d(float(x) * 2.0f, float(y) * 2.0f, float(z) * 2.0f, 0));
-					draw3d.SetModelMatrix(matWorld);
-					//draw3d.SetMVPMatrix(matProj * matView * matWorld);
-					draw3d.Mesh(cube.layout, cube.pos, cube.col, cube.uv, imSanityCube);
+					draw.SetModelMatrix(matWorld);
+					//draw.SetMVPMatrix(matProj * matView * matWorld);
+					draw.Mesh(cube.layout, cube.pos, cube.col, cube.uv, imSanityCube);
 				}
 
 
 		//draw3d.Mesh(cube.layout, cube.pos, cube.col);
 
-		draw3d.Line({ 0.0f, 0.0f, 0.0f },{ 1.0f, 0.0f, 0.0f },olc::Colour::RED);
-		draw3d.Line({ 0.0f, 0.0f, 0.0f }, { 0.0f, 1.0f, 0.0f }, olc::Colour::GREEN);
-		draw3d.Line({ 0.0f, 0.0f, 0.0f }, { 0.0f, 0.0f, 1.0f }, olc::Colour::BLUE);
+		draw.Line({ 0.0f, 0.0f, 0.0f },{ 1.0f, 0.0f, 0.0f },olc::Colour::RED);
+		draw.Line({ 0.0f, 0.0f, 0.0f }, { 0.0f, 1.0f, 0.0f }, olc::Colour::GREEN);
+		draw.Line({ 0.0f, 0.0f, 0.0f }, { 0.0f, 0.0f, 1.0f }, olc::Colour::BLUE);
 
 		
 
