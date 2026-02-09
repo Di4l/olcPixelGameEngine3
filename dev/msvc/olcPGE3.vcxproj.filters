@@ -69,7 +69,7 @@
     <ClInclude Include="..\src\sh_template.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\draw2d.h">
+    <ClInclude Include="..\src\draw.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\src\polyform.h">
@@ -165,9 +165,6 @@
     <ClInclude Include="..\src\matrix4d.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\draw3d.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\core.cpp">
@@ -188,7 +185,7 @@
     <ClCompile Include="..\tests\test_mh.cpp">
       <Filter>Source Files\tests</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\draw2d.cpp">
+    <ClCompile Include="..\src\draw.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\src\gpu_iface.cpp">
@@ -198,9 +195,6 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\src\font.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\draw2d_sw.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\src\api_macos.cpp">
@@ -238,9 +232,6 @@
     </ClCompile>
     <ClCompile Include="..\src\imload_android.cpp">
       <Filter>Hosts\Android Specific</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\draw3d.cpp">
-      <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\src\imload_stb_image.cpp">
       <Filter>Source Files</Filter>

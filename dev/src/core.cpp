@@ -50,7 +50,7 @@
 //! START IMPLEMENTATION
 namespace olc
 {
-	PGEWindow::PGEWindow() : Window(), draw(), draw3d(draw)
+	PGEWindow::PGEWindow() : Window(), draw()
 	{
 	}
 
@@ -252,7 +252,7 @@ namespace olc
 		return imgPrimary;
 	}
 
-	olc::Draw2D& PGEWindow::GetDraw()
+	olc::Draw& PGEWindow::GetDraw()
 	{
 		return draw;
 	}

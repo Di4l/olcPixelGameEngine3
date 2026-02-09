@@ -135,9 +135,7 @@
  
 //! GRAB gpu_iface.h DECLARATION
 
-//! GRAB draw2d.h DECLARATION
-
-//! GRAB draw3d.h DECLARATION
+//! GRAB draw.h DECLARATION
 
 //! GRAB hw_input.h	DECLARATION
 
@@ -270,15 +268,9 @@
 #define PGE_GPU_IMPLEMENTED 1
 #endif
 
-#if defined(OLC_PGE3_APPLICATION) && !defined(PGE_DRAW2D_IMPLEMENTED)
-//! GRAB draw2d.cpp IMPLEMENTATION 
-//! GRAB draw2d_sw.cpp IMPLEMENTATION 
-#define PGE_DRAW2D_IMPLEMENTED 1
-#endif
-
-#if defined(OLC_PGE3_APPLICATION) && !defined(PGE_DRAW3D_IMPLEMENTED)
-//! GRAB draw3d.cpp IMPLEMENTATION 
-#define PGE_DRAW3D_IMPLEMENTED 1
+#if defined(OLC_PGE3_APPLICATION) && !defined(PGE_DRAW_IMPLEMENTED)
+//! GRAB draw.cpp IMPLEMENTATION 
+#define PGE_DRAW_IMPLEMENTED 1
 #endif
 
 #if defined(OLC_PGE3_APPLICATION) && !defined(PGE_CORE_IMPLEMENTED)

@@ -43,7 +43,7 @@ public:
 
 		// Only needs setting once, as the projection matrix doesn't change in this example
 		matProj.perspective(90.0f * 3.14159f / 180.0f, float(ScreenSize().x) / float(ScreenSize().y), 0.1f, 100.0f);
-		draw3d.SetProjectionMatrix(matProj);
+		draw.SetProjectionMatrix(matProj);
 
 		return true;
 	}
@@ -87,7 +87,7 @@ public:
 		matViewRotateX.rotateX(3.14159f);
 		matViewTranslate.translate(vViewTranslate);
 		matView = matViewRotateX * matViewTranslate;
-		draw3d.SetViewMatrix(matView);
+		draw.SetViewMatrix(matView);
 			
 		// Create a world matrix that rotates the cube over time. The cube is offset
 		// so it rotates around its centre. Its verts are defined in the range 0..1
@@ -104,24 +104,24 @@ public:
 		// 2. Rotate the cube around the Y axis
 		// 3. Rotate the cube around the X axis
 		matWorld = matRotX * matRotY * matTrans;
-		draw3d.SetModelMatrix(matWorld);
+		draw.SetModelMatrix(matWorld);
 
 		// The olc::SanityCube (TM) (c) is defined with vertices in clockwise order, 
 		// so cull counter-clockwise faces to show it off in all its glory! This is
 		// counter to OpenGL's default culling mode, so it's a good test of the culling 
 		// system as well.
-		draw3d.SetCullMode(olc::GPUTask::CullMode::CounterClockWise);
+		draw.SetCullMode(olc::GPUTask::CullMode::CounterClockWise);
 		
 		// Draw the cube using the sanity cube's layout, and vectors of vertices, colours
 		// and texture coordinates.		 
-		draw3d.Mesh(meshSanityCube.layout, meshSanityCube.pos, meshSanityCube.col, meshSanityCube.uv, imSanityCube);
+		draw.Mesh(meshSanityCube.layout, meshSanityCube.pos, meshSanityCube.col, meshSanityCube.uv, imSanityCube);
 
 		// Draw a little RGB axis indicator
 		matWorld.translate(-1,-1,-1);
-		draw3d.SetModelMatrix(matWorld);
-		draw3d.Line({ 0,0,0 }, { 1, 0, 0 }, olc::Colour::RED);
-		draw3d.Line({ 0,0,0 }, { 0, 1, 0 }, olc::Colour::GREEN);
-		draw3d.Line({ 0,0,0 }, { 0, 0, 1 }, olc::Colour::BLUE);
+		draw.SetModelMatrix(matWorld);
+		draw.Line({ 0,0,0 }, { 1, 0, 0 }, olc::Colour::RED);
+		draw.Line({ 0,0,0 }, { 0, 1, 0 }, olc::Colour::GREEN);
+		draw.Line({ 0,0,0 }, { 0, 0, 1 }, olc::Colour::BLUE);
 
 		draw.StringProp({ 4, 4 }, "+X: Right\n-X: Left\n+Y: Up\n-Y: Down\n+Z: Q\n-Z: A\nSPIN: Space", olc::Colour::BLACK);
 
@@ -143,7 +143,7 @@ public:
 	olc::Image imSanityCube;
 	mesh meshSanityCube;
 
-	bool bSpinning = false;
+	bool bSpinning = true;
 
 
 	// Behold!! The Sanity Cube!! A cube with all the correct vertex attributes, to 
