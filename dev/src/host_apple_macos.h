@@ -138,7 +138,7 @@ namespace olc
             void MacWindowEventsHandler();
             void MacEventsHandler();
             void MacOpenGLContextEventsHandler();
-            
+            void KeyboardEventHandler(const olc::apis::macos::KeyEvent& event, bool isPressed);
             bool bNumLockActive = true; // Num Lock state, we assume it's active at start
             
         };
