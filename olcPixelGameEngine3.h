@@ -7850,7 +7850,7 @@ namespace ObjectiveCSEL {
    // NSResponder keyboard and mouse event methods selectors
    static SEL keyDownSel           = nullptr;
    static SEL keyUpSel             = nullptr;
-   static SEL flagsChangedSel = nullptr;
+   static SEL flagsChangedSel      = nullptr;
    static SEL mouseDownSel         = nullptr;
    static SEL mouseUpSel           = nullptr;
    static SEL mouseDraggedSel      = nullptr;
