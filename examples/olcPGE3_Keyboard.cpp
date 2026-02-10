@@ -58,7 +58,15 @@ public:
 		if (keyboard.GetKey(olc::Key::RIGHT).bHeld)
 			vPosition.x += 50.0f * fElapsedTime;
 
-		draw.FilledCircle(vPosition.round(), 10.0f);
+		olc::Pixel col = olc::Colour::WHITE;
+
+		if(keyboard.GetKey(olc::Key::SHIFT).bHeld)
+			col = olc::Colour::MAGENTA;
+		
+		if(keyboard.GetKey(olc::Key::CTRL).bHeld)
+			col = olc::Colour::TANGERINE;
+
+		draw.FilledCircle(vPosition.round(), 10.0f, col);
 
 
 		// Capture text input from keyboard
