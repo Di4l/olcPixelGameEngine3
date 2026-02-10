@@ -412,7 +412,7 @@ namespace olc::host
                 return EM_TRUE;
             }
             break;
-            case EMSCRIPTEN_EVENT_MOUSEUP: // deliberate fallthrough
+            case EMSCRIPTEN_EVENT_MOUSEUP:
             {
                 auto it = pCallbackData->pHost->mapMouseButtons.find(e->button);
                 if(it != pCallbackData->pHost->mapMouseButtons.end())
