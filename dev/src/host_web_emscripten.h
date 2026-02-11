@@ -91,6 +91,8 @@ namespace olc::host
         
         // Map of system keycodes to olc::Keycodes
         std::unordered_map<int32_t, olc::Key> mapKeys;
+        // Map of system mouse buttons to olc mouse buttons
+        std::unordered_map<int32_t, int32_t> mapMouseButtons;
     };
     
     
