@@ -138,9 +138,7 @@ namespace olc
             void MacWindowEventsHandler();
             void MacEventsHandler();
             void MacOpenGLContextEventsHandler();
-            
-            // When modifier flag changes the keycode it will return true, else false
-            bool ModifiersFlagsHandler(const olc::apis::macos::KeyEvent& data, bool pressed);
+            void KeyboardEventHandler(const olc::apis::macos::KeyEvent& event, bool isPressed);
             bool bNumLockActive = true; // Num Lock state, we assume it's active at start
             
         };

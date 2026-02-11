@@ -545,51 +545,38 @@ bool Host_Apple_MacOS::SyncWithDesktopComposite()
         });
         
     }
+    
+    // handles both down and up strokes for every supported key that isn't a modifier
+    void Host_Apple_MacOS::KeyboardEventHandler(const olc::apis::macos::KeyEvent& event, bool isPressed)
+    {
+        unsigned short keyCode = event.keyCode;
+        
+        // handle num clear/lock key only on the down stroke.
+        if(isPressed && keyCode == 71)
+        {
+            bNumLockActive = !bNumLockActive;
+            return;
+        }
 
-    bool Host_Apple_MacOS::ModifiersFlagsHandler(const olc::apis::macos::KeyEvent& event, bool pressed) {
-        
-        bool bisHandled = false;
-        if (event.modifierFlags & NSEventModifierFlagCapsLock) {
-            pPGEwindow->olc_OnKeyPress(Key::CAPS_LOCK, pressed);
-        }
-        if (event.modifierFlags & NSEventModifierFlagShift) {
-            pPGEwindow->olc_OnKeyPress(Key::SHIFT, pressed);
-            if(event.keyCode == 39)
+        if(!bNumLockActive)
+        {
+            // 84 down, 86 left, 88 right, 91 up >>> 125 down, 123 left, 124 right, 126 up
+            switch(keyCode)
             {
-                // The @ symbol does not change position from US - UK keyboards on MacOS, so we handle it here
-                pPGEwindow->olc_OnKeyPress(mapKeys[50], pressed);
-                return true;
+                case 84: keyCode = 125; break;
+                case 86: keyCode = 123; break;
+                case 88: keyCode = 124; break;
+                case 91: keyCode = 126; break;
+                default: break;
             }
-            
         }
-        if (event.modifierFlags & NSEventModifierFlagControl) {
-            pPGEwindow->olc_OnKeyPress(Key::CTRL, pressed);
-        }
-        
-        if(event.modifierFlags & NSEventModifierFlagNumericPad) {
-            if(event.keyCode == 71 && pressed) // NumLock keycode
-            {
-                // We only tottle the NumLock state on key press to minic the latching of the key
-                bNumLockActive = !bNumLockActive;
-            }
-            
-            if(!bNumLockActive)
-            {
-                // 84 down, 86 left, 88 right, 91 up >>> 125 down, 123 left, 124 right, 126 up
-                if(event.keyCode == 84) pPGEwindow->olc_OnKeyPress(mapKeys[125], pressed);
-                if(event.keyCode == 86) pPGEwindow->olc_OnKeyPress(mapKeys[123], pressed);
-                if(event.keyCode == 88) pPGEwindow->olc_OnKeyPress(mapKeys[124], pressed);
-                if(event.keyCode == 91) pPGEwindow->olc_OnKeyPress(mapKeys[126], pressed);
-                return true;
-            }
-            
 
-        }
-            
-        return bisHandled;
+        // The @ symbol does not change position from US - UK keyboards on MacOS, so we handle it here
+        if(event.modifierFlags & NSEventModifierFlagShift && event.keyCode == 39)
+            keyCode = 50;
         
+        pPGEwindow->olc_OnKeyPress(mapKeys[keyCode], isPressed);
     }
-
 
     void Host_Apple_MacOS::MacEventsHandler()
     {
@@ -598,16 +585,43 @@ bool Host_Apple_MacOS::SyncWithDesktopComposite()
 
         // Set up keyboard event handlers
         pMacOSEventHandler->onKeyDown([&](const olc::apis::macos::KeyEvent& event) {
-            if(!ModifiersFlagsHandler(event, true))
-                pPGEwindow->olc_OnKeyPress(mapKeys[event.keyCode], true);
+            KeyboardEventHandler(event, true);
         });
-        
-        pMacOSEventHandler->onKeyUp([&](const olc::apis::macos::KeyEvent& event) {
-            if(!ModifiersFlagsHandler(event, false))
-               pPGEwindow->olc_OnKeyPress(mapKeys[event.keyCode], false);
 
+        pMacOSEventHandler->onKeyUp([&](const olc::apis::macos::KeyEvent& event) {
+            KeyboardEventHandler(event, false);
         });
-        
+
+        // Set up keyboard flag event handlers
+        pMacOSEventHandler->onFlagsChanged([&](const olc::apis::macos::FlagsChangedEvent& event) {
+
+            static unsigned int prevFlags = 0;
+            unsigned int changedFlags = event.modifierFlags ^ prevFlags;
+            
+            // Check For Shift key
+            if (changedFlags & NSEventModifierFlagShift) {
+                bool isPressed = event.modifierFlags & NSEventModifierFlagShift;
+                pPGEwindow->olc_OnKeyPress(Key::SHIFT, isPressed);
+            }
+            
+            // Check for Control key
+            if (changedFlags & NSEventModifierFlagControl) {
+                bool isPressed = event.modifierFlags & NSEventModifierFlagControl;
+                pPGEwindow->olc_OnKeyPress(Key::CTRL, isPressed);
+            }
+
+            if (changedFlags & NSEventModifierFlagCommand) {
+                bool isPressed = event.modifierFlags & NSEventModifierFlagCommand;
+                if(isPressed)
+                    std::cout << "PGE3 doesn't currently support ALT/Command keys but it should.\n";
+                
+                // pPGEwindow->olc_OnKeyPress(Key::ALT, isPressed);
+            }
+
+            // caps lock doesn't appear to trigger any event
+            prevFlags = event.modifierFlags;
+        });
+
         // Set up mouse event handlers
         pMacOSEventHandler->onMouseDown([&](const olc::apis::macos::MouseEvent& event) {
                 pPGEwindow->olc_OnMouseButton(event.buttonNumber, true);

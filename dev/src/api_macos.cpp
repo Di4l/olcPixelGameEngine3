@@ -62,6 +62,7 @@ static constexpr const char* kWindowDidDeminiaturizeSel         = "windowDidDemi
 // NSResponder keyboard and mouse event methods selectors
 static constexpr const char* kKeyDownSel                        = "keyDown:";
 static constexpr const char* kKeyUpSel                          = "keyUp:";
+static constexpr const char* kFlagsChangedSel                   = "flagsChanged:";
 static constexpr const char* kMouseDownSel                      = "mouseDown:";
 static constexpr const char* kMouseUpSel                        = "mouseUp:";
 static constexpr const char* kMouseDraggedSel                   = "mouseDragged:";
@@ -203,6 +204,7 @@ namespace ObjectiveCSEL {
    // NSResponder keyboard and mouse event methods selectors
    static SEL keyDownSel           = nullptr;
    static SEL keyUpSel             = nullptr;
+   static SEL flagsChangedSel      = nullptr;
    static SEL mouseDownSel         = nullptr;
    static SEL mouseUpSel           = nullptr;
    static SEL mouseDraggedSel      = nullptr;
@@ -317,6 +319,7 @@ namespace ObjectiveCSEL {
         // NSResponder keyboard and mouse event methods selectors
         keyDownSel                          = sel_registerName(kKeyDownSel);
         keyUpSel                            = sel_registerName(kKeyUpSel);
+        flagsChangedSel                     = sel_registerName(kFlagsChangedSel);
         mouseDownSel                        = sel_registerName(kMouseDownSel);
         mouseUpSel                          = sel_registerName(kMouseUpSel);
         mouseDraggedSel                     = sel_registerName(kMouseDraggedSel);
@@ -658,6 +661,7 @@ struct Window {
     // Event callback function pointers with nullptr initialization
     void (*keyDownCallback)          (unsigned short keyCode, const char* characters, unsigned int modifierFlags, void* userData){nullptr};
     void (*keyUpCallback)            (unsigned short keyCode, const char* characters, unsigned int modifierFlags, void* userData){nullptr};
+    void (*flagsChangedCallback)     (unsigned int modifierFlags, void* userData){nullptr};
     void (*mouseDownCallback)        (double x, double y, int buttonNumber,  unsigned int modifierFlags, void* userData){nullptr};
     void (*mouseUpCallback)          (double x, double y, int buttonNumber,  unsigned int modifierFlags, void* userData){nullptr};
     void (*mouseMovedCallback)       (double x, double y, int buttonNumber,  unsigned int modifierFlags, void* userData){nullptr};
@@ -857,6 +861,15 @@ void view_keyUp(id self, SEL _cmd, id event) {
     }
 }
 
+void view_flagsChanged(id self, SEL _cmd, id event) {
+    (void)self;(void)_cmd;
+
+    unsigned int modifierFlags = ((unsigned int(*)(id, SEL))objc_msgSend)(event, ObjectiveCSEL::modifierFlagsSel);
+
+    if (gptrNSWindowEvents && gptrNSWindowEvents->acceptsInputEvents && gptrNSWindowEvents->flagsChangedCallback) [[likely]] {
+        gptrNSWindowEvents->flagsChangedCallback(modifierFlags, gptrNSWindowEvents->eventUserData);
+    }
+}
 
 //====================================================================//
 // Mouse Event Handling
@@ -1092,7 +1105,10 @@ Class createCustomOpenGLViewClass() {
     // Keyboard event handler methods
     class_addMethod(CustomViewClass, ObjectiveCSEL::keyDownSel, (IMP)view_keyDown, kEventHandlerMethodTypeEncoding);
     class_addMethod(CustomViewClass, ObjectiveCSEL::keyUpSel,   (IMP)view_keyUp,   kEventHandlerMethodTypeEncoding);
-
+    
+    // Flags Changed event handler
+    class_addMethod(CustomViewClass, ObjectiveCSEL::flagsChangedSel, (IMP)view_flagsChanged, kEventHandlerMethodTypeEncoding);
+    
     // Mouse event handler methods
     class_addMethod(CustomViewClass, ObjectiveCSEL::mouseDownSel,         (IMP)view_mouseDown,         kEventHandlerMethodTypeEncoding);
     class_addMethod(CustomViewClass, ObjectiveCSEL::mouseUpSel,           (IMP)view_mouseUp,           kEventHandlerMethodTypeEncoding);
@@ -1992,6 +2008,11 @@ extern "C" {
 
     void window_setKeyUpCallback(Window* self, void (*callback)(unsigned short, const char*, unsigned int, void*), void* userData) {
         self->keyUpCallback = callback;
+        self->eventUserData = userData;
+    }
+    
+    void window_setFlagsChangedCallback(Window* self, void (*callback)(unsigned int, void*), void* userData) {
+        self->flagsChangedCallback = callback;
         self->eventUserData = userData;
     }
 
