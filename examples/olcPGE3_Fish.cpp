@@ -108,7 +108,7 @@ class Fish {
         return total_curve;
     }
 
-    void Draw(olc::Draw2D& pge) {
+    void Draw(olc::Draw& pge) {
         const auto world_transform = pge.GetWorldTransform();
         const auto origin = olc::vf2d{0.0f, 0.0f};
         const auto half_pi = std::numbers::pi_v<float> / 2.0f;
@@ -175,7 +175,7 @@ class Fish {
     }
 
     // Draw a simple tail triangle
-    void DrawTail(olc::Draw2D& pge) {
+    void DrawTail(olc::Draw& pge) {
         const auto world_transform = pge.GetWorldTransform();
         const auto& tail_start = segments[segments.size() - 5];
         const auto& end = segments[segments.size() - 1];
@@ -200,7 +200,7 @@ class Fish {
     }
 
     // Draw some fins on the body of the fish
-    void DrawFin(olc::Draw2D& pge, int segment_index, float size) {
+    void DrawFin(olc::Draw& pge, int segment_index, float size) {
         const auto world_transform = pge.GetWorldTransform();
         const auto& segment = segments[segment_index];
         const auto& prev_segment = segments[segment_index - 1];
@@ -244,7 +244,7 @@ class Fish {
     }
 
     // Draw the eyes on the head of the fish
-    void DrawEyes(olc::Draw2D& pge) {
+    void DrawEyes(olc::Draw& pge) {
         const auto world_transform = pge.GetWorldTransform();
         const auto& head = segments[0];
         olc::tf2d transform;
@@ -268,7 +268,7 @@ class Fish {
     }
 
     // Draw a fin on the back of the fish
-    void DrawDorsalFin(olc::Draw2D& pge, int fin_start, size_t length, float size) {
+    void DrawDorsalFin(olc::Draw& pge, int fin_start, size_t length, float size) {
         const int fin_end = fin_start + length;
         const auto world_transform = pge.GetWorldTransform();
         std::vector<olc::vf2d> fin_points {length * 2};
