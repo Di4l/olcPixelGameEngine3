@@ -529,6 +529,8 @@ namespace olc::host
                 case BTN_LEFT: pge_window->olc_OnMouseButton(0, pointer_state.state == WL_POINTER_BUTTON_STATE_PRESSED); break;
                 case BTN_MIDDLE: pge_window->olc_OnMouseButton(2, pointer_state.state == WL_POINTER_BUTTON_STATE_PRESSED); break;
                 case BTN_RIGHT: pge_window->olc_OnMouseButton(1, pointer_state.state == WL_POINTER_BUTTON_STATE_PRESSED); break;
+                case BTN_SIDE: pge_window->olc_OnMouseButton(3, pointer_state.state == WL_POINTER_BUTTON_STATE_PRESSED); break;
+                case BTN_EXTRA: pge_window->olc_OnMouseButton(4, pointer_state.state == WL_POINTER_BUTTON_STATE_PRESSED); break;
                 default: break;
             }
         }
