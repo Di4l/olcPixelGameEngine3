@@ -408,8 +408,9 @@ namespace olc::host
                 if(it != pCallbackData->pHost->mapMouseButtons.end())
                 {
                     olc_OnMouseButton(pCallbackData->pWindow, it->second, true);
+                    // middle/next/back buttons require the event to be consumed to prevent browser behavior
+                    if(it->second >= 2) return EM_TRUE;
                 }
-                return EM_TRUE;
             }
             break;
             case EMSCRIPTEN_EVENT_MOUSEUP:
@@ -418,8 +419,9 @@ namespace olc::host
                 if(it != pCallbackData->pHost->mapMouseButtons.end())
                 {
                     olc_OnMouseButton(pCallbackData->pWindow, it->second, false);
+                    // middle/next/back buttons require the event to be consumed to prevent browser behavior
+                    if(it->second >= 2) return EM_TRUE;
                 }
-                return EM_TRUE;
             }
             break;
             default: break;
@@ -464,12 +466,10 @@ namespace olc::host
  
         if (eventType == EMSCRIPTEN_EVENT_BLUR)
         {
-            // ptrPGE->olc_UpdateKeyFocus(false);
             olc_OnMouseFocus(pCallbackData->pWindow, false);
         }
         else if (eventType == EMSCRIPTEN_EVENT_FOCUS)
         {
-            // ptrPGE->olc_UpdateKeyFocus(true);
             olc_OnMouseFocus(pCallbackData->pWindow, true);
         }
 
