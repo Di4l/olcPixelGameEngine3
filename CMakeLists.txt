@@ -26,10 +26,10 @@ file(GLOB sources
 if(NOT EMSCRIPTEN)
     add_custom_command(
         OUTPUT olcPixelGameEngine3.h
-        COMMAND ${olcGimmeHead_BINARY_DIR}/${CMAKE_CFG_INTDIR}/gimme-head ${CMAKE_CURRENT_SOURCE_DIR}/dev/src/sh_template.h ${CMAKE_BINARY_DIR}/olcPixelGameEngine3.h
+        COMMAND ${olcGimmeHead_BINARY_DIR}/${CMAKE_CFG_INTDIR}/gimme-head${CMAKE_EXECUTABLE_SUFFIX} ${CMAKE_CURRENT_SOURCE_DIR}/dev/src/sh_template.h ${CMAKE_BINARY_DIR}/olcPixelGameEngine3.h
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/dev/src
         DEPENDS ${sources}
-        DEPENDS ${olcGimmeHead_BINARY_DIR}/${CMAKE_CFG_INTDIR}/gimme-head
+        DEPENDS ${olcGimmeHead_BINARY_DIR}/${CMAKE_CFG_INTDIR}/gimme-head${CMAKE_EXECUTABLE_SUFFIX}
     )
 else()
     add_custom_command(
