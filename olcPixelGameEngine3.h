@@ -10023,14 +10023,18 @@ namespace olc::host
                     
                     }
                 }
-                // else if (xev.type == FocusIn)
-                // {
-                // 	ptrPGE->olc_UpdateKeyFocus(true);
-                // }
-                // else if (xev.type == FocusOut)
-                // {
-                // 	ptrPGE->olc_UpdateKeyFocus(false);
-                // }
+                else if (xev.type == FocusIn)
+                {
+                	if(auto* pge_window = get_pge_window(xev.xbutton.window); pge_window) {
+                        pge_window->olc_OnMouseFocus(true);
+                    }
+                }
+                else if (xev.type == FocusOut)
+                {
+                	if(auto* pge_window = get_pge_window(xev.xbutton.window); pge_window) {
+                        pge_window->olc_OnMouseFocus(false);
+                    }
+                }
                 else if (xev.type == ClientMessage)
                 {
                     X11::XClientMessageEvent& xcme = xev.xclient;
