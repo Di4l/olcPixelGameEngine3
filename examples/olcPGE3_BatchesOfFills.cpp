@@ -79,7 +79,7 @@ public:
 
 		// Draw a gradient circle
 		draw.FilledCircle(batch, { 224.0f, 32.0f }, 20.0f,
-			olc::Colour::RED, olc::Colour::YELLOW);
+			olc::Colour::RED, olc::Colour::YELLOW, olc::Colour::WHITE);
 
 
 
@@ -95,7 +95,7 @@ public:
 
 		// Draw a gradient ellipse
 		draw.FilledEllipse(batch, { 224.0f, 96.0f }, 10, 20,
-			olc::Colour::BLUE, olc::Colour::CYAN);
+			olc::Colour::BLUE, olc::Colour::CYAN, olc::Colour::WHITE);
 
 
 		// Draw a circle outline with fewer facets
