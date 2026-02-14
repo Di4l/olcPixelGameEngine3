@@ -273,6 +273,7 @@
 
 #if defined(OLC_PGE3_APPLICATION) && !defined(PGE_DRAW_IMPLEMENTED)
 //! GRAB draw.cpp IMPLEMENTATION 
+//! GRAB draw_batch.cpp IMPLEMENTATION
 #define PGE_DRAW_IMPLEMENTED 1
 #endif
 

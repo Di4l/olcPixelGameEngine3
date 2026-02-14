@@ -279,6 +279,7 @@
     <ClCompile Include="..\src\api_opengl.cpp" />
     <ClCompile Include="..\src\core.cpp" />
     <ClCompile Include="..\src\draw.cpp" />
+    <ClCompile Include="..\src\draw_batch.cpp" />
     <ClCompile Include="..\src\font.cpp" />
     <ClCompile Include="..\src\gpu_iface.cpp" />
     <ClCompile Include="..\src\gpu_opengl33.cpp" />
