@@ -2665,19 +2665,21 @@ namespace olc
 
 // === Lines ===
 
-		// Draws a single pixel wide line		
-		const GPUTask& Line(
-			const olc::vf2d& p1, 
-			const olc::vf2d& p2, 
-			const olc::Pixel col = olc::Colour::WHITE,
-			const olc::Pixel tint = olc::Colour::WHITE);
-
 		// Draws a single pixel wide line into a batch
 		const LineBatch& Line(
 			olc::LineBatch& batch,
 			const olc::vf2d& p1,
 			const olc::vf2d& p2,
 			const olc::Pixel col = olc::Colour::WHITE,
+			const olc::Pixel tint = olc::Colour::WHITE);
+		
+		// Draws a single pixel wide line with a gradient into a batch	
+		const LineBatch& Line(
+			olc::LineBatch& batch,
+			const olc::vf2d& p1,
+			const olc::Pixel c1,
+			const olc::vf2d& p2,
+			const olc::Pixel c2,
 			const olc::Pixel tint = olc::Colour::WHITE);
 
 		// Draws a single pixel wide line with a gradient		
@@ -2688,22 +2690,24 @@ namespace olc
 			const olc::Pixel c2,
 			const olc::Pixel tint = olc::Colour::WHITE);
 
-		// Draws a single pixel wide line with a gradient into a batch	
-		const LineBatch& Line(
-			olc::LineBatch& batch,
-			const olc::vf2d& p1,
-			const olc::Pixel c1,
-			const olc::vf2d& p2,
-			const olc::Pixel c2,
+		// Draws a single pixel wide line		
+		const GPUTask& Line(
+			const olc::vf2d& p1, 
+			const olc::vf2d& p2, 
+			const olc::Pixel col = olc::Colour::WHITE,
 			const olc::Pixel tint = olc::Colour::WHITE);
 
 // === Rectangles ===
 
-		// Draws a rectangle outline
-		const GPUTask& Rect(
-			const olc::vf2d& pos, 
-			const olc::vf2d& size, 
-			const olc::Pixel col = olc::Colour::WHITE,
+		// Draws a multiple colour rectangle, with linear colour interpolation, into a batch
+		const LineBatch& Rect(
+			olc::LineBatch& batch,
+			const olc::vf2d& pos,
+			const olc::vf2d& size,
+			const olc::Pixel colTL,
+			const olc::Pixel colTR,
+			const olc::Pixel colBL,
+			const olc::Pixel colBR,
 			const olc::Pixel tint = olc::Colour::WHITE);
 
 		// Draws a rectangle outline into a batch
@@ -2724,9 +2728,16 @@ namespace olc
 			const olc::Pixel colBR,
 			const olc::Pixel tint = olc::Colour::WHITE);
 
-		// Draws a multiple colour rectangle, with linear colour interpolation, into a batch
-		const LineBatch& Rect(
-			olc::LineBatch& batch,
+		// Draws a rectangle outline
+		const GPUTask& Rect(
+			const olc::vf2d& pos, 
+			const olc::vf2d& size, 
+			const olc::Pixel col = olc::Colour::WHITE,
+			const olc::Pixel tint = olc::Colour::WHITE);
+		
+		// Draws a filled, multiple colour rectangle, with linear colour interpolation, into a batch
+		const FilledBatch& FilledRect(
+			olc::FilledBatch& batch,
 			const olc::vf2d& pos,
 			const olc::vf2d& size,
 			const olc::Pixel colTL,
@@ -2735,13 +2746,6 @@ namespace olc
 			const olc::Pixel colBR,
 			const olc::Pixel tint = olc::Colour::WHITE);
 			
-		// Draws a filled, single colour rectangle
-		const GPUTask& FilledRect(
-			const olc::vf2d& pos, 
-			const olc::vf2d& size, 
-			const olc::Pixel col = olc::Colour::WHITE,
-			const olc::Pixel tint = olc::Colour::WHITE);
-
 		// Draws a filled, single colour rectangle into a batch
 		const FilledBatch& FilledRect(
 			olc::FilledBatch& batch,
@@ -2759,39 +2763,22 @@ namespace olc
 			const olc::Pixel colBL, 
 			const olc::Pixel colBR,
 			const olc::Pixel tint = olc::Colour::WHITE);
-
-		// Draws a filled, multiple colour rectangle, with linear colour interpolation, into a batch
-		const FilledBatch& FilledRect(
-			olc::FilledBatch& batch,
-			const olc::vf2d& pos,
-			const olc::vf2d& size,
-			const olc::Pixel colTL,
-			const olc::Pixel colTR,
-			const olc::Pixel colBL,
-			const olc::Pixel colBR,
+		
+		// Draws a filled, single colour rectangle
+		const GPUTask& FilledRect(
+			const olc::vf2d& pos, 
+			const olc::vf2d& size, 
+			const olc::Pixel col = olc::Colour::WHITE,
 			const olc::Pixel tint = olc::Colour::WHITE);
+		
 
 // === Circles ===
 		
-		// Draws a circle outline with a single colour
-		const GPUTask& Circle(
-			const olc::vf2d& pos,
-			const float& radius,
-			const olc::Pixel col = olc::Colour::WHITE,
-			const olc::Pixel tint = olc::Colour::WHITE,
-			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS);
+		
 
 		// Draws a circle outline with a single colour into a batch
 		const LineBatch& Circle(
 			olc::LineBatch& batch,
-			const olc::vf2d& pos,
-			const float& radius,
-			const olc::Pixel col = olc::Colour::WHITE,
-			const olc::Pixel tint = olc::Colour::WHITE,
-			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS);
-
-		// Draws a filled circle with a single colour
-		const GPUTask& FilledCircle(
 			const olc::vf2d& pos,
 			const float& radius,
 			const olc::Pixel col = olc::Colour::WHITE,
@@ -2807,15 +2794,6 @@ namespace olc
 			const olc::Pixel tint = olc::Colour::WHITE,
 			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS);
 
-		// Draws a shaded circle with a radial gradient
-		const GPUTask& FilledCircle(
-			const olc::vf2d& pos,
-			const float& radius,
-			const olc::Pixel colInner,
-			const olc::Pixel colOuter,
-			const olc::Pixel tint = olc::Colour::WHITE,
-			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS);
-
 		// Draws a shaded circle with a radial gradient into a batch
 		const FilledBatch& FilledCircle(
 			olc::FilledBatch& batch,
@@ -2826,29 +2804,36 @@ namespace olc
 			const olc::Pixel tint = olc::Colour::WHITE,
 			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS);
 
-// === Ellipses ===
-
-		// Draws an ellipse outline with a single colour
-		const GPUTask& Ellipse(
+		// Draws a shaded circle with a radial gradient
+		const GPUTask& FilledCircle(
 			const olc::vf2d& pos,
-			const float& rx,
-			const float& ry,
+			const float& radius,
+			const olc::Pixel colInner,
+			const olc::Pixel colOuter,
+			const olc::Pixel tint = olc::Colour::WHITE,
+			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS);
+
+		// Draws a filled circle with a single colour
+		const GPUTask& FilledCircle(
+			const olc::vf2d& pos,
+			const float& radius,
 			const olc::Pixel col = olc::Colour::WHITE,
 			const olc::Pixel tint = olc::Colour::WHITE,
 			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS);
+
+		// Draws a circle outline with a single colour
+		const GPUTask& Circle(
+			const olc::vf2d& pos,
+			const float& radius,
+			const olc::Pixel col = olc::Colour::WHITE,
+			const olc::Pixel tint = olc::Colour::WHITE,
+			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS);
+
+// === Ellipses ===
 
 		// Draws an ellipse outline with a single colour into a batch
 		const LineBatch& Ellipse(
 			olc::LineBatch& batch,
-			const olc::vf2d& pos,
-			const float& rx,
-			const float& ry,
-			const olc::Pixel col = olc::Colour::WHITE,
-			const olc::Pixel tint = olc::Colour::WHITE,
-			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS);
-
-		// Draws a filled ellipse with a single colour
-		const GPUTask& FilledEllipse(
 			const olc::vf2d& pos,
 			const float& rx,
 			const float& ry,
@@ -2866,16 +2851,6 @@ namespace olc
 			const olc::Pixel tint = olc::Colour::WHITE,
 			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS);
 
-		// Draws a shaded ellipse with a radial gradient
-		const GPUTask& FilledEllipse(
-			const olc::vf2d& pos,
-			const float& rx,
-			const float& ry,
-			const olc::Pixel colInner,
-			const olc::Pixel colOuter,
-			const olc::Pixel tint = olc::Colour::WHITE,
-			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS);
-
 		// Draws a shaded ellipse with a radial gradient into a batch
 		const FilledBatch& FilledEllipse(
 			olc::FilledBatch& batch,
@@ -2887,16 +2862,37 @@ namespace olc
 			const olc::Pixel tint = olc::Colour::WHITE,
 			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS);
 
-// === Rounded Rectangles ===
-
-		// Draws a rounded rectangle outline with a single colour
-		const GPUTask& RoundedRect(
-			const olc::vf2d& pos,						// Top left of bounding rectangle
-			const olc::vf2d& size,						// Size of bounding rectangle
-			const float& radius,
+		// Draws an ellipse outline with a single colour
+		const GPUTask& Ellipse(
+			const olc::vf2d& pos,
+			const float& rx,
+			const float& ry,
 			const olc::Pixel col = olc::Colour::WHITE,
 			const olc::Pixel tint = olc::Colour::WHITE,
-			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS / 4);
+			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS);
+
+		// Draws a filled ellipse with a single colour
+		const GPUTask& FilledEllipse(
+			const olc::vf2d& pos,
+			const float& rx,
+			const float& ry,
+			const olc::Pixel col = olc::Colour::WHITE,
+			const olc::Pixel tint = olc::Colour::WHITE,
+			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS);
+
+		// Draws a shaded ellipse with a radial gradient
+		const GPUTask& FilledEllipse(
+			const olc::vf2d& pos,
+			const float& rx,
+			const float& ry,
+			const olc::Pixel colInner,
+			const olc::Pixel colOuter,
+			const olc::Pixel tint = olc::Colour::WHITE,
+			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS);
+
+// === Rounded Rectangles ===
+
+		
 
 		// Draws a rounded rectangle outline with a single colour into a batch
 		const LineBatch& RoundedRect(
@@ -2917,16 +2913,19 @@ namespace olc
 			const olc::Pixel tint = olc::Colour::WHITE,
 			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS / 4);
 
+		// Draws a rounded rectangle outline with a single colour
+		const GPUTask& RoundedRect(
+			const olc::vf2d& pos,						// Top left of bounding rectangle
+			const olc::vf2d& size,						// Size of bounding rectangle
+			const float& radius,
+			const olc::Pixel col = olc::Colour::WHITE,
+			const olc::Pixel tint = olc::Colour::WHITE,
+			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS / 4);
+
 
 // === Triangles ===
 
-		// Draws a triangle outline with a single colour
-		const GPUTask& Triangle(
-			const olc::vf2d& p1,
-			const olc::vf2d& p2,
-			const olc::vf2d& p3,
-			const olc::Pixel col = olc::Colour::WHITE,
-			const olc::Pixel tint = olc::Colour::WHITE);
+		
 
 		// Draws a triangle outline with a single colour into a batch
 		const LineBatch& Triangle(
@@ -2935,6 +2934,17 @@ namespace olc
 			const olc::vf2d& p2,
 			const olc::vf2d& p3,
 			const olc::Pixel col = olc::Colour::WHITE,
+			const olc::Pixel tint = olc::Colour::WHITE);
+
+		// Draws a multiple colour triangle outline into a batch
+		const LineBatch& Triangle(
+			olc::LineBatch& batch,
+			const olc::vf2d& p1,
+			const olc::vf2d& p2,
+			const olc::vf2d& p3,
+			const olc::Pixel c1,
+			const olc::Pixel c2,
+			const olc::Pixel c3,
 			const olc::Pixel tint = olc::Colour::WHITE);
 
 		// Draws a multiple colour triangle outline
@@ -2947,9 +2957,39 @@ namespace olc
 			const olc::Pixel c3,
 			const olc::Pixel tint = olc::Colour::WHITE);
 
-		// Draws a multiple colour triangle outline into a batch
-		const LineBatch& Triangle(
-			olc::LineBatch& batch,
+
+		// Draws a triangle outline with a single colour
+		const GPUTask& Triangle(
+			const olc::vf2d& p1,
+			const olc::vf2d& p2,
+			const olc::vf2d& p3,
+			const olc::Pixel col = olc::Colour::WHITE,
+			const olc::Pixel tint = olc::Colour::WHITE);
+
+	
+
+		// Draws a filled, single colour triangle into a batch
+		const FilledBatch& FilledTriangle(
+			olc::FilledBatch& batch,
+			const olc::vf2d& p1,
+			const olc::vf2d& p2,
+			const olc::vf2d& p3,
+			const olc::Pixel col = olc::Colour::WHITE,
+			const olc::Pixel tint = olc::Colour::WHITE);
+		
+		// Draws a filled, multiple colour triangle into a batch
+		const FilledBatch& FilledTriangle(
+			olc::FilledBatch& batch,
+			const olc::vf2d& p1,
+			const olc::vf2d& p2,
+			const olc::vf2d& p3,
+			const olc::Pixel c1,
+			const olc::Pixel c2,
+			const olc::Pixel c3,
+			const olc::Pixel tint = olc::Colour::WHITE);
+
+		// Draws a filled, multiple colour triangle
+		const GPUTask& FilledTriangle(
 			const olc::vf2d& p1,
 			const olc::vf2d& p2,
 			const olc::vf2d& p3,
@@ -2964,36 +3004,6 @@ namespace olc
 			const olc::vf2d& p2,
 			const olc::vf2d& p3,
 			const olc::Pixel col = olc::Colour::WHITE,
-			const olc::Pixel tint = olc::Colour::WHITE);
-
-		// Draws a filled, single colour triangle into a batch
-		const FilledBatch& FilledTriangle(
-			olc::FilledBatch& batch,
-			const olc::vf2d& p1,
-			const olc::vf2d& p2,
-			const olc::vf2d& p3,
-			const olc::Pixel col = olc::Colour::WHITE,
-			const olc::Pixel tint = olc::Colour::WHITE);
-
-		// Draws a filled, multiple colour triangle
-		const GPUTask& FilledTriangle(
-			const olc::vf2d& p1,
-			const olc::vf2d& p2,
-			const olc::vf2d& p3,
-			const olc::Pixel c1,
-			const olc::Pixel c2,
-			const olc::Pixel c3,
-			const olc::Pixel tint = olc::Colour::WHITE);
-
-		// Draws a filled, multiple colour triangle into a batch
-		const FilledBatch& FilledTriangle(
-			olc::FilledBatch& batch,
-			const olc::vf2d& p1,
-			const olc::vf2d& p2,
-			const olc::vf2d& p3,
-			const olc::Pixel c1,
-			const olc::Pixel c2,
-			const olc::Pixel c3,
 			const olc::Pixel tint = olc::Colour::WHITE);
 
 		// Draws a textured triangle, with per vertex colouring
@@ -3012,11 +3022,7 @@ namespace olc
 
 // === Polygon Outlines ===
 
-		// Draws a polygon outline with a single colour
-		const GPUTask& Polygon(
-			const std::vector<olc::vf2d>& vecPoints,
-			const olc::Pixel col = olc::Colour::WHITE,
-			const olc::Pixel tint = olc::Colour::WHITE);
+		
 
 		// Draws a polygon outline with a single colour into a batch
 		const LineBatch& Polygon(
@@ -3024,27 +3030,34 @@ namespace olc
 			const std::vector<olc::vf2d>& vecPoints,
 			const olc::Pixel col = olc::Colour::WHITE,
 			const olc::Pixel tint = olc::Colour::WHITE);
-
-		// Draws a polygon outline with multiple colours
-		const GPUTask& Polygon(
-			const std::vector<olc::vf2d>& vecPoints,
-			const std::vector<olc::Pixel>& vecColours,
-			const olc::Pixel tint = olc::Colour::WHITE);
-
+		
 		// Draws a polygon outline with multiple colours into a batch
 		const LineBatch& Polygon(
 			olc::LineBatch& batch,
 			const std::vector<olc::vf2d>& vecPoints,
 			const std::vector<olc::Pixel>& vecColours,
 			const olc::Pixel tint = olc::Colour::WHITE);
+		
+		// Draws a polygon outline with multiple colours
+		const GPUTask& Polygon(
+			const std::vector<olc::vf2d>& vecPoints,
+			const std::vector<olc::Pixel>& vecColours,
+			const olc::Pixel tint = olc::Colour::WHITE);
+
+		// Draws a polygon outline with a single colour
+		const GPUTask& Polygon(
+			const std::vector<olc::vf2d>& vecPoints,
+			const olc::Pixel col = olc::Colour::WHITE,
+			const olc::Pixel tint = olc::Colour::WHITE);
 
 	// === Structured Polygons (Outlines & Fills) ===
+
 
 		// Draws a polygon outline with a single colour
 		const GPUTask& Polygon(
 			const olc::Structure structure,
 			const std::vector<olc::vf2d>& vecPoints,
-			const olc::Pixel col = olc::Colour::WHITE, 
+			const olc::Pixel col = olc::Colour::WHITE,
 			const olc::Pixel tint = olc::Colour::WHITE);
 
 		// Draws a polygon outline with multiple colours
@@ -3053,6 +3066,14 @@ namespace olc
 			const std::vector<olc::vf2d>& vecPoints,
 			const std::vector<olc::Pixel>& vecColours,
 			const olc::Pixel tint = olc::Colour::WHITE);
+
+		// Draws a filled polygon with multiple colours into a btach
+		const FilledBatch& FilledPolygon(
+			FilledBatch& batch,
+			const olc::Structure structure,
+			const std::vector<olc::vf2d>& vecPoints,
+			const std::vector<olc::Pixel>& vecColours,
+			const olc::Pixel tint = olc::Colour::WHITE);		
 
 		// Draws a filled polygon with a single colour
 		const GPUTask& FilledPolygon(
@@ -3068,13 +3089,7 @@ namespace olc
 			const std::vector<olc::Pixel>& vecColours,
 			const olc::Pixel tint = olc::Colour::WHITE);
 
-		// Draws a filled polygon with multiple colours into a btach
-		const FilledBatch& FilledPolygon(
-			FilledBatch& batch,
-			const olc::Structure structure,
-			const std::vector<olc::vf2d>& vecPoints,
-			const std::vector<olc::Pixel>& vecColours,
-			const olc::Pixel tint = olc::Colour::WHITE);
+		
 
 		// Draws a textured polygon with per vertex colouring
 		const GPUTask& TexturedPolygon(
