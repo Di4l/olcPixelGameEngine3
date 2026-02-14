@@ -625,6 +625,14 @@ namespace olc
 			const std::vector<olc::Pixel>& vecColours,
 			const olc::Pixel tint = olc::Colour::WHITE);
 
+		// Draws a filled polygon with multiple colours into a btach
+		const FilledBatch& FilledPolygon(
+			FilledBatch& batch,
+			const olc::Structure structure,
+			const std::vector<olc::vf2d>& vecPoints,
+			const std::vector<olc::Pixel>& vecColours,
+			const olc::Pixel tint = olc::Colour::WHITE);
+
 		// Draws a textured polygon with per vertex colouring
 		const GPUTask& TexturedPolygon(
 			const olc::Structure structure,
@@ -910,9 +918,6 @@ namespace olc
 
 		private:
 			sDrawMetrics drawMetrics;
-
-
-
 
 		protected:
 			// Checks residency of image resource, and brings it to cpu RAM for r/w

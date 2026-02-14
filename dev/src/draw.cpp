@@ -184,6 +184,7 @@ olc::Draw::sDrawMetrics olc::Draw::GetDrawMetrics() const
 	return drawMetrics;
 }
 
+
 void olc::Draw::WorldReset()
 {
 	transformAffine = olc::tf2d();
@@ -979,6 +980,76 @@ const GPUTask& olc::Draw::FilledPolygon(const olc::Structure structure, const st
 			vecColours,
 			tint
 		)));
+}
+
+const FilledBatch& olc::Draw::FilledPolygon(FilledBatch& batch, const olc::Structure structure, const std::vector<olc::vf2d>& vecPoints, const std::vector<olc::Pixel>& vecColours, const olc::Pixel tint)
+{
+	// TODO: Curiously, this approach is considerably slower than the naive approach of just 
+	// calling FilledTriangle for each triangle in the polygon. I suspect this is due to the 
+	// overhead of copying verts into the temporary buffer and then into the batch buffer, 
+	// but it is worth investigating further.
+	//
+	// The challenge here is olc::Structure changes. Perhaps its worth flushing the batch
+	// when the structure changes, but this would prevent retaining composites for future
+	// reuse.
+
+	auto pushTriangle = [&](const size_t idx, const olc::vf2d& p1, const olc::vf2d& p2, const olc::vf2d& p3, const olc::Pixel& c1, const olc::Pixel& c2, const olc::Pixel& c3)
+		{
+			batch.task.vertexBuffer[idx + 0] = { {p1.x, p1.y, 1.0f, 1.0f}, c1, {0, 0}, {0, 0}, {0, 0}, {0, 0} };
+			batch.task.vertexBuffer[idx + 1] = { {p2.x, p2.y, 1.0f, 1.0f}, c2, {0, 0}, {0, 0}, {0, 0}, {0, 0} };
+			batch.task.vertexBuffer[idx + 2] = { {p3.x, p3.y, 1.0f, 1.0f}, c3, {0, 0}, {0, 0}, {0, 0}, {0, 0} };
+		};
+
+	// Transform unique verts into temporary buffer
+	buffPoints.data.clear();
+	buffColours.data.clear();
+	buffPoints.reserve(vecPoints.size());
+	buffColours.reserve(vecColours.size());
+	for (size_t i = 0; i < vecPoints.size(); i++)
+	{
+		buffPoints.data[i] = transformAffine.forwardRound<float>(vecPoints[i]);
+		buffColours.data[i] = vecColours[i].blend(tint);
+	}
+
+	switch (structure)
+	{
+		case olc::Structure::Fan:
+		{
+			size_t idx = batch.task.vertexBuffer.size();
+			batch.task.vertexBuffer.resize(batch.task.vertexBuffer.size() + (vecPoints.size() - 2) * 3);
+
+			for (size_t i = 1; i < vecPoints.size() - 1; i++)
+				pushTriangle(idx + (i-1) * 3,
+					buffPoints.data[0], buffPoints.data[i], buffPoints.data[i + 1],
+					buffColours.data[0], buffColours.data[i], buffColours.data[i + 1]);
+		}
+		break;
+
+		case olc::Structure::Strip:
+		{
+			size_t idx = batch.task.vertexBuffer.size();
+			batch.task.vertexBuffer.resize(batch.task.vertexBuffer.size() + (vecPoints.size() - 2) * 3);
+
+			for (size_t i = 0; i < vecPoints.size() - 2; i++)
+				pushTriangle(idx + (i*3),
+					buffPoints.data[i], buffPoints.data[i + 1], buffPoints.data[i + 2],
+					buffColours.data[i], buffColours.data[i + 1], buffColours.data[i + 2]);
+		}
+		break;
+
+		case olc::Structure::List:
+		{
+			size_t idx = batch.task.vertexBuffer.size();
+			batch.task.vertexBuffer.resize(batch.task.vertexBuffer.size() + (vecPoints.size() / 3));
+
+			for (size_t i = 0; i < vecPoints.size(); i += 3)
+				pushTriangle(idx + i,
+					buffPoints.data[i], buffPoints.data[i + 1], buffPoints.data[i + 2],
+					buffColours.data[i], buffColours.data[i + 1], buffColours.data[i + 2]);
+		}
+	}
+
+	return batch;
 }
 
 const GPUTask& olc::Draw::TexturedPolygon(const olc::Structure structure, const std::vector<olc::vf2d>& vecPoints, const std::vector<olc::Pixel>& vecColours, const std::vector<olc::vf2d>& vecTexCoords, olc::Image& texture, const olc::Pixel tint)
