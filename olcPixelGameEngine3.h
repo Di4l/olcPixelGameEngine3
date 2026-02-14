@@ -7022,6 +7022,34 @@ namespace olc::host
 				window->olc_OnMouseButton(2, false);
 				break;
 			}
+		case WM_XBUTTONDOWN:
+			{
+				UINT button = GET_XBUTTON_WPARAM(wParam);
+				if(button == XBUTTON1)
+				{
+					window->olc_OnMouseButton(3, true);
+				}
+				else if(button == XBUTTON2)
+				{
+					window->olc_OnMouseButton(4, true);
+				}
+				
+				break;
+			}
+		case WM_XBUTTONUP:
+			{
+				UINT button = GET_XBUTTON_WPARAM(wParam);
+				if(button == XBUTTON1)
+				{
+					window->olc_OnMouseButton(3, false);
+				}
+				else if(button == XBUTTON2)
+				{
+					window->olc_OnMouseButton(4, false);
+				}
+				
+				break;
+			}
 			//		case WM_DROPFILES:
 			//		{
 			//			// This is all eww...
