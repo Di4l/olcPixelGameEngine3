@@ -196,6 +196,7 @@
     <ClInclude Include="..\src\config.h" />
     <ClInclude Include="..\src\core.h" />
     <ClInclude Include="..\src\draw.h" />
+    <ClInclude Include="..\src\extension.h" />
     <ClInclude Include="..\src\font.h" />
     <ClInclude Include="..\src\gputask.h" />
     <ClInclude Include="..\src\gpu_iface.h" />
@@ -278,6 +279,7 @@
     <ClCompile Include="..\src\api_opengl.cpp" />
     <ClCompile Include="..\src\core.cpp" />
     <ClCompile Include="..\src\draw.cpp" />
+    <ClCompile Include="..\src\draw_batch.cpp" />
     <ClCompile Include="..\src\font.cpp" />
     <ClCompile Include="..\src\gpu_iface.cpp" />
     <ClCompile Include="..\src\gpu_opengl33.cpp" />

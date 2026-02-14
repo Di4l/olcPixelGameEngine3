@@ -22,6 +22,7 @@
 #include "imload_iface.h"
 #include "font.h"
 #include "draw.h"
+#include "extension.h"
 //! END CUSTOMHEADER GLOBAL
 
 //! START DECLARATION
@@ -122,6 +123,10 @@ namespace olc
 		olc::vi2d vViewPos = { 0,0 };
 		olc::vi2d vViewSize = { 0,0 };
 
+	protected: // Extensions
+		bool InstallWindowExtension(olc::PGEWindowExtension* pgex);
+		std::vector<olc::PGEWindowExtension*> vecWindowExtensions;
+
 	protected:
 		// PGE Configuration
 		PGEConfig config;
@@ -157,6 +162,10 @@ namespace olc
 
 	public: // Child Windows
 		bool AddChildWindow(std::shared_ptr<olc::PGEWindow> window, const olc::vi2d& vScreenSize, const olc::vi2d& vPixelSize);
+
+	protected:
+		bool InstallSystemExtension(olc::PGESystemExtension* pgex);
+		
 	
 
 	private: // Called from Host
@@ -174,6 +183,10 @@ namespace olc
 	private:
 		// Window Management
 		std::deque<std::shared_ptr<PGEWindow>> deqChildWindows;
+
+		// Extensions
+		std::vector<olc::PGESystemExtension*> vecSystemExtensions;
+		
 
 		// Frame Timing & Overall Clocking
 		std::chrono::steady_clock::time_point timeFrame1;
