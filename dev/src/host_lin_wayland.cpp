@@ -506,16 +506,18 @@ namespace olc::host
     void Host_Linux_Wayland::pointer_frame(wl_pointer* pointer)
     {
         wayland::PointerState *event = &pointer_state;
-
+        auto pointer_window = active_window_id;
+        // Since PGE does not distinguish between "mouse hover" and "window focus" we won't actually trigger a Window Focus
+        // for the mouse hovering over the window.  We'll just send this mouse event to that window without actually marking it as focused.
         if (pointer_state.event_mask & wayland::PointerEventMask::PointerEventEnter) {
             for(auto& itr : mapUID2Window) {
                 if (itr.second.surface == event->surface) {
-                    active_window_id = itr.first;
+                    pointer_window = itr.first;
                 }
             }
         }
-
-        auto* pge_window = mapUID2OlcWindow[active_window_id];
+        
+        auto* pge_window = mapUID2OlcWindow[pointer_window];
 
         if (pointer_state.event_mask & wayland::PointerEventMask::PointerEventMotion) {
                 pge_window->olc_OnMouseMove(olc::vi2d{
@@ -639,7 +641,15 @@ namespace olc::host
 
     void Host_Linux_Wayland::keyboard_enter(wl_keyboard* keyboard, uint32_t serial, wl_surface* surface, wl_array* keys)
     {
-        // Currently do nothing
+        // Find the window that the keyboard is active on and mark it active
+        for(auto& i : mapUID2Window) {
+            if(i.second.surface == surface) {
+                active_window_id = i.first;
+            }
+        }
+        
+        auto* pge_window = mapUID2OlcWindow[active_window_id];
+        pge_window->olc_OnMouseFocus(true);
     }
 
     void Host_Linux_Wayland::keyboard_leave_callback(void* data, wl_keyboard* keyboard, uint32_t serial, wl_surface* surface)
@@ -650,7 +660,8 @@ namespace olc::host
 
     void Host_Linux_Wayland::keyboard_leave(wl_keyboard* keyboard, uint32_t serial, wl_surface* surface)
     {
-        // Currently do nothing
+        auto* pge_window = mapUID2OlcWindow[active_window_id];
+        pge_window->olc_OnMouseFocus(false);
     }
 
     void Host_Linux_Wayland::keyboard_key_callback(void* data, wl_keyboard* keyboard, uint32_t serial, uint32_t time, uint32_t key, uint32_t state)
