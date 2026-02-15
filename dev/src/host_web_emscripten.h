@@ -1,4 +1,5 @@
 #pragma once
+#include "core.h"
 
 //! START STDHEADER GLOBAL
 #include <atomic>
@@ -22,16 +23,28 @@ namespace olc::host
     {
     public:
         Host_Web_Emscripten();
+    
+    public: // OS Window Handling
+        // Make OS Create a window frame, associated with olc::Window
         bool AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen) override;
+        // Make OS Close a window frame, associated with olc::Window
         bool CloseWindowFrame(olc::Window* pWindow) override;
+        // Make OS Update a window frame title, associated with olc::Window
         bool UpdateWindowFrameTitle(olc::Window* pWindow) override;
-
+        // Get OS-specific window descriptor(s) for given olc::Window
         std::vector<void*> GetHostWindowDescriptor(olc::Window* pWindow) override;
-        
         // Wait for entire host desktop refresh (for smooooth vsync)
         bool SyncWithDesktopComposite() override;
+
+    public: // Platform specific Mouse Control
+        // Force the mouse position in pixels relative to window
+        bool SetMousePosition(olc::Window* pWindow, const olc::vi2d& vPos) override;
+        // Show or hide mouse cursor for given window
+        bool SetMouseVisible(olc::Window* pWindow, const bool bVisible) override;
+
+    public: // OS Specific Environment Information
         olc::KeyboardLayout GetKeyboardLayout() const override;
-    
+
     public:
         // Called at very start of application
         bool OnApplicationStart(olc::PixelGameEngine* pPrimary) override;
@@ -52,8 +65,8 @@ namespace olc::host
 
     public: // event callbacks
         static EM_BOOL keyboard_callback(int eventType, const EmscriptenKeyboardEvent* e, void* userData);
-        static EM_BOOL wheel_callback(int eventType, const EmscriptenWheelEvent* e, void* userData);
         static EM_BOOL mouse_callback(int eventType, const EmscriptenMouseEvent* e, void* userData);
+        static EM_BOOL wheel_callback(int eventType, const EmscriptenWheelEvent* e, void* userData);
         static EM_BOOL touch_callback(int eventType, const EmscriptenTouchEvent* e, void* userData);
         static EM_BOOL fullscreen_change_callback(int eventType, const EmscriptenFullscreenChangeEvent *event, void *userData);
         static EM_BOOL resize_callback(int eventType, const EmscriptenUiEvent *event, void *userData);
@@ -74,9 +87,6 @@ namespace olc::host
 		static bool olc_OnWindowSize(olc::Window* pWindow, const olc::vi2d& vWindowSize);
 		static bool olc_OnWindowClose(olc::Window* pWindow);
     
-    private: // helpers
-        static olc::Window* GetWindowFromCanvasId(std::string canvasId);
-        
     public: // Callback data type
         struct CallbackData {
             Host_Web_Emscripten* pHost;
