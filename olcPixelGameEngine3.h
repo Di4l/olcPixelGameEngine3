@@ -3673,6 +3673,12 @@ namespace olc
 		const std::string& GetWindowTitle() const;
 		bool SetWindowTitle(const std::string& sTitle);
 
+		// Force the mouse position, in "screen" coordinates
+		void SetWindowMousePosition(const olc::vi2d& vPos);
+
+		// Show or hide mouse cursor
+		void ShowMouseCursor(const bool bShow);
+
 	protected:
 		bool bRequestToClose = false;
 		bool bShouldRemove = false;
@@ -3774,6 +3780,12 @@ namespace olc
 			virtual std::vector<void*> GetHostWindowDescriptor(olc::Window* pWindow) = 0;
 			// Wait for OS desktop refresh (for smooooth vsync)
 			virtual bool SyncWithDesktopComposite() = 0;
+
+		public: // Platform specific Mouse Control
+			// Force the mouse position in pixels relative to window
+			virtual bool SetMousePosition(olc::Window* pWindow, const olc::vi2d& vPos) = 0;
+			// Show or hide mouse cursor for given window
+			virtual bool SetMouseVisible(olc::Window* pWindow, const bool bVisible) = 0;
 
 		public: // OS Specific Environment Information
 			virtual olc::KeyboardLayout GetKeyboardLayout() const = 0;
@@ -3951,6 +3963,10 @@ namespace olc
 		// Returns the current size of the "screen" in pixels
 		const olc::vi2d& ScreenSize();
 
+	public: // Mouse manipulation
+		// Force the mouse position, in "PGE Screen" coordinates
+		void SetMousePosition(const olc::vi2d& vPos);
+
 	protected:
 		bool olc_OnMouseMove(const olc::vi2d& vMousePos) override;
 
@@ -4123,6 +4139,10 @@ namespace olc
 			// Wait for OS desktop refresh (for smooooth vsync)
 			bool SyncWithDesktopComposite() override;
 
+		public: // Platform specific Mouse Control
+			bool SetMousePosition(olc::Window* pWindow, const olc::vi2d& vPos) override;
+			bool SetMouseVisible(olc::Window* pWindow, const bool bVisible) override;
+
 		public: // OS Specific Environment Information
 			olc::KeyboardLayout GetKeyboardLayout() const override;
 
@@ -4149,6 +4169,8 @@ namespace olc
 			std::unordered_map<HWND, olc::Window*> mapHWND2PTR;
 			std::wstring ConvertS2W(std::string s);
 			std::atomic<bool> systemActive = false;
+			HCURSOR hCursorDefault = nullptr;
+			HCURSOR hCursorNow = nullptr;
 
 		public:
 			LRESULT OnWindowEvent(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
@@ -6812,12 +6834,13 @@ namespace olc::host
 		olc::vi2d vWinPos = vWindowPos;
 		olc::vi2d vWinSize = vWindowSize;
 		
+		hCursorNow = hCursorDefault = LoadCursor(NULL, IDC_ARROW);
 
 		// Define WindowClass
 		WNDCLASSEX wc = { 0 };		
 		wc.cbSize = sizeof(WNDCLASSEX);
 		wc.hIcon = LoadIcon(NULL, IDI_APPLICATION);
-		wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+		wc.hCursor = hCursorDefault;
 		wc.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
 		wc.hInstance = GetModuleHandle(nullptr);
 		wc.lpfnWndProc = WINAPI_EventHandler;
@@ -6918,6 +6941,30 @@ namespace olc::host
 		return DwmFlush() == S_OK;
 	}
 
+	bool Host_Windows_WinAPI::SetMousePosition(olc::Window* pWindow, const olc::vi2d& vPos)
+	{
+		POINT pt;
+		pt.x = vPos.x;
+		pt.y = vPos.y;
+		ClientToScreen(mapUID2HWND.at(pWindow->GetUID()), &pt);
+		SetCursorPos(pt.x, pt.y);
+		return true;
+	}
+
+	bool Host_Windows_WinAPI::SetMouseVisible(olc::Window* pWindow, const bool bVisible)
+	{
+		olc_IgnoreUnused(pWindow);
+
+		hCursorNow = bVisible ? hCursorDefault : NULL;
+
+		// Fire fake move event to update cursor visibility immediately
+		POINT p;
+		GetCursorPos(&p);
+		SetCursorPos(p.x, p.y + 1);
+		SetCursorPos(p.x, p.y);
+		return true;
+	}
+		
 	LRESULT Host_Windows_WinAPI::OnWindowEvent(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 	{
 		if (!mapHWND2PTR.contains(hWnd))
@@ -7097,6 +7144,17 @@ namespace olc::host
 				window->olc_OnWindowClose();
 				break;
 				//return DefWindowProc(hWnd, uMsg, wParam, lParam);
+			}
+
+			case WM_SETCURSOR:
+			{
+				if (LOWORD(lParam) == HTCLIENT)
+				{
+					SetCursor(hCursorNow);
+					return TRUE; // Sigh ffs microsoft...
+				}
+
+				break;
 			}
 
 		case WM_DESTROY:	
@@ -16123,6 +16181,13 @@ namespace olc
 		return GetScreen().Size();
 	}
 
+	void PGEWindow::SetMousePosition(const olc::vi2d& vPos)
+	{
+		// Scale mouse from view coordinates into window coordinates
+		olc::vi2d pos = (olc::vf2d(vPos) / olc::vf2d(GetScreen().Size()) * olc::vf2d(vViewSize)) + vViewPos;
+		SetWindowMousePosition(pos);
+	}
+
 	bool PGEWindow::olc_OnMouseMove(const olc::vi2d& vMousePos)
 	{
 		olc::vi2d pos = vMousePos;
@@ -17088,6 +17153,16 @@ namespace olc
 		sFrameTitle = sTitle;
 		pHost->UpdateWindowFrameTitle(this);
 		return false;
+	}
+
+	void Window::SetWindowMousePosition(const olc::vi2d& vPos)
+	{
+		pHost->SetMousePosition(this, vPos);
+	}
+
+	void Window::ShowMouseCursor(const bool bShow)
+	{
+		pHost->SetMouseVisible(this, bShow);
 	}
 
 };

@@ -122,5 +122,15 @@ namespace olc
 		return false;
 	}
 
+	void Window::SetWindowMousePosition(const olc::vi2d& vPos)
+	{
+		pHost->SetMousePosition(this, vPos);
+	}
+
+	void Window::ShowMouseCursor(const bool bShow)
+	{
+		pHost->SetMouseVisible(this, bShow);
+	}
+
 };
 //! END IMPLEMENTATION

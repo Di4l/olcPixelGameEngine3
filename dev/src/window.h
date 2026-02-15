@@ -90,6 +90,12 @@ namespace olc
 		const std::string& GetWindowTitle() const;
 		bool SetWindowTitle(const std::string& sTitle);
 
+		// Force the mouse position, in "screen" coordinates
+		void SetWindowMousePosition(const olc::vi2d& vPos);
+
+		// Show or hide mouse cursor
+		void ShowMouseCursor(const bool bShow);
+
 	protected:
 		bool bRequestToClose = false;
 		bool bShouldRemove = false;
