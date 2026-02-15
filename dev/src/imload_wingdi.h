@@ -39,7 +39,9 @@
 #pragma comment(lib, "Shlwapi.lib")
 #include <objidl.h>
 #include <gdiplus.h>
+#if !defined(__MINGW32__) && !defined(__MINGW64__)
 #include <gdiplusinit.h>
+#endif
 #include <shlwapi.h>
 #undef _WINSOCKAPI_
 //! END WINAPI_CONFIG

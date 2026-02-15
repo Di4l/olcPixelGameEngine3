@@ -16,10 +16,14 @@
 //! START OPENGL_CONFIG
 
 #if OLC_HOST == OLC_HOST_WINDOWS
-	#include <Windows.h>
+	#include <windows.h>
 	#pragma comment(lib, "gdi32.lib")
 	#pragma comment(lib, "opengl32.lib")
+#if defined(__MINGW32__) || defined(__MINGW64__)
+	#include <GL/gl.h>
+#else
 	#include <gl/GL.h>
+#endif
 	#define CALLSTYLE __stdcall
 	// ooof... was getting a bunch of spurious C4191 from MSVC 17.14.9, so round trip via void-town
 	#define OGL_LOAD(t) reinterpret_cast<t##_t*>(reinterpret_cast<void*>(wglGetProcAddress(#t)))
