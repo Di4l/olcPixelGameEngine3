@@ -3703,7 +3703,7 @@ namespace olc
 		inline static size_t uuid = 0;
 
 		#if OLC_HOST == OLC_HOST_WINDOWS
-		inline constexpr size_t CreateUID()
+		inline size_t CreateUID()
 		{
 			return uuid++;
 		}
@@ -5916,10 +5916,14 @@ namespace olc::host
 #if OLC_GPU == OLC_GPU_OPENGL33
 
 #if OLC_HOST == OLC_HOST_WINDOWS
-	#include <Windows.h>
+	#include <windows.h>
 	#pragma comment(lib, "gdi32.lib")
 	#pragma comment(lib, "opengl32.lib")
+#if defined(__MINGW32__) || defined(__MINGW64__)
+	#include <GL/gl.h>
+#else
 	#include <gl/GL.h>
+#endif
 	#define CALLSTYLE __stdcall
 	// ooof... was getting a bunch of spurious C4191 from MSVC 17.14.9, so round trip via void-town
 	#define OGL_LOAD(t) reinterpret_cast<t##_t*>(reinterpret_cast<void*>(wglGetProcAddress(#t)))
@@ -5927,9 +5931,7 @@ namespace olc::host
 
 #if OLC_HOST == OLC_HOST_LINUX_X11
 	#include <GL/gl.h>
-	#if OLC_HOST == OLC_HOST_LINUX_X11
-		#define OGL_LOAD(t) reinterpret_cast<t##_t*>(X11::glXGetProcAddress(reinterpret_cast<const GLubyte*>(#t)))
-	#endif
+	#define OGL_LOAD(t) reinterpret_cast<t##_t*>(X11::glXGetProcAddress(reinterpret_cast<const GLubyte*>(#t)))
 #endif
 
 #if OLC_HOST == OLC_HOST_LINUX_WAYLAND
@@ -6385,7 +6387,9 @@ namespace olc
 #pragma comment(lib, "Shlwapi.lib")
 #include <objidl.h>
 #include <gdiplus.h>
+#if !defined(__MINGW32__) && !defined(__MINGW64__)
 #include <gdiplusinit.h>
+#endif
 #include <shlwapi.h>
 #undef _WINSOCKAPI_
 
@@ -13264,7 +13268,7 @@ void main()
 	EGLNativeDisplayType display = EGL_DEFAULT_DISPLAY;
 #else
 	const auto wayland_window = reinterpret_cast<olc::host::WaylandWindow*>(os_win_id[0]);
-	EGLNativeWindowType window_handle = wayland_window->window;
+	EGLNativeWindowType window_handle = reinterpret_cast<EGLNativeWindowType>(wayland_window->window);
 	EGLNativeDisplayType display = reinterpret_cast<EGLNativeDisplayType>(os_win_id[1]);
 #endif
 

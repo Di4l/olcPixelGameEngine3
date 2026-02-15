@@ -288,7 +288,7 @@ void main()
 	EGLNativeDisplayType display = EGL_DEFAULT_DISPLAY;
 #else
 	const auto wayland_window = reinterpret_cast<olc::host::WaylandWindow*>(os_win_id[0]);
-	EGLNativeWindowType window_handle = wayland_window->window;
+	EGLNativeWindowType window_handle = reinterpret_cast<EGLNativeWindowType>(wayland_window->window);
 	EGLNativeDisplayType display = reinterpret_cast<EGLNativeDisplayType>(os_win_id[1]);
 #endif
 

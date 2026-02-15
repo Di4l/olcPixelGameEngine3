@@ -1,6 +1,5 @@
 #pragma once
 
-
 //! START CUSTOMHEADER
 #include "config.h"
 
@@ -12,6 +11,10 @@
 #include <source_location>
 //! END STDHEADER
 
+// deliberately outside of the single header
+#if OLC_HOST == OLC_HOST_LINUX_X11
+#include "host_lin_x11.h"
+#endif
 
 //! START OPENGL_CONFIG
 
@@ -31,9 +34,7 @@
 
 #if OLC_HOST == OLC_HOST_LINUX_X11
 	#include <GL/gl.h>
-	#if OLC_HOST == OLC_HOST_LINUX_X11
-		#define OGL_LOAD(t) reinterpret_cast<t##_t*>(X11::glXGetProcAddress(reinterpret_cast<const GLubyte*>(#t)))
-	#endif
+	#define OGL_LOAD(t) reinterpret_cast<t##_t*>(X11::glXGetProcAddress(reinterpret_cast<const GLubyte*>(#t)))
 #endif
 
 #if OLC_HOST == OLC_HOST_LINUX_WAYLAND
