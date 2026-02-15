@@ -2,7 +2,7 @@
 
 #if OLC_HOST == OLC_HOST_WINDOWS
 #include "host_win_winapi.h"
-#include <WinUser.h>
+#include <winuser.h>
 #endif
 
 

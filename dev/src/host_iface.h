@@ -22,7 +22,7 @@ namespace olc
 		inline static size_t uuid = 0;
 
 		#if OLC_HOST == OLC_HOST_WINDOWS
-		inline constexpr size_t CreateUID()
+		inline size_t CreateUID()
 		{
 			return uuid++;
 		}

@@ -6,6 +6,7 @@
 #include <string>
 #include <array>
 #include <algorithm>
+#include <vector>
 //! END STDHEADER
 
 //! START CUSTOMHEADER
