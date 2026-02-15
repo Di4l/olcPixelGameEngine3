@@ -107,6 +107,10 @@ namespace olc
 		// Returns the current size of the "screen" in pixels
 		const olc::vi2d& ScreenSize();
 
+	public: // Mouse manipulation
+		// Force the mouse position, in "PGE Screen" coordinates
+		void SetMousePosition(const olc::vi2d& vPos);
+
 	protected:
 		bool olc_OnMouseMove(const olc::vi2d& vMousePos) override;
 

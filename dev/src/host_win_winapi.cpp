@@ -265,12 +265,13 @@ namespace olc::host
 		olc::vi2d vWinPos = vWindowPos;
 		olc::vi2d vWinSize = vWindowSize;
 		
+		hCursorNow = hCursorDefault = LoadCursor(NULL, IDC_ARROW);
 
 		// Define WindowClass
 		WNDCLASSEX wc = { 0 };		
 		wc.cbSize = sizeof(WNDCLASSEX);
 		wc.hIcon = LoadIcon(NULL, IDI_APPLICATION);
-		wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+		wc.hCursor = hCursorDefault;
 		wc.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
 		wc.hInstance = GetModuleHandle(nullptr);
 		wc.lpfnWndProc = WINAPI_EventHandler;
@@ -371,6 +372,30 @@ namespace olc::host
 		return DwmFlush() == S_OK;
 	}
 
+	bool Host_Windows_WinAPI::SetMousePosition(olc::Window* pWindow, const olc::vi2d& vPos)
+	{
+		POINT pt;
+		pt.x = vPos.x;
+		pt.y = vPos.y;
+		ClientToScreen(mapUID2HWND.at(pWindow->GetUID()), &pt);
+		SetCursorPos(pt.x, pt.y);
+		return true;
+	}
+
+	bool Host_Windows_WinAPI::SetMouseVisible(olc::Window* pWindow, const bool bVisible)
+	{
+		olc_IgnoreUnused(pWindow);
+
+		hCursorNow = bVisible ? hCursorDefault : NULL;
+
+		// Fire fake move event to update cursor visibility immediately
+		POINT p;
+		GetCursorPos(&p);
+		SetCursorPos(p.x, p.y + 1);
+		SetCursorPos(p.x, p.y);
+		return true;
+	}
+		
 	LRESULT Host_Windows_WinAPI::OnWindowEvent(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 	{
 		if (!mapHWND2PTR.contains(hWnd))
@@ -550,6 +575,17 @@ namespace olc::host
 				window->olc_OnWindowClose();
 				break;
 				//return DefWindowProc(hWnd, uMsg, wParam, lParam);
+			}
+
+			case WM_SETCURSOR:
+			{
+				if (LOWORD(lParam) == HTCLIENT)
+				{
+					SetCursor(hCursorNow);
+					return TRUE; // Sigh ffs microsoft...
+				}
+
+				break;
 			}
 
 		case WM_DESTROY:	

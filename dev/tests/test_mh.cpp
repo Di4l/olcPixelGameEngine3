@@ -368,6 +368,23 @@ public:
 
 
 
+		if (keyboard.GetKey(olc::Key::SPACE).bHeld)
+		{
+			SetMousePosition({ 50,50 });
+		}
+
+		if (keyboard.GetKey(olc::Key::P).bPressed)
+		{
+			ShowMouseCursor(false);
+		}
+
+		if (keyboard.GetKey(olc::Key::O).bPressed)
+		{
+			ShowMouseCursor(true);
+		}
+
+
+
 		// Testing matrices
 		olc::mf4d t1, t2, t3;
 		t1.translate(0.0f, 3.0f, 5.0f);
@@ -760,8 +777,8 @@ int main()
 	cfg.vPixelSize = { 1,1 };
 	cfg.vScreenSize = { 1024, 960 };
 
-	//cfg.vPixelSize = { 4,4 };
-	//cfg.vScreenSize = { 256, 240 };
+	cfg.vPixelSize = { 4,4 };
+	cfg.vScreenSize = { 256, 240 };
 	//cfg.bAntiAliasMainScreen = true;
 	cfg.bVSync = false;
 

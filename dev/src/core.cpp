@@ -304,6 +304,13 @@ namespace olc
 		return GetScreen().Size();
 	}
 
+	void PGEWindow::SetMousePosition(const olc::vi2d& vPos)
+	{
+		// Scale mouse from view coordinates into window coordinates
+		olc::vi2d pos = (olc::vf2d(vPos) / olc::vf2d(GetScreen().Size()) * olc::vf2d(vViewSize)) + vViewPos;
+		SetWindowMousePosition(pos);
+	}
+
 	bool PGEWindow::olc_OnMouseMove(const olc::vi2d& vMousePos)
 	{
 		olc::vi2d pos = vMousePos;

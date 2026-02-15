@@ -94,6 +94,12 @@ namespace olc
 			// Wait for OS desktop refresh (for smooooth vsync)
 			virtual bool SyncWithDesktopComposite() = 0;
 
+		public: // Platform specific Mouse Control
+			// Force the mouse position in pixels relative to window
+			virtual bool SetMousePosition(olc::Window* pWindow, const olc::vi2d& vPos) = 0;
+			// Show or hide mouse cursor for given window
+			virtual bool SetMouseVisible(olc::Window* pWindow, const bool bVisible) = 0;
+
 		public: // OS Specific Environment Information
 			virtual olc::KeyboardLayout GetKeyboardLayout() const = 0;
 

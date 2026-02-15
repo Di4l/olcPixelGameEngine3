@@ -80,6 +80,9 @@ public:
 			p.life -= fElapsedTime;
 			p.pos += p.vel * fElapsedTime;
 			p.vel *= 0.98f;  // Friction
+
+			// Little cosmetic fix to stop popping at the end of life
+			if (p.life < 0.0f) p.life = 0.0f;
 			p.color.a = (uint8_t)((p.life / p.maxLife) * 255);
 			
 			draw.FilledCircle(p.pos, 3, p.color);
@@ -110,9 +113,28 @@ public:
         
 		if(mouse.GetButton(4).bHeld)
             draw.Circle(mousePos, 28, olc::Colour::TANGERINE);
+
+
+		if (keyboard.GetKey(olc::Key::SPACE).bHeld)
+		{
+			SetMousePosition(ScreenSize() * 0.5f);
+		}
+
+		if (keyboard.GetKey(olc::Key::K1).bPressed)
+		{
+			ShowMouseCursor(false);
+		}
+
+		if (keyboard.GetKey(olc::Key::K2).bPressed)
+		{
+			ShowMouseCursor(true);
+		}
 		
 		// Instructions
 		draw.String({10, 10}, "Mouse Example\n\nClick all the buttons!\nScroll the wheel!", olc::Colour::YELLOW);
+
+		draw.String({ 10, 100 }, "Hold SPACE to lock\nmouse to center", olc::Colour::TANGERINE);
+		draw.String({ 10, 130 }, "1) Hide Mouse Cursor\n2) Show Mouse Cursor", olc::Colour::TANGERINE);
 		
 		// Successful frame
 		return true;
@@ -138,7 +160,7 @@ public:
 	{
         for(int i = 0; i < count; i++)
 		{
-			float angle = (rand() / (float)RAND_MAX) * 2.0f * std::numbers::pi;
+			float angle = (rand() / (float)RAND_MAX) * 2.0f * std::numbers::pi_v<float>;
             float speed = 50.0f + (rand() / (float)RAND_MAX) * 100.0f;
             
             Particle p;
