@@ -3,6 +3,10 @@
 #include "gpu_iface.h"
 #include "api_opengl.h"
 
+#if OLC_HOST == OLC_HOST_LINUX_WAYLAND
+#include "host_lin_wayland.h"
+#endif
+
 //! START DECLARATION
 #if !defined(PGE_RENDERER_OPENGL33_DECLARED)
 namespace olc
