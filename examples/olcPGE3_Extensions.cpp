@@ -84,7 +84,11 @@ class Example_Extensions : public olc::PixelGameEngine
 public:
 	Example_Extensions()
 	{
-
+		// Installing an extension allows it to receive callbacks at various stages 
+		// of the application and window lifecycle, and to modify behaviour if necessary. 
+		// You can install as many extensions as you like, and they will be called in 
+		// the order they were installed
+		InstallWindowExtension(&pgex);
 	}
 
 protected:
@@ -98,11 +102,7 @@ public:
 	// Called once at the start, so create things here
 	bool OnUserCreate() override
 	{
-		// Installing an extension allows it to receive callbacks at various stages 
-		// of the application and window lifecycle, and to modify behaviour if necessary. 
-		// You can install as many extensions as you like, and they will be called in 
-		// the order they were installed
-		InstallWindowExtension(&pgex);
+		
 		return true;
 	}
 
