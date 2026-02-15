@@ -20,6 +20,7 @@
 #include <wayland-egl.h>
 #include "xdg-shell.h"
 #include "xdg-decoration.h"
+#include "pointer-warp.h"
 #include <linux/input-event-codes.h>
 #include <xkbcommon/xkbcommon.h>
 #include <sys/mman.h>
@@ -91,6 +92,8 @@ namespace olc::host
         uint32_t kb_group{0};
         xdg_wm_base* xdg_wm{nullptr};
         zxdg_decoration_manager_v1* decoration_manager{nullptr};
+        wp_pointer_warp_v1* pointer_warp{nullptr};
+        uint32_t enter_serial{0};
 
         wayland::PointerState pointer_state;
 
@@ -111,6 +114,8 @@ namespace olc::host
 
         // Wait for entire host desktop refresh (for smooooth vsync)
         bool SyncWithDesktopComposite() override;
+        bool SetMousePosition(olc::Window* pWindow, const olc::vi2d& vPos) override;
+        bool SetMouseVisible(olc::Window* pWindow, const bool bVisible) override;
 
     public:
         bool OnApplicationStart(olc::PixelGameEngine* pPrimary) override;
