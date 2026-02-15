@@ -5916,10 +5916,14 @@ namespace olc::host
 #if OLC_GPU == OLC_GPU_OPENGL33
 
 #if OLC_HOST == OLC_HOST_WINDOWS
-	#include <Windows.h>
+	#include <windows.h>
 	#pragma comment(lib, "gdi32.lib")
 	#pragma comment(lib, "opengl32.lib")
+#if defined(__MINGW32__) || defined(__MINGW64__)
+	#include <GL/gl.h>
+#else
 	#include <gl/GL.h>
+#endif
 	#define CALLSTYLE __stdcall
 	// ooof... was getting a bunch of spurious C4191 from MSVC 17.14.9, so round trip via void-town
 	#define OGL_LOAD(t) reinterpret_cast<t##_t*>(reinterpret_cast<void*>(wglGetProcAddress(#t)))
@@ -6385,7 +6389,9 @@ namespace olc
 #pragma comment(lib, "Shlwapi.lib")
 #include <objidl.h>
 #include <gdiplus.h>
+#if !defined(__MINGW32__) && !defined(__MINGW64__)
 #include <gdiplusinit.h>
+#endif
 #include <shlwapi.h>
 #undef _WINSOCKAPI_
 
@@ -7588,10 +7594,18 @@ bool Host_Apple_MacOS::SyncWithDesktopComposite()
                     res = true; // Skip frame to allow resize to take effect
                     break;
                 }
-                case MINIMIZE_WINDOW:
                 case DEMINIMIZE_WINDOW:
                 case BECOME_ACTIVE:
+                {
+                    pPGEwindow->olc_OnMouseFocus(true);
+                    break;
+                }
+                case MINIMIZE_WINDOW:
                 case RESIGN_ACTIVE:
+                {
+                    pPGEwindow->olc_OnMouseFocus(false);
+                    break;
+                }
                 case NONE:
                 default:
                 {
@@ -7626,9 +7640,7 @@ bool Host_Apple_MacOS::SyncWithDesktopComposite()
            pPGEwindow->keyboard.UseKeyboardLayout(GetKeyboardLayout());
        });
        
-       pMacApplication->setWillTerminateCallback([&]() {
-           // TODO: Johnngy63 - Implement olc_OnDestory in window.h/cpp
-       });
+       pMacApplication->setWillTerminateCallback([&]() { });
        
        pMacApplication->setDidBecomeActiveCallback([]() { });
        
@@ -7643,17 +7655,17 @@ bool Host_Apple_MacOS::SyncWithDesktopComposite()
         });
 
         pMacOSWindow->setWindowWillCloseCallback([&]() {
+            // NOTE: Do not add this event to PendingMainThreadTasks as it will cause deadlock since the main thread is required to process the close event but the close event is waiting on the main thread tasks to process it
             pPGEwindow->olc_OnWindowClose();
             pPGEwindow->olc_ShouldRemove();
         });
 
         pMacOSWindow->setWindowDidBecomeKeyCallback([&]() {
-            //TODO: Johnngy63 - Implement olc_OnWindowFocus in window.h/cpp
             AddPendingMainThreadTask(BECOME_ACTIVE);
         });
 
         pMacOSWindow->setWindowDidResignKeyCallback([&]() {
-            //TODO: Johnngy63 - Implement olc_OnWindowFocus in window.h/cpp
+            AddPendingMainThreadTask(RESIGN_ACTIVE);
         });
        
         pMacOSWindow->setWindowDidMiniaturizeCallback([&]() {
