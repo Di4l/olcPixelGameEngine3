@@ -459,6 +459,29 @@ namespace olc {
                     setCallback(window_setWindowDidDeminiaturizeCallback, std::move(callback));
                 }
                 
+                // Set the cusror position within the window
+                void setCursorPosition(int32_t x, int32_t y) noexcept {
+                    setCursorPosition(static_cast<double>(x), static_cast<double>(y));
+                }
+
+                void setCursorPosition(float x, float y) noexcept {
+                    setCursorPosition(static_cast<double>(x), static_cast<double>(y));
+                }
+
+                void setCursorPosition(double x, double y) noexcept {
+                    if (window_) {
+                        window_setCursorPosition(window_, x, y);
+                    }
+                }
+                
+                // Set cursor visibility
+                void setCursorVisibility(bool visible) noexcept {
+                    if (window_) {
+                        window_setCursorVisibility(window_, visible);
+                    }
+                }
+                
+                
                 // Non-copyable but movable
                 Window(const Window&) = delete;
                 Window& operator=(const Window&) = delete;
@@ -729,6 +752,8 @@ namespace olc {
                 std::function<void(const MouseEvent&)>  otherMouseUpHandler_;
                 std::function<void(const MouseEvent&)>  otherMouseDraggedHandler_;
                 std::function<void(const ScrollWheelEvent&)> scrollWheelHandler_;
+                std::function<void(const MouseEvent&)>  mouseMovedEnteredHandler_;
+                std::function<void(const MouseEvent&)>  mouseMovedExitedHandler_;
                
                 // Template helpers for static callbacks to reduce code duplication
                 template<typename EventType, typename HandlerType>
@@ -780,6 +805,20 @@ namespace olc {
                     auto* eventHandler = static_cast<EventHandler*>(userData);
                     if (eventHandler && eventHandler->mouseMovedHandler_) {
                         eventHandler->mouseMovedHandler_(MouseEvent(x, y, buttonNumber, modifierFlags));
+                    }
+                }
+                
+                static void mouseEnteredCallback(double x, double y, int buttonNumber, unsigned int modifierFlags, void* userData) {
+                    auto* eventHandler = static_cast<EventHandler*>(userData);
+                    if (eventHandler && eventHandler->mouseMovedEnteredHandler_) {
+                        eventHandler->mouseMovedEnteredHandler_(MouseEvent(x, y, buttonNumber, modifierFlags));
+                    }
+                }
+                
+                static void mouseExitedCallback(double x, double y, int buttonNumber, unsigned int modifierFlags, void* userData) {
+                    auto* eventHandler = static_cast<EventHandler*>(userData);
+                    if (eventHandler && eventHandler->mouseMovedExitedHandler_) {
+                        eventHandler->mouseMovedExitedHandler_(MouseEvent(x, y, buttonNumber, modifierFlags));
                     }
                 }
 
@@ -910,6 +949,16 @@ namespace olc {
                 void onScrollWheel(std::function<void(const ScrollWheelEvent&)> handler) {
                     scrollWheelHandler_ = std::move(handler);
                     window_setScrollWheelCallback(window_.getCHandle(), scrollWheelCallback, this);
+                }
+                
+                void onMouseEnteredWindow(std::function<void(const MouseEvent&)> handler) {
+                    mouseMovedEnteredHandler_ = std::move(handler);
+                    window_setMouseEnteredCallback(window_.getCHandle(), mouseEnteredCallback, this);
+                }
+                
+                void onMouseExitWindow(std::function<void(const MouseEvent&)> handler) {
+                    mouseMovedExitedHandler_ = std::move(handler);
+                    window_setMouseExitedCallback(window_.getCHandle(), mouseExitedCallback, this);
                 }
 
                 // Enable/disable event handling

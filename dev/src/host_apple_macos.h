@@ -56,26 +56,32 @@ namespace olc
 
 			// Wait for entire host desktop refresh (for smooooth vsync),
 			virtual bool SyncWithDesktopComposite() override;
+            
+        public: // Platform specific Mouse Control
+            // Force the mouse position in pixels relative to window
+            virtual bool SetMousePosition(olc::Window* pWindow, const olc::vi2d& vPos) override;
+            // Show or hide mouse cursor for given window
+            virtual bool SetMouseVisible(olc::Window* pWindow, const bool bVisible) override;
 
-            public: // OS Specific Environment Information
-                virtual olc::KeyboardLayout GetKeyboardLayout() const override;
+        public: // OS Specific Environment Information
+            virtual olc::KeyboardLayout GetKeyboardLayout() const override;
 
-            public: // Platform Specific OS<->PGE Linkage
-                // Called at very start of application
-                virtual bool OnApplicationStart(olc::PixelGameEngine* pPrimary) override;
-                // Called to start the host - this may mean different things on different hosts
-                // It MUST block until system is requested to exit
-                virtual bool StartSystem() override;
-                // Called to stop the host, and shutdown all resources
-                virtual bool StopSystem() override;
-                // Called at start of system event loop
-                virtual bool OnSystemThreadStart() override;
-                // Called to perform primary window update
-                virtual bool OnSystemTick() override;
-                // Called at end of system event loop
-                virtual bool OnSystemThreadEnd() override;
-                // Called at very end of application
-                virtual bool OnApplicationEnd() override;
+        public: // Platform Specific OS<->PGE Linkage
+            // Called at very start of application
+            virtual bool OnApplicationStart(olc::PixelGameEngine* pPrimary) override;
+            // Called to start the host - this may mean different things on different hosts
+            // It MUST block until system is requested to exit
+            virtual bool StartSystem() override;
+            // Called to stop the host, and shutdown all resources
+            virtual bool StopSystem() override;
+            // Called at start of system event loop
+            virtual bool OnSystemThreadStart() override;
+            // Called to perform primary window update
+            virtual bool OnSystemTick() override;
+            // Called at end of system event loop
+            virtual bool OnSystemThreadEnd() override;
+            // Called at very end of application
+            virtual bool OnApplicationEnd() override;
 
         protected:
 			HostError lastError = HostError::None;
@@ -139,7 +145,7 @@ namespace olc
             void MacEventsHandler();
             void MacOpenGLContextEventsHandler();
             void KeyboardEventHandler(const olc::apis::macos::KeyEvent& event, bool isPressed);
-            bool bNumLockActive = true; // Num Lock state, we assume it's active at start
+            bool bNumLockActive = true;         // Num Lock state, we assume it's active at start
             
         };
     }
