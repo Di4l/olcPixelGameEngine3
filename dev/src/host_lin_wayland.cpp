@@ -679,7 +679,6 @@ namespace olc::host
             auto* pge_window = mapUID2OlcWindow[active_window_id];
             
             // Wayland keyboard version 10 and above support key repeat and release states
-            #ifdef WL_KEYBOARD_KEY_STATE_REPEATED_SINCE_VERSION
             if(keyboard_version >= 10)
             {
                 switch (state) {
@@ -695,7 +694,6 @@ namespace olc::host
                 }
             }
             else
-            #endif
             {
                 // Ubuntu still parties like its 1999 apparently
                 pge_window->olc_OnKeyPress(olc_key, state == WL_KEYBOARD_KEY_STATE_PRESSED);
