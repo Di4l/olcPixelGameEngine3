@@ -226,13 +226,14 @@ namespace olc::host
                 }
                 else if (xev.type == FocusIn)
                 {
-                	if(auto* pge_window = get_pge_window(xev.xbutton.window); pge_window) {
+                	
+                    if(auto* pge_window = get_pge_window(xev.xfocus.window); pge_window) {
                         pge_window->olc_OnMouseFocus(true);
                     }
                 }
                 else if (xev.type == FocusOut)
                 {
-                	if(auto* pge_window = get_pge_window(xev.xbutton.window); pge_window) {
+                	if(auto* pge_window = get_pge_window(xev.xfocus.window); pge_window) {
                         pge_window->olc_OnMouseFocus(false);
                     }
                 }
@@ -309,13 +310,26 @@ namespace olc::host
         mapUID2X11Window.insert_or_assign(pWindow->GetUID(), olc_Window);
 		mapX11Window2PTR.insert_or_assign(olc_Window, pWindow);
 
+        // Create invisible cursor
+        char data[1] = {0};
+        X11::Pixmap blank = XCreateBitmapFromData(olc_Display, olc_Window, data, 1, 1);
+        X11::XColor dummy = {0};
+        X11::Cursor cursor = XCreatePixmapCursor(olc_Display, blank, blank, &dummy, &dummy, 0, 0);
+        XFreePixmap(olc_Display, blank);
+        
+        // Add invisible cursor for this window
+        mapUID2X11Cursor.insert_or_assign(pWindow->GetUID(), cursor);
+        
         return true;
     }
 
     bool Host_Linux_X11::CloseWindowFrame(olc::Window* pWindow)
     {
         const auto window_handle = mapUID2X11Window.find(pWindow->GetUID());
-        if (window_handle != mapUID2X11Window.end()) {
+        const auto invisible_cursor = mapUID2X11Cursor.find(pWindow->GetUID());
+
+        if (window_handle != mapUID2X11Window.end() && invisible_cursor != mapUID2X11Cursor.end()) {
+            X11::XFreeCursor(olc_Display, invisible_cursor->second);
             X11::XDestroyWindow(olc_Display, window_handle->second);
             mapUID2X11Window.erase(window_handle);
         }
@@ -404,5 +418,53 @@ namespace olc::host
     {
         return true;
     }
+
+    bool Host_Linux_X11::SetMousePosition(olc::Window* pWindow, const olc::vi2d& vPos)
+    {
+        auto win = mapUID2X11Window.at(pWindow->GetUID());
+        
+        // NOTE: xwayland will only allow warping when we have an active grab on a
+        //       hidden mouse cursor.
+
+        X11::XGrabPointer(
+            olc_Display, win, True,
+            ButtonPressMask | ButtonReleaseMask | PointerMotionMask,
+            GrabModeAsync, GrabModeAsync,
+            win, X11::None, CurrentTime
+        );
+
+        X11::XWarpPointer(olc_Display, X11::None, win, 0, 0, 0, 0, vPos.x, vPos.y);
+        X11::XFlush(olc_Display);
+
+        X11::XUngrabPointer(olc_Display, CurrentTime);
+        X11::XFlush(olc_Display);
+
+        return true;
+    }
+    
+    bool Host_Linux_X11::SetMouseVisible(olc::Window* pWindow, const bool bVisible)
+    {
+        // NOTE: works on X11 and Xwayland, but does not work correctly in WSL2
+        
+        // nothing to change, do nothing
+        if(bMouseIsVisible == bVisible)
+            return true;
+
+        bMouseIsVisible = bVisible;
+        
+        auto win = mapUID2X11Window.at(pWindow->GetUID());
+        auto cursor = mapUID2X11Cursor.at(pWindow->GetUID());
+        
+        if(bMouseIsVisible)
+        {
+            X11::XUndefineCursor(olc_Display, win);
+            return true;
+        }
+        
+        X11::XDefineCursor(olc_Display, win, cursor);
+        return true;
+    }
+
+
 }
 //! END IMPLEMENTATION
