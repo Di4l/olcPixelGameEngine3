@@ -10490,13 +10490,14 @@ namespace olc::host
                 }
                 else if (xev.type == FocusIn)
                 {
-                	if(auto* pge_window = get_pge_window(xev.xbutton.window); pge_window) {
+                	
+                    if(auto* pge_window = get_pge_window(xev.xfocus.window); pge_window) {
                         pge_window->olc_OnMouseFocus(true);
                     }
                 }
                 else if (xev.type == FocusOut)
                 {
-                	if(auto* pge_window = get_pge_window(xev.xbutton.window); pge_window) {
+                	if(auto* pge_window = get_pge_window(xev.xfocus.window); pge_window) {
                         pge_window->olc_OnMouseFocus(false);
                     }
                 }
@@ -10684,11 +10685,31 @@ namespace olc::host
 
     bool Host_Linux_X11::SetMousePosition(olc::Window* pWindow, const olc::vi2d& vPos)
     {
-        return false;
+        auto win = mapUID2X11Window.at(pWindow->GetUID());
+        
+        // NOTE: xwayland will only allow warping when we have an active grab on a
+        //       hidden mouse cursor.
+
+        X11::XGrabPointer(
+            olc_Display, win, True,
+            ButtonPressMask | ButtonReleaseMask | PointerMotionMask,
+            GrabModeAsync, GrabModeAsync,
+            win, X11::None, CurrentTime
+        );
+
+        X11::XWarpPointer(olc_Display, X11::None, win, 0, 0, 0, 0, vPos.x, vPos.y);
+        X11::XFlush(olc_Display);
+
+        X11::XUngrabPointer(olc_Display, CurrentTime);
+        X11::XFlush(olc_Display);
+
+        return true;
     }
     
     bool Host_Linux_X11::SetMouseVisible(olc::Window* pWindow, const bool bVisible)
     {
+        // NOTE: works on X11 and Xwayland, but does not work correctly in WSL2
+        
         // nothing to change, do nothing
         if(bMouseIsVisible == bVisible)
             return true;
@@ -10700,7 +10721,7 @@ namespace olc::host
         
         if(bMouseIsVisible)
         {
-            X11::XDefineCursor(olc_Display, win, X11::None);
+            X11::XUndefineCursor(olc_Display, win);
             return true;
         }
         
@@ -11054,7 +11075,6 @@ namespace olc::host
 
     void Host_Linux_Wayland::registry_handle_global(wl_registry* registry, uint32_t name, const char* interface, uint32_t version)
     {
-        std::cout << "Global registry event: " << interface << std::endl;
         if(std::strcmp(interface, wl_compositor_interface.name) == 0) {
             compositor = static_cast<wl_compositor*>(wl_registry_bind(registry, name, &wl_compositor_interface, version));
         }
