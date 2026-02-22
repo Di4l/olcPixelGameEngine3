@@ -321,6 +321,25 @@ namespace olc::host
         return keyboardLayout;
     }
 
+    bool Host_Linux_Wayland::SetMousePosition(olc::Window* pWindow, const olc::vi2d& vPos)
+    {
+        if(pointer_warp) {
+            auto itr = mapUID2Window.find(pWindow->GetUID());
+            if(itr != mapUID2Window.end()) {
+                wp_pointer_warp_v1_warp_pointer(pointer_warp, itr->second.surface, pointer, wl_fixed_from_int(vPos.x), wl_fixed_from_int(vPos.y), enter_serial);
+                pWindow->olc_OnMouseMove(vPos);
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    bool Host_Linux_Wayland::SetMouseVisible(olc::Window* pWindow, const bool bVisible)
+    {
+        return false;
+    }
+
 
     void Host_Linux_Wayland::registry_handle_global(wl_registry* registry, uint32_t name, const char* interface, uint32_t version)
     {
@@ -339,6 +358,9 @@ namespace olc::host
         if(std::strcmp(interface, wl_keyboard_interface.name) == 0) {
             keyboard = static_cast<wl_keyboard*>(wl_registry_bind(registry, name, &wl_keyboard_interface, version));
         }
+        if(std::strcmp(interface, wp_pointer_warp_v1_interface.name) == 0) {
+            pointer_warp = static_cast<wp_pointer_warp_v1*>(wl_registry_bind(registry, name, &wp_pointer_warp_v1_interface, version));
+        }
     }
     
     void Host_Linux_Wayland::registry_handle_global_remove(wl_registry* registry, uint32_t name)
@@ -350,7 +372,7 @@ namespace olc::host
     {
         if (capabilities & WL_SEAT_CAPABILITY_POINTER && pointer == nullptr) {
             pointer = wl_seat_get_pointer(seat);
-            wl_pointer_add_listener(pointer, &wayland::pointer_listener, this);
+            wl_pointer_add_listener(pointer, &wayland::pointer_listener, this);    
         }
 
         if (capabilities & WL_SEAT_CAPABILITY_KEYBOARD && keyboard == nullptr) {
@@ -438,6 +460,8 @@ namespace olc::host
     {
         pointer_state.event_mask |= wayland::PointerEventMask::PointerEventEnter;
         pointer_state.serial = serial;
+        // Save so we can reuse the serial for pointer warping
+        enter_serial = serial;
         pointer_state.surface_x = surface_x;
         pointer_state.surface_y = surface_y;
     }
@@ -595,7 +619,7 @@ namespace olc::host
         //auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
         //host->pointer_axis_relative_direction(pointer, axis, direction);
     }
-
+ 
     // Keyboard Callbacks
     void Host_Linux_Wayland::keyboard_keymap_callback(void* data, wl_keyboard* keyboard, uint32_t format, int fd, uint32_t size)
     {

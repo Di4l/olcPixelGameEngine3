@@ -36,6 +36,7 @@ if(UNIX AND BUILD_WAYLAND)
     # Check for wayland protocols
     set(XDG_SHELL_PROTOCOL "/usr/share/wayland-protocols/stable/xdg-shell/xdg-shell.xml")
     set(XDG_DECORATION_PROTOCOL "/usr/share/wayland-protocols/unstable/xdg-decoration/xdg-decoration-unstable-v1.xml")
+    set(POINTER_WARP_PROTOCOL "/usr/share/wayland-protocols/staging/pointer-warp/pointer-warp-v1.xml")
 
     if(NOT EXISTS ${XDG_SHELL_PROTOCOL})
         message(FATAL_ERROR "xdg-shell protocol not found. You may need to install wayland-protocols via your package manager")
@@ -45,11 +46,17 @@ if(UNIX AND BUILD_WAYLAND)
         message(FATAL_ERROR "xdg-decoration protocol not found. You may need to install wayland-protocols via your package manager")
     endif()
 
+    if(NOT EXISTS ${POINTER_WARP_PROTOCOL})
+        message(FATAL_ERROR "pointer-warp protocol not found. You may need to install wayland-protocols via your package manager")
+    endif()
+
     # Generate wayland protocol files
     set(XDG_SHELL_C ${CMAKE_CURRENT_BINARY_DIR}/xdg-shell.c)
     set(XDG_SHELL_H ${CMAKE_CURRENT_BINARY_DIR}/xdg-shell.h)
     set(XDG_DECORATION_C ${CMAKE_CURRENT_BINARY_DIR}/xdg-decoration.c)
     set(XDG_DECORATION_H ${CMAKE_CURRENT_BINARY_DIR}/xdg-decoration.h)
+    set(POINTER_WARP_C ${CMAKE_CURRENT_BINARY_DIR}/pointer-warp.c)
+    set(POINTER_WARP_H ${CMAKE_CURRENT_BINARY_DIR}/pointer-warp.h)
 
     add_custom_command(
         OUTPUT ${XDG_SHELL_C}
@@ -79,12 +86,28 @@ if(UNIX AND BUILD_WAYLAND)
         VERBATIM
     )
 
+    add_custom_command(
+        OUTPUT ${POINTER_WARP_C}
+        COMMAND ${WAYLAND_SCANNER} private-code ${POINTER_WARP_PROTOCOL} ${POINTER_WARP_C}
+        DEPENDS ${POINTER_WARP_PROTOCOL}
+        VERBATIM
+    )
+
+    add_custom_command(
+        OUTPUT ${POINTER_WARP_H}
+        COMMAND ${WAYLAND_SCANNER} client-header ${POINTER_WARP_PROTOCOL} ${POINTER_WARP_H}
+        DEPENDS ${POINTER_WARP_PROTOCOL}
+        VERBATIM
+    )
+
     # Create a library for the wayland protocol files
     add_library(wayland_protocols STATIC
         ${XDG_SHELL_C}
         ${XDG_SHELL_H}
         ${XDG_DECORATION_C}
         ${XDG_DECORATION_H}
+        ${POINTER_WARP_C}
+        ${POINTER_WARP_H}
     )
 
     target_include_directories(wayland_protocols PUBLIC
