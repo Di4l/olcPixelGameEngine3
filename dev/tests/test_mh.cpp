@@ -34,7 +34,7 @@ class Example : public olc::PixelGameEngine
 public:
 	Example()
 	{
-
+		sAppName = "Test mh";
 	}
 
 	olc::Image imTest;

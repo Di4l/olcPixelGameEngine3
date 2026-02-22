@@ -20,7 +20,7 @@ class Example_3DCube : public olc::PixelGameEngine
 public:
 	Example_3DCube()
 	{
-
+		sAppName = "Example - 3D Stanity Cube";
 	}
 
 protected:

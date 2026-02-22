@@ -36,7 +36,7 @@ class Example_ImageTiling : public olc::PixelGameEngine
 public:
 	Example_ImageTiling()
 	{
-
+		sAppName = "Example Image Tiling";
 	}
 
 protected:

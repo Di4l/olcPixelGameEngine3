@@ -134,6 +134,9 @@ namespace olc
 	protected:
 		// PGE Configuration
 		PGEConfig config;
+
+		// Application Name
+		std::string sAppName = "";
 	};
 
 	// The olc::PixelGameEngine3 core, manages the main window, child windows, engine loop, timing and devices

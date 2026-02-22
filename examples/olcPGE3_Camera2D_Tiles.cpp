@@ -33,7 +33,7 @@ class Example_Camera2D_Tiles : public olc::PixelGameEngine
 public:
 	Example_Camera2D_Tiles()
 	{
-
+		sAppName = "Example Camera2D - Tiles, Panning and Zooming";
 	}
 
 protected:

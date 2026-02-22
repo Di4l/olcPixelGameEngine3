@@ -20,7 +20,7 @@ class Example_Rectangles : public olc::PixelGameEngine
 public:
 	Example_Rectangles()
 	{
-
+		sAppName = "Example - Rectangles";
 	}
 
 public:

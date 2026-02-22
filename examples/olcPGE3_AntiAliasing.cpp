@@ -22,6 +22,7 @@ class Example_AntiAliasing : public olc::PixelGameEngine
 public:
 	Example_AntiAliasing()
 	{
+		sAppName = "Example - Anti-Aliasing";
 	}
 
 protected:

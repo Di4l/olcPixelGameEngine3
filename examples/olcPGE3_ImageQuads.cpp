@@ -20,7 +20,7 @@ class Example_ImageQuads : public olc::PixelGameEngine
 public:
 	Example_ImageQuads()
 	{
-
+		sAppName = "Example - Image Quads";
 	}
 
 protected:

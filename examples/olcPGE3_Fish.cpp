@@ -362,7 +362,7 @@ class Example_Fish : public olc::PixelGameEngine
 public:
 	Example_Fish()
 	{
-
+		sAppName = "Example - Fish... lots of really cool fish";
 	}
 
 protected:

@@ -542,7 +542,7 @@ namespace olc
 		if (durationFrameCount >= 1s)
 		{
 			durationFrameCount -= 1s;
-			std::string sTitle = "OneLoneCoder.com - Pixel Game Engine 3 - Test - FPS: " + std::to_string(frameCount);
+			std::string sTitle = "OneLoneCoder.com - Pixel Game Engine 3 - " + sAppName + " - FPS: " + std::to_string(frameCount);
 			SetWindowTitle(sTitle);
 			fps = frameCount;
 			frameCount = 0;

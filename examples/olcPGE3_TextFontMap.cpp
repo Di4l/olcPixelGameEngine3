@@ -20,7 +20,7 @@ class Example_FontMap: public olc::PixelGameEngine
 public:
 	Example_FontMap()
 	{
-
+		sAppName = "Example - Custom Fonts";
 	}
 
 protected:

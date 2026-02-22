@@ -31,7 +31,7 @@ class Example_Mouse : public olc::PixelGameEngine
 public:
 	Example_Mouse()
 	{
-		
+		sAppName = "Example Mouse";
 	}
 
 public:
