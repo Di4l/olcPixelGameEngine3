@@ -21,6 +21,7 @@
 #include "xdg-shell.h"
 #include "xdg-decoration.h"
 #include "pointer-warp.h"
+#include "cursor-shape.h"
 #include <linux/input-event-codes.h>
 #include <xkbcommon/xkbcommon.h>
 #include <sys/mman.h>
@@ -41,6 +42,7 @@ namespace olc::host
         size_t olc_window_uid{0};
         int32_t bounds_x{0};
         int32_t bounds_y{0};
+        bool cursor_visible{true};
     };
 
     namespace wayland {
@@ -94,6 +96,8 @@ namespace olc::host
         zxdg_decoration_manager_v1* decoration_manager{nullptr};
         wp_pointer_warp_v1* pointer_warp{nullptr};
         uint32_t enter_serial{0};
+        wp_cursor_shape_device_v1* cursor_shape_device{nullptr};
+        wp_cursor_shape_manager_v1* cursor_shape_manager{nullptr};
 
         wayland::PointerState pointer_state;
 

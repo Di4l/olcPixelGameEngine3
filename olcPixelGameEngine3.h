@@ -5494,6 +5494,7 @@ namespace olc::host
 #include "xdg-shell.h"
 #include "xdg-decoration.h"
 #include "pointer-warp.h"
+#include "cursor-shape.h"
 #include <linux/input-event-codes.h>
 #include <xkbcommon/xkbcommon.h>
 #include <sys/mman.h>
@@ -5514,6 +5515,7 @@ namespace olc::host
         size_t olc_window_uid{0};
         int32_t bounds_x{0};
         int32_t bounds_y{0};
+        bool cursor_visible{true};
     };
 
     namespace wayland {
@@ -5567,6 +5569,8 @@ namespace olc::host
         zxdg_decoration_manager_v1* decoration_manager{nullptr};
         wp_pointer_warp_v1* pointer_warp{nullptr};
         uint32_t enter_serial{0};
+        wp_cursor_shape_device_v1* cursor_shape_device{nullptr};
+        wp_cursor_shape_manager_v1* cursor_shape_manager{nullptr};
 
         wayland::PointerState pointer_state;
 
@@ -10490,13 +10494,14 @@ namespace olc::host
                 }
                 else if (xev.type == FocusIn)
                 {
-                	if(auto* pge_window = get_pge_window(xev.xbutton.window); pge_window) {
+                	
+                    if(auto* pge_window = get_pge_window(xev.xfocus.window); pge_window) {
                         pge_window->olc_OnMouseFocus(true);
                     }
                 }
                 else if (xev.type == FocusOut)
                 {
-                	if(auto* pge_window = get_pge_window(xev.xbutton.window); pge_window) {
+                	if(auto* pge_window = get_pge_window(xev.xfocus.window); pge_window) {
                         pge_window->olc_OnMouseFocus(false);
                     }
                 }
@@ -10684,11 +10689,31 @@ namespace olc::host
 
     bool Host_Linux_X11::SetMousePosition(olc::Window* pWindow, const olc::vi2d& vPos)
     {
-        return false;
+        auto win = mapUID2X11Window.at(pWindow->GetUID());
+        
+        // NOTE: xwayland will only allow warping when we have an active grab on a
+        //       hidden mouse cursor.
+
+        X11::XGrabPointer(
+            olc_Display, win, True,
+            ButtonPressMask | ButtonReleaseMask | PointerMotionMask,
+            GrabModeAsync, GrabModeAsync,
+            win, X11::None, CurrentTime
+        );
+
+        X11::XWarpPointer(olc_Display, X11::None, win, 0, 0, 0, 0, vPos.x, vPos.y);
+        X11::XFlush(olc_Display);
+
+        X11::XUngrabPointer(olc_Display, CurrentTime);
+        X11::XFlush(olc_Display);
+
+        return true;
     }
     
     bool Host_Linux_X11::SetMouseVisible(olc::Window* pWindow, const bool bVisible)
     {
+        // NOTE: works on X11 and Xwayland, but does not work correctly in WSL2
+        
         // nothing to change, do nothing
         if(bMouseIsVisible == bVisible)
             return true;
@@ -10700,7 +10725,7 @@ namespace olc::host
         
         if(bMouseIsVisible)
         {
-            X11::XDefineCursor(olc_Display, win, X11::None);
+            X11::XUndefineCursor(olc_Display, win);
             return true;
         }
         
@@ -11048,13 +11073,23 @@ namespace olc::host
 
     bool Host_Linux_Wayland::SetMouseVisible(olc::Window* pWindow, const bool bVisible)
     {
-        return false;
+        auto itr = mapUID2Window.find(pWindow->GetUID());
+        if(itr != mapUID2Window.end()) {
+            itr->second.cursor_visible = bVisible;
+
+            if(bVisible) {
+                wp_cursor_shape_device_v1_set_shape(cursor_shape_device, enter_serial, WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_DEFAULT);
+            } else {
+                wl_pointer_set_cursor(pointer, enter_serial, nullptr, 0, 0);
+            }
+        }
+
+        return true;
     }
 
 
     void Host_Linux_Wayland::registry_handle_global(wl_registry* registry, uint32_t name, const char* interface, uint32_t version)
     {
-        std::cout << "Global registry event: " << interface << std::endl;
         if(std::strcmp(interface, wl_compositor_interface.name) == 0) {
             compositor = static_cast<wl_compositor*>(wl_registry_bind(registry, name, &wl_compositor_interface, version));
         }
@@ -11073,6 +11108,9 @@ namespace olc::host
         if(std::strcmp(interface, wp_pointer_warp_v1_interface.name) == 0) {
             pointer_warp = static_cast<wp_pointer_warp_v1*>(wl_registry_bind(registry, name, &wp_pointer_warp_v1_interface, version));
         }
+        if(std::strcmp(interface, wp_cursor_shape_manager_v1_interface.name) == 0) {
+            cursor_shape_manager = static_cast<wp_cursor_shape_manager_v1*>(wl_registry_bind(registry, name, &wp_cursor_shape_manager_v1_interface, version));
+        }
     }
     
     void Host_Linux_Wayland::registry_handle_global_remove(wl_registry* registry, uint32_t name)
@@ -11084,6 +11122,7 @@ namespace olc::host
     {
         if (capabilities & WL_SEAT_CAPABILITY_POINTER && pointer == nullptr) {
             pointer = wl_seat_get_pointer(seat);
+            cursor_shape_device = wp_cursor_shape_manager_v1_get_pointer(cursor_shape_manager, pointer);
             wl_pointer_add_listener(pointer, &wayland::pointer_listener, this);    
         }
 
@@ -11174,6 +11213,7 @@ namespace olc::host
         pointer_state.serial = serial;
         // Save so we can reuse the serial for pointer warping
         enter_serial = serial;
+        pointer_state.surface = surface;
         pointer_state.surface_x = surface_x;
         pointer_state.surface_y = surface_y;
     }
@@ -11249,6 +11289,13 @@ namespace olc::host
             for(auto& itr : mapUID2Window) {
                 if (itr.second.surface == event->surface) {
                     pointer_window = itr.first;
+                    
+                    // Need to set the mouse back to the correct hidden / not hidden state when it enters the window
+                    if(itr.second.cursor_visible) {
+                        wp_cursor_shape_device_v1_set_shape(cursor_shape_device, enter_serial, WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_DEFAULT);
+                    } else {
+                        wl_pointer_set_cursor(pointer, enter_serial, nullptr, 0, 0);
+                    }
                 }
             }
         }
