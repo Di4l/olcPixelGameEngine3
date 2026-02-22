@@ -1,5 +1,6 @@
 #include "api_macos.h"
 #include <iostream>
+#include <algorithm>
 
 //! START IMPLEMENTATION
 
@@ -16,6 +17,15 @@ static constexpr const char* kAppDelegateClass                  = "AppDelegate";
 static constexpr const char* kWindowDelegateClass               = "WindowDelegate";
 static constexpr const char* kCustomOpenGLViewClass             = "CustomOpenGLView";
 static constexpr const char* kGeneralWindowDelegateClass        = "GeneralWindowDelegate";
+
+// Application Screen management selectors
+static constexpr const char* kNSScreenClass                     = "NSScreen";
+static constexpr const char* kScreenSel                         = "screen";
+static constexpr const char* kNSCursorClass                     = "NSCursor";
+static constexpr const char* kUnhideSel                         = "unhide";
+static constexpr const char* kHideSel                           = "hide";
+static constexpr const char* kIsHiddenSel                       = "isHidden";
+
 
 // Application memory management selectors
 static constexpr const char* kAllocSel                          = "alloc";
@@ -76,6 +86,13 @@ static constexpr const char* kOtherMouseDraggedSel              = "otherMouseDra
 static constexpr const char* kScrollWheelSel                    = "scrollWheel:";
 static constexpr const char* kDeltaXSel                         = "deltaX";
 static constexpr const char* kDeltaYSel                         = "deltaY";
+static constexpr const char* kUpdateTrackingAreasSel            = "updateTrackingAreas";
+static constexpr const char* kMouseEnteredSel                   = "mouseEntered:";
+static constexpr const char* kMouseExitedSel                    = "mouseExited:";
+static constexpr const char* kTrackingAreaClass                 = "NSTrackingArea";
+static constexpr const char* kAddTrackingAreaSel                = "addTrackingArea:";
+static constexpr const char* kInitWithRectSel                   = "initWithRect:options:owner:userInfo:";
+
 
 // Managing first responder status and keyboard focus selectors
 static constexpr const char* kAcceptsFirstResponderSel          = "acceptsFirstResponder";
@@ -142,7 +159,9 @@ static constexpr int kZeroWidth                                 = 0;
 static constexpr int kZeroHeight                                = 0;
 static constexpr int kFlippedOffset                             = 1;
 static constexpr int kNoButton                                  = -1;
-
+static constexpr int kDefaultScreenNumber                       = 1;
+bool bAllowHideCursor                                           = true;
+bool bHideCursor                                                = false;
 
 // Objective-C method type encoding constants
 // Type encoding for methods returning BOOL with no parameters: "c@:"
@@ -173,6 +192,12 @@ namespace ObjectiveCSEL {
    static SEL runSel                       = nullptr;
    static SEL terminateSEL                 = nullptr;
 
+   // Application Screen management selectors
+   static SEL screenSel                    = nullptr;
+   static SEL unhideSel                    = nullptr;
+   static SEL hideSel                      = nullptr;
+   static SEL isHiddenSel                  = nullptr;
+
    // NSApplicationDelegate lifecycle methods
    static SEL applicationWillFinishLaunchingSel = nullptr;
    static SEL applicationDidFinishLaunchingSel  = nullptr;
@@ -202,22 +227,29 @@ namespace ObjectiveCSEL {
    static SEL windowDidDeminiaturizeSel = nullptr;
 
    // NSResponder keyboard and mouse event methods selectors
-   static SEL keyDownSel           = nullptr;
-   static SEL keyUpSel             = nullptr;
-   static SEL flagsChangedSel      = nullptr;
-   static SEL mouseDownSel         = nullptr;
-   static SEL mouseUpSel           = nullptr;
-   static SEL mouseDraggedSel      = nullptr;
-   static SEL mouseMovedSel        = nullptr;
-   static SEL rightMouseDownSel    = nullptr;
-   static SEL rightMouseUpSel      = nullptr;
-   static SEL rightMouseDraggedSel = nullptr;
-   static SEL otherMouseDownSel    = nullptr;
-   static SEL otherMouseUpSel      = nullptr;
-   static SEL otherMouseDraggedSel = nullptr;
-   static SEL scrollWheelSel       = nullptr;
-   static SEL deltaXSel            = nullptr;
-   static SEL deltaYSel            = nullptr;
+   static SEL keyDownSel                = nullptr;
+   static SEL keyUpSel                  = nullptr;
+   static SEL flagsChangedSel           = nullptr;
+   static SEL mouseDownSel              = nullptr;
+   static SEL mouseUpSel                = nullptr;
+   static SEL mouseDraggedSel           = nullptr;
+   static SEL mouseMovedSel             = nullptr;
+   static SEL rightMouseDownSel         = nullptr;
+   static SEL rightMouseUpSel           = nullptr;
+   static SEL rightMouseDraggedSel      = nullptr;
+   static SEL otherMouseDownSel         = nullptr;
+   static SEL otherMouseUpSel           = nullptr;
+   static SEL otherMouseDraggedSel      = nullptr;
+   static SEL scrollWheelSel            = nullptr;
+   static SEL deltaXSel                 = nullptr;
+   static SEL deltaYSel                 = nullptr;
+   static SEL updateTrackingAreasSel    = nullptr;
+   static SEL mouseEnteredSel           = nullptr;
+   static SEL mouseExitedSel            = nullptr;
+
+   // Mouse Tracking
+   static SEL addTrackingAreaSel        = nullptr;
+   static SEL initWithRectSel           = nullptr;
 
    // Managing first responder status and keyboard focus selectors
    static SEL acceptsFirstResponderSel = nullptr;
@@ -287,6 +319,12 @@ namespace ObjectiveCSEL {
         setActivationPolicySel              = sel_registerName(kSetActivationPolicySel);
         runSel                              = sel_registerName(kRunSel);
         terminateSEL                        = sel_registerName(kTerminateSel);
+        
+        // Application Screen management selectors
+        screenSel                           = sel_registerName(kScreenSel);
+        unhideSel                           = sel_registerName(kUnhideSel);
+        hideSel                             = sel_registerName(kHideSel);
+        isHiddenSel                         = sel_registerName(kIsHiddenSel);
 
         // NSApplicationDelegate lifecycle methods
         applicationWillFinishLaunchingSel   = sel_registerName(kApplicationWillFinishLaunchingSel);
@@ -333,7 +371,12 @@ namespace ObjectiveCSEL {
         scrollWheelSel                      = sel_registerName(kScrollWheelSel);
         deltaXSel                           = sel_registerName(kDeltaXSel);
         deltaYSel                           = sel_registerName(kDeltaYSel);
-
+        updateTrackingAreasSel              = sel_registerName(kUpdateTrackingAreasSel);
+        mouseEnteredSel                     = sel_registerName(kMouseEnteredSel);
+        mouseExitedSel                      = sel_registerName(kMouseExitedSel);
+        addTrackingAreaSel                  = sel_registerName(kAddTrackingAreaSel);
+        initWithRectSel                     = sel_registerName(kInitWithRectSel);
+        
         // Managing first responder status and keyboard focus selectors
         acceptsFirstResponderSel            = sel_registerName(kAcceptsFirstResponderSel);
         becomeFirstResponderSel             = sel_registerName(kBecomeFirstResponderSel);
@@ -426,14 +469,6 @@ private:
     void* pool_;
 };
 
-// CGPoint structure for 2D points
-struct CGPoint {
-    double x{kMinValidDimension};
-    double y{kMinValidDimension};
-    
-    constexpr CGPoint() = default;
-    constexpr CGPoint(double x_val, double y_val) noexcept : x(x_val), y(y_val) {}
-};
 
 using NSPoint = CGPoint;
 using NSInteger = long;
@@ -579,6 +614,11 @@ enum class NSApplicationActivationPolicy : uint8_t {
 // Backward compatibility
 static constexpr int NSApplicationActivationPolicyRegular = static_cast<int>(NSApplicationActivationPolicy::Regular);
 
+// Mouse Tracking const
+static constexpr const NSUInteger NSTrackingMouseEnteredAndExited = 0x01;
+static constexpr const NSUInteger NSTrackingActiveInKeyWindow = 0x20;
+static constexpr const NSUInteger NSTrackingInVisibleRect = 0x200;
+
 /*
 * WARNING: Global delegate pointers for Objective-C callbacks
 * These global pointers are used to route Objective-C delegate callbacks
@@ -672,7 +712,11 @@ struct Window {
     void (*otherMouseDownCallback)   (double x, double y, int buttonNumber,  unsigned int modifierFlags, void* userData){nullptr};
     void (*otherMouseUpCallback)     (double x, double y, int buttonNumber,  unsigned int modifierFlags, void* userData){nullptr};
     void (*otherMouseDraggedCallback)(double x, double y, int buttonNumber,  unsigned int modifierFlags, void* userData){nullptr};
+    void (*mouseEnteredCallback)     (double x, double y, int buttonNumber,  unsigned int modifierFlags, void* userData){nullptr};
+    void (*mouseExitedCallback)      (double x, double y, int buttonNumber,  unsigned int modifierFlags, void* userData){nullptr};
     void (*scrollWheelCallback)      (double x, double y, double deltaX, double deltaY, unsigned int modifierFlags, void* userData){nullptr};
+
+    
     void* eventUserData{nullptr};   // User data for event callbacks
     BOOL acceptsInputEvents{NO};    // Whether the window accepts input events
     
@@ -724,7 +768,7 @@ struct OpenGLRenderer {
     void (*renderYellowBackground)(struct OpenGLRenderer* self){nullptr};
     void (*renderTexturedQuad)    (struct OpenGLRenderer* self, unsigned int textureID){nullptr};
     void* (*getOpenGLContext)     (const struct OpenGLRenderer* self){nullptr};
-    void* (*getCGLContextObj)(struct OpenGLRenderer* self){nullptr};
+    void* (*getCGLContextObj)     (struct OpenGLRenderer* self){nullptr};
     void* (*getCGLContextObjPtr)  (struct OpenGLRenderer* self){nullptr};
     void (*makeCurrentContext)    (struct OpenGLRenderer* self){nullptr};
     void (*setVsync)              (struct OpenGLRenderer* self, BOOL enabled){nullptr};
@@ -918,7 +962,6 @@ MouseEventData extractMouseEventData(id event) {
     
     // Convert to content view coordinates and flip Y coordinate
     convertToContentViewCoordinates(data.location);
-    
     return data;
 }
 
@@ -1046,6 +1089,61 @@ void view_scrollWheel(id self, SEL _cmd, id event) {
     }
 }
 
+// New events for mouse entered/exited
+void view_mouseEntered(id self, SEL _cmd, id event) {
+    (void)self;(void)_cmd;(void)event;
+    
+    // Allow hiding cursor when mouse is inside window
+    bAllowHideCursor = true;
+    
+    // If the cursor is currently hidden, hide it again to ensure it stays hidden while inside the window
+    if(bHideCursor)
+        ((void (*)(Class, SEL))objc_msgSend)(objc_getClass(kNSCursorClass), ObjectiveCSEL::hideSel);
+    
+    NSPoint location         = ((NSPoint(*)(id, SEL))objc_msgSend)(event, ObjectiveCSEL::locationInWindowSel);
+    NSUInteger modifierFlags = ((NSUInteger(*)(id, SEL))objc_msgSend)(event, ObjectiveCSEL::modifierFlagsSel);
+
+    convertToContentViewCoordinates(location);
+
+    if (gptrNSWindowEvents && gptrNSWindowEvents->acceptsInputEvents && gptrNSWindowEvents->mouseEnteredCallback) [[likely]] {
+        gptrNSWindowEvents->mouseEnteredCallback(location.x, location.y, kNoButton, (unsigned int)modifierFlags, gptrNSWindowEvents->eventUserData);
+    }
+}
+
+void view_mouseExited(id self, SEL _cmd, id event) {
+    (void)self;(void)_cmd;(void)event;
+    
+    // Ensure cursor is visible when leaving window
+    bAllowHideCursor = false;
+    ((void (*)(Class, SEL))objc_msgSend)(objc_getClass(kNSCursorClass), ObjectiveCSEL::unhideSel);
+    
+    NSPoint location         = ((NSPoint(*)(id, SEL))objc_msgSend)(event, ObjectiveCSEL::locationInWindowSel);
+    NSUInteger modifierFlags = ((NSUInteger(*)(id, SEL))objc_msgSend)(event, ObjectiveCSEL::modifierFlagsSel);
+
+    convertToContentViewCoordinates(location);
+
+    if (gptrNSWindowEvents && gptrNSWindowEvents->acceptsInputEvents && gptrNSWindowEvents->mouseExitedCallback) [[likely]] {
+        gptrNSWindowEvents->mouseExitedCallback(location.x, location.y, kNoButton, (unsigned int)modifierFlags, gptrNSWindowEvents->eventUserData);
+    }
+}
+
+void view_updateTrackingAreas(id self, SEL _cmd) {
+    (void)self;(void)_cmd;
+
+    // Create new tracking area
+    NSRect bounds = ((NSRect(*)(id, SEL))objc_msgSend)(self, ObjectiveCSEL::boundsSel);
+    
+    // Correct tracking options: mouse entered/exited + active in key window
+    NSUInteger options = NSTrackingMouseEnteredAndExited | NSTrackingActiveInKeyWindow | NSTrackingInVisibleRect;
+    
+    Class NSTrackingAreaClass = objc_getClass(kTrackingAreaClass);
+    id trackingArea = ((id(*)(id, SEL, NSRect, NSUInteger, id, id))objc_msgSend)(
+        ((id(*)(Class, SEL))objc_msgSend)(NSTrackingAreaClass, ObjectiveCSEL::allocSel),
+        ObjectiveCSEL::initWithRectSel, bounds, options, self, nil);
+    
+    ((void(*)(id, SEL, id))objc_msgSend)(self, ObjectiveCSEL::addTrackingAreaSel, trackingArea);
+}
+
 // Determine if view can accept first responder status
 id view_acceptsFirstResponder(id self, SEL _cmd) {
     (void)self;(void)_cmd;
@@ -1121,7 +1219,12 @@ Class createCustomOpenGLViewClass() {
     class_addMethod(CustomViewClass, ObjectiveCSEL::otherMouseUpSel,      (IMP)view_otherMouseUp,      kEventHandlerMethodTypeEncoding);
     class_addMethod(CustomViewClass, ObjectiveCSEL::otherMouseDraggedSel, (IMP)view_otherMouseDragged, kEventHandlerMethodTypeEncoding);
     class_addMethod(CustomViewClass, ObjectiveCSEL::scrollWheelSel,       (IMP)view_scrollWheel,       kEventHandlerMethodTypeEncoding);
-
+    
+    // Area tracking for Mouse entered/exited event handler methods
+    class_addMethod(CustomViewClass, ObjectiveCSEL::updateTrackingAreasSel, (IMP)view_updateTrackingAreas, kVoidMethodTypeEncoding);
+    class_addMethod(CustomViewClass, ObjectiveCSEL::mouseEnteredSel,      (IMP)view_mouseEntered,      kEventHandlerMethodTypeEncoding);
+    class_addMethod(CustomViewClass, ObjectiveCSEL::mouseExitedSel,       (IMP)view_mouseExited,       kEventHandlerMethodTypeEncoding);
+    
     // First responder methods
     class_addMethod(CustomViewClass, ObjectiveCSEL::acceptsFirstResponderSel,  (IMP)view_acceptsFirstResponder, kBoolMethodTypeEncoding);
     class_addMethod(CustomViewClass, ObjectiveCSEL::becomeFirstResponderSel,   (IMP)view_becomeFirstResponder,  kBoolMethodTypeEncoding);
@@ -1451,8 +1554,7 @@ extern "C" {
     // Window title setter
     void window_setTitle(Window* self, const char* title) {
         self->title = title;
-        
-        // If window is already created, update the NSWindow title
+
         if (self->nsWindow) {
             Class NSStringClass = objc_getClass(kNSStringClass);
 
@@ -1570,6 +1672,46 @@ extern "C" {
     // Set window size (width, height)
     void window_setWindowSize(Window* self, double width, double height) {
         window_setWindowFrame(self, self->windowFrame.x, self->windowFrame.y, width, height);
+    }
+
+    // Set the cusor position relative to the content view
+    void window_setCursorPosition(Window* self, double x, double y) {
+        if (!self || !self->nsWindow) return;
+        
+        // Get current screen the window is on
+        id currentScreen = ((id(*)(id, SEL))objc_msgSend)(self->nsWindow, ObjectiveCSEL::screenSel);
+        NSRect screenFrame = ((NSRect(*)(id, SEL))objc_msgSend)(currentScreen, ObjectiveCSEL::frameSel);
+        
+        // Update internal frame representation to get the latest window position
+        window_updateFrameFromOSX(self);
+        NSPoint location = {self->windowFrame.x, self->windowFrame.y};
+        
+        // Get the content view
+        id contentView = ((id(*)(id, SEL))objc_msgSend)(gptrNSWindowEvents->nsWindow, ObjectiveCSEL::contentViewSel);
+        if (contentView) {
+        
+            // Get the content view bounds to flip Y coordinate
+            NSRect contentBounds = ((NSRect(*)(id, SEL))objc_msgSend)(contentView, ObjectiveCSEL::boundsSel);
+        
+            // NOTE: we need to ensure the new cursor position is within the window bounds to prevent unexpected behavior
+            auto posX = std::clamp(location.x +x, location.x, location.x + contentBounds.width);
+            auto posY = std::clamp(screenFrame.height - location.y - contentBounds.height + y,
+                                   screenFrame.height - location.y - contentBounds.height,
+                                   screenFrame.height - location.y);
+            CGWarpMouseCursorPosition(CGPointMake(posX, posY));
+        }
+        
+    }
+
+    // Set cursor visibility
+    void window_setCursorVisibility(Window* self, BOOL visible) {
+        if (!self || !self->nsWindow) return;
+        bHideCursor = !visible;
+        if (bHideCursor && bAllowHideCursor) {
+            ((void (*)(Class, SEL))objc_msgSend)(objc_getClass(kNSCursorClass), ObjectiveCSEL::hideSel);
+        } else {
+            ((void (*)(Class, SEL))objc_msgSend)(objc_getClass(kNSCursorClass), ObjectiveCSEL::unhideSel);
+        }
     }
 
     // Initialize OpenGL renderer
@@ -2068,6 +2210,16 @@ extern "C" {
 
     void window_setScrollWheelCallback(Window* self, void (*callback)(double, double, double, double, unsigned int, void*), void* userData) {
         self->scrollWheelCallback = callback;
+        self->eventUserData = userData;
+    }
+
+    void window_setMouseEnteredCallback(Window* self, void (*callback)(double, double, int, unsigned int, void*), void* userData) {
+        self->mouseEnteredCallback = callback;
+        self->eventUserData = userData;
+    }
+
+    void window_setMouseExitedCallback(Window* self, void (*callback)(double, double, int, unsigned int, void*), void* userData) {
+        self->mouseExitedCallback = callback;
         self->eventUserData = userData;
     }
 

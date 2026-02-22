@@ -137,60 +137,76 @@ namespace olc::host {
     }
 
 
-bool Host_Apple_MacOS::AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen){
-    pPGEwindow = pWindow;
-    pPGEwindow->SetWindowPosition(vWindowPos);
-    pPGEwindow->SetWindowSize(vWindowSize);
-    pPGEwindow->LinkToHost(this);
+    bool Host_Apple_MacOS::AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen){
+        pPGEwindow = pWindow;
+        pPGEwindow->SetWindowPosition(vWindowPos);
+        pPGEwindow->SetWindowSize(vWindowSize);
+        pPGEwindow->LinkToHost(this);
 
-    frameBounds.x = 0.0;
-    frameBounds.y = 0.0;
-    frameBounds.width = static_cast<double>(vWindowSize.x);
-    frameBounds.height = static_cast<double>(vWindowSize.y);
-    
-    return true;
-}
-
-bool Host_Apple_MacOS::CloseWindowFrame(olc::Window* pWindow){
-    pWindow->olc_OnWindowClose();
-    return true;
-}
-
-bool Host_Apple_MacOS::UpdateWindowFrameTitle(olc::Window* pWindow){
-    if (!pMacOSWindow) return false;
-    dispatch_async(dispatch_get_main_queue(), ^{
-        pMacOSWindow->setTitle(pWindow->GetWindowTitle().c_str());
-    });
-    return true;
-}
-
-std::vector<void*> Host_Apple_MacOS::GetHostWindowDescriptor(olc::Window* pWindow){
-    
-    // Ensure OpenGL renderer is created
-    if(pMacOSOpenGLRenderer == nullptr)
-        CreateCGLContextObj();
-
-    return vMacOSWindowDescriptors;
-   
-}
-
-
-bool Host_Apple_MacOS::SyncWithDesktopComposite()
-{
-    /*
-     core.h SyncWithDesktopComposite is only called when vSync is enabled on each frame,
-     the method of enabling vSync varies between platforms, For macos we use a local var enableVSync,
-     set to false and toggle it on first call, so that vSync is only enabled once
-     */
-    
-    if(!enableVSync)
-    {
-        pMacOSOpenGLRenderer->enableVsync();
-        enableVSync = true;
+        frameBounds.x = 0.0;
+        frameBounds.y = 0.0;
+        frameBounds.width = static_cast<double>(vWindowSize.x);
+        frameBounds.height = static_cast<double>(vWindowSize.y);
+        
+        return true;
     }
-    
-    return enableVSync;
-}
+
+    bool Host_Apple_MacOS::CloseWindowFrame(olc::Window* pWindow){
+        pWindow->olc_OnWindowClose();
+        return true;
+    }
+
+    bool Host_Apple_MacOS::UpdateWindowFrameTitle(olc::Window* pWindow){
+        if (!pMacOSWindow) return false;
+        dispatch_async(dispatch_get_main_queue(), ^{
+            pMacOSWindow->setTitle(pWindow->GetWindowTitle().c_str());
+        });
+        return true;
+    }
+
+    std::vector<void*> Host_Apple_MacOS::GetHostWindowDescriptor(olc::Window* pWindow){
+        
+        // Ensure OpenGL renderer is created
+        if(pMacOSOpenGLRenderer == nullptr)
+            CreateCGLContextObj();
+
+        return vMacOSWindowDescriptors;
+       
+    }
+
+
+    bool Host_Apple_MacOS::SyncWithDesktopComposite()
+    {
+        /*
+         core.h SyncWithDesktopComposite is only called when vSync is enabled on each frame,
+         the method of enabling vSync varies between platforms, For macos we use a local var enableVSync,
+         set to false and toggle it on first call, so that vSync is only enabled once
+         */
+        
+        if(!enableVSync)
+        {
+            pMacOSOpenGLRenderer->enableVsync();
+            enableVSync = true;
+        }
+        
+        return enableVSync;
+    }
+
+    bool Host_Apple_MacOS::SetMousePosition(olc::Window* pWindow, const olc::vi2d& vPos)
+    {
+        dispatch_sync(dispatch_get_main_queue(), ^{
+            pMacOSWindow->setCursorPosition(vPos.x, vPos.y);
+        });
+        return false;
+    }
+
+    bool Host_Apple_MacOS::SetMouseVisible(olc::Window* pWindow, const bool bVisible)
+    {
+        dispatch_sync(dispatch_get_main_queue(), ^{
+            pMacOSWindow->setCursorVisibility(bVisible);
+        });
+        return true;
+    }
 
     bool Host_Apple_MacOS::OnApplicationStart(olc::PixelGameEngine* pPrimary){
         pPrimaryPGE = pPrimary;
@@ -198,7 +214,7 @@ bool Host_Apple_MacOS::SyncWithDesktopComposite()
     }
 
     bool Host_Apple_MacOS::StartSystem(){
-        
+                
         // Create MacOS Application instance
         pMacApplication = std::make_unique<olc::apis::macos::Application>();
 
@@ -638,7 +654,7 @@ bool Host_Apple_MacOS::SyncWithDesktopComposite()
         });
         
         pMacOSEventHandler->onMouseMoved([&](const olc::apis::macos::MouseEvent& event) {
-            pPGEwindow->olc_OnMouseMove({static_cast<int>(event.x), static_cast<int>(event.y)});            
+            pPGEwindow->olc_OnMouseMove({static_cast<int>(event.x), static_cast<int>(event.y)});
         });
         
         pMacOSEventHandler->onMouseDragged([&](const olc::apis::macos::MouseEvent& event) {

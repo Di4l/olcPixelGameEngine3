@@ -4190,6 +4190,7 @@ namespace olc
 #include <objc/message.h>
 #include <OpenGL/gl.h>
 #include <OpenGL/OpenGL.h>
+#include <CoreGraphics/CoreGraphics.h>
 
 extern "C" {
     // NSRect (OSX rectangle structure same as GCRect C structure)
@@ -4236,7 +4237,9 @@ extern "C" {
     void window_setWindowSize            (struct Window* self, double width, double height);
     void window_getContentViewFrame      (const struct Window* self, double* x, double* y, double* width, double* height);
     void window_setContentViewFrame      (struct Window* self, double* x, double* y, double* width, double* height);
-    
+    void window_setCursorVisibility      (struct Window* self, BOOL visible);
+    void window_setCursorPosition        (struct Window* self, double x, double y);
+
     // OpenGL Renderer API - as implemented in api_macos.c
     struct OpenGLRenderer* opengl_init    (void);
     void opengl_initialize                (struct OpenGLRenderer* self, struct Window* window);
@@ -4285,6 +4288,8 @@ extern "C" {
     void window_setOtherMouseUpCallback     (struct Window* self, MouseEventCallback callback, void* userData);
     void window_setOtherMouseDraggedCallback(struct Window* self, MouseEventCallback callback, void* userData);
     void window_setScrollWheelCallback      (struct Window* self, void (*callback)(double, double, double, double, unsigned int, void*), void* userData);
+    void window_setMouseEnteredCallback     (struct Window* self, MouseEventCallback callback, void* userData);
+    void window_setMouseExitedCallback      (struct Window* self, MouseEventCallback callback, void* userData); 
 
     // Event system management
     void window_enableEventHandling     (struct Window* self);
@@ -4757,6 +4762,29 @@ namespace olc {
                     setCallback(window_setWindowDidDeminiaturizeCallback, std::move(callback));
                 }
                 
+                // Set the cusror position within the window
+                void setCursorPosition(int32_t x, int32_t y) noexcept {
+                    setCursorPosition(static_cast<double>(x), static_cast<double>(y));
+                }
+
+                void setCursorPosition(float x, float y) noexcept {
+                    setCursorPosition(static_cast<double>(x), static_cast<double>(y));
+                }
+
+                void setCursorPosition(double x, double y) noexcept {
+                    if (window_) {
+                        window_setCursorPosition(window_, x, y);
+                    }
+                }
+                
+                // Set cursor visibility
+                void setCursorVisibility(bool visible) noexcept {
+                    if (window_) {
+                        window_setCursorVisibility(window_, visible);
+                    }
+                }
+                
+                
                 // Non-copyable but movable
                 Window(const Window&) = delete;
                 Window& operator=(const Window&) = delete;
@@ -5027,6 +5055,8 @@ namespace olc {
                 std::function<void(const MouseEvent&)>  otherMouseUpHandler_;
                 std::function<void(const MouseEvent&)>  otherMouseDraggedHandler_;
                 std::function<void(const ScrollWheelEvent&)> scrollWheelHandler_;
+                std::function<void(const MouseEvent&)>  mouseMovedEnteredHandler_;
+                std::function<void(const MouseEvent&)>  mouseMovedExitedHandler_;
                
                 // Template helpers for static callbacks to reduce code duplication
                 template<typename EventType, typename HandlerType>
@@ -5078,6 +5108,20 @@ namespace olc {
                     auto* eventHandler = static_cast<EventHandler*>(userData);
                     if (eventHandler && eventHandler->mouseMovedHandler_) {
                         eventHandler->mouseMovedHandler_(MouseEvent(x, y, buttonNumber, modifierFlags));
+                    }
+                }
+                
+                static void mouseEnteredCallback(double x, double y, int buttonNumber, unsigned int modifierFlags, void* userData) {
+                    auto* eventHandler = static_cast<EventHandler*>(userData);
+                    if (eventHandler && eventHandler->mouseMovedEnteredHandler_) {
+                        eventHandler->mouseMovedEnteredHandler_(MouseEvent(x, y, buttonNumber, modifierFlags));
+                    }
+                }
+                
+                static void mouseExitedCallback(double x, double y, int buttonNumber, unsigned int modifierFlags, void* userData) {
+                    auto* eventHandler = static_cast<EventHandler*>(userData);
+                    if (eventHandler && eventHandler->mouseMovedExitedHandler_) {
+                        eventHandler->mouseMovedExitedHandler_(MouseEvent(x, y, buttonNumber, modifierFlags));
                     }
                 }
 
@@ -5209,6 +5253,16 @@ namespace olc {
                     scrollWheelHandler_ = std::move(handler);
                     window_setScrollWheelCallback(window_.getCHandle(), scrollWheelCallback, this);
                 }
+                
+                void onMouseEnteredWindow(std::function<void(const MouseEvent&)> handler) {
+                    mouseMovedEnteredHandler_ = std::move(handler);
+                    window_setMouseEnteredCallback(window_.getCHandle(), mouseEnteredCallback, this);
+                }
+                
+                void onMouseExitWindow(std::function<void(const MouseEvent&)> handler) {
+                    mouseMovedExitedHandler_ = std::move(handler);
+                    window_setMouseExitedCallback(window_.getCHandle(), mouseExitedCallback, this);
+                }
 
                 // Enable/disable event handling
                 void enable() noexcept {
@@ -5261,26 +5315,32 @@ namespace olc
 
 			// Wait for entire host desktop refresh (for smooooth vsync),
 			virtual bool SyncWithDesktopComposite() override;
+            
+        public: // Platform specific Mouse Control
+            // Force the mouse position in pixels relative to window
+            virtual bool SetMousePosition(olc::Window* pWindow, const olc::vi2d& vPos) override;
+            // Show or hide mouse cursor for given window
+            virtual bool SetMouseVisible(olc::Window* pWindow, const bool bVisible) override;
 
-            public: // OS Specific Environment Information
-                virtual olc::KeyboardLayout GetKeyboardLayout() const override;
+        public: // OS Specific Environment Information
+            virtual olc::KeyboardLayout GetKeyboardLayout() const override;
 
-            public: // Platform Specific OS<->PGE Linkage
-                // Called at very start of application
-                virtual bool OnApplicationStart(olc::PixelGameEngine* pPrimary) override;
-                // Called to start the host - this may mean different things on different hosts
-                // It MUST block until system is requested to exit
-                virtual bool StartSystem() override;
-                // Called to stop the host, and shutdown all resources
-                virtual bool StopSystem() override;
-                // Called at start of system event loop
-                virtual bool OnSystemThreadStart() override;
-                // Called to perform primary window update
-                virtual bool OnSystemTick() override;
-                // Called at end of system event loop
-                virtual bool OnSystemThreadEnd() override;
-                // Called at very end of application
-                virtual bool OnApplicationEnd() override;
+        public: // Platform Specific OS<->PGE Linkage
+            // Called at very start of application
+            virtual bool OnApplicationStart(olc::PixelGameEngine* pPrimary) override;
+            // Called to start the host - this may mean different things on different hosts
+            // It MUST block until system is requested to exit
+            virtual bool StartSystem() override;
+            // Called to stop the host, and shutdown all resources
+            virtual bool StopSystem() override;
+            // Called at start of system event loop
+            virtual bool OnSystemThreadStart() override;
+            // Called to perform primary window update
+            virtual bool OnSystemTick() override;
+            // Called at end of system event loop
+            virtual bool OnSystemThreadEnd() override;
+            // Called at very end of application
+            virtual bool OnApplicationEnd() override;
 
         protected:
 			HostError lastError = HostError::None;
@@ -5344,7 +5404,7 @@ namespace olc
             void MacEventsHandler();
             void MacOpenGLContextEventsHandler();
             void KeyboardEventHandler(const olc::apis::macos::KeyEvent& event, bool isPressed);
-            bool bNumLockActive = true; // Num Lock state, we assume it's active at start
+            bool bNumLockActive = true;         // Num Lock state, we assume it's active at start
             
         };
     }
@@ -7333,60 +7393,76 @@ namespace olc::host {
     }
 
 
-bool Host_Apple_MacOS::AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen){
-    pPGEwindow = pWindow;
-    pPGEwindow->SetWindowPosition(vWindowPos);
-    pPGEwindow->SetWindowSize(vWindowSize);
-    pPGEwindow->LinkToHost(this);
+    bool Host_Apple_MacOS::AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen){
+        pPGEwindow = pWindow;
+        pPGEwindow->SetWindowPosition(vWindowPos);
+        pPGEwindow->SetWindowSize(vWindowSize);
+        pPGEwindow->LinkToHost(this);
 
-    frameBounds.x = 0.0;
-    frameBounds.y = 0.0;
-    frameBounds.width = static_cast<double>(vWindowSize.x);
-    frameBounds.height = static_cast<double>(vWindowSize.y);
-    
-    return true;
-}
-
-bool Host_Apple_MacOS::CloseWindowFrame(olc::Window* pWindow){
-    pWindow->olc_OnWindowClose();
-    return true;
-}
-
-bool Host_Apple_MacOS::UpdateWindowFrameTitle(olc::Window* pWindow){
-    if (!pMacOSWindow) return false;
-    dispatch_async(dispatch_get_main_queue(), ^{
-        pMacOSWindow->setTitle(pWindow->GetWindowTitle().c_str());
-    });
-    return true;
-}
-
-std::vector<void*> Host_Apple_MacOS::GetHostWindowDescriptor(olc::Window* pWindow){
-    
-    // Ensure OpenGL renderer is created
-    if(pMacOSOpenGLRenderer == nullptr)
-        CreateCGLContextObj();
-
-    return vMacOSWindowDescriptors;
-   
-}
-
-
-bool Host_Apple_MacOS::SyncWithDesktopComposite()
-{
-    /*
-     core.h SyncWithDesktopComposite is only called when vSync is enabled on each frame,
-     the method of enabling vSync varies between platforms, For macos we use a local var enableVSync,
-     set to false and toggle it on first call, so that vSync is only enabled once
-     */
-    
-    if(!enableVSync)
-    {
-        pMacOSOpenGLRenderer->enableVsync();
-        enableVSync = true;
+        frameBounds.x = 0.0;
+        frameBounds.y = 0.0;
+        frameBounds.width = static_cast<double>(vWindowSize.x);
+        frameBounds.height = static_cast<double>(vWindowSize.y);
+        
+        return true;
     }
-    
-    return enableVSync;
-}
+
+    bool Host_Apple_MacOS::CloseWindowFrame(olc::Window* pWindow){
+        pWindow->olc_OnWindowClose();
+        return true;
+    }
+
+    bool Host_Apple_MacOS::UpdateWindowFrameTitle(olc::Window* pWindow){
+        if (!pMacOSWindow) return false;
+        dispatch_async(dispatch_get_main_queue(), ^{
+            pMacOSWindow->setTitle(pWindow->GetWindowTitle().c_str());
+        });
+        return true;
+    }
+
+    std::vector<void*> Host_Apple_MacOS::GetHostWindowDescriptor(olc::Window* pWindow){
+        
+        // Ensure OpenGL renderer is created
+        if(pMacOSOpenGLRenderer == nullptr)
+            CreateCGLContextObj();
+
+        return vMacOSWindowDescriptors;
+       
+    }
+
+
+    bool Host_Apple_MacOS::SyncWithDesktopComposite()
+    {
+        /*
+         core.h SyncWithDesktopComposite is only called when vSync is enabled on each frame,
+         the method of enabling vSync varies between platforms, For macos we use a local var enableVSync,
+         set to false and toggle it on first call, so that vSync is only enabled once
+         */
+        
+        if(!enableVSync)
+        {
+            pMacOSOpenGLRenderer->enableVsync();
+            enableVSync = true;
+        }
+        
+        return enableVSync;
+    }
+
+    bool Host_Apple_MacOS::SetMousePosition(olc::Window* pWindow, const olc::vi2d& vPos)
+    {
+        dispatch_sync(dispatch_get_main_queue(), ^{
+            pMacOSWindow->setCursorPosition(vPos.x, vPos.y);
+        });
+        return false;
+    }
+
+    bool Host_Apple_MacOS::SetMouseVisible(olc::Window* pWindow, const bool bVisible)
+    {
+        dispatch_sync(dispatch_get_main_queue(), ^{
+            pMacOSWindow->setCursorVisibility(bVisible);
+        });
+        return true;
+    }
 
     bool Host_Apple_MacOS::OnApplicationStart(olc::PixelGameEngine* pPrimary){
         pPrimaryPGE = pPrimary;
@@ -7394,7 +7470,7 @@ bool Host_Apple_MacOS::SyncWithDesktopComposite()
     }
 
     bool Host_Apple_MacOS::StartSystem(){
-        
+                
         // Create MacOS Application instance
         pMacApplication = std::make_unique<olc::apis::macos::Application>();
 
@@ -7834,7 +7910,7 @@ bool Host_Apple_MacOS::SyncWithDesktopComposite()
         });
         
         pMacOSEventHandler->onMouseMoved([&](const olc::apis::macos::MouseEvent& event) {
-            pPGEwindow->olc_OnMouseMove({static_cast<int>(event.x), static_cast<int>(event.y)});            
+            pPGEwindow->olc_OnMouseMove({static_cast<int>(event.x), static_cast<int>(event.y)});
         });
         
         pMacOSEventHandler->onMouseDragged([&](const olc::apis::macos::MouseEvent& event) {
@@ -7893,6 +7969,15 @@ static constexpr const char* kAppDelegateClass                  = "AppDelegate";
 static constexpr const char* kWindowDelegateClass               = "WindowDelegate";
 static constexpr const char* kCustomOpenGLViewClass             = "CustomOpenGLView";
 static constexpr const char* kGeneralWindowDelegateClass        = "GeneralWindowDelegate";
+
+// Application Screen management selectors
+static constexpr const char* kNSScreenClass                     = "NSScreen";
+static constexpr const char* kScreenSel                         = "screen";
+static constexpr const char* kNSCursorClass                     = "NSCursor";
+static constexpr const char* kUnhideSel                         = "unhide";
+static constexpr const char* kHideSel                           = "hide";
+static constexpr const char* kIsHiddenSel                       = "isHidden";
+
 
 // Application memory management selectors
 static constexpr const char* kAllocSel                          = "alloc";
@@ -7953,6 +8038,13 @@ static constexpr const char* kOtherMouseDraggedSel              = "otherMouseDra
 static constexpr const char* kScrollWheelSel                    = "scrollWheel:";
 static constexpr const char* kDeltaXSel                         = "deltaX";
 static constexpr const char* kDeltaYSel                         = "deltaY";
+static constexpr const char* kUpdateTrackingAreasSel            = "updateTrackingAreas";
+static constexpr const char* kMouseEnteredSel                   = "mouseEntered:";
+static constexpr const char* kMouseExitedSel                    = "mouseExited:";
+static constexpr const char* kTrackingAreaClass                 = "NSTrackingArea";
+static constexpr const char* kAddTrackingAreaSel                = "addTrackingArea:";
+static constexpr const char* kInitWithRectSel                   = "initWithRect:options:owner:userInfo:";
+
 
 // Managing first responder status and keyboard focus selectors
 static constexpr const char* kAcceptsFirstResponderSel          = "acceptsFirstResponder";
@@ -8019,7 +8111,9 @@ static constexpr int kZeroWidth                                 = 0;
 static constexpr int kZeroHeight                                = 0;
 static constexpr int kFlippedOffset                             = 1;
 static constexpr int kNoButton                                  = -1;
-
+static constexpr int kDefaultScreenNumber                       = 1;
+bool bAllowHideCursor                                           = true;
+bool bHideCursor                                                = false;
 
 // Objective-C method type encoding constants
 // Type encoding for methods returning BOOL with no parameters: "c@:"
@@ -8050,6 +8144,12 @@ namespace ObjectiveCSEL {
    static SEL runSel                       = nullptr;
    static SEL terminateSEL                 = nullptr;
 
+   // Application Screen management selectors
+   static SEL screenSel                    = nullptr;
+   static SEL unhideSel                    = nullptr;
+   static SEL hideSel                      = nullptr;
+   static SEL isHiddenSel                  = nullptr;
+
    // NSApplicationDelegate lifecycle methods
    static SEL applicationWillFinishLaunchingSel = nullptr;
    static SEL applicationDidFinishLaunchingSel  = nullptr;
@@ -8079,22 +8179,29 @@ namespace ObjectiveCSEL {
    static SEL windowDidDeminiaturizeSel = nullptr;
 
    // NSResponder keyboard and mouse event methods selectors
-   static SEL keyDownSel           = nullptr;
-   static SEL keyUpSel             = nullptr;
-   static SEL flagsChangedSel      = nullptr;
-   static SEL mouseDownSel         = nullptr;
-   static SEL mouseUpSel           = nullptr;
-   static SEL mouseDraggedSel      = nullptr;
-   static SEL mouseMovedSel        = nullptr;
-   static SEL rightMouseDownSel    = nullptr;
-   static SEL rightMouseUpSel      = nullptr;
-   static SEL rightMouseDraggedSel = nullptr;
-   static SEL otherMouseDownSel    = nullptr;
-   static SEL otherMouseUpSel      = nullptr;
-   static SEL otherMouseDraggedSel = nullptr;
-   static SEL scrollWheelSel       = nullptr;
-   static SEL deltaXSel            = nullptr;
-   static SEL deltaYSel            = nullptr;
+   static SEL keyDownSel                = nullptr;
+   static SEL keyUpSel                  = nullptr;
+   static SEL flagsChangedSel           = nullptr;
+   static SEL mouseDownSel              = nullptr;
+   static SEL mouseUpSel                = nullptr;
+   static SEL mouseDraggedSel           = nullptr;
+   static SEL mouseMovedSel             = nullptr;
+   static SEL rightMouseDownSel         = nullptr;
+   static SEL rightMouseUpSel           = nullptr;
+   static SEL rightMouseDraggedSel      = nullptr;
+   static SEL otherMouseDownSel         = nullptr;
+   static SEL otherMouseUpSel           = nullptr;
+   static SEL otherMouseDraggedSel      = nullptr;
+   static SEL scrollWheelSel            = nullptr;
+   static SEL deltaXSel                 = nullptr;
+   static SEL deltaYSel                 = nullptr;
+   static SEL updateTrackingAreasSel    = nullptr;
+   static SEL mouseEnteredSel           = nullptr;
+   static SEL mouseExitedSel            = nullptr;
+
+   // Mouse Tracking
+   static SEL addTrackingAreaSel        = nullptr;
+   static SEL initWithRectSel           = nullptr;
 
    // Managing first responder status and keyboard focus selectors
    static SEL acceptsFirstResponderSel = nullptr;
@@ -8164,6 +8271,12 @@ namespace ObjectiveCSEL {
         setActivationPolicySel              = sel_registerName(kSetActivationPolicySel);
         runSel                              = sel_registerName(kRunSel);
         terminateSEL                        = sel_registerName(kTerminateSel);
+        
+        // Application Screen management selectors
+        screenSel                           = sel_registerName(kScreenSel);
+        unhideSel                           = sel_registerName(kUnhideSel);
+        hideSel                             = sel_registerName(kHideSel);
+        isHiddenSel                         = sel_registerName(kIsHiddenSel);
 
         // NSApplicationDelegate lifecycle methods
         applicationWillFinishLaunchingSel   = sel_registerName(kApplicationWillFinishLaunchingSel);
@@ -8210,7 +8323,12 @@ namespace ObjectiveCSEL {
         scrollWheelSel                      = sel_registerName(kScrollWheelSel);
         deltaXSel                           = sel_registerName(kDeltaXSel);
         deltaYSel                           = sel_registerName(kDeltaYSel);
-
+        updateTrackingAreasSel              = sel_registerName(kUpdateTrackingAreasSel);
+        mouseEnteredSel                     = sel_registerName(kMouseEnteredSel);
+        mouseExitedSel                      = sel_registerName(kMouseExitedSel);
+        addTrackingAreaSel                  = sel_registerName(kAddTrackingAreaSel);
+        initWithRectSel                     = sel_registerName(kInitWithRectSel);
+        
         // Managing first responder status and keyboard focus selectors
         acceptsFirstResponderSel            = sel_registerName(kAcceptsFirstResponderSel);
         becomeFirstResponderSel             = sel_registerName(kBecomeFirstResponderSel);
@@ -8303,14 +8421,6 @@ private:
     void* pool_;
 };
 
-// CGPoint structure for 2D points
-struct CGPoint {
-    double x{kMinValidDimension};
-    double y{kMinValidDimension};
-    
-    constexpr CGPoint() = default;
-    constexpr CGPoint(double x_val, double y_val) noexcept : x(x_val), y(y_val) {}
-};
 
 using NSPoint = CGPoint;
 using NSInteger = long;
@@ -8456,6 +8566,11 @@ enum class NSApplicationActivationPolicy : uint8_t {
 // Backward compatibility
 static constexpr int NSApplicationActivationPolicyRegular = static_cast<int>(NSApplicationActivationPolicy::Regular);
 
+// Mouse Tracking const
+static constexpr const NSUInteger NSTrackingMouseEnteredAndExited = 0x01;
+static constexpr const NSUInteger NSTrackingActiveInKeyWindow = 0x20;
+static constexpr const NSUInteger NSTrackingInVisibleRect = 0x200;
+
 /*
 * WARNING: Global delegate pointers for Objective-C callbacks
 * These global pointers are used to route Objective-C delegate callbacks
@@ -8549,7 +8664,11 @@ struct Window {
     void (*otherMouseDownCallback)   (double x, double y, int buttonNumber,  unsigned int modifierFlags, void* userData){nullptr};
     void (*otherMouseUpCallback)     (double x, double y, int buttonNumber,  unsigned int modifierFlags, void* userData){nullptr};
     void (*otherMouseDraggedCallback)(double x, double y, int buttonNumber,  unsigned int modifierFlags, void* userData){nullptr};
+    void (*mouseEnteredCallback)     (double x, double y, int buttonNumber,  unsigned int modifierFlags, void* userData){nullptr};
+    void (*mouseExitedCallback)      (double x, double y, int buttonNumber,  unsigned int modifierFlags, void* userData){nullptr};
     void (*scrollWheelCallback)      (double x, double y, double deltaX, double deltaY, unsigned int modifierFlags, void* userData){nullptr};
+
+    
     void* eventUserData{nullptr};   // User data for event callbacks
     BOOL acceptsInputEvents{NO};    // Whether the window accepts input events
     
@@ -8601,7 +8720,7 @@ struct OpenGLRenderer {
     void (*renderYellowBackground)(struct OpenGLRenderer* self){nullptr};
     void (*renderTexturedQuad)    (struct OpenGLRenderer* self, unsigned int textureID){nullptr};
     void* (*getOpenGLContext)     (const struct OpenGLRenderer* self){nullptr};
-    void* (*getCGLContextObj)(struct OpenGLRenderer* self){nullptr};
+    void* (*getCGLContextObj)     (struct OpenGLRenderer* self){nullptr};
     void* (*getCGLContextObjPtr)  (struct OpenGLRenderer* self){nullptr};
     void (*makeCurrentContext)    (struct OpenGLRenderer* self){nullptr};
     void (*setVsync)              (struct OpenGLRenderer* self, BOOL enabled){nullptr};
@@ -8795,7 +8914,6 @@ MouseEventData extractMouseEventData(id event) {
     
     // Convert to content view coordinates and flip Y coordinate
     convertToContentViewCoordinates(data.location);
-    
     return data;
 }
 
@@ -8923,6 +9041,61 @@ void view_scrollWheel(id self, SEL _cmd, id event) {
     }
 }
 
+// New events for mouse entered/exited
+void view_mouseEntered(id self, SEL _cmd, id event) {
+    (void)self;(void)_cmd;(void)event;
+    
+    // Allow hiding cursor when mouse is inside window
+    bAllowHideCursor = true;
+    
+    // If the cursor is currently hidden, hide it again to ensure it stays hidden while inside the window
+    if(bHideCursor)
+        ((void (*)(Class, SEL))objc_msgSend)(objc_getClass(kNSCursorClass), ObjectiveCSEL::hideSel);
+    
+    NSPoint location         = ((NSPoint(*)(id, SEL))objc_msgSend)(event, ObjectiveCSEL::locationInWindowSel);
+    NSUInteger modifierFlags = ((NSUInteger(*)(id, SEL))objc_msgSend)(event, ObjectiveCSEL::modifierFlagsSel);
+
+    convertToContentViewCoordinates(location);
+
+    if (gptrNSWindowEvents && gptrNSWindowEvents->acceptsInputEvents && gptrNSWindowEvents->mouseEnteredCallback) [[likely]] {
+        gptrNSWindowEvents->mouseEnteredCallback(location.x, location.y, kNoButton, (unsigned int)modifierFlags, gptrNSWindowEvents->eventUserData);
+    }
+}
+
+void view_mouseExited(id self, SEL _cmd, id event) {
+    (void)self;(void)_cmd;(void)event;
+    
+    // Ensure cursor is visible when leaving window
+    bAllowHideCursor = false;
+    ((void (*)(Class, SEL))objc_msgSend)(objc_getClass(kNSCursorClass), ObjectiveCSEL::unhideSel);
+    
+    NSPoint location         = ((NSPoint(*)(id, SEL))objc_msgSend)(event, ObjectiveCSEL::locationInWindowSel);
+    NSUInteger modifierFlags = ((NSUInteger(*)(id, SEL))objc_msgSend)(event, ObjectiveCSEL::modifierFlagsSel);
+
+    convertToContentViewCoordinates(location);
+
+    if (gptrNSWindowEvents && gptrNSWindowEvents->acceptsInputEvents && gptrNSWindowEvents->mouseExitedCallback) [[likely]] {
+        gptrNSWindowEvents->mouseExitedCallback(location.x, location.y, kNoButton, (unsigned int)modifierFlags, gptrNSWindowEvents->eventUserData);
+    }
+}
+
+void view_updateTrackingAreas(id self, SEL _cmd) {
+    (void)self;(void)_cmd;
+
+    // Create new tracking area
+    NSRect bounds = ((NSRect(*)(id, SEL))objc_msgSend)(self, ObjectiveCSEL::boundsSel);
+    
+    // Correct tracking options: mouse entered/exited + active in key window
+    NSUInteger options = NSTrackingMouseEnteredAndExited | NSTrackingActiveInKeyWindow | NSTrackingInVisibleRect;
+    
+    Class NSTrackingAreaClass = objc_getClass(kTrackingAreaClass);
+    id trackingArea = ((id(*)(id, SEL, NSRect, NSUInteger, id, id))objc_msgSend)(
+        ((id(*)(Class, SEL))objc_msgSend)(NSTrackingAreaClass, ObjectiveCSEL::allocSel),
+        ObjectiveCSEL::initWithRectSel, bounds, options, self, nil);
+    
+    ((void(*)(id, SEL, id))objc_msgSend)(self, ObjectiveCSEL::addTrackingAreaSel, trackingArea);
+}
+
 // Determine if view can accept first responder status
 id view_acceptsFirstResponder(id self, SEL _cmd) {
     (void)self;(void)_cmd;
@@ -8998,7 +9171,12 @@ Class createCustomOpenGLViewClass() {
     class_addMethod(CustomViewClass, ObjectiveCSEL::otherMouseUpSel,      (IMP)view_otherMouseUp,      kEventHandlerMethodTypeEncoding);
     class_addMethod(CustomViewClass, ObjectiveCSEL::otherMouseDraggedSel, (IMP)view_otherMouseDragged, kEventHandlerMethodTypeEncoding);
     class_addMethod(CustomViewClass, ObjectiveCSEL::scrollWheelSel,       (IMP)view_scrollWheel,       kEventHandlerMethodTypeEncoding);
-
+    
+    // Area tracking for Mouse entered/exited event handler methods
+    class_addMethod(CustomViewClass, ObjectiveCSEL::updateTrackingAreasSel, (IMP)view_updateTrackingAreas, kVoidMethodTypeEncoding);
+    class_addMethod(CustomViewClass, ObjectiveCSEL::mouseEnteredSel,      (IMP)view_mouseEntered,      kEventHandlerMethodTypeEncoding);
+    class_addMethod(CustomViewClass, ObjectiveCSEL::mouseExitedSel,       (IMP)view_mouseExited,       kEventHandlerMethodTypeEncoding);
+    
     // First responder methods
     class_addMethod(CustomViewClass, ObjectiveCSEL::acceptsFirstResponderSel,  (IMP)view_acceptsFirstResponder, kBoolMethodTypeEncoding);
     class_addMethod(CustomViewClass, ObjectiveCSEL::becomeFirstResponderSel,   (IMP)view_becomeFirstResponder,  kBoolMethodTypeEncoding);
@@ -9328,8 +9506,7 @@ extern "C" {
     // Window title setter
     void window_setTitle(Window* self, const char* title) {
         self->title = title;
-        
-        // If window is already created, update the NSWindow title
+
         if (self->nsWindow) {
             Class NSStringClass = objc_getClass(kNSStringClass);
 
@@ -9447,6 +9624,46 @@ extern "C" {
     // Set window size (width, height)
     void window_setWindowSize(Window* self, double width, double height) {
         window_setWindowFrame(self, self->windowFrame.x, self->windowFrame.y, width, height);
+    }
+
+    // Set the cusor position relative to the content view
+    void window_setCursorPosition(Window* self, double x, double y) {
+        if (!self || !self->nsWindow) return;
+        
+        // Get current screen the window is on
+        id currentScreen = ((id(*)(id, SEL))objc_msgSend)(self->nsWindow, ObjectiveCSEL::screenSel);
+        NSRect screenFrame = ((NSRect(*)(id, SEL))objc_msgSend)(currentScreen, ObjectiveCSEL::frameSel);
+        
+        // Update internal frame representation to get the latest window position
+        window_updateFrameFromOSX(self);
+        NSPoint location = {self->windowFrame.x, self->windowFrame.y};
+        
+        // Get the content view
+        id contentView = ((id(*)(id, SEL))objc_msgSend)(gptrNSWindowEvents->nsWindow, ObjectiveCSEL::contentViewSel);
+        if (contentView) {
+        
+            // Get the content view bounds to flip Y coordinate
+            NSRect contentBounds = ((NSRect(*)(id, SEL))objc_msgSend)(contentView, ObjectiveCSEL::boundsSel);
+        
+            // NOTE: we need to ensure the new cursor position is within the window bounds to prevent unexpected behavior
+            auto posX = std::clamp(location.x +x, location.x, location.x + contentBounds.width);
+            auto posY = std::clamp(screenFrame.height - location.y - contentBounds.height + y,
+                                   screenFrame.height - location.y - contentBounds.height,
+                                   screenFrame.height - location.y);
+            CGWarpMouseCursorPosition(CGPointMake(posX, posY));
+        }
+        
+    }
+
+    // Set cursor visibility
+    void window_setCursorVisibility(Window* self, BOOL visible) {
+        if (!self || !self->nsWindow) return;
+        bHideCursor = !visible;
+        if (bHideCursor && bAllowHideCursor) {
+            ((void (*)(Class, SEL))objc_msgSend)(objc_getClass(kNSCursorClass), ObjectiveCSEL::hideSel);
+        } else {
+            ((void (*)(Class, SEL))objc_msgSend)(objc_getClass(kNSCursorClass), ObjectiveCSEL::unhideSel);
+        }
     }
 
     // Initialize OpenGL renderer
@@ -9945,6 +10162,16 @@ extern "C" {
 
     void window_setScrollWheelCallback(Window* self, void (*callback)(double, double, double, double, unsigned int, void*), void* userData) {
         self->scrollWheelCallback = callback;
+        self->eventUserData = userData;
+    }
+
+    void window_setMouseEnteredCallback(Window* self, void (*callback)(double, double, int, unsigned int, void*), void* userData) {
+        self->mouseEnteredCallback = callback;
+        self->eventUserData = userData;
+    }
+
+    void window_setMouseExitedCallback(Window* self, void (*callback)(double, double, int, unsigned int, void*), void* userData) {
+        self->mouseExitedCallback = callback;
         self->eventUserData = userData;
     }
 
