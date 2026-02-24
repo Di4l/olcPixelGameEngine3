@@ -8702,6 +8702,7 @@ struct Window {
     void (*show)            (struct Window* self){nullptr};
     void (*destroy)         (struct Window* self){nullptr};
     void (*setDelegate)     (struct Window* self, id delegate){nullptr};
+    void (*removeDelegate)  (struct Window* self){nullptr};
     const char* (*getTitle) (const struct Window* self){nullptr};
     void (*setTitle)        (struct Window* self, const char* title){nullptr};
 
@@ -9232,6 +9233,8 @@ void windowDidResize(id self, SEL _cmd, id notification) {
 // handle window will close events
 void windowWillClose(id self, SEL _cmd, id notification) {
    (void)self;(void)_cmd;(void)notification;
+    gptrWindowDelegate->acceptsInputEvents = NO; // Stop accepting input events immediately to prevent processing events for a closing window
+    gptrWindowDelegate->removeDelegate(gptrWindowDelegate); // remove delegate to ensure no more events are processed for this window
     if (gptrWindowDelegate && gptrWindowDelegate->windowWillCloseCallback) {
         gptrWindowDelegate->windowWillCloseCallback(gptrWindowDelegate->windowWillCloseUserData);
     }
@@ -9506,6 +9509,16 @@ extern "C" {
         if (self->nsWindow && delegate) {
             ((void(*)(id, SEL, id))objc_msgSend)(self->nsWindow, ObjectiveCSEL::setDelegateSel, delegate);
         }
+    }
+
+    // Removes the delegate from the window and clears the reference to prevent accidental use after close
+    void window_removeDelegate(Window* self) {
+        
+        if (self->nsWindow) {
+            ((void(*)(id, SEL, id))objc_msgSend)(self->nsWindow, ObjectiveCSEL::setDelegateSel, nil);
+        }
+        self->delegate = NULL;
+        
     }
 
     // Window title getter and setter
@@ -10089,6 +10102,7 @@ extern "C" {
         window->show              = window_show;
         window->destroy           = window_destroy;
         window->setDelegate       = window_setDelegate;
+        window->removeDelegate    = window_removeDelegate;
         window->getTitle          = window_getTitle;
         window->setTitle          = window_setTitle;
         window->setWindowSize     = window_setWindowSize;
