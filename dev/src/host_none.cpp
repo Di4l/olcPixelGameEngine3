@@ -18,7 +18,6 @@ namespace olc::host
 	// Make OS Update a window frame title, associated with olc::Window
 	bool Host_None::UpdateWindowFrameTitle(olc::Window* pWindow)
 	{
-		std::cout << pWindow->GetWindowTitle() << "\n";
 		return true;
 	}
 
