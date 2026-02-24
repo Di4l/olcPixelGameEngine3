@@ -7,8 +7,26 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(BUILD_WAYLAND "Build example programs with Wayland" OFF)
+option(USE_HEADLESS "Build in headless mode" OFF)
+
+# GPU specific sources
+set(GPU_HEADLESS_SOURCE_FILES
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/gpu_none.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/gpu_none.h
+)
+
+set(GPU_OPENGL33_SOURCE_FILES
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/api_opengl.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/api_opengl.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/gpu_opengl33.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/gpu_opengl33.h
+)
 
 # Platform specific sources
+set(HOST_HEADLESS_SOURCE_FILES
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/host_none.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/host_none.h
+)
 set(HOST_ANDROID_SOURCE_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/host_android.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/host_android.h
@@ -68,6 +86,9 @@ list(
     REMOVE_ITEM SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/sh_template.h
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/olcpge3.h
+    ${GPU_HEADLESS_SOURCE_FILES}
+    ${GPU_OPENGL33_SOURCE_FILES}
+    ${HOST_HEADLESS_SOURCE_FILES}
     ${HOST_ANDROID_SOURCE_FILES}
     ${HOST_MACOS_SOURCE_FILES}
     ${HOST_LINUX_WAYLAND_SOURCE_FILES}
@@ -81,33 +102,41 @@ list(
     ${IMAGELOADER_WINGDI_SOURCE_FILES}
 )
     
-if(ANDROID)
-    set(HOST_SOURCE_FILES ${HOST_ANDROID_SOURCE_FILES})
-endif() # Android
+if(USE_HEADLESS)
+    set(HOST_SOURCE_FILES ${HOST_HEADLESS_SOURCE_FILES})
+    set(GPU_SOURCE_FILES ${GPU_HEADLESS_SOURCE_FILES})
+else()
+    
+    set(GPU_SOURCE_FILES ${GPU_OPENGL33_SOURCE_FILES})
+    
+    if(ANDROID)
+        set(HOST_SOURCE_FILES ${HOST_ANDROID_SOURCE_FILES})
+    endif() # Android
 
-if(APPLE)
-    if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
-        # TODO: Building for iOS
-    else()
-        set(HOST_SOURCE_FILES ${HOST_MACOS_SOURCE_FILES})
-    endif() # MacOS
-endif() # Apple
+    if(APPLE)
+        if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
+            # TODO: Building for iOS
+        else()
+            set(HOST_SOURCE_FILES ${HOST_MACOS_SOURCE_FILES})
+        endif() # MacOS
+    endif() # Apple
 
-if(UNIX AND NOT APPLE AND NOT EMSCRIPTEN)
-    if(BUILD_WAYLAND) # wayland
-        set(HOST_SOURCE_FILES ${HOST_LINUX_WAYLAND_SOURCE_FILES})
-    else() # x11
-        set(HOST_SOURCE_FILES ${HOST_LINUX_X11_SOURCE_FILES})
-    endif()
-endif() # LINUX
+    if(UNIX AND NOT APPLE AND NOT EMSCRIPTEN)
+        if(BUILD_WAYLAND) # wayland
+            set(HOST_SOURCE_FILES ${HOST_LINUX_WAYLAND_SOURCE_FILES})
+        else() # x11
+            set(HOST_SOURCE_FILES ${HOST_LINUX_X11_SOURCE_FILES})
+        endif()
+    endif() # LINUX
 
-if(EMSCRIPTEN)
-    set(HOST_SOURCE_FILES ${HOST_WEB_EMSCRIPTEN_SOURCE_FILES})
-endif() # emscripten
+    if(EMSCRIPTEN)
+        set(HOST_SOURCE_FILES ${HOST_WEB_EMSCRIPTEN_SOURCE_FILES})
+    endif() # emscripten
 
-if(WIN32 AND NOT EMSCRIPTEN)
-    set(HOST_SOURCE_FILES ${HOST_WIN_WINAPI_SOURCE_FILES})
-endif() # windows
+    if(WIN32 AND NOT EMSCRIPTEN)
+        set(HOST_SOURCE_FILES ${HOST_WIN_WINAPI_SOURCE_FILES})
+    endif() # windows
+endif()
 
 # Image Loader source files
 if(USE_STB)
@@ -138,7 +167,6 @@ else()
     endif()
 endif()
 
-
 if(EMSCRIPTEN)
     # build Cache: libpng, zlib
     execute_process(COMMAND "${EMSCRIPTEN_ROOT_PATH}/embuilder${EMCC_SUFFIX}" build libpng zlib)
@@ -147,9 +175,13 @@ endif()
 
 set(EXE_NAME test_mh)
 
-add_executable(${EXE_NAME} test_mh.cpp ${HOST_SOURCE_FILES} ${IMAGELOADER_SOURCE_FILES} ${SOURCES})
+add_executable(${EXE_NAME} test_mh.cpp ${HOST_SOURCE_FILES} ${GPU_SOURCE_FILES} ${IMAGELOADER_SOURCE_FILES} ${SOURCES})
 
 target_include_directories(${EXE_NAME} PRIVATE ../src)
+
+if(USE_HEADLESS)
+    target_compile_definitions(${EXE_NAME} PRIVATE OLC_USE_HEADLESS=1)
+endif()
 
 if(APPLE)
     if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
