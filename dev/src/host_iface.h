@@ -21,37 +21,10 @@ namespace olc
 	{
 		inline static size_t uuid = 0;
 
-		#if OLC_HOST == OLC_HOST_WINDOWS
 		inline size_t CreateUID()
 		{
 			return uuid++;
 		}
-		#endif
-		#if OLC_HOST == OLC_HOST_LINUX_X11
-		inline size_t CreateUID()
-		{
-			return uuid++;
-		}
-		#endif
-		#if OLC_HOST == OLC_HOST_LINUX_WAYLAND
-		inline size_t CreateUID()
-		{
-			return uuid++;
-		}
-		#endif
-		#if OLC_HOST == OLC_HOST_MACOS
-		// Clang compiler on MacOS requires constexpr to be removed
-		inline size_t CreateUID()
-		{
-			return uuid++;
-		}
-		#endif
-		#if OLC_HOST == OLC_HOST_EMSCRIPTEN || OLC_HOST == OLC_HOST_ANDROID
-		inline size_t CreateUID()
-		{
-			return uuid++;
-		}		
-		#endif
 	}
 
 	class PixelGameEngine;

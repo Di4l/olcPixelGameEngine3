@@ -1,6 +1,16 @@
 #include "core.h"
 
+#if OLC_GPU == OLC_GPU_NONE
+#include "gpu_none.h"
+#endif
+
+#if OLC_GPU == OLC_GPU_OPENGL33
 #include "gpu_opengl33.h"
+#endif
+
+#if OLC_HOST == OLC_HOST_NONE
+#include "host_none.h"
+#endif
 
 #if OLC_HOST == OLC_HOST_WINDOWS
 #include "host_win_winapi.h"
@@ -404,7 +414,7 @@ namespace olc
 		// Initialise GPU Interface
 		olc::gpu::RendererConfig cfgRenderer;
 		cfgRenderer.VerticalSync = config.bVSync;
-		gpu = std::make_unique<olc::gpu::Renderer_OGL33>();
+		gpu = std::make_unique<olc::gpu::OLC_GPU_CLASS>();
 
 		gpu->CreateDevice(host->GetHostWindowDescriptor(this), cfgRenderer);
 		if (gpu->GetLastError() != olc::gpu::RendererError::NoError)
