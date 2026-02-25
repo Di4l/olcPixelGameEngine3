@@ -31,10 +31,14 @@ set(HOST_ANDROID_SOURCE_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/host_android.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/host_android.h
 )
-set(HOST_MACOS_SOURCE_FILES
+
+set(MACOS_API_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/api_macos.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/api_macos.h
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/api_macos_wrapper.hpp
+)
+
+set(HOST_MACOS_SOURCE_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/host_apple_macos.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/host_apple_macos.h
 )
@@ -90,6 +94,7 @@ list(
     ${GPU_OPENGL33_SOURCE_FILES}
     ${HOST_HEADLESS_SOURCE_FILES}
     ${HOST_ANDROID_SOURCE_FILES}
+    ${MACOS_API_FILES}
     ${HOST_MACOS_SOURCE_FILES}
     ${HOST_LINUX_WAYLAND_SOURCE_FILES}
     ${HOST_LINUX_X11_SOURCE_FILES}
@@ -117,7 +122,11 @@ else()
         if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
             # TODO: Building for iOS
         else()
-            set(HOST_SOURCE_FILES ${HOST_MACOS_SOURCE_FILES})
+            if(NOT USE_HEADLESS)
+                set(HOST_SOURCE_FILES ${HOST_MACOS_SOURCE_FILES} ${MACOS_API_FILES})
+            else()
+                set(HOST_SOURCE_FILES ${HOST_MACOS_SOURCE_FILES})
+            endif()
         endif() # MacOS
     endif() # Apple
 
@@ -150,7 +159,11 @@ else()
         if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
             # TODO: Building for iOS
         else()
-            set(IMAGELOADER_SOURCE_FILES ${IMAGELOADER_MACOS_SOURCE_FILES})
+            if(USE_HEADLESS)
+                set(IMAGELOADER_SOURCE_FILES ${IMAGELOADER_MACOS_SOURCE_FILES} ${MACOS_API_FILES})
+            else()
+                set(IMAGELOADER_SOURCE_FILES ${IMAGELOADER_MACOS_SOURCE_FILES})
+            endif()
         endif()
     endif()
 
