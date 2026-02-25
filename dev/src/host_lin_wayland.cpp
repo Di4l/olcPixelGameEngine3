@@ -337,7 +337,18 @@ namespace olc::host
 
     bool Host_Linux_Wayland::SetMouseVisible(olc::Window* pWindow, const bool bVisible)
     {
-        return false;
+        auto itr = mapUID2Window.find(pWindow->GetUID());
+        if(itr != mapUID2Window.end()) {
+            itr->second.cursor_visible = bVisible;
+
+            if(bVisible) {
+                wp_cursor_shape_device_v1_set_shape(cursor_shape_device, enter_serial, WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_DEFAULT);
+            } else {
+                wl_pointer_set_cursor(pointer, enter_serial, nullptr, 0, 0);
+            }
+        }
+
+        return true;
     }
 
 
@@ -361,6 +372,9 @@ namespace olc::host
         if(std::strcmp(interface, wp_pointer_warp_v1_interface.name) == 0) {
             pointer_warp = static_cast<wp_pointer_warp_v1*>(wl_registry_bind(registry, name, &wp_pointer_warp_v1_interface, version));
         }
+        if(std::strcmp(interface, wp_cursor_shape_manager_v1_interface.name) == 0) {
+            cursor_shape_manager = static_cast<wp_cursor_shape_manager_v1*>(wl_registry_bind(registry, name, &wp_cursor_shape_manager_v1_interface, version));
+        }
     }
     
     void Host_Linux_Wayland::registry_handle_global_remove(wl_registry* registry, uint32_t name)
@@ -372,6 +386,7 @@ namespace olc::host
     {
         if (capabilities & WL_SEAT_CAPABILITY_POINTER && pointer == nullptr) {
             pointer = wl_seat_get_pointer(seat);
+            cursor_shape_device = wp_cursor_shape_manager_v1_get_pointer(cursor_shape_manager, pointer);
             wl_pointer_add_listener(pointer, &wayland::pointer_listener, this);    
         }
 
@@ -462,6 +477,7 @@ namespace olc::host
         pointer_state.serial = serial;
         // Save so we can reuse the serial for pointer warping
         enter_serial = serial;
+        pointer_state.surface = surface;
         pointer_state.surface_x = surface_x;
         pointer_state.surface_y = surface_y;
     }
@@ -537,6 +553,13 @@ namespace olc::host
             for(auto& itr : mapUID2Window) {
                 if (itr.second.surface == event->surface) {
                     pointer_window = itr.first;
+                    
+                    // Need to set the mouse back to the correct hidden / not hidden state when it enters the window
+                    if(itr.second.cursor_visible) {
+                        wp_cursor_shape_device_v1_set_shape(cursor_shape_device, enter_serial, WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_DEFAULT);
+                    } else {
+                        wl_pointer_set_cursor(pointer, enter_serial, nullptr, 0, 0);
+                    }
                 }
             }
         }

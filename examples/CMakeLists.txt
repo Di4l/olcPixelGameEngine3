@@ -37,6 +37,8 @@ if(UNIX AND BUILD_WAYLAND)
     set(XDG_SHELL_PROTOCOL "/usr/share/wayland-protocols/stable/xdg-shell/xdg-shell.xml")
     set(XDG_DECORATION_PROTOCOL "/usr/share/wayland-protocols/unstable/xdg-decoration/xdg-decoration-unstable-v1.xml")
     set(POINTER_WARP_PROTOCOL "/usr/share/wayland-protocols/staging/pointer-warp/pointer-warp-v1.xml")
+    set(CURSOR_SHAPE_PROTOCOL "/usr/share/wayland-protocols/staging/cursor-shape/cursor-shape-v1.xml")
+    set(TABLET_PROTOCOL "/usr/share/wayland-protocols/stable/tablet/tablet-v2.xml")
 
     if(NOT EXISTS ${XDG_SHELL_PROTOCOL})
         message(FATAL_ERROR "xdg-shell protocol not found. You may need to install wayland-protocols via your package manager")
@@ -50,6 +52,14 @@ if(UNIX AND BUILD_WAYLAND)
         message(FATAL_ERROR "pointer-warp protocol not found. You may need to install wayland-protocols via your package manager")
     endif()
 
+    if(NOT EXISTS ${CURSOR_SHAPE_PROTOCOL})
+        message(FATAL_ERROR "cursor-shape protocol not found. You may need to install wayland-protocols via your package manager")
+    endif()
+
+    if(NOT EXISTS ${TABLET_PROTOCOL})
+       message(FATAL_ERROR "tablet protocol not found. You may need to install wayland-protocols via your package manager")
+    endif()
+
     # Generate wayland protocol files
     set(XDG_SHELL_C ${CMAKE_CURRENT_BINARY_DIR}/xdg-shell.c)
     set(XDG_SHELL_H ${CMAKE_CURRENT_BINARY_DIR}/xdg-shell.h)
@@ -57,6 +67,10 @@ if(UNIX AND BUILD_WAYLAND)
     set(XDG_DECORATION_H ${CMAKE_CURRENT_BINARY_DIR}/xdg-decoration.h)
     set(POINTER_WARP_C ${CMAKE_CURRENT_BINARY_DIR}/pointer-warp.c)
     set(POINTER_WARP_H ${CMAKE_CURRENT_BINARY_DIR}/pointer-warp.h)
+    set(CURSOR_SHAPE_C ${CMAKE_CURRENT_BINARY_DIR}/cursor-shape.c)
+    set(CURSOR_SHAPE_H ${CMAKE_CURRENT_BINARY_DIR}/cursor-shape.h)
+    set(TABLET_C ${CMAKE_CURRENT_BINARY_DIR}/tablet.c)
+    set(TABLET_H ${CMAKE_CURRENT_BINARY_DIR}/tablet.h)
 
     add_custom_command(
         OUTPUT ${XDG_SHELL_C}
@@ -100,6 +114,34 @@ if(UNIX AND BUILD_WAYLAND)
         VERBATIM
     )
 
+    add_custom_command(
+        OUTPUT ${CURSOR_SHAPE_C}
+        COMMAND ${WAYLAND_SCANNER} private-code ${CURSOR_SHAPE_PROTOCOL} ${CURSOR_SHAPE_C}
+        DEPENDS ${CURSOR_SHAPE_PROTOCOL}
+        VERBATIM
+    )
+
+    add_custom_command(
+        OUTPUT ${CURSOR_SHAPE_H}
+        COMMAND ${WAYLAND_SCANNER} client-header ${CURSOR_SHAPE_PROTOCOL} ${CURSOR_SHAPE_H}
+        DEPENDS ${CURSOR_SHAPE_PROTOCOL}
+        VERBATIM
+    )
+
+    add_custom_command(
+        OUTPUT ${TABLET_C}
+        COMMAND ${WAYLAND_SCANNER} private-code ${TABLET_PROTOCOL} ${TABLET_C}
+        DEPENDS ${TABLET_PROTOCOL}
+        VERBATIM
+    )
+
+    add_custom_command(
+        OUTPUT ${TABLET_H}
+        COMMAND ${WAYLAND_SCANNER} client-header ${TABLET_PROTOCOL} ${TABLET_H}
+        DEPENDS ${TABLET_PROTOCOL}
+        VERBATIM
+    )
+
     # Create a library for the wayland protocol files
     add_library(wayland_protocols STATIC
         ${XDG_SHELL_C}
@@ -108,6 +150,10 @@ if(UNIX AND BUILD_WAYLAND)
         ${XDG_DECORATION_H}
         ${POINTER_WARP_C}
         ${POINTER_WARP_H}
+        ${CURSOR_SHAPE_C}
+        ${CURSOR_SHAPE_H}
+        ${TABLET_C}
+        ${TABLET_H}
     )
 
     target_include_directories(wayland_protocols PUBLIC
