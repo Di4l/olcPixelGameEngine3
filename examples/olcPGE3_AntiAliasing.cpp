@@ -44,15 +44,11 @@ public:
 		return true;
 	}
 
-	// Total time elapsed
-	float fTotalTime = 0;
-
-
 	// Called every frame, so update things here
 	bool OnUserUpdate(float fElapsedTime) override
 	{
-		fTotalTime += fElapsedTime * 0.1f;
-		
+		float fTotalTime = TotalTimeElapsed() * 0.1f;
+
 		// Lambda to draw a rotating fan of lines and circles
 		auto DrawFan = [&]()
 			{

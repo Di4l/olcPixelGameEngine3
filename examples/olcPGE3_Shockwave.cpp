@@ -33,9 +33,6 @@ public:
 	}
 
 protected:
-	// We accumulate total time for some animation
-	float fTotalTime = 0.0f;
-
 	olc::gpu::Shader_GLSL33 shaderExample;
 	olc::Image imgWithoutFX;
 

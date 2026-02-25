@@ -366,8 +366,6 @@ public:
 	}
 
 protected:
-	// We accumulate total time for some animation
-	float fTotalTime = 0.0f;
     Fish fish{olc::vf2d(128.0f, 120.0f), 40, 80.0f, 1.0f};
 
     std::vector<Fish> others;
@@ -389,9 +387,8 @@ public:
 	// Called every frame, so update things here
 	bool OnUserUpdate(float fElapsedTime) override
 	{
-        olc::Pixel background_color {73, 220, 222};
-        fTotalTime += fElapsedTime;
-		// Clear screen to a background color
+        olc::Pixel background_color{73, 220, 222};
+        // Clear screen to a background color
 		draw.Clear(background_color);
 
         // Draw the targets for the other fish

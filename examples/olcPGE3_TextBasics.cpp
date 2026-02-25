@@ -24,8 +24,6 @@ public:
 	}
 
 protected:
-	// We accumulate total time for some animation
-	float fTotalTime = 0.0f;
 	float fTickerTime = 0.0f;
 
 	// We'll draw random text in the background with
@@ -47,7 +45,7 @@ public:
 		draw.Clear(olc::Colour::VERY_DARK_BLUE);
 
 		// Rainbow text in time
-		fTotalTime += fElapsedTime;
+		float fTotalTime = TotalTimeElapsed();
 		olc::Pixel colRainbow = olc::Pixel(
 			(uint8_t)((std::sin(fTotalTime * 2.0f + 0.0f) + 1.0f) * 127.5f),
 			(uint8_t)((std::sin(fTotalTime * 2.0f + 2.0f) + 1.0f) * 127.5f),

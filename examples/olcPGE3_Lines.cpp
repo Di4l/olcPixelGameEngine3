@@ -23,10 +23,6 @@ public:
 
 	}
 
-protected:
-	// We accumulate total time for some animation
-	float fTotalTime = 0.0f;
-
 public:
 	// Called once at the start, so create things here
 	bool OnUserCreate() override
@@ -48,7 +44,7 @@ public:
 		draw.Line({ 10.0f, 50.0f }, olc::Colour::RED, { 246.0f, 80.0f }, olc::Colour::YELLOW);
 		
 		// Rotating gradient lines
-		fTotalTime += fElapsedTime;
+		float fTotalTime = TotalTimeElapsed();
 		olc::vf2d p1 = { 64.0f, 160.0f };
 		olc::vf2d p2 = olc::vf2d{ std::cos(fTotalTime), std::sin(fTotalTime) } * 64.0f;
 
