@@ -163,13 +163,14 @@
 
 
 // Choose "Operating System"
-#define OLC_HOST_WINDOWS 1
-#define OLC_HOST_LINUX_X11 2
+#define OLC_HOST_NONE 1
+#define OLC_HOST_WINDOWS 2
 #define OLC_HOST_LINUX_WAYLAND 3
-#define OLC_HOST_MACOS 4
-#define OLC_HOST_EMSCRIPTEN 5
-#define OLC_HOST_ANDROID 6
-#define OLC_HOST_IOS 7
+#define OLC_HOST_LINUX_X11 4
+#define OLC_HOST_MACOS 5
+#define OLC_HOST_EMSCRIPTEN 6
+#define OLC_HOST_ANDROID 7
+#define OLC_HOST_IOS 8
 
 #if !defined(OLC_HOST)
 	#if defined(_WIN32)
@@ -204,8 +205,22 @@
 #define OLC_GPU_NONE 1
 #define OLC_GPU_OPENGL33 2
 
+#if defined(OLC_USE_HEADLESS)
+	#define OLC_GPU OLC_GPU_NONE
+#endif
+
 #if !defined(OLC_GPU)
 	#define OLC_GPU OLC_GPU_OPENGL33
+#endif
+
+#if OLC_GPU == OLC_GPU_NONE
+	#define OLC_GPU_CLASS Renderer_None
+	#define OLC_SHADER_CLASS Shader_None
+#endif
+
+#if OLC_GPU == OLC_GPU_OPENGL33
+	#define OLC_GPU_CLASS Renderer_OGL33
+	#define OLC_SHADER_CLASS Shader_GLSL33
 #endif
 
 #define OLC_IMAGELOADER_NONE 1
@@ -247,6 +262,13 @@
 	#endif
 #endif
 
+// We wait until after the platform specific image loader is selected
+// to lock in the headless host.
+#if defined(OLC_USE_HEADLESS)
+	#undef OLC_HOST
+	#define OLC_HOST OLC_HOST_NONE
+#endif
+
 #define OLC_MULTIWINDOW_NO 1
 #define OLC_MULTIWINDOW_YES 2
 
@@ -274,6 +296,10 @@
 
 template<typename... Args>
 inline constexpr void olc_IgnoreUnused(Args&&...) noexcept {}
+
+#if OLC_HOST == OLC_HOST_NONE
+#define OLC_FRIENDLY_HOST Host_None
+#endif
 
 #if OLC_HOST == OLC_HOST_WINDOWS
 #define OLC_FRIENDLY_HOST Host_Windows_WinAPI
@@ -3715,37 +3741,10 @@ namespace olc
 	{
 		inline static size_t uuid = 0;
 
-		#if OLC_HOST == OLC_HOST_WINDOWS
 		inline size_t CreateUID()
 		{
 			return uuid++;
 		}
-		#endif
-		#if OLC_HOST == OLC_HOST_LINUX_X11
-		inline size_t CreateUID()
-		{
-			return uuid++;
-		}
-		#endif
-		#if OLC_HOST == OLC_HOST_LINUX_WAYLAND
-		inline size_t CreateUID()
-		{
-			return uuid++;
-		}
-		#endif
-		#if OLC_HOST == OLC_HOST_MACOS
-		// Clang compiler on MacOS requires constexpr to be removed
-		inline size_t CreateUID()
-		{
-			return uuid++;
-		}
-		#endif
-		#if OLC_HOST == OLC_HOST_EMSCRIPTEN || OLC_HOST == OLC_HOST_ANDROID
-		inline size_t CreateUID()
-		{
-			return uuid++;
-		}		
-		#endif
 	}
 
 	class PixelGameEngine;
@@ -4083,7 +4082,54 @@ namespace olc
 
 
 
+#if OLC_HOST == OLC_HOST_NONE
 
+namespace olc::host
+{
+	class Host_None : public olc::host::Host
+	{
+	public: // OS Window Handling
+		// Make OS Create a window frame, associated with olc::Window
+		bool AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen) override;			
+		// Make OS Close a window frame, associated with olc::Window
+		bool CloseWindowFrame(olc::Window* pWindow) override;
+		// Make OS Update a window frame title, associated with olc::Window
+		bool UpdateWindowFrameTitle(olc::Window* pWindow) override;
+		// Get OS-specific window descriptor(s) for given olc::Window
+		std::vector<void*> GetHostWindowDescriptor(olc::Window* pWindow) override;
+		// Wait for OS desktop refresh (for smooooth vsync)
+		bool SyncWithDesktopComposite() override;
+
+	public: // Platform specific Mouse Control
+		// Force the mouse position in pixels relative to window
+		bool SetMousePosition(olc::Window* pWindow, const olc::vi2d& vPos) override;
+		// Show or hide mouse cursor for given window
+		bool SetMouseVisible(olc::Window* pWindow, const bool bVisible) override;
+
+	public: // OS Specific Environment Information
+		virtual olc::KeyboardLayout GetKeyboardLayout() const override;
+
+	public: // Platform Specific OS<->PGE Linkage
+		// Called at very start of application
+		bool OnApplicationStart(olc::PixelGameEngine* pPrimary) override;
+		// Called to start the host - this may mean different things on different hosts
+		// It MUST block until system is requested to exit
+		bool StartSystem() override;
+		// Called to stop the host, and shutdown all resources
+		bool StopSystem() override;
+		// Called at start of system event loop
+		bool OnSystemThreadStart() override;
+		// Called to perform primary window update
+		bool OnSystemTick() override;
+		// Called at end of system event loop
+		bool OnSystemThreadEnd() override;
+		// Called at very end of application
+		bool OnApplicationEnd() override;
+	private:
+		bool systemActive = false;
+	};
+}
+#endif
 
 #if OLC_HOST == OLC_HOST_WINDOWS
 #if defined(UNICODE) || defined(_UNICODE)
@@ -6030,6 +6076,83 @@ namespace olc::host
 }
 #endif
 
+#if OLC_GPU == OLC_GPU_NONE
+
+#if !defined(PGE_RENDERER_NONE_DECLARED)
+namespace olc::gpu
+{
+    class Shader_None : public olc::gpu::Shader
+    {
+    public:
+        std::string Compile() override;
+        int32_t CreateUniform(const std::string& name) override;
+    };
+    
+    class Renderer_None : public olc::gpu::Renderer
+    {
+    public: // Device Stuff
+        // Constructs a GPU Device interface
+        bool CreateDevice(std::vector<void*> os_win_id, const RendererConfig& cfg) override;
+        // Destroys a GPU device interface
+        bool DestroyDevice() override;
+        // If applicable, relocate the rendering context
+        bool RetargetDevice(std::vector<void*> os_win_id) override;
+        // Prepare an OS rendering target
+        bool PrepareWindowTarget(std::vector<void*> os_win_id) override;
+
+
+    public: // Texture Resource Stuff
+        // Allocates a new texture resource in VRAM, returns handle
+        uint32_t CreateTexture(const olc::vi2d& vSize, const olc::ImageConfig& cfg = olc::ImageConfig()) override;
+        // Writes to / updates an existing texture resource in VRAM, using existing Image in SRAM
+        bool WriteTexture(const uint32_t texid, olc::Image& image) override;
+        // Writes to / updates an existing Image in SRAM, from existing texture resource in VRAM
+        bool ReadTexture(const uint32_t texid, olc::Image& image) override;
+        // Destroys and releases texture resource for given handle
+        bool DeleteTexture(const uint32_t texid) override;
+        // Makes active the given texture resource (for subsequent sampling operations)
+        bool AssignTextureSource(const uint32_t slot, const uint32_t texid) override;
+        // Makes active the given texture resource (for subsequent rendering operations)
+        bool AssignTextureTarget(const uint32_t slot, const uint32_t texid) override;
+        // Resolves an MSAA texture into a normal texture
+        bool ResolveMSAA(const uint32_t msaaTexId) override;
+
+    public: // Shader Construction Stuff
+        // Change the shader used for subsequent GPU drawing tasks
+        bool ApplyShader(const Shader& shader) override;
+        // Reset to default shader for subsequent GPU drawing tasks
+        bool ApplyDefaultShader() override;
+        // Set uniform variable for subsequent GPU drawing tasks
+        bool SetUniform(const std::string& name, const float value) override;
+        // Set uniform variable for subsequent GPU drawing tasks
+        bool SetUniform(const std::string& name, const olc::vf2d& value) override;
+        // Set uniform variable for subsequent GPU drawing tasks
+        bool SetUniform(const std::string& name, const olc::Pixel value) override;
+
+    public: // GPU Task Stuff
+        bool DoGPUTask(const olc::GPUTask& task) override;
+
+    public: // Swap Chain Stuff
+        // Clears the viewport to a specific colour and depth
+        bool ClearViewport(const olc::Pixel col, bool bDepth, bool bStencil) override;
+        // Sets the viewport area of the drawing space
+        bool SetViewport(const olc::vf2d& pos, const olc::vf2d& size) override;
+        // Configures defaults prior to drawing
+        bool DisplayPrepare(const float fFrameElapsedTime, const float fTotalElapsedTime) override;
+        // Displays the final output
+        bool DisplayDraw(std::vector<void*> os_win_id, bool bVerticalSyncNow) override;
+    protected:
+        Shader_None shaderDefault;
+    };
+}
+
+
+
+#define PGE_RENDERER_NONE_DECLARED 1
+#endif
+#endif
+
+
 #if OLC_GPU == OLC_GPU_OPENGL33
 
 #if OLC_HOST == OLC_HOST_WINDOWS
@@ -6665,6 +6788,121 @@ namespace olc::imload
 
 
 #if defined(OLC_PGE3_APPLICATION) && !defined(PGE_HOST_IMPLEMENTED)
+#if OLC_HOST == OLC_HOST_NONE
+namespace olc::host
+{
+	// Make OS Create a window frame, associated with olc::Window
+	bool Host_None::AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen)
+	{
+		return true;
+	}
+
+	// Make OS Close a window frame, associated with olc::Window
+	bool Host_None::CloseWindowFrame(olc::Window* pWindow)
+	{
+		return true;
+	}
+
+	// Make OS Update a window frame title, associated with olc::Window
+	bool Host_None::UpdateWindowFrameTitle(olc::Window* pWindow)
+	{
+		std::cout << pWindow->GetWindowTitle() << "\n";
+		return true;
+	}
+
+	// Get OS-specific window descriptor(s) for given olc::Window
+	std::vector<void*> Host_None::GetHostWindowDescriptor(olc::Window* pWindow)
+	{
+		return {};
+	}
+
+	// Wait for OS desktop refresh (for smooooth vsync)
+	bool Host_None::SyncWithDesktopComposite()
+	{
+		return true;
+	}
+
+	// Force the mouse position in pixels relative to window
+	bool Host_None::SetMousePosition(olc::Window* pWindow, const olc::vi2d& vPos)
+	{
+		return true;
+	}
+	
+	// Show or hide mouse cursor for given window
+	bool Host_None::SetMouseVisible(olc::Window* pWindow, const bool bVisible)
+	{
+		return true;
+	}
+
+	olc::KeyboardLayout Host_None::GetKeyboardLayout() const
+	{
+		return OLC_DEFAULT_KEYBOARD_LAYOUT;
+	}
+
+	// Called at very start of application
+	bool Host_None::OnApplicationStart(olc::PixelGameEngine* pPrimary)
+	{
+		pPrimaryPGE = pPrimary;
+		return true;
+	}
+
+	// Called to start the host - this may mean different things on different hosts
+	// It MUST block until system is requested to exit
+	bool Host_None::StartSystem()
+	{
+		pPrimaryPGE->OnPreContextStart();
+
+		systemActive = true;
+
+		if(!OnSystemThreadStart())
+			return pPrimaryPGE->OnPostContextEnd();
+		
+		while(systemActive)
+		{
+			if(!OnSystemTick())
+			{
+				StopSystem();
+			}
+		}
+
+		OnSystemThreadEnd();
+
+		return pPrimaryPGE->OnPostContextEnd();
+	}
+
+	// Called to stop the host, and shutdown all resources
+	bool Host_None::StopSystem()
+	{
+		systemActive = false;
+		return true;
+	}
+
+	// Called at start of system event loop
+	bool Host_None::OnSystemThreadStart()
+	{
+		return pPrimaryPGE->OnContextStart();
+	}
+
+	// Called to perform primary window update
+	bool Host_None::OnSystemTick()
+	{
+		return pPrimaryPGE->OnContextTick();
+	}
+	
+	// Called at end of system event loop
+	bool Host_None::OnSystemThreadEnd()
+	{
+		return pPrimaryPGE->OnContextEnd();
+	}
+	
+	// Called at very end of application
+	bool Host_None::OnApplicationEnd()
+	{
+		return true;
+	}
+}
+#endif
+
 #if OLC_HOST == OLC_HOST_WINDOWS
 namespace olc::host
 {
@@ -12858,7 +13096,7 @@ void android_main(struct android_app* app)
 #endif
 
 #if defined(OLC_PGE3_APPLICATION) && !defined(PGE_GPU_IMPLEMENTED)
-#if OLC_GPU == OLC_GPU_OPENGL33
+
 namespace olc
 {
     gpu::Shader::~Shader()
@@ -12924,6 +13162,162 @@ namespace olc
     }
 }
 
+
+#if OLC_GPU == OLC_GPU_NONE
+namespace olc::gpu
+{
+
+    std::string Shader::static_PS_DefaultHeader;
+    std::string Shader::static_PS_DefaultMain;
+    std::string Shader::static_VS_DefaultHeader;
+    std::string Shader::static_VS_DefaultMain;
+    std::string Shader::static_GS_DefaultHeader;
+    std::string Shader::static_GS_DefaultMain;		    
+
+    std::string Shader_None::Compile()
+    {
+        return "OK";
+    }
+
+    int32_t Shader_None::CreateUniform(const std::string& name)
+    {
+        static int32_t uniformID = 0;
+        mapUniforms.insert({ name, uniformID++ });
+        return GetUniform(name);
+    }
+
+    // Constructs a GPU Device interface
+    bool Renderer_None::CreateDevice(std::vector<void*> os_win_id, const RendererConfig& cfg)
+    {
+        return true;
+    }
+
+    // Destroys a GPU device interface
+    bool Renderer_None::DestroyDevice()
+    {
+        return false;
+    }
+
+    // If applicable, relocate the rendering context
+    bool Renderer_None::RetargetDevice(std::vector<void*> os_win_id)
+    {
+        return true;
+    }
+
+    // Prepare an OS rendering target
+    bool Renderer_None::PrepareWindowTarget(std::vector<void*> os_win_id)
+    {
+        return true;
+    }
+
+    // Allocates a new texture resource in VRAM, returns handle
+    uint32_t Renderer_None::CreateTexture(const olc::vi2d& vSize, const olc::ImageConfig& cfg)
+    {
+        static uint32_t id = 0;
+        // deliberate post increment here to return 0 on the first call
+        return static_cast<uint32_t>(id++);
+    }
+
+    // Writes to / updates an existing texture resource in VRAM, using existing Image in SRAM
+    bool Renderer_None::WriteTexture(const uint32_t texid, olc::Image& image)
+    {
+        return true;
+    }
+
+    // Writes to / updates an existing Image in SRAM, from existing texture resource in VRAM
+    bool Renderer_None::ReadTexture(const uint32_t texid, olc::Image& image)
+    {
+        return true;
+    }
+
+    // Destroys and releases texture resource for given handle
+    bool Renderer_None::DeleteTexture(const uint32_t texid)
+    {
+        return true;
+    }
+
+    // Makes active the given texture resource (for subsequent sampling operations)
+    bool Renderer_None::AssignTextureSource(const uint32_t slot, const uint32_t texid)
+    {
+        return true;
+    }
+
+    // Makes active the given texture resource (for subsequent rendering operations)
+    bool Renderer_None::AssignTextureTarget(const uint32_t slot, const uint32_t texid)
+    {
+        return true;
+    }
+
+    // Resolves an MSAA texture into a normal texture
+    bool Renderer_None::ResolveMSAA(const uint32_t msaaTexId)
+    {
+        return true;
+    }
+
+    // Change the shader used for subsequent GPU drawing tasks
+    bool Renderer_None::ApplyShader(const Shader& shader)
+    {
+        return true;
+    }
+
+    // Reset to default shader for subsequent GPU drawing tasks
+    bool Renderer_None::ApplyDefaultShader()
+    {
+        return ApplyShader(shaderDefault);
+    }
+
+    // Set uniform variable for subsequent GPU drawing tasks
+    bool Renderer_None::SetUniform(const std::string& name, const float value)
+    {
+        return true;
+    }
+
+    // Set uniform variable for subsequent GPU drawing tasks
+    bool Renderer_None::SetUniform(const std::string& name, const olc::vf2d& value)
+    {
+        return true;
+    }
+
+    // Set uniform variable for subsequent GPU drawing tasks
+    bool Renderer_None::SetUniform(const std::string& name, const olc::Pixel value)
+    {
+        return true;
+    }
+
+
+    bool Renderer_None::DoGPUTask(const olc::GPUTask& task)
+    {
+        return true;
+    }
+
+    // Clears the viewport to a specific colour and depth
+    bool Renderer_None::ClearViewport(const olc::Pixel col, bool bDepth, bool bStencil)
+    {
+        return true;
+    }
+
+    // Sets the viewport area of the drawing space
+    bool Renderer_None::SetViewport(const olc::vf2d& pos, const olc::vf2d& size)
+    {
+        return true;
+    }
+
+    // Configures defaults prior to drawing
+    bool Renderer_None::DisplayPrepare(const float fFrameElapsedTime, const float fTotalElapsedTime)
+    {
+        return true;
+    }
+
+    // Displays the final output
+    bool Renderer_None::DisplayDraw(std::vector<void*> os_win_id, bool bVerticalSyncNow)
+    {
+        return true;
+    }
+
+}
+#endif
+
+#if OLC_GPU == OLC_GPU_OPENGL33
 namespace olc::apis::opengl
 {
 	bool gl::bLoaded = false;
@@ -16685,7 +17079,7 @@ namespace olc
 		// Initialise GPU Interface
 		olc::gpu::RendererConfig cfgRenderer;
 		cfgRenderer.VerticalSync = config.bVSync;
-		gpu = std::make_unique<olc::gpu::Renderer_OGL33>();
+		gpu = std::make_unique<olc::gpu::OLC_GPU_CLASS>();
 
 		gpu->CreateDevice(host->GetHostWindowDescriptor(this), cfgRenderer);
 		if (gpu->GetLastError() != olc::gpu::RendererError::NoError)

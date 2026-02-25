@@ -26,13 +26,14 @@
 
 
 // Choose "Operating System"
-#define OLC_HOST_WINDOWS 1
-#define OLC_HOST_LINUX_X11 2
+#define OLC_HOST_NONE 1
+#define OLC_HOST_WINDOWS 2
 #define OLC_HOST_LINUX_WAYLAND 3
-#define OLC_HOST_MACOS 4
-#define OLC_HOST_EMSCRIPTEN 5
-#define OLC_HOST_ANDROID 6
-#define OLC_HOST_IOS 7
+#define OLC_HOST_LINUX_X11 4
+#define OLC_HOST_MACOS 5
+#define OLC_HOST_EMSCRIPTEN 6
+#define OLC_HOST_ANDROID 7
+#define OLC_HOST_IOS 8
 
 #if !defined(OLC_HOST)
 	#if defined(_WIN32)
@@ -67,8 +68,22 @@
 #define OLC_GPU_NONE 1
 #define OLC_GPU_OPENGL33 2
 
+#if defined(OLC_USE_HEADLESS)
+	#define OLC_GPU OLC_GPU_NONE
+#endif
+
 #if !defined(OLC_GPU)
 	#define OLC_GPU OLC_GPU_OPENGL33
+#endif
+
+#if OLC_GPU == OLC_GPU_NONE
+	#define OLC_GPU_CLASS Renderer_None
+	#define OLC_SHADER_CLASS Shader_None
+#endif
+
+#if OLC_GPU == OLC_GPU_OPENGL33
+	#define OLC_GPU_CLASS Renderer_OGL33
+	#define OLC_SHADER_CLASS Shader_GLSL33
 #endif
 
 #define OLC_IMAGELOADER_NONE 1
@@ -110,6 +125,13 @@
 	#endif
 #endif
 
+// We wait until after the platform specific image loader is selected
+// to lock in the headless host.
+#if defined(OLC_USE_HEADLESS)
+	#undef OLC_HOST
+	#define OLC_HOST OLC_HOST_NONE
+#endif
+
 #define OLC_MULTIWINDOW_NO 1
 #define OLC_MULTIWINDOW_YES 2
 
@@ -137,6 +159,10 @@
 
 template<typename... Args>
 inline constexpr void olc_IgnoreUnused(Args&&...) noexcept {}
+
+#if OLC_HOST == OLC_HOST_NONE
+#define OLC_FRIENDLY_HOST Host_None
+#endif
 
 #if OLC_HOST == OLC_HOST_WINDOWS
 #define OLC_FRIENDLY_HOST Host_Windows_WinAPI

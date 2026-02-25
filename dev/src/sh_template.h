@@ -159,7 +159,11 @@
 
 
 
+#if OLC_HOST == OLC_HOST_NONE
+//! GRAB host_none.h NOHOST_CONFIG
 
+//! GRAB host_none.h DECLARATION
+#endif
 
 #if OLC_HOST == OLC_HOST_WINDOWS
 //! GRAB host_win_winapi.h WINAPI_CONFIG
@@ -201,6 +205,11 @@
 //! GRAB host_android.h DECLARATION
 #endif
 
+#if OLC_GPU == OLC_GPU_NONE
+//! GRAB gpu_none.h DECLARATION
+#endif
+
+
 #if OLC_GPU == OLC_GPU_OPENGL33
 //! GRAB api_opengl.h OPENGL_CONFIG
 
@@ -233,6 +242,10 @@
 
 
 #if defined(OLC_PGE3_APPLICATION) && !defined(PGE_HOST_IMPLEMENTED)
+#if OLC_HOST == OLC_HOST_NONE
+//! GRAB host_none.cpp IMPLEMENTATION
+#endif
+
 #if OLC_HOST == OLC_HOST_WINDOWS
 //! GRAB host_win_winapi.cpp IMPLEMENTATION
 #endif
@@ -263,8 +276,14 @@
 #endif
 
 #if defined(OLC_PGE3_APPLICATION) && !defined(PGE_GPU_IMPLEMENTED)
-#if OLC_GPU == OLC_GPU_OPENGL33
+
 //! GRAB gpu_iface.cpp IMPLEMENTATION
+
+#if OLC_GPU == OLC_GPU_NONE
+//! GRAB gpu_none.cpp IMPLEMENTATION
+#endif
+
+#if OLC_GPU == OLC_GPU_OPENGL33
 //! GRAB api_opengl.cpp IMPLEMENTATION
 //! GRAB gpu_opengl33.cpp IMPLEMENTATION
 #endif
