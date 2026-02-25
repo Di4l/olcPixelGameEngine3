@@ -322,6 +322,13 @@ namespace olc
 		return lhs;
 	}
 
+	template<class TL, class TR>
+	inline constexpr auto operator -= (v_2d<TL>& lhs, const v_2d<TR>& rhs)
+	{
+		lhs = lhs - rhs;
+		return lhs;
+	}
+
 	// Greater/Less-Than Operator overloads - mathematically useless, but handy for "sorted" container storage
 	template<class TL, class TR>
 	inline constexpr bool operator < (const v_2d<TL>& lhs, const v_2d<TR>& rhs)
