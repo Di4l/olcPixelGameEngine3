@@ -6318,6 +6318,10 @@ namespace olc
 		typedef void CALLSTYLE wglSwapIntervalEXT_t(GLsizei n);
 #endif
 
+#if OLC_HOST == OLC_HOST_LINUX_X11
+		typedef GLint CALLSTYLE glXSwapIntervalEXT_t(X11::Display* dpy, X11::GLXDrawable drawable, GLint interval);
+#endif
+
 		// A little GL class (singleton)
 		class gl
 		{
@@ -6380,6 +6384,10 @@ namespace olc
 			wglSwapIntervalEXT_t* _wglSwapIntervalEXT = nullptr;
 #endif
 
+#if OLC_HOST == OLC_HOST_LINUX_X11
+		public:
+			glXSwapIntervalEXT_t* XSwapIntervalEXT = nullptr;
+#endif
 
 		public:
 			// Proxies allow switchable, clutter-free error checking
@@ -13401,6 +13409,9 @@ namespace olc::apis::opengl
 		bLoaded &= (_wglSwapIntervalEXT = OGL_LOAD(wglSwapIntervalEXT)) != nullptr;
 #endif
 
+#if OLC_HOST == OLC_HOST_LINUX_X11
+		bLoaded &= (XSwapIntervalEXT = OGL_LOAD(glXSwapIntervalEXT)) != nullptr;
+#endif
 		
 		return bLoaded;
 	}
@@ -14188,19 +14199,24 @@ void main()
 			// Enable VSync - lock to display refresh
 			// May also be governed by OS / driver settings
 			// and desktop compositor settings
-#if !((OLC_HOST == OLC_HOST_EMSCRIPTEN) || (OLC_HOST == OLC_HOST_LINUX_WAYLAND))
-			gl.glSwapInterval(1);
-#else
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN || OLC_HOST == OLC_HOST_LINUX_WAYLAND
 			eglSwapInterval(glRenderContext.display, 1);
+#elif OLC_HOST == OLC_HOST_LINUX_X11
+			gl.XSwapIntervalEXT(display, window_handle, 1);
+#else
+			gl.glSwapInterval(1);
 #endif
+
 		}
 		else
 		{
 			// Disable VSync - run like the clappers!
-#if !((OLC_HOST == OLC_HOST_EMSCRIPTEN) || (OLC_HOST == OLC_HOST_LINUX_WAYLAND))
-			gl.glSwapInterval(0);
-#else
+#if OLC_HOST == OLC_HOST_EMSCRIPTEN || OLC_HOST == OLC_HOST_LINUX_WAYLAND
 			eglSwapInterval(glRenderContext.display, 0);
+#elif OLC_HOST == OLC_HOST_LINUX_X11
+			gl.XSwapIntervalEXT(display, window_handle, 0);
+#else
+			gl.glSwapInterval(0);
 #endif
 		}
 		
