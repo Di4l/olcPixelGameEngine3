@@ -565,11 +565,11 @@ namespace olc::host
  
         if (eventType == EMSCRIPTEN_EVENT_BLUR)
         {
-            olc_OnMouseFocus(pCallbackData->pWindow, false);
+            olc_OnFocus(pCallbackData->pWindow, false);
         }
         else if (eventType == EMSCRIPTEN_EVENT_FOCUS)
         {
-            olc_OnMouseFocus(pCallbackData->pWindow, true);
+            olc_OnFocus(pCallbackData->pWindow, true);
         }
 
         return 0;
@@ -590,9 +590,9 @@ namespace olc::host
         return pWindow->olc_OnMouseWheel(nScroll);
     }
 
-    bool Host_Web_Emscripten::olc_OnMouseFocus(olc::Window* pWindow, const bool bHasFocus)
+    bool Host_Web_Emscripten::olc_OnFocus(olc::Window* pWindow, const bool bHasFocus)
     {
-        return pWindow->olc_OnMouseFocus(bHasFocus);
+        return pWindow->olc_OnFocus(bHasFocus);
     }
 
     bool Host_Web_Emscripten::olc_OnKeyPress(olc::Window* pWindow, const olc::Key key, const bool bPressed)
