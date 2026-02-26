@@ -585,9 +585,11 @@ namespace olc::host
         if (visibilityChangeEvent->hidden)
         {
             pCallbackData->pHost->timeHidden = std::chrono::steady_clock::now();
+            emscripten_pause_main_loop();
         }
         else
         {
+            emscripten_resume_main_loop();
             auto durationHidden = std::chrono::steady_clock::now() - pCallbackData->pHost->timeHidden;
             pCallbackData->pHost->pPrimaryPGE->timeFrame2 += durationHidden;
         }
