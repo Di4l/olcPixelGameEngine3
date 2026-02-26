@@ -44,9 +44,9 @@ namespace olc
 		return true;
 	}
 
-	bool Window::olc_OnMouseFocus(const bool bHasFocus)
+	bool Window::olc_OnFocus(const bool bHasFocus)
 	{
-		olc_IgnoreUnused(bHasFocus);
+		bWindowIsFocused = bHasFocus;
 		return false;
 	}
 
@@ -130,6 +130,11 @@ namespace olc
 	void Window::ShowMouseCursor(const bool bShow)
 	{
 		pHost->SetMouseVisible(this, bShow);
+	}
+
+	bool Window::IsFocused() const
+	{
+		return bWindowIsFocused;
 	}
 
 };
