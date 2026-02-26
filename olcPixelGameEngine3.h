@@ -5795,7 +5795,8 @@ namespace olc::host
         static EM_BOOL fullscreen_change_callback(int eventType, const EmscriptenFullscreenChangeEvent *event, void *userData);
         static EM_BOOL resize_callback(int eventType, const EmscriptenUiEvent *event, void *userData);
         static EM_BOOL focus_callback(int eventType, const EmscriptenFocusEvent* focusEvent, void* userData);
-    
+        static EM_BOOL visibility_callback(int eventType, const EmscriptenVisibilityChangeEvent *visibilityChangeEvent, void *userData);
+
     private: // Window Wrappers
 		// Set Mouse Device State
 		static bool olc_OnMouseButton(olc::Window* pWindow, const uint8_t nButton, const bool bPressed);
@@ -5827,6 +5828,7 @@ namespace olc::host
         std::unordered_map<int32_t, olc::Key> mapKeys;
         // Map of system mouse buttons to olc mouse buttons
         std::unordered_map<int32_t, int32_t> mapMouseButtons;
+        std::chrono::steady_clock::time_point timeHidden;
     };
     
     
@@ -6814,7 +6816,6 @@ namespace olc::host
 	// Make OS Update a window frame title, associated with olc::Window
 	bool Host_None::UpdateWindowFrameTitle(olc::Window* pWindow)
 	{
-		std::cout << pWindow->GetWindowTitle() << "\n";
 		return true;
 	}
 
@@ -12061,6 +12062,9 @@ namespace olc::host
         emscripten_set_resize_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, reinterpret_cast<void*>(cbData), 1, resize_callback);
         emscripten_set_fullscreenchange_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, reinterpret_cast<void*>(cbData), 1, fullscreen_change_callback);
 
+        // Visibility Change Callback
+        emscripten_set_visibilitychange_callback(reinterpret_cast<void *>(cbData), 1, visibility_callback);
+
         // trigger resize after a short pause
         emscripten_sleep(50);
         resize_callback(EMSCRIPTEN_EVENT_RESIZE, nullptr, reinterpret_cast<void*>(cbData));
@@ -12411,6 +12415,23 @@ namespace olc::host
         else if (eventType == EMSCRIPTEN_EVENT_FOCUS)
         {
             olc_OnMouseFocus(pCallbackData->pWindow, true);
+        }
+
+        return 0;
+    }
+
+    EM_BOOL Host_Web_Emscripten::visibility_callback(int eventType, const EmscriptenVisibilityChangeEvent *visibilityChangeEvent, void *userData)
+    {
+        CallbackData *pCallbackData = reinterpret_cast<CallbackData *>(userData);
+
+        if (visibilityChangeEvent->hidden)
+        {
+            pCallbackData->pHost->timeHidden = std::chrono::steady_clock::now();
+        }
+        else
+        {
+            auto durationHidden = std::chrono::steady_clock::now() - pCallbackData->pHost->timeHidden;
+            pCallbackData->pHost->pPrimaryPGE->timeFrame2 += durationHidden;
         }
 
         return 0;
@@ -16616,6 +16637,9 @@ const FilledBatch& olc::Draw::FilledPolygon(FilledBatch& batch, const olc::Struc
 				buffPoints.data[i], buffPoints.data[i + 1], buffPoints.data[i + 2],
 				buffColours.data[i], buffColours.data[i + 1], buffColours.data[i + 2]);
 	}
+
+	default:
+		break;
 	}
 
 	return batch;

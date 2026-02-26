@@ -71,7 +71,8 @@ namespace olc::host
         static EM_BOOL fullscreen_change_callback(int eventType, const EmscriptenFullscreenChangeEvent *event, void *userData);
         static EM_BOOL resize_callback(int eventType, const EmscriptenUiEvent *event, void *userData);
         static EM_BOOL focus_callback(int eventType, const EmscriptenFocusEvent* focusEvent, void* userData);
-    
+        static EM_BOOL visibility_callback(int eventType, const EmscriptenVisibilityChangeEvent *visibilityChangeEvent, void *userData);
+
     private: // Window Wrappers
 		// Set Mouse Device State
 		static bool olc_OnMouseButton(olc::Window* pWindow, const uint8_t nButton, const bool bPressed);
@@ -103,6 +104,7 @@ namespace olc::host
         std::unordered_map<int32_t, olc::Key> mapKeys;
         // Map of system mouse buttons to olc mouse buttons
         std::unordered_map<int32_t, int32_t> mapMouseButtons;
+        std::chrono::steady_clock::time_point timeHidden;
     };
     
     
