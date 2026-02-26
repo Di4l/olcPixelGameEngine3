@@ -59,6 +59,8 @@ namespace olc
 		bool bAntiAliasMainScreen = false;
 		// Default clear colour for the primary drawing surface
 		olc::Pixel colClear = olc::Colour::BLACK;
+		// Default Application Name (shown in window title bar)
+		std::string sAppName = "PGE3";
 	};
 
 	// A PGE Window is a window with drawing and input capabilities a la olc::PixelGameEngine

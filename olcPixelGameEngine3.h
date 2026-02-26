@@ -3925,6 +3925,8 @@ namespace olc
 		bool bAntiAliasMainScreen = false;
 		// Default clear colour for the primary drawing surface
 		olc::Pixel colClear = olc::Colour::BLACK;
+		// Default Application Name (shown in window title bar)
+		std::string sAppName = "PGE3";
 	};
 
 	// A PGE Window is a window with drawing and input capabilities a la olc::PixelGameEngine
@@ -17111,6 +17113,25 @@ namespace olc
 	bool PixelGameEngine::Construct(const PGEConfig& cfg)
 	{		
 		config = cfg;
+
+		// Check for constructor sAppName, if not set use Config sAppName
+		if (sAppName.empty())
+		{
+			sAppName = config.sAppName;
+		}
+		else
+		{
+			if (config.sAppName == "PGE3")
+			{
+				// User has not set Config sAppName to something specific, so set the Config sAppName to constructor sAppName
+				config.sAppName = sAppName;
+			}
+			else
+			{
+				// User has set config.sAppName therefore we override constructor sAppname , 
+				sAppName = config.sAppName;
+			}
+		}
 
 		// This is the earliest point within familiar PGE ecosystem
 		// where we can instatiate the host interface.

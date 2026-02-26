@@ -20,7 +20,7 @@ class Example_3DCube : public olc::PixelGameEngine
 public:
 	Example_3DCube()
 	{
-		sAppName = "Example - 3D Stanity Cube";
+		
 	}
 
 protected:
@@ -220,6 +220,7 @@ int main()
 	config.vScreenSize = { 256, 240 };
 	config.vPixelSize = { 4, 4 };
 	config.bAntiAliasMainScreen = false;
+	config.sAppName = "Example - 3D Stanity Cube";
 
 	if (demo.Construct(config))
 	{

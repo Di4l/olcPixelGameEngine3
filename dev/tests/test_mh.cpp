@@ -34,7 +34,9 @@ class Example : public olc::PixelGameEngine
 public:
 	Example()
 	{
-		sAppName = "Test mh";
+		// sAppName can be set here, or in the config passed to Construct()
+		// NOTE: If you set it here, it will be overridden by the config version of sAppName, if specified
+		// sAppName = "Test mh";
 	}
 
 	olc::Image imTest;
@@ -781,6 +783,7 @@ int main()
 	cfg.vScreenSize = { 256, 240 };
 	//cfg.bAntiAliasMainScreen = true;
 	cfg.bVSync = false;
+	cfg.sAppName = "Test mh";
 
 	//if (demo.Construct({ 1280, 960 }, { 1, 1 }, cfg))
 	if(demo.Construct(cfg))

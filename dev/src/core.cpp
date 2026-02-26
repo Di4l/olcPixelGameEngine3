@@ -362,6 +362,25 @@ namespace olc
 	{		
 		config = cfg;
 
+		// Check for constructor sAppName, if not set use Config sAppName
+		if (sAppName.empty())
+		{
+			sAppName = config.sAppName;
+		}
+		else
+		{
+			if (config.sAppName == "PGE3")
+			{
+				// User has not set Config sAppName to something specific, so set the Config sAppName to constructor sAppName
+				config.sAppName = sAppName;
+			}
+			else
+			{
+				// User has set config.sAppName therefore we override constructor sAppname , 
+				sAppName = config.sAppName;
+			}
+		}
+
 		// This is the earliest point within familiar PGE ecosystem
 		// where we can instatiate the host interface.
 
