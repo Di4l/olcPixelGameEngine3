@@ -8036,13 +8036,13 @@ namespace olc::host {
                 case DEMINIMIZE_WINDOW:
                 case BECOME_ACTIVE:
                 {
-                    pPGEwindow->olc_OnMouseFocus(true);
+                    pPGEwindow->olc_OnFocus(true);
                     break;
                 }
                 case MINIMIZE_WINDOW:
                 case RESIGN_ACTIVE:
                 {
-                    pPGEwindow->olc_OnMouseFocus(false);
+                    pPGEwindow->olc_OnFocus(false);
                     break;
                 }
                 case NONE:
