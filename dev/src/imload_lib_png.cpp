@@ -41,20 +41,16 @@ namespace olc::imload
         png_structp png = png_create_read_struct(PNG_LIBPNG_VER_STRING, nullptr, nullptr, nullptr);
         if (!png)
             return false;
-        std::cout << "create read struct success\n";
 
         png_infop info = png_create_info_struct(png);
         if (!info)
             return false;
-        std::cout << "create info struct success\n";
         
         if(setjmp(png_jmpbuf(png)))
         {
-            std::cout << "setjmp/png_jmpbuf failed\n";
             png_destroy_read_struct(&png, &info, nullptr);
             return false;
         }
-        std::cout << "setjmp/png_jmpbuf success\n";
 
         png_set_read_fn(png, &reader, &ImageLoader_LibPNG::PNGReadFromMemory);
         bool decodeResult = DecodePNG(image, png, info);
