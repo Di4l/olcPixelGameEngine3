@@ -742,7 +742,7 @@ struct OpenGLRenderer {
 
 // Modern image loading and pixel data extraction
 struct ImageLoader {
-    unsigned char* pixelData{nullptr}; // Raw pixel data (RGBA format)
+    imageloader_pixel_t* pixelData{nullptr}; // Raw pixel data (RGBA format)
     int width{kMinValidDimension};     // Image width in pixels
     int height{kMinValidDimension};    // Image height in pixels
     int bytesPerPixel{kZeroBytes};     // Number of bytes per pixel (typically 4 for RGBA)
@@ -1876,42 +1876,50 @@ extern "C" {
             self->pixelData = NULL;
         }
 
+        CGDataProviderRef provider = CGImageGetDataProvider(image);
+        CFDataRef rawData = CGDataProviderCopyData(provider);
+
+        CGBitmapInfo bitmapInfo = CGImageGetBitmapInfo(image);
+        CGImageAlphaInfo alphaInfo = (CGImageAlphaInfo)(bitmapInfo & kCGBitmapAlphaInfoMask);
+        CGBitmapInfo byteOrder = bitmapInfo & kCGBitmapByteOrderMask;
+        
         self->width         = CGImageGetWidth(image);
         self->height        = CGImageGetHeight(image);
         self->bytesPerPixel = 4;
         self->bytesPerRow   = self->width * self->bytesPerPixel;
         self->hasAlpha      = YES;
 
-        self->pixelData = (unsigned char*)malloc(self->bytesPerRow * self->height);
+        const uint8_t* imageData = CFDataGetBytePtr(rawData);
+        self->pixelData = (imageloader_pixel_t*)malloc(self->width * self->height * self->bytesPerPixel);
         if(!self->pixelData)
         {
             return NO;
         }
-
-        CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
-
-        // Draw into a raw RGBA buffer that maps directly onto our Pixel layout
-        CGContextRef ctx = CGBitmapContextCreate(
-            self->pixelData,
-            self->width, self->height,
-            8,                          // bits per component
-            self->bytesPerRow,        // bytes per row
-            colorSpace,
-            kCGImageAlphaPremultipliedLast   // RGBA byte order
-        );
-
-        CGColorSpaceRelease(colorSpace);
-
-        if (!ctx)
-        {
-            free(self->pixelData);
-            self->pixelData = NULL;
-            return NO;
-        }
-
-        CGContextDrawImage(ctx, CGRectMake(0, 0, self->width, self->height), image);
-        CGContextRelease(ctx);
+        memcpy(self->pixelData, imageData, self->width * self->height * self->bytesPerPixel);
         
+        // NOTE from Moros1138
+        // 
+        // On Apple Silicon and x86 Macs kCGBitmapByteOrder32Little is by far
+        // the most common case, so in practice this block of code will never
+        // be run. However, if we find that there is a need to adjust the
+        // pixel data, this will need fleshing out.
+
+        /*
+        if(byteOrder != kCGBitmapByteOrder32Little)
+        {
+            int pixelCount = self->width * self->height;
+            for(int i = 0; i < pixelCount; ++i)
+            {
+                auto p = self->pixelData[i];
+                
+                // TODO: detect byte order, adjust as appropriate
+                
+                self->pixelData[i] = p;
+            }
+        }
+        */
+
+        CFRelease(rawData);
         CGImageRelease(image);
 
         return YES;
@@ -1981,7 +1989,7 @@ extern "C" {
 
     // Get raw pixel data pointer
     unsigned char* imageloader_getPixelData(const struct ImageLoader* self) {
-        return self->pixelData;
+        return (unsigned char*)self->pixelData;
     }
 
     // Get image information
@@ -2015,13 +2023,13 @@ extern "C" {
         
         // Calculate pixel offset (macOS uses bottom-left origin, so flip Y)
         int flippedY = self->height - kFlippedOffset - y;
-        unsigned char* pixel = self->pixelData + (flippedY * self->bytesPerRow) + (x * self->bytesPerPixel);
-        
+        imageloader_pixel_t* pixel = self->pixelData + (flippedY * self->width) + x;
+
         // Extract color components (assuming RGBA or RGB format)
-        if (red) *red     = pixel[0];
-        if (green) *green = pixel[1];
-        if (blue) *blue   = pixel[2];
-        if (alpha && self->bytesPerPixel >= kRGBABytesPerPixel)  *alpha = pixel[3];
+        if (red) *red     = pixel->r;
+        if (green) *green = pixel->g;
+        if (blue) *blue   = pixel->b;
+        if (alpha && self->bytesPerPixel >= kRGBABytesPerPixel)  *alpha = pixel->a;
         else if (alpha) *alpha = kFullyOpaque; // Fully opaque if no alpha channel
         
         return YES;
