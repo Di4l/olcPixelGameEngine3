@@ -4244,6 +4244,7 @@ namespace olc
 #include <OpenGL/gl.h>
 #include <OpenGL/OpenGL.h>
 #include <CoreGraphics/CoreGraphics.h>
+#include <ImageIO/ImageIO.h>
 
 extern "C" {
     // NSRect (OSX rectangle structure same as GCRect C structure)
@@ -4308,6 +4309,7 @@ extern "C" {
     // Image Loader API - as implemented in api_macos.c
     struct ImageLoader* imageloader_init        (void);
     BOOL imageloader_loadFromFile               (struct ImageLoader* self, const char* filePath);
+    BOOL imageloader_loadFromMemory             (struct ImageLoader* self, const uint8_t* data, size_t bytes);
     void imageloader_destroy                    (struct ImageLoader* self);
     unsigned char* imageloader_getPixelData     (const struct ImageLoader* self);
     void imageloader_getImageInfo               (const struct ImageLoader* self, int* width, int* height, int* bytesPerPixel);
@@ -4990,6 +4992,15 @@ namespace olc {
                     filePath_ = filePath;
                     if (loader_) {
                         BOOL result = imageloader_loadFromFile(loader_, filePath.c_str());
+                        loaded_ = (result != 0);
+                        return loaded_;
+                    }
+                    return false;
+                }
+
+                bool loadFromMemory(const uint8_t* data, size_t bytes) {
+                    if (loader_) {
+                        BOOL result = imageloader_loadFromMemory(loader_, data, bytes);
                         loaded_ = (result != 0);
                         return loaded_;
                     }
@@ -8238,8 +8249,6 @@ static constexpr const char* kNSStringClass                     = "NSString";
 static constexpr const char* kNSOpenGLPixelFormatClass          = "NSOpenGLPixelFormat";
 static constexpr const char* kNSOpenGLViewClass                 = "NSOpenGLView";
 static constexpr const char* kNSObjectClass                     = "NSObject";
-static constexpr const char* kNSImageClass                      = "NSImage";
-static constexpr const char* kNSBitmapImageRepClass             = "NSBitmapImageRep";
 static constexpr const char* kAppDelegateClass                  = "AppDelegate";
 static constexpr const char* kWindowDelegateClass               = "WindowDelegate";
 static constexpr const char* kCustomOpenGLViewClass             = "CustomOpenGLView";
@@ -8353,18 +8362,6 @@ static constexpr const char* kButtonNumberSel                   = "buttonNumber"
 static constexpr const char* kClickCountSel                     = "clickCount";
 static constexpr const char* kModifierFlagsSel                  = "modifierFlags";
 static constexpr const char* kUTF8StringSel                     = "UTF8String";
-
-// NSImage, NSBitmapImageRep, and image data access selectors
-static constexpr const char* kInitWithContentsOfFileSel         = "initWithContentsOfFile:";
-static constexpr const char* kRepresentationsSel                = "representations";
-static constexpr const char* kCountSel                          = "count";
-static constexpr const char* kObjectAtIndexSel                  = "objectAtIndex:";
-static constexpr const char* kPixelsWideSel                     = "pixelsWide";
-static constexpr const char* kPixelsHighSel                     = "pixelsHigh";
-static constexpr const char* kBitsPerPixelSel                   = "bitsPerPixel";
-static constexpr const char* kBytesPerRowSel                    = "bytesPerRow";
-static constexpr const char* kHasAlphaSel                       = "hasAlpha";
-static constexpr const char* kBitmapDataSel                     = "bitmapData";
 
 // NSLocale class and method names
 static constexpr const char* kNSLocaleClass                     = "NSLocale";
@@ -8511,18 +8508,6 @@ namespace ObjectiveCSEL {
    static SEL modifierFlagsSel    = nullptr;
    static SEL utf8StringSel       = nullptr;
 
-   // NSImage, NSBitmapImageRep, and image data access selectors
-   static SEL initWithContentsOfFileSel = nullptr;
-   static SEL representationsSel        = nullptr;
-   static SEL countSel                  = nullptr;
-   static SEL objectAtIndexSel          = nullptr;
-   static SEL pixelsWideSel             = nullptr;
-   static SEL pixelsHighSel             = nullptr;
-   static SEL bitsPerPixelSel           = nullptr;
-   static SEL bytesPerRowSel            = nullptr;
-   static SEL hasAlphaSel               = nullptr;
-   static SEL bitmapDataSel             = nullptr;
-
    // NSLocale selectors
    static SEL currentLocaleSel               = nullptr;
    static SEL localeIdentifierSel            = nullptr;
@@ -8636,18 +8621,6 @@ namespace ObjectiveCSEL {
         clickCountSel                      = sel_registerName(kClickCountSel);
         modifierFlagsSel                   = sel_registerName(kModifierFlagsSel);
         utf8StringSel                      = sel_registerName(kUTF8StringSel);
-
-        // NSImage, NSBitmapImageRep, and image data access selectors
-        initWithContentsOfFileSel          = sel_registerName(kInitWithContentsOfFileSel);
-        representationsSel                 = sel_registerName(kRepresentationsSel);
-        countSel                           = sel_registerName(kCountSel);
-        objectAtIndexSel                   = sel_registerName(kObjectAtIndexSel);
-        pixelsWideSel                      = sel_registerName(kPixelsWideSel);
-        pixelsHighSel                      = sel_registerName(kPixelsHighSel);
-        bitsPerPixelSel                    = sel_registerName(kBitsPerPixelSel);
-        bytesPerRowSel                     = sel_registerName(kBytesPerRowSel);
-        hasAlphaSel                        = sel_registerName(kHasAlphaSel);
-        bitmapDataSel                      = sel_registerName(kBitmapDataSel);
 
         // NSLocale selectors
         currentLocaleSel                   = sel_registerName(kCurrentLocaleSel);
@@ -9016,6 +8989,7 @@ struct ImageLoader {
     
     // Method function pointers with nullptr initialization
     BOOL (*loadFromFile)           (struct ImageLoader* self, const char* filePath){nullptr};
+    BOOL (*loadFromMemory)         (struct ImageLoader* self, const uint8_t* data, size_t bytes);
     void (*destroy)                (struct ImageLoader* self){nullptr};
     unsigned char* (*getPixelData) (const struct ImageLoader* self){nullptr};
     void (*getImageInfo)           (const struct ImageLoader* self, int* width, int* height, int* bytesPerPixel){nullptr};
@@ -10130,7 +10104,56 @@ extern "C" {
         return renderer;
     }
 
-    // Load image from file path using NSImage and NSBitmapImageRep
+    static BOOL imageloader_decodeImage(struct ImageLoader* self, CGImageRef image)
+    {
+        if(!image) return NO;
+
+        // Clear any existing data
+        if (self->pixelData) {
+            free(self->pixelData);
+            self->pixelData = NULL;
+        }
+
+        self->width         = CGImageGetWidth(image);
+        self->height        = CGImageGetHeight(image);
+        self->bytesPerPixel = 4;
+        self->bytesPerRow   = self->width * self->bytesPerPixel;
+        self->hasAlpha      = YES;
+
+        self->pixelData = (unsigned char*)malloc(self->bytesPerRow * self->height);
+        if(!self->pixelData)
+        {
+            return NO;
+        }
+
+        CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
+
+        // Draw into a raw RGBA buffer that maps directly onto our Pixel layout
+        CGContextRef ctx = CGBitmapContextCreate(
+            self->pixelData,
+            self->width, self->height,
+            8,                          // bits per component
+            self->bytesPerRow,        // bytes per row
+            colorSpace,
+            kCGImageAlphaPremultipliedLast   // RGBA byte order
+        );
+
+        CGColorSpaceRelease(colorSpace);
+
+        if (!ctx)
+        {
+            free(self->pixelData);
+            self->pixelData = NULL;
+            return NO;
+        }
+
+        CGContextDrawImage(ctx, CGRectMake(0, 0, self->width, self->height), image);
+        CGContextRelease(ctx);
+        
+        CGImageRelease(image);
+        return YES;
+    }
+
     BOOL imageloader_loadFromFile(struct ImageLoader* self, const char* filePath) {
         // Clear any existing data
         if (self->pixelData) {
@@ -10138,92 +10161,59 @@ extern "C" {
             self->pixelData = NULL;
         }
 
-        self->width         = kZeroWidth;
-        self->height        = kZeroHeight;
-        self->bytesPerPixel = kZeroBytes;
-        self->bytesPerRow   = kZeroRows;
-        self->hasAlpha      = NO;
+        CFStringRef pathStr = CFStringCreateWithCString(nullptr, filePath, kCFStringEncodingUTF8);
+        CFURLRef    url     = CFURLCreateWithFileSystemPath(nullptr, pathStr, kCFURLPOSIXPathStyle, false);
+        CFRelease(pathStr);
 
-        // Get required classes and selectors
-        Class NSStringClass           = objc_getClass(kNSStringClass);
-        Class NSImageClass            = objc_getClass(kNSImageClass);
-        Class NSBitmapImageRepClass   = objc_getClass(kNSBitmapImageRepClass);
+        if(!url)
+        {
+            printf("loadImageFromFile: bad path '%s'\n", filePath);
+            return NO;
+        }
 
-        SEL stringWithUTF8StringSel   = sel_registerName(kStringWithUTF8StringSel);
-        SEL allocSel                  = sel_registerName(kAllocSel);
-        SEL initWithContentsOfFileSel = sel_registerName(kInitWithContentsOfFileSel);
-        SEL representationsSel        = sel_registerName(kRepresentationsSel);
-        SEL countSel                  = sel_registerName(kCountSel);
-        SEL objectAtIndexSel          = sel_registerName(kObjectAtIndexSel);
+        CGImageSourceRef src = CGImageSourceCreateWithURL(url, nullptr);
+        CFRelease(url);
 
-        // Create NSString from file path
-        id pathString = ((id(*)(Class, SEL, const char*))objc_msgSend)(
-            NSStringClass, stringWithUTF8StringSel, filePath);
-        
-        if (!pathString) {
+        if(!src)
+        {
+            printf("loadImageFromFile: couldn't open '%s'\n", filePath);
             return NO;
         }
         
-        // Create NSImage from file
-        id image = ((id(*)(id, SEL, id))objc_msgSend)(
-                    ((id(*)(Class, SEL))objc_msgSend)(NSImageClass, allocSel),
-                    initWithContentsOfFileSel, pathString);
-        
-        if (!image) {
-            return NO;
-        }
-        
-        // Get image representations
-        id representations = ((id(*)(id, SEL))objc_msgSend)(image, representationsSel);
-        NSUInteger repCount = ((NSUInteger(*)(id, SEL))objc_msgSend)(representations, countSel);
-        
-        if (repCount == 0) {
-            return NO;
-        }
-        
-        // Get first bitmap representation
-        id bitmapRep = ((id(*)(id, SEL, NSUInteger))objc_msgSend)(representations, objectAtIndexSel, 0);
-        
-        // Check if it's a bitmap representation
-        if (!((BOOL(*)(id, SEL, Class))objc_msgSend)(bitmapRep, sel_registerName(kIsKindOfClassSel), NSBitmapImageRepClass)) {
-            return NO;
-        }
-        
-        // Extract image properties
-        SEL pixelsWideSel    = sel_registerName(kPixelsWideSel);
-        SEL pixelsHighSel    = sel_registerName(kPixelsHighSel);
-        SEL bitsPerPixelSel  = sel_registerName(kBitsPerPixelSel);
-        SEL bytesPerRowSel   = sel_registerName(kBytesPerRowSel);
-        SEL hasAlphaSel      = sel_registerName(kHasAlphaSel);
-        SEL bitmapDataSel    = sel_registerName(kBitmapDataSel);
-        
-        self->width          = (int)((NSInteger(*)(id, SEL))objc_msgSend)(bitmapRep, pixelsWideSel);
-        self->height         = (int)((NSInteger(*)(id, SEL))objc_msgSend)(bitmapRep, pixelsHighSel);
-        int bitsPerPixel     = (int)((NSInteger(*)(id, SEL))objc_msgSend)(bitmapRep, bitsPerPixelSel);
-        self->bytesPerRow    = (int)((NSInteger(*)(id, SEL))objc_msgSend)(bitmapRep, bytesPerRowSel);
-        self->hasAlpha       = (BOOL)((BOOL(*)(id, SEL))objc_msgSend)(bitmapRep, hasAlphaSel);
+        CGImageRef image = CGImageSourceCreateImageAtIndex(src, 0, nullptr);
+        CFRelease(src);
 
-        self->bytesPerPixel  = bitsPerPixel / kBitsPerByte;
+        return imageloader_decodeImage(self, image);
+    }
 
-        // Get raw bitmap data
-        unsigned char* sourceData = ((unsigned char*(*)(id, SEL))objc_msgSend)(bitmapRep, bitmapDataSel);
+    BOOL imageloader_loadFromMemory(struct ImageLoader* self, const uint8_t* data, size_t bytes) {
         
-        if (!sourceData || self->width <= kMinValidDimension || self->height <= kMinValidDimension) {
+        CFDataRef cfData = CFDataCreateWithBytesNoCopy(
+            nullptr,
+            reinterpret_cast<const UInt8*>(data),
+            (CFIndex)bytes,
+            kCFAllocatorNull          // we own the buffer, CF must not free it
+        );
+
+        if (!cfData)
+        {
+            printf("loadImageFromMemory: CFData creation failed\n");
             return NO;
         }
-        
-        // Allocate memory for pixel data
-        size_t totalBytes = self->height * self->bytesPerRow;
-        self->pixelData = (unsigned char*)malloc(totalBytes);
-        
-        if (!self->pixelData) {
+
+        CGImageSourceRef src = CGImageSourceCreateWithData(cfData, nullptr);
+        CFRelease(cfData);
+
+        if (!src)
+        {
+            printf("loadImageFromMemory: src creation failed\n");
             return NO;
         }
+
+        CGImageRef image = CGImageSourceCreateImageAtIndex(src, 0, nullptr);
+        CFRelease(src);        
         
-        // Copy pixel data
-        memcpy(self->pixelData, sourceData, totalBytes);
-        
-        return YES;
+        return imageloader_decodeImage(self, image);
     }
 
     // Get raw pixel data pointer
@@ -10301,6 +10291,7 @@ extern "C" {
         
         // Assign method pointers
         loader->loadFromFile        = imageloader_loadFromFile;
+        loader->loadFromMemory      = imageloader_loadFromMemory;
         loader->destroy             = imageloader_destroy;
         loader->getPixelData        = imageloader_getPixelData;
         loader->getImageInfo        = imageloader_getImageInfo;
@@ -18166,12 +18157,47 @@ namespace olc::imload
 
     bool ImageLoader_MacOS::CreateImageFromMemory(olc::Image& image, const uint8_t* data, const size_t bytes)
     {
-        return false;
+        if(!data) return false;
+
+        // Create macOS API wrapper image loader
+        olc::apis::macos::ImageLoader loader;
+        
+        if (!loader.loadFromMemory(data, bytes) || !loader.isLoaded()) {
+            return false; // Failed to load file
+        }
+        
+        // Get image dimensions and info
+        int width, height, bytesPerPixel;
+        loader.getImageInfo(width, height, bytesPerPixel);
+        
+        if (width <= 0 || height <= 0) {
+            return false; // Invalid dimensions
+        }
+        
+        // Get raw pixel data from the loader
+        unsigned char* pixelData = imageloader_getPixelData(loader.getCHandle());
+        if (!pixelData) {
+            return false; // Failed to get pixel data
+        }
+        
+        // Create our olc::Image
+        if (!image.Create({width, height})) {
+            return false; // Failed to create image
+        }
+        
+        // Clear and resize the pixel vector
+        image.GetPixels().clear();
+        image.GetPixels().resize(width * height);
+        
+        // The api_macos will provide RGBA format with 4 bytes per pixel
+        std::memcpy(image.GetPixels().data(), pixelData, width * height * 4);
+        
+        return true;
     }
 
     bool ImageLoader_MacOS::CreateImageFromMemory(olc::Image& image, const std::vector<uint8_t>& data)
     {
-        return false;
+        return CreateImageFromMemory(image, data.data(), data.size());
     }
 
     bool ImageLoader_MacOS::WriteImageToFile(const olc::Image& image, const std::string& sFileName)

@@ -24,6 +24,7 @@
 #include <OpenGL/gl.h>
 #include <OpenGL/OpenGL.h>
 #include <CoreGraphics/CoreGraphics.h>
+#include <ImageIO/ImageIO.h>
 
 extern "C" {
     // NSRect (OSX rectangle structure same as GCRect C structure)
@@ -88,6 +89,7 @@ extern "C" {
     // Image Loader API - as implemented in api_macos.c
     struct ImageLoader* imageloader_init        (void);
     BOOL imageloader_loadFromFile               (struct ImageLoader* self, const char* filePath);
+    BOOL imageloader_loadFromMemory             (struct ImageLoader* self, const uint8_t* data, size_t bytes);
     void imageloader_destroy                    (struct ImageLoader* self);
     unsigned char* imageloader_getPixelData     (const struct ImageLoader* self);
     void imageloader_getImageInfo               (const struct ImageLoader* self, int* width, int* height, int* bytesPerPixel);
