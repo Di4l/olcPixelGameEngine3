@@ -1913,6 +1913,7 @@ extern "C" {
         CGContextRelease(ctx);
         
         CGImageRelease(image);
+
         return YES;
     }
 

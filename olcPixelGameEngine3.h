@@ -10151,6 +10151,7 @@ extern "C" {
         CGContextRelease(ctx);
         
         CGImageRelease(image);
+
         return YES;
     }
 
@@ -18151,6 +18152,23 @@ namespace olc::imload
         // The api_macos will provide RGBA format with 4 bytes per pixel
         std::memcpy(image.GetPixels().data(), pixelData, width * height * 4);
         
+        // The CoreGraphics/ImageIO premultiplies, but PGE wants raw values.
+        for(auto &p : image.GetPixels())
+        {
+            if(p.a > 0)
+            {
+                p.r = (uint8_t)((p.r * 255) / p.a);
+                p.g = (uint8_t)((p.g * 255) / p.a);
+                p.b = (uint8_t)((p.b * 255) / p.a);
+            }
+            else
+            {
+                p.r = 0;
+                p.g = 0;
+                p.b = 0;
+            }
+        }
+
         return true;
 
     }
@@ -18191,6 +18209,23 @@ namespace olc::imload
         
         // The api_macos will provide RGBA format with 4 bytes per pixel
         std::memcpy(image.GetPixels().data(), pixelData, width * height * 4);
+        
+        // The CoreGraphics/ImageIO premultiplies, but PGE wants raw values.
+        for(auto &p : image.GetPixels())
+        {
+            if(p.a > 0)
+            {
+                p.r = (uint8_t)((p.r * 255) / p.a);
+                p.g = (uint8_t)((p.g * 255) / p.a);
+                p.b = (uint8_t)((p.b * 255) / p.a);
+            }
+            else
+            {
+                p.r = 0;
+                p.g = 0;
+                p.b = 0;
+            }
+        }
         
         return true;
     }
