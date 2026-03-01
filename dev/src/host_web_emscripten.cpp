@@ -218,6 +218,9 @@ namespace olc::host
         emscripten_set_resize_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, reinterpret_cast<void*>(cbData), 1, resize_callback);
         emscripten_set_fullscreenchange_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, reinterpret_cast<void*>(cbData), 1, fullscreen_change_callback);
 
+        // Visibility Change Callback
+        emscripten_set_visibilitychange_callback(reinterpret_cast<void *>(cbData), 1, visibility_callback);
+
         // trigger resize after a short pause
         emscripten_sleep(50);
         resize_callback(EMSCRIPTEN_EVENT_RESIZE, nullptr, reinterpret_cast<void*>(cbData));
@@ -568,6 +571,25 @@ namespace olc::host
         else if (eventType == EMSCRIPTEN_EVENT_FOCUS)
         {
             olc_OnFocus(pCallbackData->pWindow, true);
+        }
+
+        return 0;
+    }
+
+    EM_BOOL Host_Web_Emscripten::visibility_callback(int eventType, const EmscriptenVisibilityChangeEvent *visibilityChangeEvent, void *userData)
+    {
+        CallbackData *pCallbackData = reinterpret_cast<CallbackData *>(userData);
+
+        if (visibilityChangeEvent->hidden)
+        {
+            pCallbackData->pHost->timeHidden = std::chrono::steady_clock::now();
+            emscripten_pause_main_loop();
+        }
+        else
+        {
+            emscripten_resume_main_loop();
+            auto durationHidden = std::chrono::steady_clock::now() - pCallbackData->pHost->timeHidden;
+            pCallbackData->pHost->pPrimaryPGE->timeFrame2 += durationHidden;
         }
 
         return 0;

@@ -327,6 +327,9 @@ const FilledBatch& olc::Draw::FilledPolygon(FilledBatch& batch, const olc::Struc
 				buffPoints.data[i], buffPoints.data[i + 1], buffPoints.data[i + 2],
 				buffColours.data[i], buffColours.data[i + 1], buffColours.data[i + 2]);
 	}
+
+	default:
+		break;
 	}
 
 	return batch;
