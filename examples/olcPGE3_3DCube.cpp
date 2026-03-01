@@ -220,7 +220,7 @@ int main()
 	config.vScreenSize = { 256, 240 };
 	config.vPixelSize = { 4, 4 };
 	config.bAntiAliasMainScreen = false;
-	config.sAppName = "Example - 3D Stanity Cube";
+	config.sAppName = "Example - 3D Sanity Cube";
 
 	if (demo.Construct(config))
 	{
