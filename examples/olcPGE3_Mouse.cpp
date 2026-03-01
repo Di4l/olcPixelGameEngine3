@@ -51,12 +51,13 @@ public:
 		olc::vf2d mousePos = mouse.GetPosition().round();
 
         // Update scroll accumulator
-		scrollAcculator += mouse.GetWheel()  * fElapsedTime;
-		scrollAcculator *= 0.95f; // Friction/Decay
+		
+		scrollTracker = (mouse.GetWheel() < 0 || mouse.GetWheel() > 0) ? (float)mouse.GetWheel() : scrollTracker;
+		scrollTracker -= scrollTracker * 4.0f * fElapsedTime; // Friction/Decay
 		
 		olc::vi2d barSize{200, 20};
 		olc::vi2d barPosition = olc::vi2d{(ScreenSize().x / 2) - (barSize.x / 2), ScreenSize().y - (barSize.y + 10)};
-		DrawScrollIndicator(barPosition, barSize, scrollAcculator);
+		DrawScrollIndicator(barPosition, barSize, scrollTracker);
 
 		// Create particles on mouse buttons
         if(mouse.GetButton(0).bPressed) // Left click
@@ -79,7 +80,7 @@ public:
 		{
 			p.life -= fElapsedTime;
 			p.pos += p.vel * fElapsedTime;
-			p.vel *= 0.98f;  // Friction
+			p.vel -= (p.vel * 0.98f * fElapsedTime);  // Friction
 
 			// Little cosmetic fix to stop popping at the end of life
 			if (p.life < 0.0f) p.life = 0.0f;
@@ -178,7 +179,7 @@ public:
 	}
 private:
 	std::vector<Particle> vecParticles;
-	float scrollAcculator = 0.0f;
+	float scrollTracker = 0.0f;
 };
 
 // Main entry point for the application
@@ -190,7 +191,7 @@ int main()
 	// Create "screen" of 256x240 "pixels"
 	// with a pixel size of 4x4 actual screen pixels
 	PGEConfig config;
-	config.bVSync = true;
+	config.bVSync = false;
 	config.vPixelSize = { 4,4 };
 	config.vScreenSize = { 256,240 };
 

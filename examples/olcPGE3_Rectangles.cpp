@@ -23,10 +23,6 @@ public:
 
 	}
 
-protected:
-	// We accumulate total time for some animation
-	float fTotalTime = 0.0f;
-
 public:
 	// Called once at the start, so create things here
 	bool OnUserCreate() override
@@ -58,7 +54,7 @@ public:
 			olc::Colour::BLUE, olc::Colour::YELLOW);
 
 		// Draw a filled rectangle with a tint that pulses over time
-		fTotalTime += fElapsedTime;
+		float fTotalTime = TotalTimeElapsed();
 		olc::Pixel tint = olc::Pixel(
 			(uint8_t)((std::sin(fTotalTime) + 1.0f) * 127.5f),
 			(uint8_t)((std::sin(fTotalTime + 2.0f) + 1.0f) * 127.5f),

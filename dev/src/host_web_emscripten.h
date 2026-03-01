@@ -3,7 +3,9 @@
 
 //! START STDHEADER GLOBAL
 #include <atomic>
+#include <cstdlib>
 #include <cstdint>
+#include <string>
 #include <vector>
 #include <unordered_map>
 //! END STDHEADER
@@ -78,7 +80,7 @@ namespace olc::host
 		static bool olc_OnMouseButton(olc::Window* pWindow, const uint8_t nButton, const bool bPressed);
 		static bool olc_OnMouseMove(olc::Window* pWindow, const olc::vi2d& vMousePos);
 		static bool olc_OnMouseWheel(olc::Window* pWindow, const int32_t nScroll);
-		static bool olc_OnMouseFocus(olc::Window* pWindow, const bool bHasFocus);
+		static bool olc_OnFocus(olc::Window* pWindow, const bool bHasFocus);
 		
         // Set Keyboard Device State
         static bool olc_OnKeyPress(olc::Window* pWindow, const olc::Key key, const bool bPressed);
@@ -88,6 +90,9 @@ namespace olc::host
 		static bool olc_OnWindowSize(olc::Window* pWindow, const olc::vi2d& vWindowSize);
 		static bool olc_OnWindowClose(olc::Window* pWindow);
     
+    private: // Emscripten internal funcs
+        std::string getNavigatorLocale();
+
     public: // Callback data type
         struct CallbackData {
             Host_Web_Emscripten* pHost;
@@ -105,6 +110,7 @@ namespace olc::host
         // Map of system mouse buttons to olc mouse buttons
         std::unordered_map<int32_t, int32_t> mapMouseButtons;
         std::chrono::steady_clock::time_point timeHidden;
+        olc::KeyboardLayout keyboardLayout{OLC_DEFAULT_KEYBOARD_LAYOUT};
     };
     
     

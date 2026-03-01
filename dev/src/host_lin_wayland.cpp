@@ -696,7 +696,7 @@ namespace olc::host
         }
         
         auto* pge_window = mapUID2OlcWindow[active_window_id];
-        pge_window->olc_OnMouseFocus(true);
+        pge_window->olc_OnFocus(true);
     }
 
     void Host_Linux_Wayland::keyboard_leave_callback(void* data, wl_keyboard* keyboard, uint32_t serial, wl_surface* surface)
@@ -708,7 +708,7 @@ namespace olc::host
     void Host_Linux_Wayland::keyboard_leave(wl_keyboard* keyboard, uint32_t serial, wl_surface* surface)
     {
         auto* pge_window = mapUID2OlcWindow[active_window_id];
-        pge_window->olc_OnMouseFocus(false);
+        pge_window->olc_OnFocus(false);
     }
 
     void Host_Linux_Wayland::keyboard_key_callback(void* data, wl_keyboard* keyboard, uint32_t serial, uint32_t time, uint32_t key, uint32_t state)

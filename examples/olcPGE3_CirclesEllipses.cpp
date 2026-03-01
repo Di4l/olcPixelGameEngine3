@@ -24,9 +24,6 @@ public:
 	}
 
 protected:
-	// We accumulate total time for some animation
-	float fTotalTime = 0.0f;
-
 	std::vector<olc::vf2d> vecBubblePos;
 	std::vector<olc::vf2d> vecBubbleVel;
 	std::vector<olc::Pixel> vecBubbleCol;
