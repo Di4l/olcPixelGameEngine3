@@ -370,6 +370,7 @@ protected:
 
     std::vector<Fish> others;
     std::vector<olc::vf2d> targets;
+    bool fullscreen = false;
 public:
 	// Called once at the start, so create things here
 	bool OnUserCreate() override
@@ -388,6 +389,11 @@ public:
 	bool OnUserUpdate(float fElapsedTime) override
 	{
         olc::Pixel background_color{73, 220, 222};
+        if(GetKeyboard().GetKey(olc::Key::ALT).bHeld && GetKeyboard().GetKey(olc::Key::ENTER).bPressed) {
+            fullscreen = !fullscreen;
+            ShowFullScreen(fullscreen);
+        }
+
         // Clear screen to a background color
 		draw.Clear(background_color);
 

@@ -43,6 +43,8 @@ namespace olc::host
         int32_t bounds_x{0};
         int32_t bounds_y{0};
         bool cursor_visible{true};
+        // Ignore window size bounds for fullscreen events
+        bool fullscreen{false};
     };
 
     namespace wayland {
@@ -120,6 +122,7 @@ namespace olc::host
         bool SyncWithDesktopComposite() override;
         bool SetMousePosition(olc::Window* pWindow, const olc::vi2d& vPos) override;
         bool SetMouseVisible(olc::Window* pWindow, const bool bVisible) override;
+        bool SetFullScreen(olc::Window* pWindow, const bool bFullScreen) override;
 
     public:
         bool OnApplicationStart(olc::PixelGameEngine* pPrimary) override;
