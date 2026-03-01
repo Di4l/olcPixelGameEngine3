@@ -5811,6 +5811,9 @@ namespace olc::host
 		static bool olc_OnWindowSize(olc::Window* pWindow, const olc::vi2d& vWindowSize);
 		static bool olc_OnWindowClose(olc::Window* pWindow);
     
+    private: // Emscripten internal funcs
+        std::string getNavigatorLocale();
+
     public: // Callback data type
         struct CallbackData {
             Host_Web_Emscripten* pHost;
@@ -5827,6 +5830,7 @@ namespace olc::host
         std::unordered_map<int32_t, olc::Key> mapKeys;
         // Map of system mouse buttons to olc mouse buttons
         std::unordered_map<int32_t, int32_t> mapMouseButtons;
+        olc::KeyboardLayout keyboardLayout{OLC_DEFAULT_KEYBOARD_LAYOUT};
     };
     
     
@@ -6814,7 +6818,6 @@ namespace olc::host
 	// Make OS Update a window frame title, associated with olc::Window
 	bool Host_None::UpdateWindowFrameTitle(olc::Window* pWindow)
 	{
-		std::cout << pWindow->GetWindowTitle() << "\n";
 		return true;
 	}
 
@@ -11851,44 +11854,42 @@ namespace olc::host
     Host_Web_Emscripten::Host_Web_Emscripten()
     {
         std::cout << "Emscripten: host constructed.\n";
+        std::string locale = getNavigatorLocale();
+        std::transform(locale.begin(), locale.end(), locale.begin(), [](unsigned char c) { return std::tolower(c); });
         
-        // Detect and Store Keyboard Layout
-        EM_ASM({
-            if (!navigator.keyboard || !navigator.keyboard.getLayoutMap)
-                return;
-
-            navigator.keyboard.getLayoutMap().then(function(map)
-            {
-                const keys = [map.get("KeyQ"), map.get("KeyW"), map.get("KeyE"), map.get("KeyR"), map.get("KeyT"), map.get("KeyY"), map.get("Backslash")];
-                
-                // QWERTY - UK/US
-                if(keys[0] == 'q' && keys[1] == 'w' && keys[2] == 'e' && keys[3] == 'r' && keys[4] == 't' && keys[5] == 'y') {
-                    if(keys[6] == '#' || keys[6] == '~')
-                    {
-                        Module.keyboardLayout = 0;
-                        return;
-                    }
-                    else
-                    {
-                        Module.keyboardLayout = 1;
-                        return;
-                    }
-                }
-
-                // QWERTZ - DE
-                if(keys[0] == 'q' && keys[1] == 'w' && keys[2] == 'e' && keys[3] == 'r' && keys[4] == 't' && keys[5] == 'z') {
-                    Module.keyboardLayout = 2; 
-                    return;
-                }
-                
-                // AZERTY - FR
-                if(keys[0] == 'q' && keys[1] == 'w' && keys[2] == 'e' && keys[3] == 'r' && keys[4] == 't' && keys[5] == 'z') {
-                    Module.keyboardLayout = 3;
-                    return;
-                }
-                
-            });
-        });
+        size_t sep = locale.find('-');
+        std::string lang = locale.substr(0, sep);
+        std::string region = (sep != std::string::npos) ? locale.substr(sep + 1) : "";
+        
+        if(region == "ch" || region == "li")
+        {
+            keyboardLayout = KeyboardLayout::QWERTZ;
+        }
+        else if(locale == "fr-ca")
+        {
+            keyboardLayout = KeyboardLayout::QWERTY_US;
+        }
+        else if(lang == "fr")
+        {
+            keyboardLayout = KeyboardLayout::AZERTY;
+        }
+        else if (
+            lang == "de" || lang == "cs" || lang == "sk" ||
+            lang == "hu" || lang == "hr" || lang == "bs" ||
+            lang == "sl")
+        {
+            keyboardLayout = KeyboardLayout::QWERTZ;
+        }
+        else if(
+            region == "gb" || region == "ie" || region == "za" ||
+            region == "au" || region == "nz" || region == "in")
+        {
+            keyboardLayout = KeyboardLayout::QWERTY_UK;
+        }
+        else
+        {
+            keyboardLayout = KeyboardLayout::QWERTY_US;
+        }
 
         // Map Emscripten Defined DOM_PK_ Codes to olc::KeyCodes
         mapKeys[DOM_PK_UNKNOWN] = Key::NONE;
@@ -12130,7 +12131,7 @@ namespace olc::host
 
     olc::KeyboardLayout Host_Web_Emscripten::GetKeyboardLayout() const
 	{
-		return static_cast<olc::KeyboardLayout>(EM_ASM_INT({ return Module.keyboardLayout || 0; }));
+		return keyboardLayout;
     }
 
     // Called at very start of application
@@ -12454,6 +12455,20 @@ namespace olc::host
     bool Host_Web_Emscripten::olc_OnWindowClose(olc::Window* pWindow)
     {
         return pWindow->olc_OnWindowClose();
+    }
+
+    std::string Host_Web_Emscripten::getNavigatorLocale()
+    {
+        char* raw = (char*)EM_ASM_PTR({
+            var lang = window.navigator.language || "en-US";
+            var len = lengthBytesUTF8(lang) + 1;
+            var buf = _malloc(len);
+            stringToUTF8(lang, buf, len);
+            return buf;
+        });
+        std::string result(raw);
+        free(raw);
+        return result;
     }
 }
 #endif
