@@ -3678,7 +3678,7 @@ namespace olc
 		virtual bool olc_OnMouseButton(const uint8_t nButton, const bool bPressed);
 		virtual bool olc_OnMouseMove(const olc::vi2d& vMousePos);
 		virtual bool olc_OnMouseWheel(const int32_t nScroll);
-		virtual bool olc_OnMouseFocus(const bool bHasFocus);
+		virtual bool olc_OnFocus(const bool bHasFocus);
 		
 		// Set Window State
 		virtual bool olc_OnWindowPosition(const olc::vi2d& vPos);
@@ -3712,9 +3712,13 @@ namespace olc
 		// Show or hide mouse cursor
 		void ShowMouseCursor(const bool bShow);
 
+		// Focus
+		bool IsFocused() const;
+
 	protected:
 		bool bRequestToClose = false;
 		bool bShouldRemove = false;
+		bool bWindowIsFocused = false;
 
 	protected:
 		size_t nUniqueID = size_t(-1);
@@ -5801,7 +5805,7 @@ namespace olc::host
 		static bool olc_OnMouseButton(olc::Window* pWindow, const uint8_t nButton, const bool bPressed);
 		static bool olc_OnMouseMove(olc::Window* pWindow, const olc::vi2d& vMousePos);
 		static bool olc_OnMouseWheel(olc::Window* pWindow, const int32_t nScroll);
-		static bool olc_OnMouseFocus(olc::Window* pWindow, const bool bHasFocus);
+		static bool olc_OnFocus(olc::Window* pWindow, const bool bHasFocus);
 		
         // Set Keyboard Device State
         static bool olc_OnKeyPress(olc::Window* pWindow, const olc::Key key, const bool bPressed);
@@ -7235,6 +7239,8 @@ namespace olc::host
 		lp = GetWindowLongPtr(hWnd, GWL_EXSTYLE);
 		SetWindowLongPtr(hWnd, GWL_EXSTYLE, lp | (WS_EX_WINDOWEDGE));
 
+		pWindow->olc_OnFocus(true);
+
 		//SetWindowPos(hWnd, NULL, vWinPos.x, vWinPos.y, width, height, SWP_SHOWWINDOW);
 		//ShowWindow(hWnd, 1);
 		//UpdateWindow(hWnd);
@@ -7245,7 +7251,6 @@ namespace olc::host
 		// modern systems. This is awkward because we havent yet associated the
 		// source window with a long_ptr to this class, and therefore we can't
 		// call the appropriate event handler.
-
 
 		// Store the link bewteen host resource and window
 		mapUID2HWND.insert_or_assign(pWindow->GetUID(), hWnd);
@@ -7347,12 +7352,34 @@ namespace olc::host
 				window->olc_OnMouseWheel(GET_WHEEL_DELTA_WPARAM(wParam));
 				break;
 			}
-			//		case WM_MOUSELEAVE: ptrPGE->olc_UpdateMouseFocus(false);                                    return 0;
-			//		case WM_SETFOCUS:	ptrPGE->olc_UpdateKeyFocus(true);                                       return 0;
-			//		case WM_KILLFOCUS:	ptrPGE->olc_UpdateKeyFocus(false);                                      return 0;
+
+		case WM_ACTIVATE:
+			{
+				window->olc_OnFocus((LOWORD(wParam) != WA_INACTIVE));
+				return 0;
+			}
+
+    	case WM_MOUSEACTIVATE:
+			{
+				window->olc_OnFocus(true);
+				return MA_ACTIVATE;
+			}
+        
+		case WM_SETFOCUS:
+			{
+				window->olc_OnFocus(true);
+				return 0;
+			}
+
+		case WM_KILLFOCUS:
+			{
+				window->olc_OnFocus(false);
+				return 0;
+			}
 
 		case WM_KEYDOWN:
 			{
+				window->olc_OnFocus(true);
 				if (mapKeys.contains(int32_t(wParam)))
 				{
 					window->olc_OnKeyPress(mapKeys[int32_t(wParam)], true);
@@ -8013,13 +8040,13 @@ namespace olc::host {
                 case DEMINIMIZE_WINDOW:
                 case BECOME_ACTIVE:
                 {
-                    pPGEwindow->olc_OnMouseFocus(true);
+                    pPGEwindow->olc_OnFocus(true);
                     break;
                 }
                 case MINIMIZE_WINDOW:
                 case RESIGN_ACTIVE:
                 {
-                    pPGEwindow->olc_OnMouseFocus(false);
+                    pPGEwindow->olc_OnFocus(false);
                     break;
                 }
                 case NONE:
@@ -10766,13 +10793,13 @@ namespace olc::host
                 {
                 	
                     if(auto* pge_window = get_pge_window(xev.xfocus.window); pge_window) {
-                        pge_window->olc_OnMouseFocus(true);
+                        pge_window->olc_OnFocus(true);
                     }
                 }
                 else if (xev.type == FocusOut)
                 {
                 	if(auto* pge_window = get_pge_window(xev.xfocus.window); pge_window) {
-                        pge_window->olc_OnMouseFocus(false);
+                        pge_window->olc_OnFocus(false);
                     }
                 }
                 else if (xev.type == ClientMessage)
@@ -11702,7 +11729,7 @@ namespace olc::host
         }
         
         auto* pge_window = mapUID2OlcWindow[active_window_id];
-        pge_window->olc_OnMouseFocus(true);
+        pge_window->olc_OnFocus(true);
     }
 
     void Host_Linux_Wayland::keyboard_leave_callback(void* data, wl_keyboard* keyboard, uint32_t serial, wl_surface* surface)
@@ -11714,7 +11741,7 @@ namespace olc::host
     void Host_Linux_Wayland::keyboard_leave(wl_keyboard* keyboard, uint32_t serial, wl_surface* surface)
     {
         auto* pge_window = mapUID2OlcWindow[active_window_id];
-        pge_window->olc_OnMouseFocus(false);
+        pge_window->olc_OnFocus(false);
     }
 
     void Host_Linux_Wayland::keyboard_key_callback(void* data, wl_keyboard* keyboard, uint32_t serial, uint32_t time, uint32_t key, uint32_t state)
@@ -12407,11 +12434,11 @@ namespace olc::host
  
         if (eventType == EMSCRIPTEN_EVENT_BLUR)
         {
-            olc_OnMouseFocus(pCallbackData->pWindow, false);
+            olc_OnFocus(pCallbackData->pWindow, false);
         }
         else if (eventType == EMSCRIPTEN_EVENT_FOCUS)
         {
-            olc_OnMouseFocus(pCallbackData->pWindow, true);
+            olc_OnFocus(pCallbackData->pWindow, true);
         }
 
         return 0;
@@ -12432,9 +12459,9 @@ namespace olc::host
         return pWindow->olc_OnMouseWheel(nScroll);
     }
 
-    bool Host_Web_Emscripten::olc_OnMouseFocus(olc::Window* pWindow, const bool bHasFocus)
+    bool Host_Web_Emscripten::olc_OnFocus(olc::Window* pWindow, const bool bHasFocus)
     {
-        return pWindow->olc_OnMouseFocus(bHasFocus);
+        return pWindow->olc_OnFocus(bHasFocus);
     }
 
     bool Host_Web_Emscripten::olc_OnKeyPress(olc::Window* pWindow, const olc::Key key, const bool bPressed)
@@ -17906,9 +17933,9 @@ namespace olc
 		return true;
 	}
 
-	bool Window::olc_OnMouseFocus(const bool bHasFocus)
+	bool Window::olc_OnFocus(const bool bHasFocus)
 	{
-		olc_IgnoreUnused(bHasFocus);
+		bWindowIsFocused = bHasFocus;
 		return false;
 	}
 
@@ -17992,6 +18019,11 @@ namespace olc
 	void Window::ShowMouseCursor(const bool bShow)
 	{
 		pHost->SetMouseVisible(this, bShow);
+	}
+
+	bool Window::IsFocused() const
+	{
+		return bWindowIsFocused;
 	}
 
 };

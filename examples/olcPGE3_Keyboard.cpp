@@ -39,6 +39,14 @@ public:
 	// Called every frame, so update things here
 	bool OnUserUpdate(float fElapsedTime) override
 	{
+		if(!IsFocused())
+		{
+			// Clear whole screen
+			draw.Clear(olc::Colour::VERY_DARK_RED);
+			draw.String((ScreenSize() / 2) - (draw.GetTextSize("Not Focused") / 2), "Not Focused");
+			return true;
+		}
+		
 		auto metrics = draw.GetDrawMetrics();
 		draw.ResetDrawMetrics();
 

@@ -322,6 +322,8 @@ namespace olc::host
 		lp = GetWindowLongPtr(hWnd, GWL_EXSTYLE);
 		SetWindowLongPtr(hWnd, GWL_EXSTYLE, lp | (WS_EX_WINDOWEDGE));
 
+		pWindow->olc_OnFocus(true);
+
 		//SetWindowPos(hWnd, NULL, vWinPos.x, vWinPos.y, width, height, SWP_SHOWWINDOW);
 		//ShowWindow(hWnd, 1);
 		//UpdateWindow(hWnd);
@@ -332,7 +334,6 @@ namespace olc::host
 		// modern systems. This is awkward because we havent yet associated the
 		// source window with a long_ptr to this class, and therefore we can't
 		// call the appropriate event handler.
-
 
 		// Store the link bewteen host resource and window
 		mapUID2HWND.insert_or_assign(pWindow->GetUID(), hWnd);
@@ -434,12 +435,34 @@ namespace olc::host
 				window->olc_OnMouseWheel(GET_WHEEL_DELTA_WPARAM(wParam));
 				break;
 			}
-			//		case WM_MOUSELEAVE: ptrPGE->olc_UpdateMouseFocus(false);                                    return 0;
-			//		case WM_SETFOCUS:	ptrPGE->olc_UpdateKeyFocus(true);                                       return 0;
-			//		case WM_KILLFOCUS:	ptrPGE->olc_UpdateKeyFocus(false);                                      return 0;
+
+		case WM_ACTIVATE:
+			{
+				window->olc_OnFocus((LOWORD(wParam) != WA_INACTIVE));
+				return 0;
+			}
+
+    	case WM_MOUSEACTIVATE:
+			{
+				window->olc_OnFocus(true);
+				return MA_ACTIVATE;
+			}
+        
+		case WM_SETFOCUS:
+			{
+				window->olc_OnFocus(true);
+				return 0;
+			}
+
+		case WM_KILLFOCUS:
+			{
+				window->olc_OnFocus(false);
+				return 0;
+			}
 
 		case WM_KEYDOWN:
 			{
+				window->olc_OnFocus(true);
 				if (mapKeys.contains(int32_t(wParam)))
 				{
 					window->olc_OnKeyPress(mapKeys[int32_t(wParam)], true);
