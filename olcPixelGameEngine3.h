@@ -118,6 +118,7 @@
 #include <concepts>
 #include <array>
 #include <vector>
+#include <stack>
 #include <memory>
 #include <optional>
 #include <deque>
@@ -1349,6 +1350,14 @@ namespace olc
 			me(2, 2) = 1;			
 		}
 
+		// Create instant identity matrix
+		static inline constexpr auto identity_matrix()
+		{
+			m_3d out;
+			out.identity();
+			return out;
+		}
+
 		inline constexpr std::array<T, 16> m4x4()
 		{
 			auto& me = (*this);
@@ -1377,6 +1386,15 @@ namespace olc
 			translate(v.x, v.y);
 		}
 
+		// Create instant translation matrix
+		template<typename Q>
+		static inline constexpr auto translation(const olc::v_2d<Q>& v)
+		{
+			m_3d out;
+			out.translate(v.x, v.y);
+			return out;
+		}
+
 		// Create scaling matrix via components
 		template<typename Q>
 		inline constexpr void scale(const Q x, const Q y)
@@ -1394,6 +1412,15 @@ namespace olc
 			scale(v.x, v.y);
 		}
 
+		// Create instant scaling matrix
+		template<typename Q>
+		static inline constexpr auto scaling(const olc::v_2d<Q>& v)
+		{
+			m_3d out;
+			out.scale(v.x, v.y);
+			return out;
+		}
+
 		// Create rotation matrix with radians
 		template<typename Q>
 		inline constexpr void rotate(const Q rads)
@@ -1404,6 +1431,15 @@ namespace olc
 			me(0, 1) = std::sin(rads);
 			me(1, 0) = -me(0, 1);
 			me(1, 1) = me(0, 0);
+		}
+
+		// Create instant rotation matrix with radians
+		template<typename Q>
+		static inline constexpr auto rotation(const Q rads)
+		{
+			m_3d out;
+			out.rotate(rads);
+			return out;
 		}
 
 		// Create shearing matrix via components
@@ -1423,6 +1459,40 @@ namespace olc
 			shear(v.x, v.y);
 		}
 
+		// Create instant shearing matrix
+		template<typename Q>
+		static inline constexpr auto shearing(const olc::v_2d<Q>& v)
+		{
+			m_3d out;
+			out.shear(v.x, v.y);
+			return out;
+		}
+
+
+		// Return inverted matrix
+		//inline constexpr auto invert() const
+		//{
+		//	// https://stackoverflow.com/a/18504573
+		//	olc::m_3d<T> out;
+		//	auto& me = (*this);
+
+		//	T det = me(0, 0) * (me(1, 1) * me(2, 2) - me(2, 1) * me(1, 2)) -
+		//		me(0, 1) * (me(1, 0) * me(2, 2) - me(1, 2) * me(2, 0)) +
+		//		me(0, 2) * (me(1, 0) * me(2, 1) - me(1, 1) * me(2, 0));
+
+		//	T invdet = T(1) / det;
+
+		//	out(0, 0) = (me(1, 1) * me(2, 2) - me(2, 1) * me(1, 2)) * invdet;
+		//	out(0, 1) = (me(0, 2) * me(2, 1) - me(0, 1) * me(2, 2)) * invdet;
+		//	out(0, 2) = (me(0, 1) * me(1, 2) - me(0, 2) * me(1, 1)) * invdet;
+		//	out(1, 0) = (me(1, 2) * me(2, 0) - me(1, 0) * me(2, 2)) * invdet;
+		//	out(1, 1) = (me(0, 0) * me(2, 2) - me(0, 2) * me(2, 0)) * invdet;
+		//	out(1, 2) = (me(1, 0) * me(0, 2) - me(0, 0) * me(1, 2)) * invdet;
+		//	out(2, 0) = (me(1, 0) * me(2, 1) - me(2, 0) * me(1, 1)) * invdet;
+		//	out(2, 1) = (me(2, 0) * me(0, 1) - me(0, 0) * me(2, 1)) * invdet;
+		//	out(2, 2) = (me(0, 0) * me(1, 1) - me(1, 0) * me(0, 1)) * invdet;
+		//	return out;
+		//}
 
 		// Return inverted matrix
 		inline constexpr auto invert() const
@@ -1432,8 +1502,8 @@ namespace olc
 			auto& me = (*this);
 
 			T det = me(0, 0) * (me(1, 1) * me(2, 2) - me(2, 1) * me(1, 2)) -
-				me(0, 1) * (me(1, 0) * me(2, 2) - me(1, 2) * me(2, 0)) +
-				me(0, 2) * (me(1, 0) * me(2, 1) - me(1, 1) * me(2, 0));
+				    me(0, 1) * (me(1, 0) * me(2, 2) - me(1, 2) * me(2, 0)) +
+				    me(0, 2) * (me(1, 0) * me(2, 1) - me(1, 1) * me(2, 0));
 
 			T invdet = T(1) / det;
 
@@ -1469,7 +1539,7 @@ namespace olc
 			olc::m_3d<T> out;
 			for (size_t c = 0; c < 3; c++)
 				for (size_t r = 0; r < 3; r++)
-					out(r, c) = me(r, 0) * rhs(0, c) + me(r, 1) * rhs(1, c) + me(r, 2) * rhs(2, c);
+					out(c, r) = me(0, r) * rhs(c, 0) + me(1, r) * rhs(c, 1) + me(2, r) * rhs(c, 2);
 			return out;
 		}
 
@@ -1886,7 +1956,10 @@ namespace olc
 
 	public:
 		// Constructor
-		inline constexpr t_2d() = default;
+		inline constexpr t_2d()
+		{
+			identity();
+		}
 
 		// Copy constructor
 		inline constexpr t_2d(const t_2d& t) = default;
@@ -1894,17 +1967,27 @@ namespace olc
 		// Assignment operator
 		inline constexpr t_2d& operator=(const t_2d& t) = default;
 
+		inline constexpr void identity()
+		{
+			// Clear stacks and reset to identity			
+			m_stackForward = std::stack<olc::m_3d<T>>();
+			m_stackInverse = std::stack<olc::m_3d<T>>();
+			
+			m_stackForward.push(olc::m_3d<T>::identity_matrix());
+			m_stackInverse.push(olc::m_3d<T>::identity_matrix());
+		}
+
 		// Transform a vector by this transform
 		template<typename Q>
 		inline constexpr auto forward(const olc::v_2d<Q>& v) const
 		{
-			return m_mForward * v;
+			return m_stackForward.top() * v;
 		}
 
 		template<typename Q>
 		inline constexpr auto forwardRound(const olc::v_2d<Q>& v) const
 		{
-			return (m_mForward * v).round();
+			return (m_stackForward.top() * v).round();
 		}
 
 		// Transform a vector of v_2d by this transform
@@ -1912,7 +1995,7 @@ namespace olc
 		inline constexpr auto forward(const std::vector<olc::v_2d<Q>>& v) const
 		{
 			std::vector<olc::v_2d<Q>> o(v.size());
-			std::transform(v.begin(), v.end(), o.begin(), [this](const olc::v_2d<Q>& i) {return m_mForward * i; });
+			std::transform(v.begin(), v.end(), o.begin(), [this](const olc::v_2d<Q>& i) {return m_stackForward.top() * i; });
 			return o;
 		}
 
@@ -1920,7 +2003,7 @@ namespace olc
 		inline constexpr auto forwardRound(const std::vector<olc::v_2d<Q>>& v) const
 		{
 			std::vector<olc::v_2d<Q>> o(v.size());
-			std::transform(v.begin(), v.end(), o.begin(), [this](const olc::v_2d<Q>& i) {return (m_mForward * i).round(); });
+			std::transform(v.begin(), v.end(), o.begin(), [this](const olc::v_2d<Q>& i) {return (m_stackForward.top() * i).round(); });
 			return o;
 		}
 
@@ -1928,14 +2011,14 @@ namespace olc
 		template<typename Q>
 		inline constexpr auto forwardX(std::vector<olc::v_2d<Q>>&& v) const
 		{
-			std::transform(v.begin(), v.end(), v.begin(), [this](const olc::v_2d<Q>& i) {return (m_mForward * i); });
+			std::transform(v.begin(), v.end(), v.begin(), [this](const olc::v_2d<Q>& i) {return (m_stackForward.top() * i); });
 			return v;
 		}
 
 		template<typename Q>
 		inline constexpr auto forwardRoundX(std::vector<olc::v_2d<Q>>&& v) const
 		{
-			std::transform(v.begin(), v.end(), v.begin(), [this](const olc::v_2d<Q>& i) {return (m_mForward * i).round(); });
+			std::transform(v.begin(), v.end(), v.begin(), [this](const olc::v_2d<Q>& i) {return (m_stackForward.top() * i).round(); });
 			return v;
 		}
 
@@ -1943,7 +2026,7 @@ namespace olc
 		template<typename Q>
 		inline constexpr auto inverse(const olc::v_2d<Q>& v) const
 		{
-			return m_mInverse * v;
+			return m_stackInverse.top() * v;
 		}
 
 		// Transform a vector by this transform
@@ -1951,7 +2034,7 @@ namespace olc
 		inline constexpr auto inverse(const std::vector<olc::v_2d<Q>>& v) const
 		{
 			std::vector<olc::v_2d<Q>> o(v.size());
-			std::transform(v.begin(), v.end(), o.begin(), [this](const olc::v_2d<Q>& i) {return m_mInverse * i; });
+			std::transform(v.begin(), v.end(), o.begin(), [this](const olc::v_2d<Q>& i) {return m_stackInverse.top() * i; });
 			return o;
 		}
 
@@ -1959,7 +2042,7 @@ namespace olc
 		template<typename Q>
 		inline constexpr auto inverseX(std::vector<olc::v_2d<Q>>&& v) const
 		{
-			std::transform(v.begin(), v.end(), v.begin(), [this](const olc::v_2d<Q>& i) {return m_mInverse * i; });
+			std::transform(v.begin(), v.end(), v.begin(), [this](const olc::v_2d<Q>& i) {return m_stackInverse.top() * i; });
 			return v;
 		}
 
@@ -1968,104 +2051,73 @@ namespace olc
 		template<typename Q>
 		inline constexpr void scale(const olc::v_2d<Q>& v)
 		{
-			m_vScale = v;
-			m_mScale.scale(m_vScale);
-			update();
+			m_stackForward.push(m_stackForward.top() * olc::m_3d<T>::scaling(v));
+			m_stackInverse.push(m_stackForward.top().invert());
 		}
 
 		// Get scaling component of this transformation
-		inline constexpr const auto& scale() const
+		inline constexpr const auto scale() const
 		{
-			return m_vScale;
+			const auto& mat = m_stackForward.top();
+			return olc::v_2d<T>
+			{
+				T(olc::internal::sgn(mat(0, 0)) * std::hypot(mat(0, 0), mat(1, 0))),
+				T(olc::internal::sgn(mat(1, 1)) * std::hypot(mat(0, 1), mat(1, 1)))
+			};
 		}
 
 		// Set translation component of this transformation
 		template<typename Q>
 		inline constexpr void translate(const olc::v_2d<Q>& v)
 		{
-			m_vTranslate = v;
-			m_mTranslate.translate(m_vTranslate);
-			update();
+			m_stackForward.push(m_stackForward.top() * olc::m_3d<T>::translation(v));
+			m_stackInverse.push(m_stackForward.top().invert());
 		}
 
 		// Get translation component of this transformation
-		inline constexpr const auto& translate() const
+		inline constexpr const auto translation() const
 		{
-			return m_vTranslate;
+			const auto& mat = m_stackForward.top();
+			return olc::v_2d<T>
+			{
+				T(mat(2, 0)),
+				T(mat(2, 1))
+			};
 		}
 
 		// Set translation component of this transformation
 		template<typename Q>
 		inline constexpr void rotate(const Q& v, const olc::v_2d<T>& p = { 0,0 })
 		{
-			m_dTheta = T(v);
-			m_vRotatePoint = p;
-			m_3d<T> matTrans1;
-			matTrans1.translate(-m_vRotatePoint);
-			m_3d<T> matTrans2;
-			matTrans2.translate(m_vRotatePoint);
-			m_3d<T> matRotate;
-			matRotate.rotate(m_dTheta);
-			m_mRotate = matTrans1 * matRotate * matTrans2;
-			update();
+			m_stackForward.push(m_stackForward.top() * (olc::m_3d<T>::translation(-p) * olc::m_3d<T>::rotation(v) * olc::m_3d<T>::translation(p)));
+			m_stackInverse.push(m_stackForward.top().invert());
 		}
 
 		// Get translation component of this transformation
-		inline constexpr const auto& rotate() const
+		inline constexpr const auto rotation() const
 		{
-			return m_dTheta;
+			const auto& mat = m_stackForward.top();
+			return T(std::atan2(mat(0, 1), mat(1, 1)));
 		}
 
 		// Set shear component of this transformation
 		template<typename Q>
 		inline constexpr void shear(const olc::v_2d<Q>& v)
 		{
-			m_vShear = v;
-			m_mShear.shear(m_vShear);
-			update();
-		}
-
-		// Get shear component of this transformation
-		inline constexpr const auto& shear() const
-		{
-			return m_vShear;
+			m_stackForward.push(m_stackForward.top() * olc::m_3d<T>::shearing(v));
+			m_stackInverse.push(m_stackForward.top().invert());
 		}
 
 		// Get forward transformation matrix
 		inline constexpr const auto& forward_matrix() const
 		{
-			return m_mForward;
+			return m_stackForward.top();
 		}
 
 		// Get inverse transformation matrix
 		inline constexpr const auto& inverse_matrix() const
 		{
-			return m_mInverse;
-		}
-
-		// Construct transform from an existing transformation matrix
-		template<typename Q>
-		inline constexpr void from_matrix(const olc::m_3d<Q>& mat)
-		{
-			// https://math.stackexchange.com/a/13165
-			m_vTranslate =
-			{
-				T(mat(2, 0)),
-				T(mat(2, 1))
-			};
-
-			m_vScale =
-			{
-				T(olc::internal::sgn(mat(0, 0)) * std::hypot(mat(0, 0), mat(1, 0))),
-				T(olc::internal::sgn(mat(1, 1)) * std::hypot(mat(0, 1), mat(1, 1)))
-			};
-
-			m_dTheta = T(std::atan2(mat(0, 1), mat(1, 1)));
-
-			m_mTranslate.translate(m_vTranslate);
-			m_mScale.scale(m_vScale);
-			m_mRotate.rotate(m_dTheta);
-			update();
+			return m_stackInverse.top();
 		}
 
 		template<typename Q>
@@ -2075,27 +2127,49 @@ namespace olc
 			return me.forward_matrix() * rhs.forward_matrix();			
 		}
 
-	protected:
-		// Constructs resultant matrices when transformation changes
-		inline constexpr void update()
+		// Push a new transform onto the stack, multiplying it with the 
+		// current transform (arbitrary affine matrix)
+		template<typename Q>
+		inline constexpr auto push(const olc::m_3d<Q>& m)
 		{
-			m_mForward = m_mScale * m_mRotate * m_mShear * m_mTranslate;
-			m_mInverse = m_mForward.invert();
+			m_stackForward.push(m_stackForward.top() * m);
+			m_stackInverse.push(m_stackForward.top().invert());
+
+		}
+
+		// Pop the last transform off the stack, reverting to the 
+		// previous transform
+		inline constexpr auto pop()
+		{
+			if (!m_stackForward.empty())
+			{
+				m_stackForward.pop();
+				m_stackInverse.pop();
+
+				if (m_stackForward.empty())
+					identity();
+			}
+		}
+
+		// Condense the transform stack into a single matrix, leaving
+		// the current transformation intact but removing all history
+		inline constexpr void squash()
+		{
+			if (m_stackForward.size() > 1)
+			{
+				auto top = m_stackForward.top();
+				m_stackForward = std::stack<olc::m_3d<T>>();
+				m_stackInverse = std::stack<olc::m_3d<T>>();
+				m_stackForward.push(top);
+				m_stackInverse.push(top.invert());
+			}
 		}
 
 	protected:
-		T            m_dTheta = 0;
-		olc::v_2d<T> m_vScale = { 1,1 };
-		olc::v_2d<T> m_vTranslate = { 0,0 };
-		olc::v_2d<T> m_vRotatePoint = { 0,0 };
-		olc::v_2d<T> m_vShear = { 0,0 };
-		olc::m_3d<T> m_mForward;
-		olc::m_3d<T> m_mInverse;
-		olc::m_3d<T> m_mScale;
-		olc::m_3d<T> m_mTranslate;
-		olc::m_3d<T> m_mRotate;
-		olc::m_3d<T> m_mShear;
+		std::stack<olc::m_3d<T>> m_stackForward;
+		std::stack<olc::m_3d<T>> m_stackInverse;
 	};
+
 
 	typedef t_2d<float> tf2d;
 	typedef t_2d<double> td2d;
@@ -10490,13 +10564,14 @@ namespace olc::host
                 }
                 else if (xev.type == FocusIn)
                 {
-                	if(auto* pge_window = get_pge_window(xev.xbutton.window); pge_window) {
+                	
+                    if(auto* pge_window = get_pge_window(xev.xfocus.window); pge_window) {
                         pge_window->olc_OnMouseFocus(true);
                     }
                 }
                 else if (xev.type == FocusOut)
                 {
-                	if(auto* pge_window = get_pge_window(xev.xbutton.window); pge_window) {
+                	if(auto* pge_window = get_pge_window(xev.xfocus.window); pge_window) {
                         pge_window->olc_OnMouseFocus(false);
                     }
                 }
@@ -10684,11 +10759,31 @@ namespace olc::host
 
     bool Host_Linux_X11::SetMousePosition(olc::Window* pWindow, const olc::vi2d& vPos)
     {
-        return false;
+        auto win = mapUID2X11Window.at(pWindow->GetUID());
+        
+        // NOTE: xwayland will only allow warping when we have an active grab on a
+        //       hidden mouse cursor.
+
+        X11::XGrabPointer(
+            olc_Display, win, True,
+            ButtonPressMask | ButtonReleaseMask | PointerMotionMask,
+            GrabModeAsync, GrabModeAsync,
+            win, X11::None, CurrentTime
+        );
+
+        X11::XWarpPointer(olc_Display, X11::None, win, 0, 0, 0, 0, vPos.x, vPos.y);
+        X11::XFlush(olc_Display);
+
+        X11::XUngrabPointer(olc_Display, CurrentTime);
+        X11::XFlush(olc_Display);
+
+        return true;
     }
     
     bool Host_Linux_X11::SetMouseVisible(olc::Window* pWindow, const bool bVisible)
     {
+        // NOTE: works on X11 and Xwayland, but does not work correctly in WSL2
+        
         // nothing to change, do nothing
         if(bMouseIsVisible == bVisible)
             return true;
@@ -10700,7 +10795,7 @@ namespace olc::host
         
         if(bMouseIsVisible)
         {
-            X11::XDefineCursor(olc_Display, win, X11::None);
+            X11::XUndefineCursor(olc_Display, win);
             return true;
         }
         
@@ -11054,7 +11149,6 @@ namespace olc::host
 
     void Host_Linux_Wayland::registry_handle_global(wl_registry* registry, uint32_t name, const char* interface, uint32_t version)
     {
-        std::cout << "Global registry event: " << interface << std::endl;
         if(std::strcmp(interface, wl_compositor_interface.name) == 0) {
             compositor = static_cast<wl_compositor*>(wl_registry_bind(registry, name, &wl_compositor_interface, version));
         }

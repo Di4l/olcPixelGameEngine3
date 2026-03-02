@@ -82,6 +82,14 @@ namespace olc
 			me(2, 2) = 1;			
 		}
 
+		// Create instant identity matrix
+		static inline constexpr auto identity_matrix()
+		{
+			m_3d out;
+			out.identity();
+			return out;
+		}
+
 		inline constexpr std::array<T, 16> m4x4()
 		{
 			auto& me = (*this);
@@ -110,6 +118,15 @@ namespace olc
 			translate(v.x, v.y);
 		}
 
+		// Create instant translation matrix
+		template<typename Q>
+		static inline constexpr auto translation(const olc::v_2d<Q>& v)
+		{
+			m_3d out;
+			out.translate(v.x, v.y);
+			return out;
+		}
+
 		// Create scaling matrix via components
 		template<typename Q>
 		inline constexpr void scale(const Q x, const Q y)
@@ -127,6 +144,15 @@ namespace olc
 			scale(v.x, v.y);
 		}
 
+		// Create instant scaling matrix
+		template<typename Q>
+		static inline constexpr auto scaling(const olc::v_2d<Q>& v)
+		{
+			m_3d out;
+			out.scale(v.x, v.y);
+			return out;
+		}
+
 		// Create rotation matrix with radians
 		template<typename Q>
 		inline constexpr void rotate(const Q rads)
@@ -137,6 +163,15 @@ namespace olc
 			me(0, 1) = std::sin(rads);
 			me(1, 0) = -me(0, 1);
 			me(1, 1) = me(0, 0);
+		}
+
+		// Create instant rotation matrix with radians
+		template<typename Q>
+		static inline constexpr auto rotation(const Q rads)
+		{
+			m_3d out;
+			out.rotate(rads);
+			return out;
 		}
 
 		// Create shearing matrix via components
@@ -156,6 +191,40 @@ namespace olc
 			shear(v.x, v.y);
 		}
 
+		// Create instant shearing matrix
+		template<typename Q>
+		static inline constexpr auto shearing(const olc::v_2d<Q>& v)
+		{
+			m_3d out;
+			out.shear(v.x, v.y);
+			return out;
+		}
+
+
+		// Return inverted matrix
+		//inline constexpr auto invert() const
+		//{
+		//	// https://stackoverflow.com/a/18504573
+		//	olc::m_3d<T> out;
+		//	auto& me = (*this);
+
+		//	T det = me(0, 0) * (me(1, 1) * me(2, 2) - me(2, 1) * me(1, 2)) -
+		//		me(0, 1) * (me(1, 0) * me(2, 2) - me(1, 2) * me(2, 0)) +
+		//		me(0, 2) * (me(1, 0) * me(2, 1) - me(1, 1) * me(2, 0));
+
+		//	T invdet = T(1) / det;
+
+		//	out(0, 0) = (me(1, 1) * me(2, 2) - me(2, 1) * me(1, 2)) * invdet;
+		//	out(0, 1) = (me(0, 2) * me(2, 1) - me(0, 1) * me(2, 2)) * invdet;
+		//	out(0, 2) = (me(0, 1) * me(1, 2) - me(0, 2) * me(1, 1)) * invdet;
+		//	out(1, 0) = (me(1, 2) * me(2, 0) - me(1, 0) * me(2, 2)) * invdet;
+		//	out(1, 1) = (me(0, 0) * me(2, 2) - me(0, 2) * me(2, 0)) * invdet;
+		//	out(1, 2) = (me(1, 0) * me(0, 2) - me(0, 0) * me(1, 2)) * invdet;
+		//	out(2, 0) = (me(1, 0) * me(2, 1) - me(2, 0) * me(1, 1)) * invdet;
+		//	out(2, 1) = (me(2, 0) * me(0, 1) - me(0, 0) * me(2, 1)) * invdet;
+		//	out(2, 2) = (me(0, 0) * me(1, 1) - me(1, 0) * me(0, 1)) * invdet;
+		//	return out;
+		//}
 
 		// Return inverted matrix
 		inline constexpr auto invert() const
@@ -165,8 +234,8 @@ namespace olc
 			auto& me = (*this);
 
 			T det = me(0, 0) * (me(1, 1) * me(2, 2) - me(2, 1) * me(1, 2)) -
-				me(0, 1) * (me(1, 0) * me(2, 2) - me(1, 2) * me(2, 0)) +
-				me(0, 2) * (me(1, 0) * me(2, 1) - me(1, 1) * me(2, 0));
+				    me(0, 1) * (me(1, 0) * me(2, 2) - me(1, 2) * me(2, 0)) +
+				    me(0, 2) * (me(1, 0) * me(2, 1) - me(1, 1) * me(2, 0));
 
 			T invdet = T(1) / det;
 
@@ -202,7 +271,7 @@ namespace olc
 			olc::m_3d<T> out;
 			for (size_t c = 0; c < 3; c++)
 				for (size_t r = 0; r < 3; r++)
-					out(r, c) = me(r, 0) * rhs(0, c) + me(r, 1) * rhs(1, c) + me(r, 2) * rhs(2, c);
+					out(c, r) = me(0, r) * rhs(c, 0) + me(1, r) * rhs(c, 1) + me(2, r) * rhs(c, 2);
 			return out;
 		}
 
