@@ -124,9 +124,9 @@ public:
 		DrawScene(olc::Colour::WHITE);
 
 		// Draw in yellow the transformed world
-		draw.WorldOffset(vWorldOffset);
 		draw.WorldScale(vWorldScale);
 		draw.WorldRotate(fWorldRotation);
+		draw.WorldOffset(vWorldOffset);
 		DrawScene(olc::Colour::YELLOW);
 
 		// Get Mouse in "transformed world" space

@@ -246,8 +246,9 @@ namespace olc::utils
 
 			if (bUpdateTransform)
 			{
+				transform.identity();
 				transform.scale(m_vViewScale);
-				transform.translate(m_vViewPos * -m_vViewScale);
+				transform.translate(-m_vViewPos);
 			}
 
 
@@ -286,17 +287,17 @@ namespace olc::utils
 				bPanning = false;
 			}
 
-			// Get current mouse position
-			olc::vf2d vMousePos = mouse.GetPosition();
+			// Squash current transform to a single matrix. This is required
+			// so we dont contnuously add to the transform stack
+			transform.squash();
 
-			// If we are panning, update translation component of transform
-			if (bPanning)
-			{
-				// Update translation by the mouse delta. Note that we round the mouse
-				// to screen coordinates to avoid sub-pixel jittering. This is optional.
-				transform.translate((transform.translate() +
-					olc::vf2d(vMousePos.x - vLastMouseScreenPos.x, vMousePos.y - vLastMouseScreenPos.y)).round());
-			}
+			// Get current mouse position		
+			olc::vf2d vMousePos = mouse.GetPosition();
+			olc::vf2d vMouseWorldPos = transform.inverse(vMousePos);
+			olc::vf2d vLastMouseWorldPos = transform.inverse(vLastMouseScreenPos);
+
+			// NOTE!!! Scale & Rotate BEFORE translation
+
 
 
 			// Handle zooming and rotation. This is a bit clumsy because we are
@@ -305,35 +306,41 @@ namespace olc::utils
 			if (mouse.GetWheel() != 0)
 			{
 				// Cache the mouse position before transformation			
-				auto posWorldBeforeRotate = transform.inverse(vLastMouseScreenPos);
+				auto posWorldBefore = vMouseWorldPos;
 
 				// If right mouse button held, we are rotating
 				//if (mouse.GetButton(1).bHeld)
 				//{
 				//	// Adjust rotation depending on wheel direction
-				//	if (mouse.GetWheel() > 0)
-				//		transform.rotate(transform.rotate() + 0.1f, posWorldBeforeRotate);
-				//	else
-				//		transform.rotate(transform.rotate() - 0.1f, posWorldBeforeRotate);
+				//float fRotateDelta = (mouse.GetWheel() > 0) ? 0.1f : -0.1f;
+				//transform.rotate(fRotateDelta, posWorldBeforeRotate);
 				//}
 				//else
 				//{
 					// Adjust scale depending on wheel direction
-					if (mouse.GetWheel() > 0)
-						transform.scale(transform.scale() * 1.1f);
-					else
-						transform.scale(transform.scale() * 0.9f);
+					olc::vf2d vScaleDelta = olc::vf2d{ 1.0f, 1.0f } * ((mouse.GetWheel() > 0) ? 1.1f : 0.9f);
+					transform.scale(vScaleDelta);
 				//}
 
 				// Get the new screen position of the point under the mouse
-				auto posScreenAfterRotate = transform.forward(posWorldBeforeRotate);
+				auto posWorldAfter = transform.inverse(mouse.GetPosition());
 
 				// Adjust translation to keep mouse position stable
-				auto posScreenDisplacement = vLastMouseScreenPos - posScreenAfterRotate;
+				auto posScreenDisplacement = posWorldBefore - posWorldAfter;
 
 				// Apply adjustment
-				transform.translate(transform.translate() + posScreenDisplacement);
+				transform.translate(-posScreenDisplacement);
 			}
+
+			// If we are panning, update translation component of transform
+			if (bPanning)
+			{
+				// Update translation by the mouse delta. Note that we round the mouse
+				// to screen coordinates to avoid sub-pixel jittering. This is optional.
+				transform.translate(vMouseWorldPos - vLastMouseWorldPos);
+			}
+
+
 
 			// Cache last mouse position
 			vLastMouseScreenPos = vMousePos;
