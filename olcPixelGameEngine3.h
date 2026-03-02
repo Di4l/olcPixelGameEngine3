@@ -10869,13 +10869,13 @@ namespace olc::host
                 {
                 	
                     if(auto* pge_window = get_pge_window(xev.xfocus.window); pge_window) {
-                        pge_window->olc_OnMouseFocus(true);
+                        pge_window->olc_OnFocus(true);
                     }
                 }
                 else if (xev.type == FocusOut)
                 {
                 	if(auto* pge_window = get_pge_window(xev.xfocus.window); pge_window) {
-                        pge_window->olc_OnMouseFocus(false);
+                        pge_window->olc_OnFocus(false);
                     }
                 }
                 else if (xev.type == ClientMessage)
