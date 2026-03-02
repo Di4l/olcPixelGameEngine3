@@ -31,6 +31,10 @@
 #include <EGL/egl.h>
 #include <EGL/eglplatform.h>
 
+#ifndef WL_KEYBOARD_KEY_STATE_REPEATED
+#define WL_KEYBOARD_KEY_STATE_REPEATED 2
+#endif
+
 namespace olc::host
 {
     struct WaylandWindow  {
