@@ -4282,7 +4282,8 @@ namespace olc
 
 		public: // Platform specific Mouse Control
 			bool SetMousePosition(olc::Window* pWindow, const olc::vi2d& vPos) override;
-			bool SetMouseVisible(olc::Window* pWindow, const bool bVisible) override;
+			bool SetMouseVisible(olc::Window* pWindow, const bool bVisible) override;			
+			bool SetFullScreen(olc::Window* pWindow, const bool bFullScreen) override;
 
 		public: // OS Specific Environment Information
 			olc::KeyboardLayout GetKeyboardLayout() const override;
@@ -5645,6 +5646,10 @@ namespace olc::host
 
 #include <EGL/egl.h>
 #include <EGL/eglplatform.h>
+
+#ifndef WL_KEYBOARD_KEY_STATE_REPEATED
+#define WL_KEYBOARD_KEY_STATE_REPEATED 2
+#endif
 
 namespace olc::host
 {
@@ -7401,6 +7406,32 @@ namespace olc::host
 		GetCursorPos(&p);
 		SetCursorPos(p.x, p.y + 1);
 		SetCursorPos(p.x, p.y);
+		return true;
+	}
+
+	bool Host_Windows_WinAPI::SetFullScreen(olc::Window* pWindow, const bool bFullScreen)
+	{
+		HWND hWnd = mapUID2HWND.at(pWindow->GetUID());
+
+		if (bFullScreen)
+		{
+			// Maximise, make on top, remove border and titlebar
+			SetWindowLongPtr(hWnd, GWL_STYLE, WS_POPUP | WS_VISIBLE);
+			SetWindowLongPtr(hWnd, GWL_EXSTYLE, WS_EX_TOPMOST);
+			ShowWindow(hWnd, SW_MAXIMIZE);		
+		}
+		else
+		{
+			// Restore original window style and position
+			SetWindowLongPtr(hWnd, GWL_STYLE, WS_CAPTION | WS_SYSMENU | WS_VISIBLE | WS_THICKFRAME);
+			SetWindowLongPtr(hWnd, GWL_EXSTYLE, WS_EX_APPWINDOW | WS_EX_WINDOWEDGE);
+			ShowWindow(hWnd, SW_RESTORE);	
+		}
+
+		UpdateWindow(hWnd);
+		SetForegroundWindow(hWnd);
+		SetFocus(hWnd);
+		SetActiveWindow(hWnd);			
 		return true;
 	}
 		
@@ -11894,7 +11925,6 @@ namespace olc::host
             auto* pge_window = mapUID2OlcWindow[active_window_id];
             
             // Wayland keyboard version 10 and above support key repeat and release states
-            #ifdef WL_KEYBOARD_KEY_STATE_REPEATED_SINCE_VERSION
             if(keyboard_version >= 10)
             {
                 switch (state) {
@@ -11910,7 +11940,6 @@ namespace olc::host
                 }
             }
             else
-            #endif
             {
                 // Ubuntu still parties like its 1999 apparently
                 pge_window->olc_OnKeyPress(olc_key, state == WL_KEYBOARD_KEY_STATE_PRESSED);

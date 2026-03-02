@@ -396,6 +396,32 @@ namespace olc::host
 		SetCursorPos(p.x, p.y);
 		return true;
 	}
+
+	bool Host_Windows_WinAPI::SetFullScreen(olc::Window* pWindow, const bool bFullScreen)
+	{
+		HWND hWnd = mapUID2HWND.at(pWindow->GetUID());
+
+		if (bFullScreen)
+		{
+			// Maximise, make on top, remove border and titlebar
+			SetWindowLongPtr(hWnd, GWL_STYLE, WS_POPUP | WS_VISIBLE);
+			SetWindowLongPtr(hWnd, GWL_EXSTYLE, WS_EX_TOPMOST);
+			ShowWindow(hWnd, SW_MAXIMIZE);		
+		}
+		else
+		{
+			// Restore original window style and position
+			SetWindowLongPtr(hWnd, GWL_STYLE, WS_CAPTION | WS_SYSMENU | WS_VISIBLE | WS_THICKFRAME);
+			SetWindowLongPtr(hWnd, GWL_EXSTYLE, WS_EX_APPWINDOW | WS_EX_WINDOWEDGE);
+			ShowWindow(hWnd, SW_RESTORE);	
+		}
+
+		UpdateWindow(hWnd);
+		SetForegroundWindow(hWnd);
+		SetFocus(hWnd);
+		SetActiveWindow(hWnd);			
+		return true;
+	}
 		
 	LRESULT Host_Windows_WinAPI::OnWindowEvent(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 	{

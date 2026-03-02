@@ -76,7 +76,8 @@ namespace olc
 
 		public: // Platform specific Mouse Control
 			bool SetMousePosition(olc::Window* pWindow, const olc::vi2d& vPos) override;
-			bool SetMouseVisible(olc::Window* pWindow, const bool bVisible) override;
+			bool SetMouseVisible(olc::Window* pWindow, const bool bVisible) override;			
+			bool SetFullScreen(olc::Window* pWindow, const bool bFullScreen) override;
 
 		public: // OS Specific Environment Information
 			olc::KeyboardLayout GetKeyboardLayout() const override;
