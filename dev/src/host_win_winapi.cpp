@@ -396,6 +396,12 @@ namespace olc::host
 		SetCursorPos(p.x, p.y);
 		return true;
 	}
+
+	bool Host_Windows_WinAPI::SetFullScreen(olc::Window* pWindow, const bool bFullScreen)
+	{
+
+		return false;
+	}
 		
 	LRESULT Host_Windows_WinAPI::OnWindowEvent(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 	{

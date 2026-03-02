@@ -288,7 +288,7 @@ class Fish {
             float b = 3.0f + (length - i) * 1;
             float fin_scale = size * -1.0f * std::min(a, b);
 
-            const auto& center_pos = pge.GetWorldTransform().translate();
+            const auto& center_pos = pge.GetWorldTransform().translation();
             const auto& end_pos = pge.GetWorldTransform().forwardRound<float>(olc::vf2d{1.0f * fin_scale, 0.0f});
 
             fin_points[2 * i] = center_pos;

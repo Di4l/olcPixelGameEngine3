@@ -4282,7 +4282,8 @@ namespace olc
 
 		public: // Platform specific Mouse Control
 			bool SetMousePosition(olc::Window* pWindow, const olc::vi2d& vPos) override;
-			bool SetMouseVisible(olc::Window* pWindow, const bool bVisible) override;
+			bool SetMouseVisible(olc::Window* pWindow, const bool bVisible) override;			
+			bool SetFullScreen(olc::Window* pWindow, const bool bFullScreen) override;
 
 		public: // OS Specific Environment Information
 			olc::KeyboardLayout GetKeyboardLayout() const override;
@@ -5645,6 +5646,10 @@ namespace olc::host
 
 #include <EGL/egl.h>
 #include <EGL/eglplatform.h>
+
+#ifndef WL_KEYBOARD_KEY_STATE_REPEATED
+#define WL_KEYBOARD_KEY_STATE_REPEATED 2
+#endif
 
 namespace olc::host
 {
@@ -7402,6 +7407,12 @@ namespace olc::host
 		SetCursorPos(p.x, p.y + 1);
 		SetCursorPos(p.x, p.y);
 		return true;
+	}
+
+	bool Host_Windows_WinAPI::SetFullScreen(olc::Window* pWindow, const bool bFullScreen)
+	{
+
+		return false;
 	}
 		
 	LRESULT Host_Windows_WinAPI::OnWindowEvent(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
@@ -11894,7 +11905,6 @@ namespace olc::host
             auto* pge_window = mapUID2OlcWindow[active_window_id];
             
             // Wayland keyboard version 10 and above support key repeat and release states
-            #ifdef WL_KEYBOARD_KEY_STATE_REPEATED_SINCE_VERSION
             if(keyboard_version >= 10)
             {
                 switch (state) {
@@ -11910,7 +11920,6 @@ namespace olc::host
                 }
             }
             else
-            #endif
             {
                 // Ubuntu still parties like its 1999 apparently
                 pge_window->olc_OnKeyPress(olc_key, state == WL_KEYBOARD_KEY_STATE_PRESSED);
