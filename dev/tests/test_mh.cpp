@@ -245,6 +245,11 @@ public:
 		//return true;
 
 
+		if (keyboard.GetKey(olc::Key::F1).bPressed)
+			ShowFullScreen(true);
+		if (keyboard.GetKey(olc::Key::F2).bPressed)
+			ShowFullScreen(false);
+
 		if (mouse.GetButton(1).bHeld)
 		{
 			fAngle += 0.5f * fElapsedTime;
