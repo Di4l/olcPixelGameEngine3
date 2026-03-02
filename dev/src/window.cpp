@@ -132,6 +132,11 @@ namespace olc
 		pHost->SetMouseVisible(this, bShow);
 	}
 
+	void Window::ShowFullScreen(const bool bFullScreen)
+	{
+		pHost->SetFullScreen(this, bFullScreen);
+	}
+
 	bool Window::IsFocused() const
 	{
 		return bWindowIsFocused;

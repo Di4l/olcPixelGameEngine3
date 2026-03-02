@@ -3640,7 +3640,7 @@ namespace olc
 		UP, DOWN, LEFT, RIGHT,
 		
 		// Other keys
-		SPACE, TAB, SHIFT, CTRL, INS, DEL, HOME, END, PGUP, PGDN, CAPS_LOCK, 
+		SPACE, TAB, SHIFT, CTRL, ALT, INS, DEL, HOME, END, PGUP, PGDN, CAPS_LOCK, 
 		BACK, ESCAPE, RETURN, ENTER, PAUSE, SCROLL,	EQUALS, COMMA, MINUS,
 		
 		// OEM specific keys
@@ -3786,6 +3786,9 @@ namespace olc
 		// Show or hide mouse cursor
 		void ShowMouseCursor(const bool bShow);
 
+		// Set the Window to be FullScreen or Not Fullscreen
+		void ShowFullScreen(const bool bFullScreen);
+
 		// Focus
 		bool IsFocused() const;
 
@@ -3870,6 +3873,8 @@ namespace olc
 			virtual bool SetMousePosition(olc::Window* pWindow, const olc::vi2d& vPos) = 0;
 			// Show or hide mouse cursor for given window
 			virtual bool SetMouseVisible(olc::Window* pWindow, const bool bVisible) = 0;
+			// Set a window to fullscreen or not fullscreen
+			virtual bool SetFullScreen(olc::Window* pWindow, const bool bFullScreen) = 0;
 
 		public: // OS Specific Environment Information
 			virtual olc::KeyboardLayout GetKeyboardLayout() const = 0;
@@ -5591,6 +5596,7 @@ namespace olc::host
         bool SetMousePosition(olc::Window* pWindow, const olc::vi2d& vPos) override;
         // Show or hide mouse cursor for given window
         bool SetMouseVisible(olc::Window* pWindow, const bool bVisible) override;
+        bool SetFullScreen(olc::Window* pWindow, const bool bFullScreen) override;
 
     public:
         bool OnApplicationStart(olc::PixelGameEngine* pPrimary) override;
@@ -5652,6 +5658,8 @@ namespace olc::host
         int32_t bounds_x{0};
         int32_t bounds_y{0};
         bool cursor_visible{true};
+        // Ignore window size bounds for fullscreen events
+        bool fullscreen{false};
     };
 
     namespace wayland {
@@ -5729,6 +5737,7 @@ namespace olc::host
         bool SyncWithDesktopComposite() override;
         bool SetMousePosition(olc::Window* pWindow, const olc::vi2d& vPos) override;
         bool SetMouseVisible(olc::Window* pWindow, const bool bVisible) override;
+        bool SetFullScreen(olc::Window* pWindow, const bool bFullScreen) override;
 
     public:
         bool OnApplicationStart(olc::PixelGameEngine* pPrimary) override;
@@ -10687,6 +10696,7 @@ namespace olc::host
         mapKeys[XK_Scroll_Lock] = Key::SCROLL; mapKeys[XK_Tab] = Key::TAB; mapKeys[XK_Delete] = Key::DEL; mapKeys[XK_Home] = Key::HOME;
         mapKeys[XK_End] = Key::END; mapKeys[XK_Page_Up] = Key::PGUP; mapKeys[XK_Page_Down] = Key::PGDN;	mapKeys[XK_Insert] = Key::INS;
         mapKeys[XK_Shift_L] = Key::SHIFT; mapKeys[XK_Shift_R] = Key::SHIFT; mapKeys[XK_Control_L] = Key::CTRL; mapKeys[XK_Control_R] = Key::CTRL;
+        mapKeys[XK_Alt_L] = Key::ALT; mapKeys[XK_Alt_R] = Key::ALT;
         mapKeys[XK_space] = Key::SPACE; mapKeys[XK_period] = Key::PERIOD;
 
         mapKeys[XK_0] = Key::K0; mapKeys[XK_1] = Key::K1; mapKeys[XK_2] = Key::K2; mapKeys[XK_3] = Key::K3; mapKeys[XK_4] = Key::K4;
@@ -11111,7 +11121,35 @@ namespace olc::host
         return true;
     }
 
+    bool Host_Linux_X11::SetFullScreen(olc::Window* pWindow, const bool bFullScreen)
+    {
+        using namespace X11;
+        auto win = mapUID2X11Window.at(pWindow->GetUID());
 
+        // If the bFullScreen flag is set, make the window fullscreen, otherwise restore it
+        Atom wm_state;
+        Atom fullscreen;
+        wm_state = XInternAtom(olc_Display, "_NET_WM_STATE", False);
+        fullscreen = XInternAtom(olc_Display, "_NET_WM_STATE_FULLSCREEN", False);
+        XEvent xev{ 0 };
+        xev.type = ClientMessage;
+        xev.xclient.window = win;
+        xev.xclient.message_type = wm_state;
+        xev.xclient.format = 32;
+        xev.xclient.data.l[0] = (bFullScreen ? 1 : 0);   // the action (0: off, 1: on, 2: toggle)
+        xev.xclient.data.l[1] = fullscreen;             // first property to alter
+        xev.xclient.data.l[2] = 0;                      // second property to alter
+        xev.xclient.data.l[3] = 0;                      // source indication
+        XMapWindow(olc_Display, win);
+        XSendEvent(olc_Display, DefaultRootWindow(olc_Display), False,
+            SubstructureRedirectMask | SubstructureNotifyMask, &xev);
+        XFlush(olc_Display);
+        XWindowAttributes gwa;
+        XGetWindowAttributes(olc_Display, win, &gwa);
+        pWindow->olc_OnWindowSize({gwa.width, gwa.height});
+
+        return true;
+    }
 }
 #endif
 
@@ -11217,6 +11255,7 @@ namespace olc::host
         mapKeys[XKB_KEY_Scroll_Lock] = Key::SCROLL; mapKeys[XKB_KEY_Tab] = Key::TAB; mapKeys[XKB_KEY_Delete] = Key::DEL; mapKeys[XKB_KEY_Home] = Key::HOME;
         mapKeys[XKB_KEY_End] = Key::END; mapKeys[XKB_KEY_Page_Up] = Key::PGUP; mapKeys[XKB_KEY_Page_Down] = Key::PGDN;	mapKeys[XKB_KEY_Insert] = Key::INS;
         mapKeys[XKB_KEY_Shift_L] = Key::SHIFT; mapKeys[XKB_KEY_Shift_R] = Key::SHIFT; mapKeys[XKB_KEY_Control_L] = Key::CTRL; mapKeys[XKB_KEY_Control_R] = Key::CTRL;
+        mapKeys[XKB_KEY_Alt_L] = Key::ALT; mapKeys[XKB_KEY_Alt_R] = Key::ALT;
         mapKeys[XKB_KEY_space] = Key::SPACE; mapKeys[XKB_KEY_period] = Key::PERIOD;
 
         mapKeys[XKB_KEY_0] = Key::K0; mapKeys[XKB_KEY_1] = Key::K1; mapKeys[XKB_KEY_2] = Key::K2; mapKeys[XKB_KEY_3] = Key::K3; mapKeys[XKB_KEY_4] = Key::K4;
@@ -11465,6 +11504,19 @@ namespace olc::host
         return true;
     }
 
+    bool Host_Linux_Wayland::SetFullScreen(olc::Window* pWindow, const bool bFullScreen)
+    {
+        auto itr = mapUID2Window.find(pWindow->GetUID());
+        if(itr != mapUID2Window.end()) {
+            itr->second.fullscreen = bFullScreen;
+            if(bFullScreen) {
+                xdg_toplevel_set_fullscreen(itr->second.toplevel, nullptr);
+            } else {
+                xdg_toplevel_unset_fullscreen(itr->second.toplevel);
+            }
+        }
+        return true;
+    }
 
     void Host_Linux_Wayland::registry_handle_global(wl_registry* registry, uint32_t name, const char* interface, uint32_t version)
     {
@@ -11518,12 +11570,14 @@ namespace olc::host
             if(w.toplevel == toplevel) {
                 // Attempt to constrain the window size to what the compositor may have told us earlier
                 // in a bounds_configure message
-                if(w.bounds_x != 0) {
-                    width = std::min<int32_t>(width, w.bounds_x);
-                }
-
-                if(w.bounds_y != 0) {
-                    height = std::min<int32_t>(height, w.bounds_y);
+                if(!w.fullscreen) {
+                    if(w.bounds_x != 0) {
+                        width = std::min<int32_t>(width, w.bounds_x);
+                    }
+    
+                    if(w.bounds_y != 0) {
+                        height = std::min<int32_t>(height, w.bounds_y);
+                    }
                 }
                 
                 mapUID2OlcWindow[i.first]->olc_OnWindowSize({width, height});
@@ -18170,6 +18224,11 @@ namespace olc
 	void Window::ShowMouseCursor(const bool bShow)
 	{
 		pHost->SetMouseVisible(this, bShow);
+	}
+
+	void Window::ShowFullScreen(const bool bFullScreen)
+	{
+		pHost->SetFullScreen(this, bFullScreen);
 	}
 
 	bool Window::IsFocused() const

@@ -103,6 +103,7 @@ namespace olc::host
         mapKeys[XKB_KEY_Scroll_Lock] = Key::SCROLL; mapKeys[XKB_KEY_Tab] = Key::TAB; mapKeys[XKB_KEY_Delete] = Key::DEL; mapKeys[XKB_KEY_Home] = Key::HOME;
         mapKeys[XKB_KEY_End] = Key::END; mapKeys[XKB_KEY_Page_Up] = Key::PGUP; mapKeys[XKB_KEY_Page_Down] = Key::PGDN;	mapKeys[XKB_KEY_Insert] = Key::INS;
         mapKeys[XKB_KEY_Shift_L] = Key::SHIFT; mapKeys[XKB_KEY_Shift_R] = Key::SHIFT; mapKeys[XKB_KEY_Control_L] = Key::CTRL; mapKeys[XKB_KEY_Control_R] = Key::CTRL;
+        mapKeys[XKB_KEY_Alt_L] = Key::ALT; mapKeys[XKB_KEY_Alt_R] = Key::ALT;
         mapKeys[XKB_KEY_space] = Key::SPACE; mapKeys[XKB_KEY_period] = Key::PERIOD;
 
         mapKeys[XKB_KEY_0] = Key::K0; mapKeys[XKB_KEY_1] = Key::K1; mapKeys[XKB_KEY_2] = Key::K2; mapKeys[XKB_KEY_3] = Key::K3; mapKeys[XKB_KEY_4] = Key::K4;
@@ -351,6 +352,19 @@ namespace olc::host
         return true;
     }
 
+    bool Host_Linux_Wayland::SetFullScreen(olc::Window* pWindow, const bool bFullScreen)
+    {
+        auto itr = mapUID2Window.find(pWindow->GetUID());
+        if(itr != mapUID2Window.end()) {
+            itr->second.fullscreen = bFullScreen;
+            if(bFullScreen) {
+                xdg_toplevel_set_fullscreen(itr->second.toplevel, nullptr);
+            } else {
+                xdg_toplevel_unset_fullscreen(itr->second.toplevel);
+            }
+        }
+        return true;
+    }
 
     void Host_Linux_Wayland::registry_handle_global(wl_registry* registry, uint32_t name, const char* interface, uint32_t version)
     {
@@ -404,12 +418,14 @@ namespace olc::host
             if(w.toplevel == toplevel) {
                 // Attempt to constrain the window size to what the compositor may have told us earlier
                 // in a bounds_configure message
-                if(w.bounds_x != 0) {
-                    width = std::min<int32_t>(width, w.bounds_x);
-                }
-
-                if(w.bounds_y != 0) {
-                    height = std::min<int32_t>(height, w.bounds_y);
+                if(!w.fullscreen) {
+                    if(w.bounds_x != 0) {
+                        width = std::min<int32_t>(width, w.bounds_x);
+                    }
+    
+                    if(w.bounds_y != 0) {
+                        height = std::min<int32_t>(height, w.bounds_y);
+                    }
                 }
                 
                 mapUID2OlcWindow[i.first]->olc_OnWindowSize({width, height});

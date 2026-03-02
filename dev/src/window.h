@@ -96,6 +96,9 @@ namespace olc
 		// Show or hide mouse cursor
 		void ShowMouseCursor(const bool bShow);
 
+		// Set the Window to be FullScreen or Not Fullscreen
+		void ShowFullScreen(const bool bFullScreen);
+
 		// Focus
 		bool IsFocused() const;
 

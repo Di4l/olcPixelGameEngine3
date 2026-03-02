@@ -41,6 +41,7 @@ namespace olc::host
         mapKeys[XK_Scroll_Lock] = Key::SCROLL; mapKeys[XK_Tab] = Key::TAB; mapKeys[XK_Delete] = Key::DEL; mapKeys[XK_Home] = Key::HOME;
         mapKeys[XK_End] = Key::END; mapKeys[XK_Page_Up] = Key::PGUP; mapKeys[XK_Page_Down] = Key::PGDN;	mapKeys[XK_Insert] = Key::INS;
         mapKeys[XK_Shift_L] = Key::SHIFT; mapKeys[XK_Shift_R] = Key::SHIFT; mapKeys[XK_Control_L] = Key::CTRL; mapKeys[XK_Control_R] = Key::CTRL;
+        mapKeys[XK_Alt_L] = Key::ALT; mapKeys[XK_Alt_R] = Key::ALT;
         mapKeys[XK_space] = Key::SPACE; mapKeys[XK_period] = Key::PERIOD;
 
         mapKeys[XK_0] = Key::K0; mapKeys[XK_1] = Key::K1; mapKeys[XK_2] = Key::K2; mapKeys[XK_3] = Key::K3; mapKeys[XK_4] = Key::K4;
@@ -465,6 +466,34 @@ namespace olc::host
         return true;
     }
 
+    bool Host_Linux_X11::SetFullScreen(olc::Window* pWindow, const bool bFullScreen)
+    {
+        using namespace X11;
+        auto win = mapUID2X11Window.at(pWindow->GetUID());
 
+        // If the bFullScreen flag is set, make the window fullscreen, otherwise restore it
+        Atom wm_state;
+        Atom fullscreen;
+        wm_state = XInternAtom(olc_Display, "_NET_WM_STATE", False);
+        fullscreen = XInternAtom(olc_Display, "_NET_WM_STATE_FULLSCREEN", False);
+        XEvent xev{ 0 };
+        xev.type = ClientMessage;
+        xev.xclient.window = win;
+        xev.xclient.message_type = wm_state;
+        xev.xclient.format = 32;
+        xev.xclient.data.l[0] = (bFullScreen ? 1 : 0);   // the action (0: off, 1: on, 2: toggle)
+        xev.xclient.data.l[1] = fullscreen;             // first property to alter
+        xev.xclient.data.l[2] = 0;                      // second property to alter
+        xev.xclient.data.l[3] = 0;                      // source indication
+        XMapWindow(olc_Display, win);
+        XSendEvent(olc_Display, DefaultRootWindow(olc_Display), False,
+            SubstructureRedirectMask | SubstructureNotifyMask, &xev);
+        XFlush(olc_Display);
+        XWindowAttributes gwa;
+        XGetWindowAttributes(olc_Display, win, &gwa);
+        pWindow->olc_OnWindowSize({gwa.width, gwa.height});
+
+        return true;
+    }
 }
 //! END IMPLEMENTATION
