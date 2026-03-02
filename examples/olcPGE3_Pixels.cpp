@@ -20,12 +20,8 @@ class Example_Pixels : public olc::PixelGameEngine
 public:
 	Example_Pixels()
 	{
-
+		sAppName = "Example - Pixels ...lots of pixels";
 	}
-
-protected:
-	// We accumulate total time for some animation
-	float fTotalTime = 0.0f;
 
 public:
 	// Called once at the start, so create things here
@@ -55,7 +51,7 @@ public:
 		}
 
 		// Draw random pixels in a box, tinted over time
-		fTotalTime += fElapsedTime;
+		float fTotalTime = TotalTimeElapsed();
 		olc::Pixel tint = olc::Pixel(
 			(uint8_t)((std::sin(fTotalTime) + 1.0f) * 127.5f),
 			(uint8_t)((std::sin(fTotalTime + 2.0f) + 1.0f) * 127.5f),

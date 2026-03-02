@@ -41,6 +41,7 @@ namespace olc::host
         mapKeys[XK_Scroll_Lock] = Key::SCROLL; mapKeys[XK_Tab] = Key::TAB; mapKeys[XK_Delete] = Key::DEL; mapKeys[XK_Home] = Key::HOME;
         mapKeys[XK_End] = Key::END; mapKeys[XK_Page_Up] = Key::PGUP; mapKeys[XK_Page_Down] = Key::PGDN;	mapKeys[XK_Insert] = Key::INS;
         mapKeys[XK_Shift_L] = Key::SHIFT; mapKeys[XK_Shift_R] = Key::SHIFT; mapKeys[XK_Control_L] = Key::CTRL; mapKeys[XK_Control_R] = Key::CTRL;
+        mapKeys[XK_Alt_L] = Key::ALT; mapKeys[XK_Alt_R] = Key::ALT;
         mapKeys[XK_space] = Key::SPACE; mapKeys[XK_period] = Key::PERIOD;
 
         mapKeys[XK_0] = Key::K0; mapKeys[XK_1] = Key::K1; mapKeys[XK_2] = Key::K2; mapKeys[XK_3] = Key::K3; mapKeys[XK_4] = Key::K4;
@@ -71,6 +72,12 @@ namespace olc::host
         mapKeys[XK_minus] = Key::MINUS;			// the minus key on any keyboard			
 
         mapKeys[XK_Caps_Lock] = Key::CAPS_LOCK;
+
+        mapMouseButtons[1] = 0; // left click
+        mapMouseButtons[2] = 2; // middle click
+        mapMouseButtons[3] = 1; // right click
+        mapMouseButtons[8] = 3;
+        mapMouseButtons[9] = 4;
     }
 
     bool Host_Linux_X11::OnApplicationStart(olc::PixelGameEngine* pPrimary)
@@ -183,28 +190,31 @@ namespace olc::host
                 else if (xev.type == ButtonPress)
                 {
                     if(auto* pge_window = get_pge_window(xev.xbutton.window); pge_window) {
+                        auto it = mapMouseButtons.find(xev.xbutton.button);
+                        if(it != mapMouseButtons.end())
+                        {
+                            pge_window->olc_OnMouseButton(mapMouseButtons[xev.xbutton.button], true);
+                            continue; // Thank you. NEXT!!!
+                        }
+                        
+                        // If we make it here, we may be dealing with scrolling buttons
                         switch (xev.xbutton.button)
                         {
-                        case 1:	pge_window->olc_OnMouseButton(0, true); break;
-                        case 2:	pge_window->olc_OnMouseButton(2, true); break;
-                        case 3:	pge_window->olc_OnMouseButton(1, true); break;
-                        case 4:	pge_window->olc_OnMouseWheel(120); break;
-                        case 5:	pge_window->olc_OnMouseWheel(-120); break;
-                        default: break;
+                            case 4:	pge_window->olc_OnMouseWheel(120); break;
+                            case 5:	pge_window->olc_OnMouseWheel(-120); break;
+                            default: break;
                         }
-                    
                     }
                 }
                 else if (xev.type == ButtonRelease)
                 {
                     if(auto* pge_window = get_pge_window(xev.xbutton.window); pge_window) {
-                        switch (xev.xbutton.button)
+                        auto it = mapMouseButtons.find(xev.xbutton.button);
+                        if(it != mapMouseButtons.end())
                         {
-                        case 1:	pge_window->olc_OnMouseButton(0, false); break;
-                        case 2:	pge_window->olc_OnMouseButton(2, false); break;
-                        case 3:	pge_window->olc_OnMouseButton(1, false); break;
-                        default: break;
-                        }               
+                            pge_window->olc_OnMouseButton(mapMouseButtons[xev.xbutton.button], false);
+                            continue; // Thank you. NEXT!!!
+                        }
                     }
                 }
                 else if (xev.type == MotionNotify)
@@ -215,14 +225,19 @@ namespace olc::host
                     
                     }
                 }
-                // else if (xev.type == FocusIn)
-                // {
-                // 	ptrPGE->olc_UpdateKeyFocus(true);
-                // }
-                // else if (xev.type == FocusOut)
-                // {
-                // 	ptrPGE->olc_UpdateKeyFocus(false);
-                // }
+                else if (xev.type == FocusIn)
+                {
+                	
+                    if(auto* pge_window = get_pge_window(xev.xfocus.window); pge_window) {
+                        pge_window->olc_OnFocus(true);
+                    }
+                }
+                else if (xev.type == FocusOut)
+                {
+                	if(auto* pge_window = get_pge_window(xev.xfocus.window); pge_window) {
+                        pge_window->olc_OnFocus(false);
+                    }
+                }
                 else if (xev.type == ClientMessage)
                 {
                     X11::XClientMessageEvent& xcme = xev.xclient;
@@ -270,7 +285,7 @@ namespace olc::host
     {
         // Based on the display capabilities, configure the appearance of the window
         // to do this namespacing, both x11 and glx have to be included in the x11 namespace
-        GLint olc_GLAttribs[] = { GLX_RGBA, GLX_DEPTH_SIZE, 24, GLX_DOUBLEBUFFER, None };
+        GLint olc_GLAttribs[] = { GLX_RGBA, GLX_DEPTH_SIZE, 24, GLX_DOUBLEBUFFER, X11::None };
         olc_VisualInfo = glXChooseVisual(olc_Display, 0, olc_GLAttribs);
         olc_ColourMap = XCreateColormap(olc_Display, olc_WindowRoot, olc_VisualInfo->visual, AllocNone);
         olc_SetWindowAttribs.colormap = olc_ColourMap;
@@ -296,13 +311,26 @@ namespace olc::host
         mapUID2X11Window.insert_or_assign(pWindow->GetUID(), olc_Window);
 		mapX11Window2PTR.insert_or_assign(olc_Window, pWindow);
 
+        // Create invisible cursor
+        char data[1] = {0};
+        X11::Pixmap blank = XCreateBitmapFromData(olc_Display, olc_Window, data, 1, 1);
+        X11::XColor dummy = {0};
+        X11::Cursor cursor = XCreatePixmapCursor(olc_Display, blank, blank, &dummy, &dummy, 0, 0);
+        XFreePixmap(olc_Display, blank);
+        
+        // Add invisible cursor for this window
+        mapUID2X11Cursor.insert_or_assign(pWindow->GetUID(), cursor);
+        
         return true;
     }
 
     bool Host_Linux_X11::CloseWindowFrame(olc::Window* pWindow)
     {
         const auto window_handle = mapUID2X11Window.find(pWindow->GetUID());
-        if (window_handle != mapUID2X11Window.end()) {
+        const auto invisible_cursor = mapUID2X11Cursor.find(pWindow->GetUID());
+
+        if (window_handle != mapUID2X11Window.end() && invisible_cursor != mapUID2X11Cursor.end()) {
+            X11::XFreeCursor(olc_Display, invisible_cursor->second);
             X11::XDestroyWindow(olc_Display, window_handle->second);
             mapUID2X11Window.erase(window_handle);
         }
@@ -389,6 +417,82 @@ namespace olc::host
     // Wait for entire host desktop refresh (for smooooth vsync)
     bool Host_Linux_X11::SyncWithDesktopComposite()
     {
+        return true;
+    }
+
+    bool Host_Linux_X11::SetMousePosition(olc::Window* pWindow, const olc::vi2d& vPos)
+    {
+        auto win = mapUID2X11Window.at(pWindow->GetUID());
+        
+        // NOTE: xwayland will only allow warping when we have an active grab on a
+        //       hidden mouse cursor.
+
+        X11::XGrabPointer(
+            olc_Display, win, True,
+            ButtonPressMask | ButtonReleaseMask | PointerMotionMask,
+            GrabModeAsync, GrabModeAsync,
+            win, X11::None, CurrentTime
+        );
+
+        X11::XWarpPointer(olc_Display, X11::None, win, 0, 0, 0, 0, vPos.x, vPos.y);
+        X11::XFlush(olc_Display);
+
+        X11::XUngrabPointer(olc_Display, CurrentTime);
+        X11::XFlush(olc_Display);
+
+        return true;
+    }
+    
+    bool Host_Linux_X11::SetMouseVisible(olc::Window* pWindow, const bool bVisible)
+    {
+        // NOTE: works on X11 and Xwayland, but does not work correctly in WSL2
+        
+        // nothing to change, do nothing
+        if(bMouseIsVisible == bVisible)
+            return true;
+
+        bMouseIsVisible = bVisible;
+        
+        auto win = mapUID2X11Window.at(pWindow->GetUID());
+        auto cursor = mapUID2X11Cursor.at(pWindow->GetUID());
+        
+        if(bMouseIsVisible)
+        {
+            X11::XUndefineCursor(olc_Display, win);
+            return true;
+        }
+        
+        X11::XDefineCursor(olc_Display, win, cursor);
+        return true;
+    }
+
+    bool Host_Linux_X11::SetFullScreen(olc::Window* pWindow, const bool bFullScreen)
+    {
+        using namespace X11;
+        auto win = mapUID2X11Window.at(pWindow->GetUID());
+
+        // If the bFullScreen flag is set, make the window fullscreen, otherwise restore it
+        Atom wm_state;
+        Atom fullscreen;
+        wm_state = XInternAtom(olc_Display, "_NET_WM_STATE", False);
+        fullscreen = XInternAtom(olc_Display, "_NET_WM_STATE_FULLSCREEN", False);
+        XEvent xev{ 0 };
+        xev.type = ClientMessage;
+        xev.xclient.window = win;
+        xev.xclient.message_type = wm_state;
+        xev.xclient.format = 32;
+        xev.xclient.data.l[0] = (bFullScreen ? 1 : 0);   // the action (0: off, 1: on, 2: toggle)
+        xev.xclient.data.l[1] = fullscreen;             // first property to alter
+        xev.xclient.data.l[2] = 0;                      // second property to alter
+        xev.xclient.data.l[3] = 0;                      // source indication
+        XMapWindow(olc_Display, win);
+        XSendEvent(olc_Display, DefaultRootWindow(olc_Display), False,
+            SubstructureRedirectMask | SubstructureNotifyMask, &xev);
+        XFlush(olc_Display);
+        XWindowAttributes gwa;
+        XGetWindowAttributes(olc_Display, win, &gwa);
+        pWindow->olc_OnWindowSize({gwa.width, gwa.height});
+
         return true;
     }
 }

@@ -1,46 +1,74 @@
 #include "core.h"
 
+#if OLC_GPU == OLC_GPU_NONE
+#include "gpu_none.h"
+#endif
+
+#if OLC_GPU == OLC_GPU_OPENGL33
 #include "gpu_opengl33.h"
+#endif
+
+#if OLC_HOST == OLC_HOST_NONE
+#include "host_none.h"
+#endif
 
 #if OLC_HOST == OLC_HOST_WINDOWS
 #include "host_win_winapi.h"
-#include "imload_wingdi.h"
 #endif
 
 // Johnnyg63: Added define for MACOS
 #if OLC_HOST == OLC_HOST_MACOS
 #include "host_apple_macos.h"
-#include "imload_macos.h"
 #endif
 
 #if OLC_HOST == OLC_HOST_LINUX_X11
 #include "host_lin_x11.h"
-#include "imload_lib_png.h"
 #endif
 
 #if OLC_HOST == OLC_HOST_LINUX_WAYLAND
 #include "host_lin_wayland.h"
-#include "imload_lib_png.h"
 #endif
 
 #if OLC_HOST == OLC_HOST_EMSCRIPTEN
 #include "host_web_emscripten.h"
-#include "imload_lib_png.h"
 #endif
 
 #if OLC_HOST == OLC_HOST_ANDROID
 #include "host_android.h"
+#endif
+
+#if OLC_IMAGELOADER == OLC_IMAGELOADER_WINGDI
+#include "imload_wingdi.h"
+#endif
+
+#if OLC_IMAGELOADER == OLC_IMAGELOADER_MACOS
+#include "imload_macos.h"
+#endif
+
+#if OLC_IMAGELOADER == OLC_IMAGELOADER_LIB_PNG
+#include "imload_lib_png.h"
+#endif
+
+#if OLC_IMAGELOADER == OLC_IMAGELOADER_NDK_IMAGEDECODER
 #include "imload_android.h"
+#endif
+
+#if OLC_IMAGELOADER == OLC_IMAGELOADER_STB_IMAGE
+#include "imload_stb_image.h"
 #endif
 
 //! START IMPLEMENTATION
 namespace olc
 {
+	PGEWindow::PGEWindow() : Window(), draw()
+	{
+	}
+
 	bool PGEWindow::Create(const olc::vi2d& vScreenSize, const olc::vi2d& vPixelSize)
 	{
 		//pRenderer->RetargetDevice(pHost->GetHostWindowDescriptor(this));
 		pRenderer->PrepareWindowTarget(pHost->GetHostWindowDescriptor(this));
-		CreateImage(GetDefaultImage(), vScreenSize);
+		CreateImage(GetScreen(), vScreenSize);
 		SetWindowSize(vScreenSize * vPixelSize);
 
 		// Assume 1:1 Relationship for now
@@ -67,49 +95,72 @@ namespace olc
 
 	bool PGEWindow::olc_WindowUpdate(const float fElapsedTime, const float fTotalElapsedTime)
 	{
+		float fDT = fElapsedTime;
+
 		// Input Changes
 		mouse.UpdateState();
 		keyboard.UpdateState();
 		
 		draw.SetGPU(pRenderer);
-		draw.SetTarget(GetDefaultImage());
+		draw.SetTarget(GetScreen());
 
-		pRenderer->DisplayPrepare(fElapsedTime, fTotalElapsedTime);
+		pRenderer->DisplayPrepare(fDT, fTotalElapsedTime);
 
 #if OLC_MULTIWINDOW == OLC_MULTIWINDOW_YES
 		pRenderer->RetargetDevice(pHost->GetHostWindowDescriptor(this));
 #endif
 		pRenderer->ApplyDefaultShader();
 
-
-
-		// User Update
-		if (!OnUserUpdate(fElapsedTime) || bRequestToClose)
+		bool bBlockUserUpdate = false;
+		for (const auto& pgex : vecWindowExtensions)
 		{
-			// User has requested termination of window by returning false
-			if (OnUserDestroy())
+			bBlockUserUpdate |= pgex->OnBeforeUserUpdate(this, fDT);
+		}
+
+		if (!bBlockUserUpdate)
+		{
+			// User Update
+			if (!OnUserUpdate(fDT) || bRequestToClose)
 			{
-				// User has confirmed window destruction by returning true
-				bShouldRemove = true;
+				// User has requested termination of window by returning false
+				if (OnUserDestroy())
+				{
+					// User has confirmed window destruction by returning true
+					bShouldRemove = true;
+				}
+				else
+					bRequestToClose = false; // User vetoed closure
 			}
-			else
-				bRequestToClose = false; // User vetoed closure
+			
+			// Finialise any outstanding tasks
+			draw.ProcessGPUTasks();
+
+			if (GetScreen().GetConfig().MSAA)
+			{
+				pRenderer->ResolveMSAA(uint32_t(GetScreen().GetGPUID()));
+			}
+
+			draw.ResetShader();
+			draw.WorldReset();		
 		}
 
-
-		// Finialise any outstanding tasks
-		draw.ProcessGPUTasks();
-
-		if (GetDefaultImage().GetConfig().MSAA)
+		for (const auto& pgex : vecWindowExtensions)
 		{
-			pRenderer->ResolveMSAA(uint32_t(GetDefaultImage().GetGPUID()));
+			if (pgex->OnAfterUserUpdate(this, fDT))
+			{
+				// Finialise any outstanding tasks
+				draw.ProcessGPUTasks();
+
+				if (GetScreen().GetConfig().MSAA)
+				{
+					pRenderer->ResolveMSAA(uint32_t(GetScreen().GetGPUID()));
+				}
+
+				draw.ResetShader();
+				draw.WorldReset();				
+			}
 		}
 
-		draw.ResetShader();
-		draw.WorldReset();		
-
-		// Take the window's completed "screen" and draw it as a textured quad to the backbuffer
-		pRenderer->AssignTextureTarget(0, 0);
 
 
 		// === Viewport Handling ===
@@ -117,7 +168,7 @@ namespace olc
 		{
 			// Set the viewport to maintain the aspect ratio of GetDefaultImage() and maximise to 
 			// fit within the window client area
-			float fAspectScreen = float(GetDefaultImage().Size().x) / float(GetDefaultImage().Size().y);
+			float fAspectScreen = float(GetScreen().Size().x) / float(GetScreen().Size().y);
 
 			vViewSize.x = (int32_t)vWindowSize.x;
 			vViewSize.y = (int32_t)((float)vViewSize.x / fAspectScreen);
@@ -140,10 +191,13 @@ namespace olc
 			// know for scaling
 		}
 
+		// Take the window's completed "screen" and draw it as a textured quad to the backbuffer
+		pRenderer->AssignTextureTarget(0, 0);
+
 		// Present final composite
 		pRenderer->SetViewport(vViewPos, vViewSize);
 		pRenderer->ClearViewport(config.colClear, true, true);
-		draw.ImageRect(GetDefaultImage().flipV(), { 0.0,0.0 }, vViewSize);
+		draw.ImageRect(GetScreen().flipV(), { 0.0,0.0 }, vViewSize);
 		draw.ProcessGPUTasks();
 
 		// Update Window's primary surface
@@ -151,6 +205,12 @@ namespace olc
 		pRenderer->DisplayDraw(pHost->GetHostWindowDescriptor(this));
 
 		return true;
+	}
+
+	bool PGEWindow::InstallWindowExtension(olc::PGEWindowExtension* pgex)
+	{
+		vecWindowExtensions.push_back(pgex);
+		return pgex->OnInstall(this);
 	}
 
 	bool PGEWindow::CreateImage(olc::Image& image, const olc::vi2d& size, const ImageConfig& cfg)
@@ -229,12 +289,12 @@ namespace olc
 		pImageLoader = imload;
 	}
 
-	olc::Image& PGEWindow::GetDefaultImage()
+	olc::Image& PGEWindow::GetScreen()
 	{
 		return imgPrimary;
 	}
 
-	olc::Draw2D& PGEWindow::GetDraw()
+	olc::Draw& PGEWindow::GetDraw()
 	{
 		return draw;
 	}
@@ -251,7 +311,14 @@ namespace olc
 
 	const olc::vi2d& PGEWindow::ScreenSize()
 	{
-		return GetDefaultImage().Size();
+		return GetScreen().Size();
+	}
+
+	void PGEWindow::SetMousePosition(const olc::vi2d& vPos)
+	{
+		// Scale mouse from view coordinates into window coordinates
+		olc::vi2d pos = (olc::vf2d(vPos) / olc::vf2d(GetScreen().Size()) * olc::vf2d(vViewSize)) + vViewPos;
+		SetWindowMousePosition(pos);
 	}
 
 	bool PGEWindow::olc_OnMouseMove(const olc::vi2d& vMousePos)
@@ -265,8 +332,8 @@ namespace olc
 
 		// Scale mouse into view coordinates
 		mouse.SetPosition(
-			(olc::vf2d(pos) / olc::vf2d(vWindowSize - (vViewPos * 2)) * GetDefaultImage().Size())
-			.clamp({ 0.0f, 0.0f }, olc::vf2d(GetDefaultImage().Size()-1)));
+			(olc::vf2d(pos) / olc::vf2d(vWindowSize - (vViewPos * 2)) * GetScreen().Size())
+			.clamp({ 0.0f, 0.0f }, olc::vf2d(GetScreen().Size()-1)));
 		return true;
 	}
 
@@ -295,6 +362,25 @@ namespace olc
 	{		
 		config = cfg;
 
+		// Check for constructor sAppName, if not set use Config sAppName
+		if (sAppName.empty())
+		{
+			sAppName = config.sAppName;
+		}
+		else
+		{
+			if (config.sAppName == "PGE3")
+			{
+				// User has not set Config sAppName to something specific, so set the Config sAppName to constructor sAppName
+				config.sAppName = sAppName;
+			}
+			else
+			{
+				// User has set config.sAppName therefore we override constructor sAppname , 
+				sAppName = config.sAppName;
+			}
+		}
+
 		// This is the earliest point within familiar PGE ecosystem
 		// where we can instatiate the host interface.
 
@@ -305,31 +391,7 @@ namespace olc
 		// DEVS!! Please don't merge these just yet
 
 		// Initialise ImageLoader Interface
-#if OLC_HOST == OLC_HOST_WINDOWS
-		imageloader = std::make_unique<olc::imload::ImageLoader_WinGDI>();
-#endif
-
-#if OLC_HOST == OLC_HOST_MACOS
-		imageloader = std::make_unique<olc::imload::ImageLoader_MacOS>();
-#endif
-
-#if OLC_HOST == OLC_HOST_LINUX_X11
-		imageloader = std::make_unique<olc::imload::ImageLoader_LibPNG>();
-#endif
-
-#if OLC_HOST == OLC_HOST_LINUX_WAYLAND
-		imageloader = std::make_unique<olc::imload::ImageLoader_LibPNG>();
-#endif
-
-#if OLC_HOST == OLC_HOST_EMSCRIPTEN
-		imageloader = std::make_unique<olc::imload::ImageLoader_LibPNG>();
-#endif
-
-#if OLC_HOST == OLC_HOST_ANDROID
-		imageloader = std::make_unique<olc::imload::ImageLoader_NDKImageDecoder>(
-			olc::host::Host_Android::androidApp->activity->assetManager
-		);
-#endif
+		imageloader = std::make_unique<olc::imload::OLC_IMAGELOADER_CLASS>();
 
 		// Allow host to prepare itself
 		return host->OnApplicationStart(this);
@@ -371,7 +433,7 @@ namespace olc
 		// Initialise GPU Interface
 		olc::gpu::RendererConfig cfgRenderer;
 		cfgRenderer.VerticalSync = config.bVSync;
-		gpu = std::make_unique<olc::gpu::Renderer_OGL33>();
+		gpu = std::make_unique<olc::gpu::OLC_GPU_CLASS>();
 
 		gpu->CreateDevice(host->GetHostWindowDescriptor(this), cfgRenderer);
 		if (gpu->GetLastError() != olc::gpu::RendererError::NoError)
@@ -391,7 +453,7 @@ namespace olc
 		// Create Primary olc::Image - aka "The Screen"
 		olc::ImageConfig cfg;
 		cfg.MSAA = config.bAntiAliasMainScreen;
-		CreateImage(GetDefaultImage(), config.vScreenSize, cfg);
+		CreateImage(GetScreen(), config.vScreenSize, cfg);
 
 		// Initialise "Classic" Font System
 		olc::pgeguts::CreateClassicFont(this);
@@ -399,7 +461,24 @@ namespace olc
 		// Prepare Draw2D system
 		draw.SetGPU(gpu.get());
 		gpu->ApplyDefaultShader();
-		draw.SetTarget(GetDefaultImage());
+		draw.SetTarget(GetScreen());
+
+		for (const auto& pgex : vecSystemExtensions)
+		{
+			if(!pgex->OnBeforeUserCreate(this))
+			{
+				std::cout << "PGE OnContextStart(): User aborted in extension OnBeforeUserCreate()\n";
+				return false;
+			}
+		}
+
+		// It's possible to draw things in create so flush any pending GPU tasks
+		draw.ProcessGPUTasks();
+
+		// Set to known default state
+		draw.SetTarget(GetScreen());
+		draw.WorldReset();
+		gpu->ApplyDefaultShader();
 
 		// User Create GOOOOOOOOO!!!!
 		if (!OnUserCreate())
@@ -412,7 +491,24 @@ namespace olc
 		draw.ProcessGPUTasks();
 
 		// Set to known default state
-		draw.SetTarget(GetDefaultImage());
+		draw.SetTarget(GetScreen());
+		draw.WorldReset();
+		gpu->ApplyDefaultShader();
+
+		for (const auto& pgex : vecSystemExtensions)
+		{
+			if (!pgex->OnAfterUserCreate(this))
+			{
+				std::cout << "PGE OnContextStart(): User aborted in extension OnAfterUserCreate()\n";
+				return false;
+			}
+		}
+
+		// It's possible to draw things in create so flush any pending GPU tasks
+		draw.ProcessGPUTasks();
+
+		// Set to known default state
+		draw.SetTarget(GetScreen());
 		draw.WorldReset();
 		gpu->ApplyDefaultShader();
 
@@ -465,7 +561,7 @@ namespace olc
 		if (durationFrameCount >= 1s)
 		{
 			durationFrameCount -= 1s;
-			std::string sTitle = "OneLoneCoder.com - Pixel Game Engine 3 - Test - FPS: " + std::to_string(frameCount);
+			std::string sTitle = "OneLoneCoder.com - Pixel Game Engine 3 - " + sAppName + " - FPS: " + std::to_string(frameCount);
 			SetWindowTitle(sTitle);
 			fps = frameCount;
 			frameCount = 0;
@@ -478,8 +574,26 @@ namespace olc
 		}
 		else
 		{
+			for (const auto& pgex : vecSystemExtensions)
+			{
+				if (!pgex->OnBeforeSystemUpdate(this, fDT))
+				{
+					std::cout << "PGE OnContextTick(): User aborted in extension OnAfterUserCreate()\n";
+					return false;
+				}
+			}
+
 			// Update Primary Window
 			olc_WindowUpdate(fDT, fTT);
+
+			for (const auto& pgex : vecSystemExtensions)
+			{
+				if (!pgex->OnAfterSystemUpdate(this, fDT))
+				{
+					std::cout << "PGE OnContextTick(): User aborted in extension OnAfterSystemUpdate()\n";
+					return false;
+				}
+			}
 
 			// Wait for vertical sync with desktop compositor if required. 
 			
@@ -542,38 +656,14 @@ namespace olc
 #endif
 	}
 
+	bool PixelGameEngine::InstallSystemExtension(olc::PGESystemExtension* pgex)
+	{
+		vecSystemExtensions.push_back(pgex);
+		return pgex->OnInstall(this);
+	}
+
 }
 //! END IMPLEMENTATION
-
-// DEVS!! All your old stuff is below here for reference, but will be removed later
-
-//		// Johnnyg63: Added MacOS Host Initialisation
-//
-//#if OLC_MULTIWINDOW == OLC_MULTIWINDOW_NO
-//		// Create OS window on this thread
-//		host->AddWindowFrame(this, { 30,30 }, config.vPixelSize * config.vScreenSize, false);
-//		// Create EngineThread - no more windows will be created now. We needed one window
-//		// at least to initialise teh rendering subsystem... sigh.
-//		coreActive = true;
-//
-//#if OLC_HOST != OLC_HOST_EMSCRIPTEN
-//		coreThread = std::thread(&PixelGameEngine::EngineThread, this);
-//		// Handle window events on this thread (and block)
-//		host->StartSystemEventLoop(true);		
-//		// Window has closed its event handler, so shut down gracefully
-//		coreActive = false;
-//		// Wait for engine thread to terminate
-//		coreThread.join();
-//#else
-//		EngineThread();
-//#endif
-//
-//#else
-//		
-//#endif
-		//
-		//return true;
-
 
 
 //	void PixelGameEngine::CoreUpdate(void* userdata)
@@ -602,69 +692,6 @@ namespace olc
 //#endif
 //		
 //
-//
-//		// Initialise ImageLoader Interface
-//
-//
-//		
-//
-//		// Link this windows devices
-//		LinkToHost(host.get());
-//		LinkToRenderer(gpu.get());
-//		LinkToImageLoader(imageloader.get());
-//
-//		// The GPU device can be based upon the primary window configuration. This
-//		// gives us completed gpu and host objects to pass to other windows as and
-//		// when required
-//		gpu->CreateDevice(host->GetHostWindowDescriptor(this), cfgRenderer);
-//		if (gpu->GetLastError() != olc::gpu::RendererError::NoError)
-//		{
-//			//const auto e = gpu->GetLastError(); // For debug visibility
-//			std::cout << "Error: Could not create Renderer\n";
-//			return;
-//		}
-//
-//
-//		
-//		olc::ImageConfig cfg;
-//		cfg.MSAA = config.bAntiAliasMainScreen;
-//		CreateImage(GetDefaultImage(), config.vScreenSize, cfg);
-//		
-//
-//		// Initialise Font System
-//		olc::pgeguts::CreateClassicFont(this);
-//
-//
-//		draw.SetGPU(gpu.get());
-//		gpu->ApplyDefaultShader();
-//		draw.SetTarget(GetDefaultImage());
-//
-//		if (!OnUserCreate())
-//		{
-//			// Creation process signalled abort
-//			return;
-//		}
-//
-//
-//		
-//		draw.ProcessGPUTasks();
-//		draw.SetTarget(GetDefaultImage());
-//
-//		// Initialise Input Devices
-//
-//
-//		
-//
-//		#if OLC_HOST == OLC_HOST_EMSCRIPTEN
-//			emscripten_set_main_loop_arg(PixelGameEngine::CoreUpdate, reinterpret_cast<void*>(this), 0, 1);
-//		#else
-//		while (coreActive)
-//		{
-//			PixelGameEngine::CoreUpdate(this);
-//		}
-//		#endif
-//	}
-
 
 
 

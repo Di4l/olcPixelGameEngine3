@@ -1,4 +1,5 @@
 #pragma once
+#include "core.h"
 
 //! START STDHEADER GLOBAL
 #include <atomic>
@@ -19,7 +20,10 @@ namespace X11
 #include <X11/X.h>
 #include <X11/Xlib.h>
 #include <X11/XKBlib.h>
+#include <X11/Xutil.h>
 #include <GL/glx.h>
+#undef None
+constexpr int None = 0L;
 }
 
 namespace olc::host
@@ -47,6 +51,12 @@ namespace olc::host
         // Wait for entire host desktop refresh (for smooooth vsync)
         bool SyncWithDesktopComposite() override;
 
+        // Force the mouse position in pixels relative to window
+        bool SetMousePosition(olc::Window* pWindow, const olc::vi2d& vPos) override;
+        // Show or hide mouse cursor for given window
+        bool SetMouseVisible(olc::Window* pWindow, const bool bVisible) override;
+        bool SetFullScreen(olc::Window* pWindow, const bool bFullScreen) override;
+
     public:
         bool OnApplicationStart(olc::PixelGameEngine* pPrimary) override;
         bool StartSystem() override;
@@ -62,12 +72,17 @@ namespace olc::host
         std::atomic<bool> systemActive {true};
 
         std::unordered_map<uint32_t, olc::Key> mapKeys;
+        std::unordered_map<int, int> mapMouseButtons;
 
         // Keyboard Layout Variables
         olc::KeyboardLayout keyboardLayout = OLC_DEFAULT_KEYBOARD_LAYOUT;
         bool kbExtensionsFound = false;
         int xkbEventBase = 0;
         int xkbErrorBase = 0;
+
+        // Mouse Variables
+        std::unordered_map<size_t, X11::Cursor> mapUID2X11Cursor;
+        bool bMouseIsVisible = true;
     };
 }
 

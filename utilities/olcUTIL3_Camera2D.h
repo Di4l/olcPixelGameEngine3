@@ -59,7 +59,7 @@
 
 #pragma once
 
-#include <olcPixelGameEngine3.h>
+//#include <olcPixelGameEngine3.h>
 
 namespace olc::utils
 {
@@ -79,10 +79,14 @@ namespace olc::utils
 		inline Camera2D() : m_pTarget(&m_vLocalTarget) {}
 		
 		// Construct a camera with a viewable area size, and an optional starting position
-		inline Camera2D(const olc::vf2d& vViewSize, const olc::vf2d& vViewPos = { 0.0f, 0.0f }) : m_pTarget(&m_vLocalTarget)
+		inline Camera2D(const olc::vf2d& vScreenSize, const olc::vf2d& vViewScale = { 1.0f, 1.0f }, const olc::vf2d & vViewPos = { 0.0f, 0.0f }) : m_pTarget(&m_vLocalTarget)
 		{
-			m_vViewSize = vViewSize;
+			m_vViewSize = vScreenSize / vViewScale;
 			m_vViewPos = vViewPos;
+			m_vViewScale = vViewScale;
+
+			transform.scale(vViewScale);
+			transform.translate(vViewPos);
 		}
 
 		// Set the operational mode of this camera
@@ -191,7 +195,7 @@ namespace olc::utils
 
 		// Update camera, animating if necessary, obeying world boundary rules
 		// returns true if target is visible
-		inline virtual bool Update(const float fElapsedTime)
+		inline virtual bool Update(const float fElapsedTime, const bool bUpdateTransform = true)
 		{
 			switch (m_nMode)
 			{
@@ -240,9 +244,108 @@ namespace olc::utils
 				m_vViewPos = m_vViewPos.max(m_vWorldBoundaryPos).min(m_vWorldBoundaryPos + m_vWorldBoundarySize - m_vViewSize);
 			}
 
+			if (bUpdateTransform)
+			{
+				transform.identity();
+				transform.scale(m_vViewScale);
+				transform.translate(-m_vViewPos);
+			}
+
+
 			return GetTarget().x >= m_vViewPos.x && GetTarget().x < (m_vViewPos.x + m_vViewSize.x) &&
 				GetTarget().y >= m_vViewPos.y && GetTarget().y < (m_vViewPos.y + m_vViewSize.y);
 		}
+
+		// Get the world transform for this camera
+		inline const olc::tf2d& GetWorldTransform() const
+		{
+			return transform;
+		}
+
+		// Get the visible area of the camera in world space
+		inline const olc::vf2d GetVisibleArea()
+		{
+			return m_vViewSize;
+		}
+
+
+		// Handle mouse input for panning and zooming the camera
+		inline void HandlePanAndZoom(const olc::hw::Mouse& mouse, const int32_t nButtonPan = 2)
+		{
+			// Enter panning mode if middle mouse button pressed (and held)
+			if (mouse.GetButton(nButtonPan).bPressed)
+			{
+				bPanning = true;
+				// Cache mouse position at start of drag, so we can create a
+				// mouse position delta
+				vLastMouseScreenPos = mouse.GetPosition();
+			}
+
+			// Exit panning mode if middle mouse button released
+			if (mouse.GetButton(nButtonPan).bReleased)
+			{
+				bPanning = false;
+			}
+
+			// Squash current transform to a single matrix. This is required
+			// so we dont contnuously add to the transform stack
+			transform.squash();
+
+			// Get current mouse position		
+			olc::vf2d vMousePos = mouse.GetPosition();
+			olc::vf2d vMouseWorldPos = transform.inverse(vMousePos);
+			olc::vf2d vLastMouseWorldPos = transform.inverse(vLastMouseScreenPos);
+
+			// NOTE!!! Scale & Rotate BEFORE translation
+
+
+
+			// Handle zooming and rotation. This is a bit clumsy because we are
+			// using the mouse wheel for both. In a real application you would
+			// probably want to use keyboard modifiers to distinguish the two.
+			if (mouse.GetWheel() != 0)
+			{
+				// Cache the mouse position before transformation			
+				auto posWorldBefore = vMouseWorldPos;
+
+				// If right mouse button held, we are rotating
+				//if (mouse.GetButton(1).bHeld)
+				//{
+				//	// Adjust rotation depending on wheel direction
+				//float fRotateDelta = (mouse.GetWheel() > 0) ? 0.1f : -0.1f;
+				//transform.rotate(fRotateDelta, posWorldBeforeRotate);
+				//}
+				//else
+				//{
+					// Adjust scale depending on wheel direction
+					olc::vf2d vScaleDelta = olc::vf2d{ 1.0f, 1.0f } * ((mouse.GetWheel() > 0) ? 1.1f : 0.9f);
+					transform.scale(vScaleDelta);
+				//}
+
+				// Get the new screen position of the point under the mouse
+				auto posWorldAfter = transform.inverse(mouse.GetPosition());
+
+				// Adjust translation to keep mouse position stable
+				auto posScreenDisplacement = posWorldBefore - posWorldAfter;
+
+				// Apply adjustment
+				transform.translate(-posScreenDisplacement);
+			}
+
+			// If we are panning, update translation component of transform
+			if (bPanning)
+			{
+				// Update translation by the mouse delta. Note that we round the mouse
+				// to screen coordinates to avoid sub-pixel jittering. This is optional.
+				transform.translate(vMouseWorldPos - vLastMouseWorldPos);
+			}
+
+
+
+			// Cache last mouse position
+			vLastMouseScreenPos = vMousePos;
+		}
+		
 
 	protected:
 		// Position of camera focus point in the world
@@ -251,6 +354,8 @@ namespace olc::utils
 		olc::vf2d m_vViewSize;
 		// Top left coordinate of camera viewing area
 		olc::vf2d m_vViewPos;
+		// Scaling within the camera view
+		olc::vf2d m_vViewScale = { 1.0f, 1.0f };
 		// Camera movement mode
 		Mode m_nMode = Mode::Simple;
 
@@ -267,5 +372,12 @@ namespace olc::utils
 		olc::vf2d m_vEdgeTriggerDistance = { 1.0f, 1.0f };
 		float m_fLazyFollowRate = 4.0f;
 		olc::vi2d m_vScreenSize = { 16,15 };
+
+		// Pan and zoom support
+		bool bPanning = false;
+		olc::vf2d vLastMouseScreenPos = { 0.0f, 0.0f };
+
+		// The final "World" transform
+		olc::tf2d transform;
 	};
 }

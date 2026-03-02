@@ -74,6 +74,11 @@ namespace olc
 			// Wait for OS desktop refresh (for smooooth vsync)
 			bool SyncWithDesktopComposite() override;
 
+		public: // Platform specific Mouse Control
+			bool SetMousePosition(olc::Window* pWindow, const olc::vi2d& vPos) override;
+			bool SetMouseVisible(olc::Window* pWindow, const bool bVisible) override;			
+			bool SetFullScreen(olc::Window* pWindow, const bool bFullScreen) override;
+
 		public: // OS Specific Environment Information
 			olc::KeyboardLayout GetKeyboardLayout() const override;
 
@@ -100,6 +105,8 @@ namespace olc
 			std::unordered_map<HWND, olc::Window*> mapHWND2PTR;
 			std::wstring ConvertS2W(std::string s);
 			std::atomic<bool> systemActive = false;
+			HCURSOR hCursorDefault = nullptr;
+			HCURSOR hCursorNow = nullptr;
 
 		public:
 			LRESULT OnWindowEvent(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);

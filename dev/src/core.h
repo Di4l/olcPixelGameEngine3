@@ -21,6 +21,8 @@
 #include "host_iface.h"
 #include "imload_iface.h"
 #include "font.h"
+#include "draw.h"
+#include "extension.h"
 //! END CUSTOMHEADER GLOBAL
 
 //! START DECLARATION
@@ -57,12 +59,15 @@ namespace olc
 		bool bAntiAliasMainScreen = false;
 		// Default clear colour for the primary drawing surface
 		olc::Pixel colClear = olc::Colour::BLACK;
+		// Default Application Name (shown in window title bar)
+		std::string sAppName = "PGE3";
 	};
 
 	// A PGE Window is a window with drawing and input capabilities a la olc::PixelGameEngine
 	class PGEWindow : public Window
 	{
 	public:
+		PGEWindow();
 		bool Create(const olc::vi2d& vScreenSize, const olc::vi2d& vPixelSize);
 	
 	public:
@@ -94,8 +99,8 @@ namespace olc
 
 	public:
 		// Returns the image that represents the primary drawing surface
-		olc::Image& GetDefaultImage();
-		olc::Draw2D& GetDraw();
+		olc::Image& GetScreen();
+		olc::Draw& GetDraw();
 
 		// Input devices are handled by a regular olc::Window, but for convenience...
 		olc::hw::Mouse& GetMouse();
@@ -104,6 +109,10 @@ namespace olc
 		// Returns the current size of the "screen" in pixels
 		const olc::vi2d& ScreenSize();
 
+	public: // Mouse manipulation
+		// Force the mouse position, in "PGE Screen" coordinates
+		void SetMousePosition(const olc::vi2d& vPos);
+
 	protected:
 		bool olc_OnMouseMove(const olc::vi2d& vMousePos) override;
 
@@ -111,8 +120,7 @@ namespace olc
 		virtual bool olc_WindowUpdate(const float fElapsedTime, const float fTotalElapsedTime);
 
 	protected:
-		olc::Draw2D draw;
-		
+		olc::Draw draw;		
 		
 	private:
 		olc::Image imgPrimary;
@@ -121,9 +129,16 @@ namespace olc
 		olc::vi2d vViewPos = { 0,0 };
 		olc::vi2d vViewSize = { 0,0 };
 
+	protected: // Extensions
+		bool InstallWindowExtension(olc::PGEWindowExtension* pgex);
+		std::vector<olc::PGEWindowExtension*> vecWindowExtensions;
+
 	protected:
 		// PGE Configuration
 		PGEConfig config;
+
+		// Application Name
+		std::string sAppName = "";
 	};
 
 	// The olc::PixelGameEngine3 core, manages the main window, child windows, engine loop, timing and devices
@@ -156,6 +171,10 @@ namespace olc
 
 	public: // Child Windows
 		bool AddChildWindow(std::shared_ptr<olc::PGEWindow> window, const olc::vi2d& vScreenSize, const olc::vi2d& vPixelSize);
+
+	protected:
+		bool InstallSystemExtension(olc::PGESystemExtension* pgex);
+		
 	
 
 	private: // Called from Host
@@ -173,6 +192,10 @@ namespace olc
 	private:
 		// Window Management
 		std::deque<std::shared_ptr<PGEWindow>> deqChildWindows;
+
+		// Extensions
+		std::vector<olc::PGESystemExtension*> vecSystemExtensions;
+		
 
 		// Frame Timing & Overall Clocking
 		std::chrono::steady_clock::time_point timeFrame1;

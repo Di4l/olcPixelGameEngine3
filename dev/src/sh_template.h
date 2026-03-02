@@ -94,11 +94,14 @@
 	Primary Contributors
 	~~~~~~~~~~~~~~~~~~~~
 	@javidx9 (aka David Barr, OneLoneCoder)
-	@Moros1198, @dandistine, @johnnyg63, @iCiaran
+	@Moros1138, @dandistine, @johnnyg63, @iCiaran, @DCubix
 
 	With assistance from all of the developers of olc::PixelGameEngine 2 over the years,
 	and the many community contributors that have provided bug fixes, suggestions,
 	criticisms, and encouragement from the OneLoneCoder Discord server, YouTube & GitHub.
+
+	Saladin, if you're out there, I know you would have been a proud contributer to this.
+	I miss you buddy.
 
 	Version History
 	~~~~~~~~~~~~~~~
@@ -114,7 +117,11 @@
 
 //! GRAB vector2d.h DECLARATION
 
+//! GRAB vector4d.h DECLARATION
+
 //! GRAB matrix3d.h DECLARATION
+
+//! GRAB matrix4d.h DECLARATION
 
 //! GRAB transform2d.h DECLARATION
  
@@ -128,7 +135,7 @@
  
 //! GRAB gpu_iface.h DECLARATION
 
-//! GRAB draw2d.h DECLARATION
+//! GRAB draw.h DECLARATION
 
 //! GRAB hw_input.h	DECLARATION
 
@@ -140,6 +147,8 @@
  
 //! GRAB host_iface.h DECLARATION
 
+//! GRAB extension.h DECLARATION
+
 //! GRAB core.h	DECLARATION
 
 
@@ -150,6 +159,11 @@
 
 
 
+#if OLC_HOST == OLC_HOST_NONE
+//! GRAB host_none.h NOHOST_CONFIG
+
+//! GRAB host_none.h DECLARATION
+#endif
 
 #if OLC_HOST == OLC_HOST_WINDOWS
 //! GRAB host_win_winapi.h WINAPI_CONFIG
@@ -191,6 +205,11 @@
 //! GRAB host_android.h DECLARATION
 #endif
 
+#if OLC_GPU == OLC_GPU_NONE
+//! GRAB gpu_none.h DECLARATION
+#endif
+
+
 #if OLC_GPU == OLC_GPU_OPENGL33
 //! GRAB api_opengl.h OPENGL_CONFIG
 
@@ -213,17 +232,20 @@
 //! GRAB imload_lib_png.h DECLARATION
 #endif
 
-#if OLC_HOST == OLC_HOST_ANDROID
+#if OLC_IMAGELOADER == OLC_IMAGELOADER_NDK_IMAGEDECODER
 //! GRAB imload_android.h DECLARATION
 #endif
 
-
-
-
-
+#if OLC_IMAGELOADER == OLC_IMAGELOADER_STB_IMAGE
+//! GRAB imload_stb_image.h DECLARATION
+#endif
 
 
 #if defined(OLC_PGE3_APPLICATION) && !defined(PGE_HOST_IMPLEMENTED)
+#if OLC_HOST == OLC_HOST_NONE
+//! GRAB host_none.cpp IMPLEMENTATION
+#endif
+
 #if OLC_HOST == OLC_HOST_WINDOWS
 //! GRAB host_win_winapi.cpp IMPLEMENTATION
 #endif
@@ -254,18 +276,24 @@
 #endif
 
 #if defined(OLC_PGE3_APPLICATION) && !defined(PGE_GPU_IMPLEMENTED)
-#if OLC_GPU == OLC_GPU_OPENGL33
+
 //! GRAB gpu_iface.cpp IMPLEMENTATION
+
+#if OLC_GPU == OLC_GPU_NONE
+//! GRAB gpu_none.cpp IMPLEMENTATION
+#endif
+
+#if OLC_GPU == OLC_GPU_OPENGL33
 //! GRAB api_opengl.cpp IMPLEMENTATION
 //! GRAB gpu_opengl33.cpp IMPLEMENTATION
 #endif
 #define PGE_GPU_IMPLEMENTED 1
 #endif
 
-#if defined(OLC_PGE3_APPLICATION) && !defined(PGE_DRAW2D_IMPLEMENTED)
-//! GRAB draw2d.cpp IMPLEMENTATION 
-//! GRAB draw2d_sw.cpp IMPLEMENTATION 
-#define PGE_DRAW2D_IMPLEMENTED 1
+#if defined(OLC_PGE3_APPLICATION) && !defined(PGE_DRAW_IMPLEMENTED)
+//! GRAB draw.cpp IMPLEMENTATION 
+//! GRAB draw_batch.cpp IMPLEMENTATION
+#define PGE_DRAW_IMPLEMENTED 1
 #endif
 
 #if defined(OLC_PGE3_APPLICATION) && !defined(PGE_CORE_IMPLEMENTED)
@@ -308,9 +336,13 @@
 #if OLC_IMAGELOADER == OLC_IMAGELOADER_LIB_PNG
 //! GRAB imload_lib_png.cpp IMPLEMENTATION 
 #endif
-#if OLC_HOST == OLC_HOST_ANDROID
+#if OLC_IMAGELOADER == OLC_IMAGELOADER_NDK_IMAGEDECODER
 //! GRAB imload_android.cpp IMPLEMENTATION
 #endif
+#if OLC_IMAGELOADER == OLC_IMAGELOADER_STB_IMAGE
+//! GRAB imload_stb_image.cpp IMPLEMENTATION
+#endif
+
 #define PGE_IMAGELOADER_IMPLEMENTED 1
 #endif
 

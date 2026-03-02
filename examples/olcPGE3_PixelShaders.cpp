@@ -30,13 +30,10 @@ class Example_CustomPixelShader : public olc::PixelGameEngine
 public:
 	Example_CustomPixelShader()
 	{
-
+		sAppName = "Example - Custom Pixel Shader";
 	}
 
 protected:
-	// We accumulate total time for some animation
-	float fTotalTime = 0.0f;
-
 	olc::gpu::Shader_GLSL33 shaderExample;
 	olc::Image imgWithoutFX;
 
@@ -133,7 +130,7 @@ public:
 		shaderExample.CreateUniform("amplitude");
 
 		// Create off-screen image to draw to
-		CreateImage(imgWithoutFX, GetDefaultImage().Size());
+		CreateImage(imgWithoutFX, GetScreen().Size());
 
 		// Load a small image to draw for fun
 		CreateImageFromFile(imgMini, "./assets/minsanity_texture.png");
@@ -160,7 +157,7 @@ public:
 		draw.Line({ 10.0f, 50.0f }, olc::Colour::RED, { 246.0f, 80.0f }, olc::Colour::YELLOW);
 
 		// Rotating gradient lines
-		fTotalTime += fElapsedTime;
+		float fTotalTime = TotalTimeElapsed();
 		olc::vf2d p1 = { 64.0f, 160.0f };
 		olc::vf2d p2 = olc::vf2d{ std::cos(fTotalTime), std::sin(fTotalTime) } * 64.0f;
 
@@ -184,7 +181,7 @@ public:
 		draw.Image(imgMini, mouse.GetPosition());
 
 		// Copy image to screen with new shader
-		draw.SetTarget(GetDefaultImage());
+		draw.SetTarget(GetScreen());
 		
 		// Set the custom shader
 		draw.SetShader(shaderExample);

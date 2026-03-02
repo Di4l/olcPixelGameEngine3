@@ -20,13 +20,10 @@ class Example_Pixels : public olc::PixelGameEngine
 public:
 	Example_Pixels()
 	{
-
+		sAppName = "Example - Polygons";
 	}
 
 protected:
-	// We accumulate total time for some animation
-	float fTotalTime = 0.0f;
-
 	std::vector<olc::vf2d> vecPolygonPoints;
 	int nSelectedPoint = -1;
 

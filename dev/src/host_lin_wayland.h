@@ -1,5 +1,7 @@
 #pragma once
 
+#include "core.h"
+
 //! START STDHEADER GLOBAL
 #include <atomic>
 #include <cstdint>
@@ -18,6 +20,8 @@
 #include <wayland-egl.h>
 #include "xdg-shell.h"
 #include "xdg-decoration.h"
+#include "pointer-warp.h"
+#include "cursor-shape.h"
 #include <linux/input-event-codes.h>
 #include <xkbcommon/xkbcommon.h>
 #include <sys/mman.h>
@@ -26,6 +30,10 @@
 
 #include <EGL/egl.h>
 #include <EGL/eglplatform.h>
+
+#ifndef WL_KEYBOARD_KEY_STATE_REPEATED
+#define WL_KEYBOARD_KEY_STATE_REPEATED 2
+#endif
 
 namespace olc::host
 {
@@ -38,6 +46,9 @@ namespace olc::host
         size_t olc_window_uid{0};
         int32_t bounds_x{0};
         int32_t bounds_y{0};
+        bool cursor_visible{true};
+        // Ignore window size bounds for fullscreen events
+        bool fullscreen{false};
     };
 
     namespace wayland {
@@ -82,12 +93,17 @@ namespace olc::host
         wl_seat* seat{nullptr};
         wl_pointer* pointer{nullptr};
         wl_keyboard* keyboard{nullptr};
+        uint32_t keyboard_version{0};
         xkb_context* kb_context{nullptr};
         xkb_state* kb_state{nullptr};
         xkb_keymap* kb_keymap;
         uint32_t kb_group{0};
         xdg_wm_base* xdg_wm{nullptr};
         zxdg_decoration_manager_v1* decoration_manager{nullptr};
+        wp_pointer_warp_v1* pointer_warp{nullptr};
+        uint32_t enter_serial{0};
+        wp_cursor_shape_device_v1* cursor_shape_device{nullptr};
+        wp_cursor_shape_manager_v1* cursor_shape_manager{nullptr};
 
         wayland::PointerState pointer_state;
 
@@ -108,6 +124,9 @@ namespace olc::host
 
         // Wait for entire host desktop refresh (for smooooth vsync)
         bool SyncWithDesktopComposite() override;
+        bool SetMousePosition(olc::Window* pWindow, const olc::vi2d& vPos) override;
+        bool SetMouseVisible(olc::Window* pWindow, const bool bVisible) override;
+        bool SetFullScreen(olc::Window* pWindow, const bool bFullScreen) override;
 
     public:
         bool OnApplicationStart(olc::PixelGameEngine* pPrimary) override;

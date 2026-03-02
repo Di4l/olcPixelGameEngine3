@@ -7,121 +7,45 @@ namespace olc::host
     std::unordered_map<std::string, olc::Window*> Host_Web_Emscripten::mapCanvasId2PTR;
     std::unordered_map<size_t, std::unique_ptr<Host_Web_Emscripten::CallbackData>> Host_Web_Emscripten::mapUID2CallbackData;
 
-    // Called at very start of application
-    bool Host_Web_Emscripten::OnApplicationStart(olc::PixelGameEngine* pPrimary)
-    {
-        std::cout << "Emscripten: OnApplicationStart.\n";
-        pPrimaryPGE = pPrimary;
-        return true;
-    }
-    
-    void Host_Web_Emscripten::MainLoop(void* userData)
-    {
-        auto pHost = reinterpret_cast<Host_Web_Emscripten*>(userData);
-
-        if(!pHost->OnSystemTick())
-        {
-            pHost->StopSystem();
-        }
-    }
-
-    // Called to start the host - this may mean different things on different hosts
-    bool Host_Web_Emscripten::StartSystem()
-    {
-		// Pre-context start hook
-		pPrimaryPGE->OnPreContextStart();
-
-        if(!OnSystemThreadStart())
-        {
-            // PGE->ContextStart() failed, or user aborted OnUserCreate()
-            return false;
-        }
-        
-        emscripten_set_main_loop_arg(Host_Web_Emscripten::MainLoop, reinterpret_cast<void*>(this), 0, 1);
-        
-        // EMSCRIPTEN QUIRK: this code is never reached, the main loop is simulating a while(true);
-        
-        return true;
-    }
-    
-    // Called to stop the host, and shutdown all resources
-    bool Host_Web_Emscripten::StopSystem()
-    {
-        std::cout << "Emscripten: StopSystem.\n";
-        OnSystemThreadEnd();
-        pPrimaryPGE->OnPostContextEnd();
-        emscripten_cancel_main_loop();
-        return true;
-    }
-
-    // Called at start of system event loop
-    bool Host_Web_Emscripten::OnSystemThreadStart()
-    {
-        std::cout << "Emscripten: OnSystemThreadStart.\n";
-        return pPrimaryPGE->OnContextStart();
-    }
-    
-    // Called to perform primary window update
-    bool Host_Web_Emscripten::OnSystemTick()
-    {
-        return pPrimaryPGE->OnContextTick();
-    }
-    
-    // Called at end of system event loop
-    bool Host_Web_Emscripten::OnSystemThreadEnd()
-    {
-        std::cout << "Emscripten: OnSystemThreadEnd.\n";
-        return pPrimaryPGE->OnContextEnd();
-    }
-    
-    // Called at very end of application
-    bool Host_Web_Emscripten::OnApplicationEnd()
-    {
-        std::cout << "Emscripten: OnApplicationEnd.\n";
-        return true;
-    }
-
     Host_Web_Emscripten::Host_Web_Emscripten()
     {
         std::cout << "Emscripten: host constructed.\n";
+        std::string locale = getNavigatorLocale();
+        std::transform(locale.begin(), locale.end(), locale.begin(), [](unsigned char c) { return std::tolower(c); });
         
-        // Detect and Store Keyboard Layout
-        EM_ASM({
-            if (!navigator.keyboard || !navigator.keyboard.getLayoutMap)
-                return;
-
-            navigator.keyboard.getLayoutMap().then(function(map)
-            {
-                const keys = [map.get("KeyQ"), map.get("KeyW"), map.get("KeyE"), map.get("KeyR"), map.get("KeyT"), map.get("KeyY"), map.get("Backslash")];
-                
-                // QWERTY - UK/US
-                if(keys[0] == 'q' && keys[1] == 'w' && keys[2] == 'e' && keys[3] == 'r' && keys[4] == 't' && keys[5] == 'y') {
-                    if(keys[6] == '#' || keys[6] == '~')
-                    {
-                        Module.keyboardLayout = 0;
-                        return;
-                    }
-                    else
-                    {
-                        Module.keyboardLayout = 1;
-                        return;
-                    }
-                }
-
-                // QWERTZ - DE
-                if(keys[0] == 'q' && keys[1] == 'w' && keys[2] == 'e' && keys[3] == 'r' && keys[4] == 't' && keys[5] == 'z') {
-                    Module.keyboardLayout = 2; 
-                    return;
-                }
-                
-                // AZERTY - FR
-                if(keys[0] == 'q' && keys[1] == 'w' && keys[2] == 'e' && keys[3] == 'r' && keys[4] == 't' && keys[5] == 'z') {
-                    Module.keyboardLayout = 3;
-                    return;
-                }
-                
-            });
-        });
+        size_t sep = locale.find('-');
+        std::string lang = locale.substr(0, sep);
+        std::string region = (sep != std::string::npos) ? locale.substr(sep + 1) : "";
+        
+        if(region == "ch" || region == "li")
+        {
+            keyboardLayout = KeyboardLayout::QWERTZ;
+        }
+        else if(locale == "fr-ca")
+        {
+            keyboardLayout = KeyboardLayout::QWERTY_US;
+        }
+        else if(lang == "fr")
+        {
+            keyboardLayout = KeyboardLayout::AZERTY;
+        }
+        else if (
+            lang == "de" || lang == "cs" || lang == "sk" ||
+            lang == "hu" || lang == "hr" || lang == "bs" ||
+            lang == "sl")
+        {
+            keyboardLayout = KeyboardLayout::QWERTZ;
+        }
+        else if(
+            region == "gb" || region == "ie" || region == "za" ||
+            region == "au" || region == "nz" || region == "in")
+        {
+            keyboardLayout = KeyboardLayout::QWERTY_UK;
+        }
+        else
+        {
+            keyboardLayout = KeyboardLayout::QWERTY_US;
+        }
 
         // Map Emscripten Defined DOM_PK_ Codes to olc::KeyCodes
         mapKeys[DOM_PK_UNKNOWN] = Key::NONE;
@@ -237,6 +161,14 @@ namespace olc::host
         mapKeys[DOM_PK_COMMA] = Key::COMMA;
         mapKeys[DOM_PK_MINUS] = Key::MINUS;
         mapKeys[DOM_PK_PERIOD] = Key::PERIOD;
+        
+        // define mouse buttons
+        mapMouseButtons[0] = 0; // left click
+        mapMouseButtons[1] = 2; // middle click
+        mapMouseButtons[2] = 1; // right click
+        mapMouseButtons[3] = 3;
+        mapMouseButtons[4] = 4;
+
     }
 
     bool Host_Web_Emscripten::AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen)
@@ -286,11 +218,149 @@ namespace olc::host
         emscripten_set_resize_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, reinterpret_cast<void*>(cbData), 1, resize_callback);
         emscripten_set_fullscreenchange_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, reinterpret_cast<void*>(cbData), 1, fullscreen_change_callback);
 
+        // Visibility Change Callback
+        emscripten_set_visibilitychange_callback(reinterpret_cast<void *>(cbData), 1, visibility_callback);
+
         // trigger resize after a short pause
         emscripten_sleep(50);
         resize_callback(EMSCRIPTEN_EVENT_RESIZE, nullptr, reinterpret_cast<void*>(cbData));
 
         return true;
+    }
+    
+    bool Host_Web_Emscripten::CloseWindowFrame(olc::Window* pWindow)
+    {
+        std::cout << "Emscripten: CloseWindowFrame not implemented.\n";
+        return true;
+    }
+
+    bool Host_Web_Emscripten::UpdateWindowFrameTitle(olc::Window* pWindow)
+    {
+        // not implemented for emscripten platform
+        return true;
+    }
+
+    std::vector<void*> Host_Web_Emscripten::GetHostWindowDescriptor(olc::Window* pWindow)
+    {
+        const auto window_handle = mapUID2CanvasId.find(pWindow->GetUID());
+        if(window_handle != mapUID2CanvasId.end())
+        {
+            return { (void*)(window_handle->second.c_str()) };
+        }
+        
+        return {};
+    }
+
+    // Wait for entire host desktop refresh (for smooooth vsync)
+    bool Host_Web_Emscripten::SyncWithDesktopComposite()
+    {
+        // SyncWithDesktopComposite not implemented on this platform
+        return true;
+    }
+
+    // Force the mouse position in pixels relative to window
+    bool Host_Web_Emscripten::SetMousePosition(olc::Window* pWindow, const olc::vi2d& vPos)
+    {
+        // Not supported on the web platform
+        olc_IgnoreUnused(pWindow, vPos);
+        
+        static bool debounce = false;
+        if(debounce)
+            return false;
+        
+        debounce = true;
+        std::cout << "SetMousePosition is not supported on this platform.\n";
+        return false;
+    }
+
+    // Show or hide mouse cursor for given window
+    bool Host_Web_Emscripten::SetMouseVisible(olc::Window* pWindow, const bool bVisible)
+    {
+        if(!mapUID2CanvasId.contains(pWindow->GetUID()))
+            return false;
+
+        auto canvasID = mapUID2CanvasId.at(pWindow->GetUID());
+        if(bVisible)
+            EM_ASM({ document.querySelector(UTF8ToString($0)).style.cursor = 'default'; }, canvasID.c_str());
+        else
+            EM_ASM({ document.querySelector(UTF8ToString($0)).style.cursor = 'none'; }, canvasID.c_str());
+
+        return true;
+    }
+
+    olc::KeyboardLayout Host_Web_Emscripten::GetKeyboardLayout() const
+	{
+		return keyboardLayout;
+    }
+
+    // Called at very start of application
+    bool Host_Web_Emscripten::OnApplicationStart(olc::PixelGameEngine* pPrimary)
+    {
+        std::cout << "Emscripten: OnApplicationStart.\n";
+        pPrimaryPGE = pPrimary;
+        return true;
+    }
+
+    // Called to start the host - this may mean different things on different hosts
+    bool Host_Web_Emscripten::StartSystem()
+    {
+		// Pre-context start hook
+		pPrimaryPGE->OnPreContextStart();
+
+        if(!OnSystemThreadStart())
+        {
+            // PGE->ContextStart() failed, or user aborted OnUserCreate()
+            return false;
+        }
+        
+        emscripten_set_main_loop_arg(Host_Web_Emscripten::MainLoop, reinterpret_cast<void*>(this), 0, 1);
+        
+        // EMSCRIPTEN QUIRK: this code is never reached, the main loop is simulating a while(true);
+        
+        return true;
+    }
+    
+    // Called to stop the host, and shutdown all resources
+    bool Host_Web_Emscripten::StopSystem()
+    {
+        OnSystemThreadEnd();
+        pPrimaryPGE->OnPostContextEnd();
+        emscripten_cancel_main_loop();
+        return true;
+    }
+
+    // Called at start of system event loop
+    bool Host_Web_Emscripten::OnSystemThreadStart()
+    {
+        return pPrimaryPGE->OnContextStart();
+    }
+    
+    // Called to perform primary window update
+    bool Host_Web_Emscripten::OnSystemTick()
+    {
+        return pPrimaryPGE->OnContextTick();
+    }
+    
+    // Called at end of system event loop
+    bool Host_Web_Emscripten::OnSystemThreadEnd()
+    {
+        return pPrimaryPGE->OnContextEnd();
+    }
+    
+    // Called at very end of application
+    bool Host_Web_Emscripten::OnApplicationEnd()
+    {
+        return true;
+    }
+
+    void Host_Web_Emscripten::MainLoop(void* userData)
+    {
+        auto pHost = reinterpret_cast<Host_Web_Emscripten*>(userData);
+
+        if(!pHost->OnSystemTick())
+        {
+            pHost->StopSystem();
+        }
     }
 
     //TY Moros
@@ -358,6 +428,48 @@ namespace olc::host
     }
 
     //TY Moros
+    EM_BOOL Host_Web_Emscripten::mouse_callback(int eventType, const EmscriptenMouseEvent* e, void* userData)
+    {
+        CallbackData* pCallbackData = reinterpret_cast<CallbackData*>(userData);
+        
+        //Mouse Movement
+        if (eventType == EMSCRIPTEN_EVENT_MOUSEMOVE)
+        {
+            olc_OnMouseMove(pCallbackData->pWindow, {e->targetX, e->targetY});
+            return EM_FALSE;
+        }
+
+        switch(eventType)
+        {
+            case EMSCRIPTEN_EVENT_MOUSEDOWN:
+            {
+                auto it = pCallbackData->pHost->mapMouseButtons.find(e->button);
+                if(it != pCallbackData->pHost->mapMouseButtons.end())
+                {
+                    olc_OnMouseButton(pCallbackData->pWindow, it->second, true);
+                    // middle/next/back buttons require the event to be consumed to prevent browser behavior
+                    if(it->second >= 2) return EM_TRUE;
+                }
+            }
+            break;
+            case EMSCRIPTEN_EVENT_MOUSEUP:
+            {
+                auto it = pCallbackData->pHost->mapMouseButtons.find(e->button);
+                if(it != pCallbackData->pHost->mapMouseButtons.end())
+                {
+                    olc_OnMouseButton(pCallbackData->pWindow, it->second, false);
+                    // middle/next/back buttons require the event to be consumed to prevent browser behavior
+                    if(it->second >= 2) return EM_TRUE;
+                }
+            }
+            break;
+            default: break;
+        }
+        
+        return EM_FALSE;
+    }
+    
+    //TY Moros
     EM_BOOL Host_Web_Emscripten::wheel_callback(int eventType, const EmscriptenWheelEvent* e, void* userData)
     {
         CallbackData* pCallbackData = reinterpret_cast<CallbackData*>(userData);
@@ -366,59 +478,6 @@ namespace olc::host
             olc_OnMouseWheel(pCallbackData->pWindow, -1 * e->deltaY);
     
         return EM_TRUE;
-    }
-
-    olc::Window* Host_Web_Emscripten::GetWindowFromCanvasId(std::string canvasId)
-    {
-        auto itr = mapCanvasId2PTR.find(canvasId);
-        if(itr != mapCanvasId2PTR.end())
-        {
-            return itr->second;
-        }
-
-        throw std::runtime_error("failed to get window for canvas id: " + canvasId);
-        return nullptr;
-    }
-
-    //TY Moros
-    EM_BOOL Host_Web_Emscripten::mouse_callback(int eventType, const EmscriptenMouseEvent* e, void* userData)
-    {
-        CallbackData* pCallbackData = reinterpret_cast<CallbackData*>(userData);
-        
-        //Mouse Movement
-        if (eventType == EMSCRIPTEN_EVENT_MOUSEMOVE)
-            olc_OnMouseMove(pCallbackData->pWindow, {e->targetX, e->targetY});
-
-
-        //Mouse button press
-        if (e->button == 0) // left click
-        {
-            if (eventType == EMSCRIPTEN_EVENT_MOUSEDOWN)
-                olc_OnMouseButton(pCallbackData->pWindow, 0, true);
-            else if (eventType == EMSCRIPTEN_EVENT_MOUSEUP)
-                olc_OnMouseButton(pCallbackData->pWindow, 0, false);
-        }
-
-        if (e->button == 2) // right click
-        {
-            if (eventType == EMSCRIPTEN_EVENT_MOUSEDOWN)
-                olc_OnMouseButton(pCallbackData->pWindow, 1, true);
-            else if (eventType == EMSCRIPTEN_EVENT_MOUSEUP)
-                olc_OnMouseButton(pCallbackData->pWindow, 1, false);    
-        }
-
-        if (e->button == 1) // middle click
-        {
-            if (eventType == EMSCRIPTEN_EVENT_MOUSEDOWN)
-                olc_OnMouseButton(pCallbackData->pWindow, 2, true);
-            else if (eventType == EMSCRIPTEN_EVENT_MOUSEUP)
-                olc_OnMouseButton(pCallbackData->pWindow, 2, false);
-
-            //at the moment only middle mouse needs to consume events.
-            return EM_TRUE;
-        }
-
-        return EM_FALSE;
     }
 
     //TY Bispoo
@@ -449,24 +508,6 @@ namespace olc::host
         }
 
         return EM_TRUE;
-    }
-    //TY Gorbit
-    EM_BOOL Host_Web_Emscripten::focus_callback(int eventType, const EmscriptenFocusEvent* focusEvent, void* userData)
-    {
-        CallbackData* pCallbackData = reinterpret_cast<CallbackData*>(userData);
- 
-        if (eventType == EMSCRIPTEN_EVENT_BLUR)
-        {
-            // ptrPGE->olc_UpdateKeyFocus(false);
-            olc_OnMouseFocus(pCallbackData->pWindow, false);
-        }
-        else if (eventType == EMSCRIPTEN_EVENT_FOCUS)
-        {
-            // ptrPGE->olc_UpdateKeyFocus(true);
-            olc_OnMouseFocus(pCallbackData->pWindow, true);
-        }
-
-        return 0;
     }
 
     //TY Moros
@@ -518,39 +559,40 @@ namespace olc::host
         return 0;
     }
 
-    bool Host_Web_Emscripten::CloseWindowFrame(olc::Window* pWindow)
+    //TY Gorbit
+    EM_BOOL Host_Web_Emscripten::focus_callback(int eventType, const EmscriptenFocusEvent* focusEvent, void* userData)
     {
-        std::cout << "Emscripten: CloseWindowFrame not implemented.\n";
-        return true;
-    }
-
-    bool Host_Web_Emscripten::UpdateWindowFrameTitle(olc::Window* pWindow)
-    {
-        // not implemented for emscripten platform
-        return true;
-    }
-
-    std::vector<void*> Host_Web_Emscripten::GetHostWindowDescriptor(olc::Window* pWindow)
-    {
-        const auto window_handle = mapUID2CanvasId.find(pWindow->GetUID());
-        if(window_handle != mapUID2CanvasId.end())
+        CallbackData* pCallbackData = reinterpret_cast<CallbackData*>(userData);
+ 
+        if (eventType == EMSCRIPTEN_EVENT_BLUR)
         {
-            return { (void*)(window_handle->second.c_str()) };
+            olc_OnFocus(pCallbackData->pWindow, false);
         }
-        
-        return {};
+        else if (eventType == EMSCRIPTEN_EVENT_FOCUS)
+        {
+            olc_OnFocus(pCallbackData->pWindow, true);
+        }
+
+        return 0;
     }
 
-    // Wait for entire host desktop refresh (for smooooth vsync)
-    bool Host_Web_Emscripten::SyncWithDesktopComposite()
+    EM_BOOL Host_Web_Emscripten::visibility_callback(int eventType, const EmscriptenVisibilityChangeEvent *visibilityChangeEvent, void *userData)
     {
-        // SyncWithDesktopComposite not implemented on this platform
-        return true;
-    }
-	
-    olc::KeyboardLayout Host_Web_Emscripten::GetKeyboardLayout() const
-	{
-		return static_cast<olc::KeyboardLayout>(EM_ASM_INT({ return Module.keyboardLayout || 0; }));
+        CallbackData *pCallbackData = reinterpret_cast<CallbackData *>(userData);
+
+        if (visibilityChangeEvent->hidden)
+        {
+            pCallbackData->pHost->timeHidden = std::chrono::steady_clock::now();
+            emscripten_pause_main_loop();
+        }
+        else
+        {
+            emscripten_resume_main_loop();
+            auto durationHidden = std::chrono::steady_clock::now() - pCallbackData->pHost->timeHidden;
+            pCallbackData->pHost->pPrimaryPGE->timeFrame2 += durationHidden;
+        }
+
+        return 0;
     }
 
     bool Host_Web_Emscripten::olc_OnMouseButton(olc::Window* pWindow, const uint8_t nButton, const bool bPressed)
@@ -568,9 +610,9 @@ namespace olc::host
         return pWindow->olc_OnMouseWheel(nScroll);
     }
 
-    bool Host_Web_Emscripten::olc_OnMouseFocus(olc::Window* pWindow, const bool bHasFocus)
+    bool Host_Web_Emscripten::olc_OnFocus(olc::Window* pWindow, const bool bHasFocus)
     {
-        return pWindow->olc_OnMouseFocus(bHasFocus);
+        return pWindow->olc_OnFocus(bHasFocus);
     }
 
     bool Host_Web_Emscripten::olc_OnKeyPress(olc::Window* pWindow, const olc::Key key, const bool bPressed)
@@ -593,6 +635,18 @@ namespace olc::host
         return pWindow->olc_OnWindowClose();
     }
 
-
+    std::string Host_Web_Emscripten::getNavigatorLocale()
+    {
+        char* raw = (char*)EM_ASM_PTR({
+            var lang = window.navigator.language || "en-US";
+            var len = lengthBytesUTF8(lang) + 1;
+            var buf = _malloc(len);
+            stringToUTF8(lang, buf, len);
+            return buf;
+        });
+        std::string result(raw);
+        free(raw);
+        return result;
+    }
 }
 //! END IMPLEMENTATION

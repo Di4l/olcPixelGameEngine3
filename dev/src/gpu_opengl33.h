@@ -3,6 +3,10 @@
 #include "gpu_iface.h"
 #include "api_opengl.h"
 
+#if OLC_HOST == OLC_HOST_LINUX_WAYLAND
+#include "host_lin_wayland.h"
+#endif
+
 //! START DECLARATION
 #if !defined(PGE_RENDERER_OPENGL33_DECLARED)
 namespace olc
@@ -99,6 +103,10 @@ namespace olc
 			std::unordered_map<uint32_t, uint32_t> mapTextureToRenderbuffer;
 
 			const Shader* pCurrentShader = nullptr;
+
+			uint32_t nDepthRBO = 0;              // Shared depth renderbuffer
+			olc::vi2d vCurrentDepthSize = {0, 0}; // Track current depth buffer size
+			int32_t nCurrentDepthSamples = 0;     // Track current MSAA sample count
 
 #if OLC_HOST == OLC_HOST_ANDROID
 			EGLConfig FindBestConfig(EGLDisplay display, int desiredMultisamples = OLC_MSAA_SAMPLES);

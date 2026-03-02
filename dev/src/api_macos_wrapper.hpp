@@ -95,6 +95,14 @@ namespace olc {
                 void run() noexcept {
                     if (app_) application_run(app_);
                 }
+                
+                void terminate() noexcept {
+                    if (app_) {
+                        application_stop(app_);
+                        app_ = nullptr;
+                    }
+                }
+                
 
                 // Add this method to get system locale
                 std::string getSystemLocale() const {
@@ -201,6 +209,13 @@ namespace olc {
                     }
                 }
 
+                void destoryWindow() {
+                    if (window_) {
+                        window_destroy(window_);
+                        free(window_);
+                        window_ = nullptr;
+                    }
+                }
                 // Get underlying C handle (Are you brave enough to use it?)
                 struct ::Window* getCHandle() const noexcept { return window_; }
                 
@@ -444,6 +459,29 @@ namespace olc {
                     setCallback(window_setWindowDidDeminiaturizeCallback, std::move(callback));
                 }
                 
+                // Set the cusror position within the window
+                void setCursorPosition(int32_t x, int32_t y) noexcept {
+                    setCursorPosition(static_cast<double>(x), static_cast<double>(y));
+                }
+
+                void setCursorPosition(float x, float y) noexcept {
+                    setCursorPosition(static_cast<double>(x), static_cast<double>(y));
+                }
+
+                void setCursorPosition(double x, double y) noexcept {
+                    if (window_) {
+                        window_setCursorPosition(window_, x, y);
+                    }
+                }
+                
+                // Set cursor visibility
+                void setCursorVisibility(bool visible) noexcept {
+                    if (window_) {
+                        window_setCursorVisibility(window_, visible);
+                    }
+                }
+                
+                
                 // Non-copyable but movable
                 Window(const Window&) = delete;
                 Window& operator=(const Window&) = delete;
@@ -482,6 +520,13 @@ namespace olc {
                 ~OpenGLRenderer() {
                     if (renderer_) {
                         opengl_destroy(renderer_);
+                    }
+                }
+                
+                void destoryContext() noexcept {
+                    if (renderer_) {
+                        opengl_destroy(renderer_);
+                        renderer_ = nullptr;
                     }
                 }
                 
@@ -650,6 +695,19 @@ namespace olc {
                 KeyEvent& operator=(const KeyEvent&) = default;
             };
             
+            struct FlagsChangedEvent {
+                unsigned int modifierFlags;
+
+                FlagsChangedEvent(unsigned int mods) noexcept
+                    : modifierFlags(mods) {}
+                
+                // Move constructor and assignment for better performance
+                FlagsChangedEvent(FlagsChangedEvent&&) noexcept = default;
+                FlagsChangedEvent& operator=(FlagsChangedEvent&&) noexcept = default;
+                FlagsChangedEvent(const FlagsChangedEvent&) = default;
+                FlagsChangedEvent& operator=(const FlagsChangedEvent&) = default;
+            };
+
             // Mouse event data structure
             struct MouseEvent {
                 double x, y;
@@ -682,6 +740,7 @@ namespace olc {
                 Window& window_;
                 std::function<void(const KeyEvent&)>    keyDownHandler_;
                 std::function<void(const KeyEvent&)>    keyUpHandler_;
+                std::function<void(const FlagsChangedEvent&)>  flagsChangedHandler_;
                 std::function<void(const MouseEvent&)>  mouseDownHandler_;
                 std::function<void(const MouseEvent&)>  mouseUpHandler_;
                 std::function<void(const MouseEvent&)>  mouseMovedHandler_;
@@ -693,6 +752,8 @@ namespace olc {
                 std::function<void(const MouseEvent&)>  otherMouseUpHandler_;
                 std::function<void(const MouseEvent&)>  otherMouseDraggedHandler_;
                 std::function<void(const ScrollWheelEvent&)> scrollWheelHandler_;
+                std::function<void(const MouseEvent&)>  mouseMovedEnteredHandler_;
+                std::function<void(const MouseEvent&)>  mouseMovedExitedHandler_;
                
                 // Template helpers for static callbacks to reduce code duplication
                 template<typename EventType, typename HandlerType>
@@ -700,6 +761,14 @@ namespace olc {
                     auto* eventHandler = static_cast<EventHandler*>(userData);
                     if (eventHandler && (eventHandler->*handler)) {
                         (eventHandler->*handler)(KeyEvent(keyCode, characters, modifierFlags));
+                    }
+                }
+
+                template<typename EventType, typename HandlerType>
+                static void flagsChangedCallback(unsigned int modifierFlags, void* userData, HandlerType EventHandler::*handler) {
+                    auto* eventHandler = static_cast<EventHandler*>(userData);
+                    if (eventHandler && (eventHandler->*handler)) {
+                        (eventHandler->*handler)(FlagsChangedEvent(modifierFlags));
                     }
                 }
                 
@@ -720,6 +789,10 @@ namespace olc {
                     keyCallback<KeyEvent>(keyCode, characters, modifierFlags, userData, &EventHandler::keyUpHandler_);
                 }
                 
+                static void flagsChangedCallback(unsigned int modifierFlags, void* userData) {
+                    flagsChangedCallback<FlagsChangedEvent>(modifierFlags, userData, &EventHandler::flagsChangedHandler_);
+                }
+
                 static void mouseDownCallback(double x, double y, int buttonNumber, unsigned int modifierFlags, void* userData) {
                     mouseCallback<MouseEvent>(x, y, buttonNumber, modifierFlags, userData, &EventHandler::mouseDownHandler_);
                 }
@@ -732,6 +805,20 @@ namespace olc {
                     auto* eventHandler = static_cast<EventHandler*>(userData);
                     if (eventHandler && eventHandler->mouseMovedHandler_) {
                         eventHandler->mouseMovedHandler_(MouseEvent(x, y, buttonNumber, modifierFlags));
+                    }
+                }
+                
+                static void mouseEnteredCallback(double x, double y, int buttonNumber, unsigned int modifierFlags, void* userData) {
+                    auto* eventHandler = static_cast<EventHandler*>(userData);
+                    if (eventHandler && eventHandler->mouseMovedEnteredHandler_) {
+                        eventHandler->mouseMovedEnteredHandler_(MouseEvent(x, y, buttonNumber, modifierFlags));
+                    }
+                }
+                
+                static void mouseExitedCallback(double x, double y, int buttonNumber, unsigned int modifierFlags, void* userData) {
+                    auto* eventHandler = static_cast<EventHandler*>(userData);
+                    if (eventHandler && eventHandler->mouseMovedExitedHandler_) {
+                        eventHandler->mouseMovedExitedHandler_(MouseEvent(x, y, buttonNumber, modifierFlags));
                     }
                 }
 
@@ -804,6 +891,11 @@ namespace olc {
                     window_setKeyUpCallback(window_.getCHandle(), keyUpCallback, this);
                 }
                 
+                void onFlagsChanged(std::function<void(const FlagsChangedEvent&)> handler) {
+                    flagsChangedHandler_ = std::move(handler);
+                    window_setFlagsChangedCallback(window_.getCHandle(), flagsChangedCallback, this);
+                }
+                
                 void onMouseDown(std::function<void(const MouseEvent&)> handler) {
                     mouseDownHandler_ = std::move(handler);
                     window_setMouseDownCallback(window_.getCHandle(), mouseDownCallback, this);
@@ -857,6 +949,16 @@ namespace olc {
                 void onScrollWheel(std::function<void(const ScrollWheelEvent&)> handler) {
                     scrollWheelHandler_ = std::move(handler);
                     window_setScrollWheelCallback(window_.getCHandle(), scrollWheelCallback, this);
+                }
+                
+                void onMouseEnteredWindow(std::function<void(const MouseEvent&)> handler) {
+                    mouseMovedEnteredHandler_ = std::move(handler);
+                    window_setMouseEnteredCallback(window_.getCHandle(), mouseEnteredCallback, this);
+                }
+                
+                void onMouseExitWindow(std::function<void(const MouseEvent&)> handler) {
+                    mouseMovedExitedHandler_ = std::move(handler);
+                    window_setMouseExitedCallback(window_.getCHandle(), mouseExitedCallback, this);
                 }
 
                 // Enable/disable event handling

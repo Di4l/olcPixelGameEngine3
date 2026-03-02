@@ -71,6 +71,8 @@ namespace olc::apis::opengl
 		bLoaded &= (_glDeleteRenderbuffers = OGL_LOAD(glDeleteRenderbuffers)) != nullptr;
 		bLoaded &= (_glGetInternalformativ = OGL_LOAD(glGetInternalformativ)) != nullptr;
 		bLoaded &= (_glGetShaderiv = OGL_LOAD(glGetShaderiv)) != nullptr;
+		bLoaded &= (_glGetRenderbufferParameteriv = OGL_LOAD(glGetRenderbufferParameteriv)) != nullptr;
+		bLoaded &= (_glRenderbufferStorage = OGL_LOAD(glRenderbufferStorage)) != nullptr;
 
 		// Do we really need to do this? - jx9
 #if OLC_HOST != OLC_HOST_WINDOWS
@@ -83,6 +85,9 @@ namespace olc::apis::opengl
 		bLoaded &= (_wglSwapIntervalEXT = OGL_LOAD(wglSwapIntervalEXT)) != nullptr;
 #endif
 
+#if OLC_HOST == OLC_HOST_LINUX_X11
+		bLoaded &= (XSwapIntervalEXT = OGL_LOAD(glXSwapIntervalEXT)) != nullptr;
+#endif
 		
 		return bLoaded;
 	}
@@ -248,6 +253,12 @@ namespace olc::apis::opengl
 		::glPolygonMode(face, mode);
 		CheckError();
 #endif
+	}
+
+	void gl::glFrontFace(GLenum mode)
+	{
+		::glFrontFace(mode);
+		CheckError();
 	}
 
 	void gl::glSwapInterval(GLsizei n)
@@ -498,6 +509,18 @@ namespace olc::apis::opengl
 	void gl::glGetIntegerv(GLenum pname, GLint *data)
 	{
 		_glGetIntegerv(pname, data);
+		CheckError();
+	}
+
+	void gl::glGetRenderbufferParameteriv(GLenum target, GLenum pname, GLint* params)
+	{
+		_glGetRenderbufferParameteriv(target, pname, params);
+		CheckError();
+	}
+
+	void gl::glRenderbufferStorage(GLenum target, GLenum internalformat, GLsizei width, GLsizei height)
+	{
+		_glRenderbufferStorage(target, internalformat, width, height);
 		CheckError();
 	}
 }

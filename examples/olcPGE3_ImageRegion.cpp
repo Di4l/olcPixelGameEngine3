@@ -24,7 +24,7 @@ class Example_Image : public olc::PixelGameEngine
 public:
 	Example_Image()
 	{
-
+		sAppName = "Example - ImageRect";
 	}
 
 protected:

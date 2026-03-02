@@ -13,6 +13,8 @@
 #include "config.h"
 #include "vector2d.h"
 #include "transform2d.h"
+#include "vector4d.h"
+#include "matrix4d.h"
 #include "pixel.h"
 #include "image.h"
 #include "gputask.h"
@@ -56,76 +58,79 @@
 	Note A: TexturedXXX batch functions use an image batch, naturally restricting all shapes in the 
 			batch to use the same texture source.
 
+	Note B: The functions are declared as "batch first". After experimentation it turns out that this
+			makes intellisense more sensible, showing the primitive overloads first
+
 			
 	[#] Clear(col)		
 	[#] Pixel(pos, col)						
 
 	[#] Line(p1, p2, col, [tint])					
 	[#] Line(p1, c1, p2, c2, [tint])				
-	[#] Line(batch, p1, p2, col)			
-	[#] Line(batch, p1, c1, p2, c2)			
+	[#] Line(batch, p1, p2, col, [tint])			
+	[#] Line(batch, p1, c1, p2, c2, [tint])			
 
 	[#] Rect(pos, size, col, [tint])				
 	[#] Rect(pos, size, colTL, colTR, colBL, colBR, [tint])	
-	[#] Rect(batch, pos, size, col)			
-	[#] Rect(batch, pos, size, colTL, colTR, colBL, colBR)	
+	[#] Rect(batch, pos, size, col, [tint])			
+	[#] Rect(batch, pos, size, colTL, colTR, colBL, colBR, [tint])	
 
 	[#] FilledRect(pos, size, col, [tint])			
 	[#] FilledRect(pos, size, colTL, colTR, colBL, colBR, [tint])	
-	[#] FilledRect(batch, pos, size, col)	
-	[#] FilledRect(batch, pos, size, colTL, colTR, colBL, colBR)	
+	[#] FilledRect(batch, pos, size, col, [tint])	
+	[#] FilledRect(batch, pos, size, colTL, colTR, colBL, colBR, [tint])	
 
 	[#] Circle(pos, radius, col, [tint], [facets])			
 	[#] Circle(pos, radius, colInner, colOuter, [tint], [facets])	
-	[#] Circle(batch, pos, radius, col, [facets])		
-	[#] Circle(batch, pos, radius, colInner, colOuter, [facets])	
+	[#] Circle(batch, pos, radius, col, [tint], [facets])		
+	[#] Circle(batch, pos, radius, colInner, colOuter, [tint], [facets])	
 
 	[#] FilledCircle(pos, radius, col, [tint], [facets])		
 	[#] FilledCircle(pos, radius, colInner, colOuter, [tint], [facets])	
-	[#] FilledCircle(batch, pos, radius, col, [facets])	
-	[#] FilledCircle(batch, pos, radius, colInner, colOuter, [facets])	
+	[#] FilledCircle(batch, pos, radius, col, [tint], [facets])	
+	[#] FilledCircle(batch, pos, radius, colInner, colOuter, [tint], [facets])	
 
 	[#] Ellipse(pos, radiusX, radiusY, col, [tint], [facets])			
 	[#] Ellipse(pos, radiusX, radiusY, colInner, colOuter, [tint], [facets])	
-	[#] Ellipse(batch, pos, radiusX, radiusY, col, [facets])		
-	[#] Ellipse(batch, pos, radiusX, radiusY, colInner, colOuter, [facets])	
+	[#] Ellipse(batch, pos, radiusX, radiusY, col, [tint], [facets])		
+	[#] Ellipse(batch, pos, radiusX, radiusY, colInner, colOuter, [tint], [facets])	
 
 	[#] FilledEllipse(pos, radiusX, radiusY, col, [tint], [facets])			
 	[#] FilledEllipse(pos, radiusX, radiusY, colInner, colOuter, [tint], [facets])	
-	[#] FilledEllipse(batch, pos, radiusX, radiusY, col, [facets])		
-	[#] FilledEllipse(batch, pos, radiusX, radiusY, colInner, colOuter, [facets])	
+	[#] FilledEllipse(batch, pos, radiusX, radiusY, col, [tint], [facets])		
+	[#] FilledEllipse(batch, pos, radiusX, radiusY, colInner, colOuter, [tint], [facets])	
 
 	[#] RoundedRect(pos, size, radius, col, [tint], [facets/4])			
 	[#] FilledRoundedRect(pos, size, radius, col, [tint], [facets/4])	
 
-	[ ] RoundedRect(batch, pos, size, radius, col, [facets/4])
-	[ ] FilledRoundedRect(batch, pos, size, radius, col, [facets/4])
+	[ ] RoundedRect(batch, pos, size, radius, col, [tint], [facets/4])
+	[ ] FilledRoundedRect(batch, pos, size, radius, col, [tint], [facets/4])
 
 	[#] Triangle(p1, p2, p3, col, [tint])			
 	[#] Triangle(p1, c1, p2, c2, p3, c3, [tint])		
-	[#] Triangle(batch, p1, p2, p3, col)	
-	[#] Triangle(batch, p1, c1, p2, c2, p3, c3)	
+	[#] Triangle(batch, p1, p2, p3, col, [tint])	
+	[#] Triangle(batch, p1, c1, p2, c2, p3, c3, [tint])	
 
 	[#] FilledTriangle(p1, p2, p3, col, [tint])		
 	[#] FilledTriangle(p1, c1, p2, c2, p3, c3, [tint])	
-	[#] FilledTriangle(batch, p1, p2, p3, col)	
-	[#] FilledTriangle(batch, p1, c1, p2, c2, p3, c3)
+	[#] FilledTriangle(batch, p1, p2, p3, col, [tint])	
+	[#] FilledTriangle(batch, p1, c1, p2, c2, p3, c3, [tint])
 	
 	[#] Polygon(structure, points[], col, [tint])				
 	[#] Polygon(structure, points[], colours[], [tint])		
-	[ ] Polygon(batch, structure, points[], col)		
-	[ ] Polygon(batch, structure, points[], colours[])	
+	[#] Polygon(batch, structure, points[], col, [tint])		
+	[#] Polygon(batch, structure, points[], colours[], [tint])	
 
 	[#] FilledPolygon(structure, points[], col, [tint])		
 	[#] FilledPolygon(structure, points[], colours[], [tint])	
 	[ ] FilledPolygon(batch, structure, points[], col)	
-	[ ] FilledPolygon(batch, structure, points[], colours[])	
+	[#] FilledPolygon(batch, structure, points[], colours[])	
 
 	[#] TexturedTriangle(p1, p2, p3, c1, c2, c3, uv1, uv2, uv3, image, [tint])
-	[ ] TexturedTriangle(batch, p1, p2, p3, c1, c2, c3, uv1, uv2, uv3, image)
+	[ ] TexturedTriangle(batch, p1, p2, p3, c1, c2, c3, uv1, uv2, uv3, image, [tint])
 
 	[#] TexturedPolygon(structure, points[], colours[], uvs[], image, [tint])	
-	[ ] TexturedPolygon(batch, structure, points[], colours[], uvs[], image)
+	[ ] TexturedPolygon(batch, structure, points[], colours[], uvs[], image, [tint])
 
 	[#] String(pos, text, col, [scale], [font])
 	[#] StringProp(pos, text, col, [scale], [font])
@@ -148,6 +153,16 @@
 	[#] Batch(FilledBatch, [tint])
 	[#] Batch(ImageBatch, [tint])
 
+
+	3D Rendering Functions
+	~~~~~~~~~~~~~~~~~~~~~~
+
+	[#] Line(p1, p2, col, [tint])
+	
+	[#] Mesh(structure, points[], col, [tint])				
+	[#] Mesh(structure, points[], colours[], [tint])		
+	[#] Mesh(structure, points[], colours[], uvs[], image, [tint])
+
 */
 
 
@@ -160,6 +175,8 @@ namespace olc
 		class Renderer;
 		class Shader;
 	}
+
+	class Draw3D;
 	
 	// These "opaque" structs are merely to help with
 	// type differentiation of various GPUTask types
@@ -170,10 +187,12 @@ namespace olc
 	struct FilledBatch { GPUTask task; };
 	struct LineBatch { GPUTask task; };
 
-	class Draw2D
+	class Draw
 	{
+		friend class olc::Draw3D;
+
 	public:
-		Draw2D();
+		Draw();
 
 		// Associate this drawing toolbox with a renderer
 		void SetGPU(olc::gpu::Renderer* const renderer);
@@ -229,19 +248,22 @@ namespace olc
 
 // === Lines ===
 
-		// Draws a single pixel wide line		
-		const GPUTask& Line(
-			const olc::vf2d& p1, 
-			const olc::vf2d& p2, 
-			const olc::Pixel col = olc::Colour::WHITE,
-			const olc::Pixel tint = olc::Colour::WHITE);
-
 		// Draws a single pixel wide line into a batch
 		const LineBatch& Line(
 			olc::LineBatch& batch,
 			const olc::vf2d& p1,
 			const olc::vf2d& p2,
-			const olc::Pixel col = olc::Colour::WHITE);
+			const olc::Pixel col = olc::Colour::WHITE,
+			const olc::Pixel tint = olc::Colour::WHITE);
+		
+		// Draws a single pixel wide line with a gradient into a batch	
+		const LineBatch& Line(
+			olc::LineBatch& batch,
+			const olc::vf2d& p1,
+			const olc::Pixel c1,
+			const olc::vf2d& p2,
+			const olc::Pixel c2,
+			const olc::Pixel tint = olc::Colour::WHITE);
 
 		// Draws a single pixel wide line with a gradient		
 		const GPUTask& Line(
@@ -251,21 +273,24 @@ namespace olc
 			const olc::Pixel c2,
 			const olc::Pixel tint = olc::Colour::WHITE);
 
-		// Draws a single pixel wide line with a gradient into a batch	
-		const LineBatch& Line(
-			olc::LineBatch& batch,
-			const olc::vf2d& p1,
-			const olc::Pixel c1,
-			const olc::vf2d& p2,
-			const olc::Pixel c2);
+		// Draws a single pixel wide line		
+		const GPUTask& Line(
+			const olc::vf2d& p1, 
+			const olc::vf2d& p2, 
+			const olc::Pixel col = olc::Colour::WHITE,
+			const olc::Pixel tint = olc::Colour::WHITE);
 
 // === Rectangles ===
 
-		// Draws a rectangle outline
-		const GPUTask& Rect(
-			const olc::vf2d& pos, 
-			const olc::vf2d& size, 
-			const olc::Pixel col = olc::Colour::WHITE,
+		// Draws a multiple colour rectangle, with linear colour interpolation, into a batch
+		const LineBatch& Rect(
+			olc::LineBatch& batch,
+			const olc::vf2d& pos,
+			const olc::vf2d& size,
+			const olc::Pixel colTL,
+			const olc::Pixel colTR,
+			const olc::Pixel colBL,
+			const olc::Pixel colBR,
 			const olc::Pixel tint = olc::Colour::WHITE);
 
 		// Draws a rectangle outline into a batch
@@ -273,7 +298,8 @@ namespace olc
 			olc::LineBatch& batch,
 			const olc::vf2d& pos,
 			const olc::vf2d& size,
-			const olc::Pixel col = olc::Colour::WHITE);
+			const olc::Pixel col = olc::Colour::WHITE,
+			const olc::Pixel tint = olc::Colour::WHITE);
 
 		// Draws a multiple colour rectangle, with linear colour interpolation
 		const GPUTask& Rect(
@@ -285,29 +311,31 @@ namespace olc
 			const olc::Pixel colBR,
 			const olc::Pixel tint = olc::Colour::WHITE);
 
-		// Draws a multiple colour rectangle, with linear colour interpolation, into a batch
-		const LineBatch& Rect(
-			olc::LineBatch& batch,
+		// Draws a rectangle outline
+		const GPUTask& Rect(
+			const olc::vf2d& pos, 
+			const olc::vf2d& size, 
+			const olc::Pixel col = olc::Colour::WHITE,
+			const olc::Pixel tint = olc::Colour::WHITE);
+		
+		// Draws a filled, multiple colour rectangle, with linear colour interpolation, into a batch
+		const FilledBatch& FilledRect(
+			olc::FilledBatch& batch,
 			const olc::vf2d& pos,
 			const olc::vf2d& size,
 			const olc::Pixel colTL,
 			const olc::Pixel colTR,
 			const olc::Pixel colBL,
-			const olc::Pixel colBR);
-			
-		// Draws a filled, single colour rectangle
-		const GPUTask& FilledRect(
-			const olc::vf2d& pos, 
-			const olc::vf2d& size, 
-			const olc::Pixel col = olc::Colour::WHITE,
+			const olc::Pixel colBR,
 			const olc::Pixel tint = olc::Colour::WHITE);
-
+			
 		// Draws a filled, single colour rectangle into a batch
 		const FilledBatch& FilledRect(
 			olc::FilledBatch& batch,
 			const olc::vf2d& pos,
 			const olc::vf2d& size,
-			const olc::Pixel col = olc::Colour::WHITE);
+			const olc::Pixel col = olc::Colour::WHITE,
+			const olc::Pixel tint = olc::Colour::WHITE);
 
 		// Draws a filled, multiple colour rectangle, with linear colour interpolation
 		const GPUTask& FilledRect(
@@ -318,37 +346,22 @@ namespace olc
 			const olc::Pixel colBL, 
 			const olc::Pixel colBR,
 			const olc::Pixel tint = olc::Colour::WHITE);
-
-		// Draws a filled, multiple colour rectangle, with linear colour interpolation, into a batch
-		const FilledBatch& FilledRect(
-			olc::FilledBatch& batch,
-			const olc::vf2d& pos,
-			const olc::vf2d& size,
-			const olc::Pixel colTL,
-			const olc::Pixel colTR,
-			const olc::Pixel colBL,
-			const olc::Pixel colBR);
+		
+		// Draws a filled, single colour rectangle
+		const GPUTask& FilledRect(
+			const olc::vf2d& pos, 
+			const olc::vf2d& size, 
+			const olc::Pixel col = olc::Colour::WHITE,
+			const olc::Pixel tint = olc::Colour::WHITE);
+		
 
 // === Circles ===
 		
-		// Draws a circle outline with a single colour
-		const GPUTask& Circle(
-			const olc::vf2d& pos,
-			const float& radius,
-			const olc::Pixel col = olc::Colour::WHITE,
-			const olc::Pixel tint = olc::Colour::WHITE,
-			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS);
+		
 
 		// Draws a circle outline with a single colour into a batch
 		const LineBatch& Circle(
 			olc::LineBatch& batch,
-			const olc::vf2d& pos,
-			const float& radius,
-			const olc::Pixel col = olc::Colour::WHITE,
-			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS);
-
-		// Draws a filled circle with a single colour
-		const GPUTask& FilledCircle(
 			const olc::vf2d& pos,
 			const float& radius,
 			const olc::Pixel col = olc::Colour::WHITE,
@@ -361,6 +374,17 @@ namespace olc
 			const olc::vf2d& pos,
 			const float& radius,
 			const olc::Pixel col = olc::Colour::WHITE,
+			const olc::Pixel tint = olc::Colour::WHITE,
+			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS);
+
+		// Draws a shaded circle with a radial gradient into a batch
+		const FilledBatch& FilledCircle(
+			olc::FilledBatch& batch,
+			const olc::vf2d& pos,
+			const float& radius,
+			const olc::Pixel colInner,
+			const olc::Pixel colOuter,
+			const olc::Pixel tint = olc::Colour::WHITE,
 			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS);
 
 		// Draws a shaded circle with a radial gradient
@@ -372,37 +396,27 @@ namespace olc
 			const olc::Pixel tint = olc::Colour::WHITE,
 			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS);
 
-		// Draws a shaded circle with a radial gradient into a batch
-		const FilledBatch& FilledCircle(
-			olc::FilledBatch& batch,
+		// Draws a filled circle with a single colour
+		const GPUTask& FilledCircle(
 			const olc::vf2d& pos,
 			const float& radius,
-			const olc::Pixel colInner,
-			const olc::Pixel colOuter,
-			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS);
-
-// === Ellipses ===
-
-		// Draws an ellipse outline with a single colour
-		const GPUTask& Ellipse(
-			const olc::vf2d& pos,
-			const float& rx,
-			const float& ry,
 			const olc::Pixel col = olc::Colour::WHITE,
 			const olc::Pixel tint = olc::Colour::WHITE,
 			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS);
 
+		// Draws a circle outline with a single colour
+		const GPUTask& Circle(
+			const olc::vf2d& pos,
+			const float& radius,
+			const olc::Pixel col = olc::Colour::WHITE,
+			const olc::Pixel tint = olc::Colour::WHITE,
+			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS);
+
+// === Ellipses ===
+
 		// Draws an ellipse outline with a single colour into a batch
 		const LineBatch& Ellipse(
 			olc::LineBatch& batch,
-			const olc::vf2d& pos,
-			const float& rx,
-			const float& ry,
-			const olc::Pixel col = olc::Colour::WHITE,
-			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS);
-
-		// Draws a filled ellipse with a single colour
-		const GPUTask& FilledEllipse(
 			const olc::vf2d& pos,
 			const float& rx,
 			const float& ry,
@@ -417,6 +431,36 @@ namespace olc
 			const float& rx,
 			const float& ry,
 			const olc::Pixel col = olc::Colour::WHITE,
+			const olc::Pixel tint = olc::Colour::WHITE,
+			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS);
+
+		// Draws a shaded ellipse with a radial gradient into a batch
+		const FilledBatch& FilledEllipse(
+			olc::FilledBatch& batch,
+			const olc::vf2d& pos,
+			const float& rx,
+			const float& ry,
+			const olc::Pixel colInner,
+			const olc::Pixel colOuter,
+			const olc::Pixel tint = olc::Colour::WHITE,
+			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS);
+
+		// Draws an ellipse outline with a single colour
+		const GPUTask& Ellipse(
+			const olc::vf2d& pos,
+			const float& rx,
+			const float& ry,
+			const olc::Pixel col = olc::Colour::WHITE,
+			const olc::Pixel tint = olc::Colour::WHITE,
+			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS);
+
+		// Draws a filled ellipse with a single colour
+		const GPUTask& FilledEllipse(
+			const olc::vf2d& pos,
+			const float& rx,
+			const float& ry,
+			const olc::Pixel col = olc::Colour::WHITE,
+			const olc::Pixel tint = olc::Colour::WHITE,
 			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS);
 
 		// Draws a shaded ellipse with a radial gradient
@@ -429,26 +473,9 @@ namespace olc
 			const olc::Pixel tint = olc::Colour::WHITE,
 			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS);
 
-		// Draws a shaded ellipse with a radial gradient into a batch
-		const FilledBatch& FilledEllipse(
-			olc::FilledBatch& batch,
-			const olc::vf2d& pos,
-			const float& rx,
-			const float& ry,
-			const olc::Pixel colInner,
-			const olc::Pixel colOuter,
-			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS);
-
 // === Rounded Rectangles ===
 
-		// Draws a rounded rectangle outline with a single colour
-		const GPUTask& RoundedRect(
-			const olc::vf2d& pos,						// Top left of bounding rectangle
-			const olc::vf2d& size,						// Size of bounding rectangle
-			const float& radius,
-			const olc::Pixel col = olc::Colour::WHITE,
-			const olc::Pixel tint = olc::Colour::WHITE,
-			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS / 4);
+		
 
 		// Draws a rounded rectangle outline with a single colour into a batch
 		const LineBatch& RoundedRect(
@@ -457,6 +484,7 @@ namespace olc
 			const olc::vf2d& size,						// Size of bounding rectangle
 			const float& radius,
 			const olc::Pixel col = olc::Colour::WHITE,
+			const olc::Pixel tint = olc::Colour::WHITE,
 			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS / 4);
 
 		// Draws a filled rounded rectangle with a single colour
@@ -468,16 +496,19 @@ namespace olc
 			const olc::Pixel tint = olc::Colour::WHITE,
 			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS / 4);
 
+		// Draws a rounded rectangle outline with a single colour
+		const GPUTask& RoundedRect(
+			const olc::vf2d& pos,						// Top left of bounding rectangle
+			const olc::vf2d& size,						// Size of bounding rectangle
+			const float& radius,
+			const olc::Pixel col = olc::Colour::WHITE,
+			const olc::Pixel tint = olc::Colour::WHITE,
+			int32_t nFacets = OLC_DEFAULT_CIRCLE_FACETS / 4);
+
 
 // === Triangles ===
 
-		// Draws a triangle outline with a single colour
-		const GPUTask& Triangle(
-			const olc::vf2d& p1,
-			const olc::vf2d& p2,
-			const olc::vf2d& p3,
-			const olc::Pixel col = olc::Colour::WHITE,
-			const olc::Pixel tint = olc::Colour::WHITE);
+		
 
 		// Draws a triangle outline with a single colour into a batch
 		const LineBatch& Triangle(
@@ -485,7 +516,19 @@ namespace olc
 			const olc::vf2d& p1,
 			const olc::vf2d& p2,
 			const olc::vf2d& p3,
-			const olc::Pixel col = olc::Colour::WHITE);
+			const olc::Pixel col = olc::Colour::WHITE,
+			const olc::Pixel tint = olc::Colour::WHITE);
+
+		// Draws a multiple colour triangle outline into a batch
+		const LineBatch& Triangle(
+			olc::LineBatch& batch,
+			const olc::vf2d& p1,
+			const olc::vf2d& p2,
+			const olc::vf2d& p3,
+			const olc::Pixel c1,
+			const olc::Pixel c2,
+			const olc::Pixel c3,
+			const olc::Pixel tint = olc::Colour::WHITE);
 
 		// Draws a multiple colour triangle outline
 		const GPUTask& Triangle(
@@ -497,23 +540,16 @@ namespace olc
 			const olc::Pixel c3,
 			const olc::Pixel tint = olc::Colour::WHITE);
 
-		// Draws a multiple colour triangle outline into a batch
-		const LineBatch& Triangle(
-			olc::LineBatch& batch,
-			const olc::vf2d& p1,
-			const olc::vf2d& p2,
-			const olc::vf2d& p3,
-			const olc::Pixel c1,
-			const olc::Pixel c2,
-			const olc::Pixel c3);
 
-		// Draws a filled, single colour triangle
-		const GPUTask& FilledTriangle(
+		// Draws a triangle outline with a single colour
+		const GPUTask& Triangle(
 			const olc::vf2d& p1,
 			const olc::vf2d& p2,
 			const olc::vf2d& p3,
 			const olc::Pixel col = olc::Colour::WHITE,
 			const olc::Pixel tint = olc::Colour::WHITE);
+
+	
 
 		// Draws a filled, single colour triangle into a batch
 		const FilledBatch& FilledTriangle(
@@ -521,7 +557,19 @@ namespace olc
 			const olc::vf2d& p1,
 			const olc::vf2d& p2,
 			const olc::vf2d& p3,
-			const olc::Pixel col = olc::Colour::WHITE);
+			const olc::Pixel col = olc::Colour::WHITE,
+			const olc::Pixel tint = olc::Colour::WHITE);
+		
+		// Draws a filled, multiple colour triangle into a batch
+		const FilledBatch& FilledTriangle(
+			olc::FilledBatch& batch,
+			const olc::vf2d& p1,
+			const olc::vf2d& p2,
+			const olc::vf2d& p3,
+			const olc::Pixel c1,
+			const olc::Pixel c2,
+			const olc::Pixel c3,
+			const olc::Pixel tint = olc::Colour::WHITE);
 
 		// Draws a filled, multiple colour triangle
 		const GPUTask& FilledTriangle(
@@ -533,15 +581,13 @@ namespace olc
 			const olc::Pixel c3,
 			const olc::Pixel tint = olc::Colour::WHITE);
 
-		// Draws a filled, multiple colour triangle into a batch
-		const FilledBatch& FilledTriangle(
-			olc::FilledBatch& batch,
+		// Draws a filled, single colour triangle
+		const GPUTask& FilledTriangle(
 			const olc::vf2d& p1,
 			const olc::vf2d& p2,
 			const olc::vf2d& p3,
-			const olc::Pixel c1,
-			const olc::Pixel c2,
-			const olc::Pixel c3);
+			const olc::Pixel col = olc::Colour::WHITE,
+			const olc::Pixel tint = olc::Colour::WHITE);
 
 		// Draws a textured triangle, with per vertex colouring
 		const GPUTask& TexturedTriangle(
@@ -559,37 +605,42 @@ namespace olc
 
 // === Polygon Outlines ===
 
+		
+
+		// Draws a polygon outline with a single colour into a batch
+		const LineBatch& Polygon(
+			olc::LineBatch& batch,
+			const std::vector<olc::vf2d>& vecPoints,
+			const olc::Pixel col = olc::Colour::WHITE,
+			const olc::Pixel tint = olc::Colour::WHITE);
+		
+		// Draws a polygon outline with multiple colours into a batch
+		const LineBatch& Polygon(
+			olc::LineBatch& batch,
+			const std::vector<olc::vf2d>& vecPoints,
+			const std::vector<olc::Pixel>& vecColours,
+			const olc::Pixel tint = olc::Colour::WHITE);
+		
+		// Draws a polygon outline with multiple colours
+		const GPUTask& Polygon(
+			const std::vector<olc::vf2d>& vecPoints,
+			const std::vector<olc::Pixel>& vecColours,
+			const olc::Pixel tint = olc::Colour::WHITE);
+
 		// Draws a polygon outline with a single colour
 		const GPUTask& Polygon(
 			const std::vector<olc::vf2d>& vecPoints,
 			const olc::Pixel col = olc::Colour::WHITE,
 			const olc::Pixel tint = olc::Colour::WHITE);
 
-		// Draws a polygon outline with a single colour into a batch
-		const LineBatch& Polygon(
-			olc::LineBatch& batch,
-			const std::vector<olc::vf2d>& vecPoints,
-			const olc::Pixel col = olc::Colour::WHITE);
-
-		// Draws a polygon outline with multiple colours
-		const GPUTask& Polygon(
-			const std::vector<olc::vf2d>& vecPoints,
-			const std::vector<olc::Pixel>& vecColours,
-			const olc::Pixel tint = olc::Colour::WHITE);
-
-		// Draws a polygon outline with multiple colours into a batch
-		const LineBatch& Polygon(
-			olc::LineBatch& batch,
-			const std::vector<olc::vf2d>& vecPoints,
-			const std::vector<olc::Pixel>& vecColours);
-
 	// === Structured Polygons (Outlines & Fills) ===
+
 
 		// Draws a polygon outline with a single colour
 		const GPUTask& Polygon(
 			const olc::Structure structure,
 			const std::vector<olc::vf2d>& vecPoints,
-			const olc::Pixel col = olc::Colour::WHITE, 
+			const olc::Pixel col = olc::Colour::WHITE,
 			const olc::Pixel tint = olc::Colour::WHITE);
 
 		// Draws a polygon outline with multiple colours
@@ -598,6 +649,14 @@ namespace olc
 			const std::vector<olc::vf2d>& vecPoints,
 			const std::vector<olc::Pixel>& vecColours,
 			const olc::Pixel tint = olc::Colour::WHITE);
+
+		// Draws a filled polygon with multiple colours into a btach
+		const FilledBatch& FilledPolygon(
+			FilledBatch& batch,
+			const olc::Structure structure,
+			const std::vector<olc::vf2d>& vecPoints,
+			const std::vector<olc::Pixel>& vecColours,
+			const olc::Pixel tint = olc::Colour::WHITE);		
 
 		// Draws a filled polygon with a single colour
 		const GPUTask& FilledPolygon(
@@ -612,6 +671,8 @@ namespace olc
 			const std::vector<olc::vf2d>& vecPoints,
 			const std::vector<olc::Pixel>& vecColours,
 			const olc::Pixel tint = olc::Colour::WHITE);
+
+		
 
 		// Draws a textured polygon with per vertex colouring
 		const GPUTask& TexturedPolygon(
@@ -730,6 +791,52 @@ namespace olc
 			const olc::vf2d& pos,
 			const olc::vf2d& size,
 			const olc::Pixel tint = olc::Colour::WHITE);
+
+	public: // Applied Rendering Modes
+		void SetCullMode(const olc::GPUTask::CullMode mode);
+		void EnableDepth(const bool bEnable);
+		void SetViewport(const olc::vi2d& pos, const olc::vi2d& size);
+
+	public: // 3D Transformation Functions
+		void MatrixReset();
+		void SetModelMatrix(const olc::mf4d& mat);
+		const olc::mf4d& GetModelMatrix() const;
+		void SetViewMatrix(const olc::mf4d& mat);
+		const olc::mf4d& GetViewMatrix() const;
+		void SetProjectionMatrix(const olc::mf4d& mat);
+		const olc::mf4d& GetProjectionMatrix() const;
+		void SetMVPMatrix(const olc::mf4d& mat);
+		const olc::mf4d& GetMVPMatrix() const;
+
+
+
+	public: // 3D Primitive Drawing Functions
+
+		GPUTask& Line(
+			const olc::vf4d& vStart,
+			const olc::vf4d& vEnd,
+			const olc::Pixel& col = olc::Colour::WHITE,
+			const olc::Pixel tint = olc::Colour::WHITE);
+
+		GPUTask& Mesh(
+			const olc::Structure structure,
+			const std::vector<olc::vf4d>& vPoints,
+			const std::vector<olc::Pixel>& vColours,
+			const olc::Pixel tint = olc::Colour::WHITE);
+
+		GPUTask& Mesh(
+			const olc::Structure structure,
+			const std::vector<olc::vf4d>& vPoints,
+			const std::vector<olc::Pixel>& vColours,
+			const std::vector<olc::vf2d>& vUVs,
+			olc::Image& texture,
+			const olc::Pixel tint = olc::Colour::WHITE);
+
+
+
+	public: // GPU Task Creator Functions (not normally called by user)
+
+
 	
 
 	public:
@@ -802,153 +909,26 @@ namespace olc
 			olc::Image* const image,
 			const olc::Pixel tint = olc::Colour::WHITE);
 
+		// 3D Task Generators
+		GPUTask TaskWireMesh(
+			olc::Structure structure,
+			const std::vector<olc::vf4d>& vPoints,
+			const std::vector<olc::Pixel>& vColours,
+			const olc::Pixel tint = olc::Colour::WHITE);
 
-		public: // Precision drawing functions via software rasteriser
-			// Draws a single pixel wide line of fixed colour
-			void swLine(
-				const olc::vf2d& p1,
-				const olc::vf2d& p2,
-				const olc::Pixel col = olc::Colour::WHITE);
+		GPUTask TaskFillMesh(
+			olc::Structure structure,
+			const std::vector<olc::vf4d>& vPoints,
+			const std::vector<olc::Pixel>& vColours,
+			const olc::Pixel tint = olc::Colour::WHITE);
 
-			// Draws a single pixel wide line with a gradient		
-			void swLine(
-				const olc::vf2d& p1,
-				const olc::vf2d& p2,
-				const olc::Pixel c1,
-				const olc::Pixel c2);
-
-			// Draws a rectangle outline
-			void swRect(
-				const olc::vf2d& pos,
-				const olc::vf2d& size,
-				const olc::Pixel col = olc::Colour::WHITE);
-
-			// Draws a multiple colour rectangle, with linear colour interpolation
-			void swRect(
-				const olc::vf2d& pos,
-				const olc::vf2d& size,
-				const olc::Pixel colTL,
-				const olc::Pixel colTR,
-				const olc::Pixel colBL,
-				const olc::Pixel colBR);
-
-			// Draws a filled, single colour rectangle
-			void swFilledRect(
-				const olc::vf2d& pos,
-				const olc::vf2d& size,
-				const olc::Pixel col = olc::Colour::WHITE);
-
-			// Draws a filled, multiple colour rectangle, with linear colour interpolation
-			void swFilledRect(
-				const olc::vf2d& pos,
-				const olc::vf2d& size,
-				const olc::Pixel colTL,
-				const olc::Pixel colTR,
-				const olc::Pixel colBL,
-				const olc::Pixel colBR);
-
-			// Draws a triangle outline
-			void swTriangle(
-				const olc::vf2d& p1,
-				const olc::vf2d& p2,
-				const olc::vf2d& p3,
-				const olc::Pixel col = olc::Colour::WHITE);
-
-			// Draws a multiple colour triangle, with linear colour interpolation
-			void swTriangle(
-				const olc::vf2d& p1,
-				const olc::vf2d& p2,
-				const olc::vf2d& p3,
-				const olc::Pixel c1,
-				const olc::Pixel c2,
-				const olc::Pixel c3);
-
-			// Draws a filled, single colour triangle
-			void swFilledTriangle(
-				const olc::vf2d& p1,
-				const olc::vf2d& p2,
-				const olc::vf2d& p3,
-				const olc::Pixel col = olc::Colour::WHITE);
-
-			// Draws a filled, multiple colour triangle, with linear colour interpolation
-			void swFilledTriangle(
-				const olc::vf2d& p1,
-				const olc::vf2d& p2,
-				const olc::vf2d& p3,
-				const olc::Pixel c1,
-				const olc::Pixel c2,
-				const olc::Pixel c3);
-
-			// Rasterises a textured triangle in integer space
-			void swTexturedTriangle(
-				const olc::vf2d& p1,
-				const olc::vf2d& p2,
-				const olc::vf2d& p3,
-				const olc::Pixel c1,
-				const olc::Pixel c2,
-				const olc::Pixel c3,
-				const olc::vf2d& t1,
-				const olc::vf2d& t2,
-				const olc::vf2d& t3,
-				olc::Image& texture);
-
-
-
-		protected: // Software rasteriser helper functions
-
-			// Clips a line to a rectangular region, returns true if line is visible
-			bool swClipLine(
-				olc::vf2d& v0,
-				olc::vf2d& v1,
-				const olc::vf2d& vMin,
-				const olc::vf2d& vMax);
-
-			// Clips a line to a rectangular region, returns true if line is visible.
-			// The returned weights correspond to distance along the line from v0 to v1
-			bool swClipWeightedLine(
-				olc::vf2d& v0,
-				olc::vf2d& v1,
-				const olc::vf2d& vMin,
-				const olc::vf2d& vMax,
-				float& w0,
-				float& w1);
-
-			/* bool swClipTriangle(
-				olc::vf2d& v1,
-				olc::vf2d& v2,
-				olc::vf2d& v3,
-				const olc::vf2d& vMin,
-				const olc::vf2d& vMax);*/
-				
-			// Rasterises a shaded line in integer space
-			void swRasterShadedLine(
-				const olc::vi2d& v1,
-				const olc::vi2d& v2,
-				const olc::Pixel c1,
-				const olc::Pixel c2);
-
-			// Rasterises a shaded triangle in integer space
-			void swRasterShadedTriangle(
-				const olc::vi2d& v1,
-				const olc::vi2d& v2,
-				const olc::vi2d& v3,
-				const olc::Pixel c1,
-				const olc::Pixel c2,
-				const olc::Pixel c3);
-
-			// Rasterises a textured triangle in integer space
-			void swRasterTexturedTriangle(
-				const olc::vi2d& v1,
-				const olc::vi2d& v2,
-				const olc::vi2d& v3,
-				const olc::Pixel c1,
-				const olc::Pixel c2,
-				const olc::Pixel c3,
-				const olc::vf2d& t1,
-				const olc::vf2d& t2,
-				const olc::vf2d& t3,
-				olc::Image& texture);
-
+		GPUTask TaskTexturedMesh(
+			olc::Structure structure,
+			const std::vector<olc::vf4d>& vPoints,
+			const std::vector<olc::Pixel>& vColours,
+			const std::vector<olc::vf2d>& vTexCoords,
+			olc::Image* const image,
+			const olc::Pixel tint = olc::Colour::WHITE);
 
 
 		public:
@@ -980,9 +960,6 @@ namespace olc
 		private:
 			sDrawMetrics drawMetrics;
 
-
-
-
 		protected:
 			// Checks residency of image resource, and brings it to cpu RAM for r/w
 			void PrepareTargetForSW();
@@ -998,26 +975,18 @@ namespace olc
 			olc::gpu::Renderer* pRenderer = nullptr;
 			olc::tf2d transformAffine;
 
-			//std::vector<olc::GPUTask> vecGPUTasks;
-
-		protected: // SW Rasteriser Helpers
-			struct Scanline
-			{
-				int32_t nMin = std::numeric_limits<int32_t>::max();
-				int32_t nMax = std::numeric_limits<int32_t>::min();
-				std::array<float, 3> fBaryMin;
-				std::array<float, 3> fBaryMax;
-			};
-
-			std::vector<Scanline> vScanlines;
+			// 3D Drawing Things
+			mf4d matModel;
+			mf4d matView;
+			mf4d matProjection;
+			mf4d matVP;
+			mf4d matMVP;
+			olc::vf2d vViewportPos = { 0, 0 };
+			olc::vi2d vViewportSize = { 0, 0 };
 
 
-			// Fills scanline buffer with visible triangle extents and barycentric coordinates.
-			// Returns vertical, visible extents of triangle scanlines
-			std::pair<int, int> swBaryFillTriangle(
-				const olc::vi2d& v1,
-				const olc::vi2d& v2,
-				const olc::vi2d& v3);
+			olc::GPUTask::CullMode cullMode = olc::GPUTask::CullMode::None;
+			bool bDepth = true;
 
 
 		private:

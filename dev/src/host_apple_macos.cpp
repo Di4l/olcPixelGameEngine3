@@ -1,5 +1,6 @@
 #include "config.h"
 #include "host_apple_macos.h"
+#include "core.h"
 #include <dispatch/queue.h>
 #if OLC_HOST == OLC_HOST_MACOS
 
@@ -126,7 +127,7 @@ namespace olc::host {
         mapKeys[33] = Key::OEM_4;       // On US and UK keyboards this is the '[{' key
         mapKeys[42] = Key::OEM_5;       // On US keyboard this is '\|' key. 
         mapKeys[30] = Key::OEM_6;       // On US and UK keyboards this is the ']}' key
-        mapKeys[39] = Key::OEM_7;       // On US keyboard this is the single/double quote key. On UK, this is the single quote/@ symbol key (TODO: I think MAC is always @)
+        mapKeys[39] = Key::OEM_7;       // On US keyboard this is the single/double quote key. On UK, this is the single quote/@ symbol key
         mapKeys[10] = Key::OEM_8;       // Section sign § (varies by keyboard)
         mapKeys[24] = Key::EQUALS;      // Equal sign =
         mapKeys[43] = Key::COMMA;       // Comma ,
@@ -135,9 +136,85 @@ namespace olc::host {
 
     }
 
-    bool Host_Apple_MacOS::StartSystemEventLoop(bool bBlockIfPossible){
-        (void)(bBlockIfPossible); // Remove unused variable warning
 
+    bool Host_Apple_MacOS::AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen){
+        pPGEwindow = pWindow;
+        pPGEwindow->SetWindowPosition(vWindowPos);
+        pPGEwindow->SetWindowSize(vWindowSize);
+        pPGEwindow->LinkToHost(this);
+
+        frameBounds.x = 0.0;
+        frameBounds.y = 0.0;
+        frameBounds.width = static_cast<double>(vWindowSize.x);
+        frameBounds.height = static_cast<double>(vWindowSize.y);
+        
+        return true;
+    }
+
+    bool Host_Apple_MacOS::CloseWindowFrame(olc::Window* pWindow){
+        pWindow->olc_OnWindowClose();
+        return true;
+    }
+
+    bool Host_Apple_MacOS::UpdateWindowFrameTitle(olc::Window* pWindow){
+        if (!pMacOSWindow) return false;
+        dispatch_async(dispatch_get_main_queue(), ^{
+            pMacOSWindow->setTitle(pWindow->GetWindowTitle().c_str());
+        });
+        return true;
+    }
+
+    std::vector<void*> Host_Apple_MacOS::GetHostWindowDescriptor(olc::Window* pWindow){
+        
+        // Ensure OpenGL renderer is created
+        if(pMacOSOpenGLRenderer == nullptr)
+            CreateCGLContextObj();
+
+        return vMacOSWindowDescriptors;
+       
+    }
+
+
+    bool Host_Apple_MacOS::SyncWithDesktopComposite()
+    {
+        /*
+         core.h SyncWithDesktopComposite is only called when vSync is enabled on each frame,
+         the method of enabling vSync varies between platforms, For macos we use a local var enableVSync,
+         set to false and toggle it on first call, so that vSync is only enabled once
+         */
+        
+        if(!enableVSync)
+        {
+            pMacOSOpenGLRenderer->enableVsync();
+            enableVSync = true;
+        }
+        
+        return enableVSync;
+    }
+
+    bool Host_Apple_MacOS::SetMousePosition(olc::Window* pWindow, const olc::vi2d& vPos)
+    {
+        dispatch_sync(dispatch_get_main_queue(), ^{
+            pMacOSWindow->setCursorPosition(vPos.x, vPos.y);
+        });
+        return false;
+    }
+
+    bool Host_Apple_MacOS::SetMouseVisible(olc::Window* pWindow, const bool bVisible)
+    {
+        dispatch_sync(dispatch_get_main_queue(), ^{
+            pMacOSWindow->setCursorVisibility(bVisible);
+        });
+        return true;
+    }
+
+    bool Host_Apple_MacOS::OnApplicationStart(olc::PixelGameEngine* pPrimary){
+        pPrimaryPGE = pPrimary;
+        return true;
+    }
+
+    bool Host_Apple_MacOS::StartSystem(){
+                
         // Create MacOS Application instance
         pMacApplication = std::make_unique<olc::apis::macos::Application>();
 
@@ -166,76 +243,106 @@ namespace olc::host {
         pMacOSWindow->show();
         pMacOSEventHandler->enable();
         
+        //--- Start up our engine threading system -----
+        // Pre-context start hook
+        pPrimaryPGE->OnPreContextStart();
+        
+        // Start the PGE context on the main thread
+        // Mark system as active
+        systemActive = true;
+
+        // Create system thread - handles gpu context
+        std::thread threadSystem([this]()
+        {
+            // Notify start of system thread
+            if (!this->OnSystemThreadStart())
+            {
+                // PGE->OnContextStart() failed, or user aborted OnUserCreate()
+                return;
+            }
+
+            // Main system loop
+            while (systemActive)
+            {
+                // Perform primary window update
+                if (!this->OnSystemTick())
+                {
+                    StopSystem();
+                }
+            }
+
+            // Notify end of system thread
+            if (!this->OnSystemThreadEnd())
+            {
+                // PGE->OnContextEnd() failed
+                return;
+            }
+        });
+
+        
         // Start the main event loop (this will block)
         pMacApplication->run();
+                
+        // Once the application run loop ends, join the system thread
+        systemActive = false;
+        if(threadSystem.joinable())
+            threadSystem.join();
 
-        return true;
+        // Post-context end hook
+        return pPrimaryPGE->OnPostContextEnd();
+
     }
 
-    bool Host_Apple_MacOS::AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen){       
-        pPGEwindow = pWindow;
-        pPGEwindow->SetWindowPosition(vWindowPos);
-        pPGEwindow->SetWindowSize(vWindowSize); // Temporary small size to avoid large window on creation
-        pPGEwindow->LinkToHost(this);
+    bool Host_Apple_MacOS::StopSystem()
+    {
+        dispatch_sync(dispatch_get_main_queue(), ^{
+            // clean up and close application
+            if (pMacOSOpenGLRenderer)
+            {
+                pMacOSOpenGLRenderer->destoryContext();
+                pMacOSOpenGLRenderer = nullptr;
+            }
+            if (pMacOSWindow)
+            {
+                pMacOSWindow->destoryWindow();
+                pMacOSWindow = nullptr;
+            }
+            if (pMacApplication)
+            {
+                pMacApplication->terminate();
+            }
 
-        frameBounds.x = 0.0;
-        frameBounds.y = 0.0;
-        frameBounds.width = static_cast<double>(vWindowSize.x);
-        frameBounds.height = static_cast<double>(vWindowSize.y);
-        
-        return true;
-    }
-
-
-    bool Host_Apple_MacOS::CloseWindowFrame(olc::Window* pWindow){
-        if (!pMacOSWindow) return false;
-        if (!pWindow) return false;
-        pWindow->olc_OnWindowClose();
-        return true;
-    }
-
-    bool Host_Apple_MacOS::UpdateWindowFrameTitle(olc::Window* pWindow){
-        if (!pMacOSWindow) return false;
-        dispatch_async(dispatch_get_main_queue(), ^{
-            pMacOSWindow->setTitle(pWindow->GetWindowTitle().c_str());
         });
         return true;
     }
 
-    std::vector<void*> Host_Apple_MacOS::GetHostWindowDescriptor(olc::Window* pWindow){
-        // While the PGE is running, if there are pending main thread tasks, process them, this causes PGE to wait
+    bool Host_Apple_MacOS::OnSystemThreadStart()
+    {
+        // Hold back threading until application is fully initialized
         bSkipFrame = ExecutePendingMainThreadTasks();
-        
-        // Ensure OpenGL renderer is created
-        if(pMacOSOpenGLRenderer == nullptr)
-            CreateCGLContextObj();
-
-        return vMacOSWindowDescriptors;
-       
+        return pPrimaryPGE->OnContextStart();
     }
 
-    bool Host_Apple_MacOS::ConnectHostResourceToRenderer()
+    bool Host_Apple_MacOS::OnSystemTick()
     {
-        return false;
+        // Execute any pending main thread tasks
+        bSkipFrame = ExecutePendingMainThreadTasks();
+        return pPrimaryPGE->OnContextTick();
     }
 
-    bool Host_Apple_MacOS::SyncWithDesktopComposite()
+    bool Host_Apple_MacOS::OnSystemThreadEnd()
     {
-        /*
-         core.h SyncWithDesktopComposite is only called when vSync is enabled on each frame,
-         the method of enabling vSync varies between platforms, For macos we use a local var enableVSync,
-         set to false and toggle it on first call, so that vSync is only enabled once
-         */
-        
-        if(!enableVSync)
-        {
-            pMacOSOpenGLRenderer->enableVsync();
-            enableVSync = true;
-        }
-        
-        return enableVSync;
+        return pPrimaryPGE->OnContextEnd();
     }
 
+    bool Host_Apple_MacOS::OnApplicationEnd()
+    {
+        return true;
+    }
+
+
+//-- OS Window Event Handling -----
+   
     olc::KeyboardLayout Host_Apple_MacOS::GetKeyboardLayout() const
     {
         // Get system locale from MacOS Application
@@ -377,10 +484,18 @@ namespace olc::host {
                     res = true; // Skip frame to allow resize to take effect
                     break;
                 }
-                case MINIMIZE_WINDOW:
                 case DEMINIMIZE_WINDOW:
                 case BECOME_ACTIVE:
+                {
+                    pPGEwindow->olc_OnFocus(true);
+                    break;
+                }
+                case MINIMIZE_WINDOW:
                 case RESIGN_ACTIVE:
+                {
+                    pPGEwindow->olc_OnFocus(false);
+                    break;
+                }
                 case NONE:
                 default:
                 {
@@ -415,9 +530,7 @@ namespace olc::host {
            pPGEwindow->keyboard.UseKeyboardLayout(GetKeyboardLayout());
        });
        
-       pMacApplication->setWillTerminateCallback([&]() {
-           // TODO: Johnngy63 - Implement olc_OnDestory in window.h/cpp
-       });
+       pMacApplication->setWillTerminateCallback([&]() { });
        
        pMacApplication->setDidBecomeActiveCallback([]() { });
        
@@ -432,18 +545,17 @@ namespace olc::host {
         });
 
         pMacOSWindow->setWindowWillCloseCallback([&]() {
-            // TODO: Johnngy63 - Implement any pre-close logic if needed
+            // NOTE: Do not add this event to PendingMainThreadTasks as it will cause deadlock since the main thread is required to process the close event but the close event is waiting on the main thread tasks to process it
             pPGEwindow->olc_OnWindowClose();
             pPGEwindow->olc_ShouldRemove();
         });
 
         pMacOSWindow->setWindowDidBecomeKeyCallback([&]() {
-            //TODO: Johnngy63 - Implement olc_OnWindowFocus in window.h/cpp
             AddPendingMainThreadTask(BECOME_ACTIVE);
         });
 
         pMacOSWindow->setWindowDidResignKeyCallback([&]() {
-            //TODO: Johnngy63 - Implement olc_OnWindowFocus in window.h/cpp
+            AddPendingMainThreadTask(RESIGN_ACTIVE);
         });
        
         pMacOSWindow->setWindowDidMiniaturizeCallback([&]() {
@@ -455,51 +567,38 @@ namespace olc::host {
         });
         
     }
+    
+    // handles both down and up strokes for every supported key that isn't a modifier
+    void Host_Apple_MacOS::KeyboardEventHandler(const olc::apis::macos::KeyEvent& event, bool isPressed)
+    {
+        unsigned short keyCode = event.keyCode;
+        
+        // handle num clear/lock key only on the down stroke.
+        if(isPressed && keyCode == 71)
+        {
+            bNumLockActive = !bNumLockActive;
+            return;
+        }
 
-    bool Host_Apple_MacOS::ModifiersFlagsHandler(const olc::apis::macos::KeyEvent& event, bool pressed) {
-        
-        bool bisHandled = false;
-        if (event.modifierFlags & NSEventModifierFlagCapsLock) {
-            pPGEwindow->olc_OnKeyPress(Key::CAPS_LOCK, pressed);
-        }
-        if (event.modifierFlags & NSEventModifierFlagShift) {
-            pPGEwindow->olc_OnKeyPress(Key::SHIFT, pressed);
-            if(event.keyCode == 39)
+        if(!bNumLockActive)
+        {
+            // 84 down, 86 left, 88 right, 91 up >>> 125 down, 123 left, 124 right, 126 up
+            switch(keyCode)
             {
-                // The @ symbol does not change position from US - UK keyboards on MacOS, so we handle it here
-                pPGEwindow->olc_OnKeyPress(mapKeys[50], pressed);
-                return true;
+                case 84: keyCode = 125; break;
+                case 86: keyCode = 123; break;
+                case 88: keyCode = 124; break;
+                case 91: keyCode = 126; break;
+                default: break;
             }
-            
         }
-        if (event.modifierFlags & NSEventModifierFlagControl) {
-            pPGEwindow->olc_OnKeyPress(Key::CTRL, pressed);
-        }
-        
-        if(event.modifierFlags & NSEventModifierFlagNumericPad) {
-            if(event.keyCode == 71 && pressed) // NumLock keycode
-            {
-                // We only tottle the NumLock state on key press to minic the latching of the key
-                bNumLockActive = !bNumLockActive;
-            }
-            
-            if(!bNumLockActive)
-            {
-                // 84 down, 86 left, 88 right, 91 up >>> 125 down, 123 left, 124 right, 126 up
-                if(event.keyCode == 84) pPGEwindow->olc_OnKeyPress(mapKeys[125], pressed);
-                if(event.keyCode == 86) pPGEwindow->olc_OnKeyPress(mapKeys[123], pressed);
-                if(event.keyCode == 88) pPGEwindow->olc_OnKeyPress(mapKeys[124], pressed);
-                if(event.keyCode == 91) pPGEwindow->olc_OnKeyPress(mapKeys[126], pressed);
-                return true;
-            }
-            
 
-        }
-            
-        return bisHandled;
+        // The @ symbol does not change position from US - UK keyboards on MacOS, so we handle it here
+        if(event.modifierFlags & NSEventModifierFlagShift && event.keyCode == 39)
+            keyCode = 50;
         
+        pPGEwindow->olc_OnKeyPress(mapKeys[keyCode], isPressed);
     }
-
 
     void Host_Apple_MacOS::MacEventsHandler()
     {
@@ -508,16 +607,43 @@ namespace olc::host {
 
         // Set up keyboard event handlers
         pMacOSEventHandler->onKeyDown([&](const olc::apis::macos::KeyEvent& event) {
-            if(!ModifiersFlagsHandler(event, true))
-                pPGEwindow->olc_OnKeyPress(mapKeys[event.keyCode], true);
+            KeyboardEventHandler(event, true);
         });
-        
-        pMacOSEventHandler->onKeyUp([&](const olc::apis::macos::KeyEvent& event) {
-            if(!ModifiersFlagsHandler(event, false))
-               pPGEwindow->olc_OnKeyPress(mapKeys[event.keyCode], false);
 
+        pMacOSEventHandler->onKeyUp([&](const olc::apis::macos::KeyEvent& event) {
+            KeyboardEventHandler(event, false);
         });
-        
+
+        // Set up keyboard flag event handlers
+        pMacOSEventHandler->onFlagsChanged([&](const olc::apis::macos::FlagsChangedEvent& event) {
+
+            static unsigned int prevFlags = 0;
+            unsigned int changedFlags = event.modifierFlags ^ prevFlags;
+            
+            // Check For Shift key
+            if (changedFlags & NSEventModifierFlagShift) {
+                bool isPressed = event.modifierFlags & NSEventModifierFlagShift;
+                pPGEwindow->olc_OnKeyPress(Key::SHIFT, isPressed);
+            }
+            
+            // Check for Control key
+            if (changedFlags & NSEventModifierFlagControl) {
+                bool isPressed = event.modifierFlags & NSEventModifierFlagControl;
+                pPGEwindow->olc_OnKeyPress(Key::CTRL, isPressed);
+            }
+
+            if (changedFlags & NSEventModifierFlagCommand) {
+                bool isPressed = event.modifierFlags & NSEventModifierFlagCommand;
+                if(isPressed)
+                    std::cout << "PGE3 doesn't currently support ALT/Command keys but it should.\n";
+                
+                // pPGEwindow->olc_OnKeyPress(Key::ALT, isPressed);
+            }
+
+            // caps lock doesn't appear to trigger any event
+            prevFlags = event.modifierFlags;
+        });
+
         // Set up mouse event handlers
         pMacOSEventHandler->onMouseDown([&](const olc::apis::macos::MouseEvent& event) {
                 pPGEwindow->olc_OnMouseButton(event.buttonNumber, true);
@@ -528,7 +654,7 @@ namespace olc::host {
         });
         
         pMacOSEventHandler->onMouseMoved([&](const olc::apis::macos::MouseEvent& event) {
-            pPGEwindow->olc_OnMouseMove({static_cast<int>(event.x), static_cast<int>(event.y)});            
+            pPGEwindow->olc_OnMouseMove({static_cast<int>(event.x), static_cast<int>(event.y)});
         });
         
         pMacOSEventHandler->onMouseDragged([&](const olc::apis::macos::MouseEvent& event) {

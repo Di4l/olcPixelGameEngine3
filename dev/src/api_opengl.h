@@ -1,6 +1,5 @@
 #pragma once
 
-
 //! START CUSTOMHEADER
 #include "config.h"
 
@@ -12,14 +11,22 @@
 #include <source_location>
 //! END STDHEADER
 
+// deliberately outside of the single header
+#if OLC_HOST == OLC_HOST_LINUX_X11
+#include "host_lin_x11.h"
+#endif
 
 //! START OPENGL_CONFIG
 
 #if OLC_HOST == OLC_HOST_WINDOWS
-	#include <Windows.h>
+	#include <windows.h>
 	#pragma comment(lib, "gdi32.lib")
 	#pragma comment(lib, "opengl32.lib")
+#if defined(__MINGW32__) || defined(__MINGW64__)
+	#include <GL/gl.h>
+#else
 	#include <gl/GL.h>
+#endif
 	#define CALLSTYLE __stdcall
 	// ooof... was getting a bunch of spurious C4191 from MSVC 17.14.9, so round trip via void-town
 	#define OGL_LOAD(t) reinterpret_cast<t##_t*>(reinterpret_cast<void*>(wglGetProcAddress(#t)))
@@ -27,9 +34,7 @@
 
 #if OLC_HOST == OLC_HOST_LINUX_X11
 	#include <GL/gl.h>
-	#if OLC_HOST == OLC_HOST_LINUX_X11
-		#define OGL_LOAD(t) reinterpret_cast<t##_t*>(X11::glXGetProcAddress(reinterpret_cast<const GLubyte*>(#t)))
-	#endif
+	#define OGL_LOAD(t) reinterpret_cast<t##_t*>(X11::glXGetProcAddress(reinterpret_cast<const GLubyte*>(#t)))
 #endif
 
 #if OLC_HOST == OLC_HOST_LINUX_WAYLAND
@@ -45,7 +50,8 @@
         #define CALLSTYLE
         #define OGL_LOAD(t) &::t
         #define GL_GLEXT_PROTOTYPES
-        #define GL_CLAMP GL_CLAMP_TO_EDGE
+        #undef GL_CLAMP
+		#define GL_CLAMP GL_CLAMP_TO_EDGE
         #include <stddef.h>                         // Correct issue with Unknown type name 'ptrdiff_t'
         #include <OpenGL/OpenGL.h>
         #include <OpenGL/gl3.h>
@@ -170,9 +176,15 @@ namespace olc
 		typedef void CALLSTYLE glGetInternalformativ_t(GLenum target, GLenum internalformat, GLenum pname, GLsizei bufSize, GLint* params);
 		typedef void CALLSTYLE glGetShaderiv_t(GLuint shader, GLenum pname, GLint* params);
 		typedef void CALLSTYLE glGetIntegerv_t(GLenum pname, GLint *data);
+		typedef void CALLSTYLE glGetRenderbufferParameteriv_t(GLenum target, GLenum pname, GLint* params);
+		typedef void CALLSTYLE glRenderbufferStorage_t(GLenum target, GLenum internalformat, GLsizei width, GLsizei height);
 
 #if OLC_HOST == OLC_HOST_WINDOWS
 		typedef void CALLSTYLE wglSwapIntervalEXT_t(GLsizei n);
+#endif
+
+#if OLC_HOST == OLC_HOST_LINUX_X11
+		typedef GLint CALLSTYLE glXSwapIntervalEXT_t(X11::Display* dpy, X11::GLXDrawable drawable, GLint interval);
 #endif
 
 		// A little GL class (singleton)
@@ -231,10 +243,16 @@ namespace olc
 			glGetInternalformativ_t* _glGetInternalformativ = nullptr;
 			glGetShaderiv_t* _glGetShaderiv = nullptr;
 			glGetIntegerv_t *_glGetIntegerv = nullptr;
+			glGetRenderbufferParameteriv_t* _glGetRenderbufferParameteriv = nullptr;
+			glRenderbufferStorage_t* _glRenderbufferStorage = nullptr;
 #if OLC_HOST == OLC_HOST_WINDOWS
 			wglSwapIntervalEXT_t* _wglSwapIntervalEXT = nullptr;
 #endif
 
+#if OLC_HOST == OLC_HOST_LINUX_X11
+		public:
+			glXSwapIntervalEXT_t* XSwapIntervalEXT = nullptr;
+#endif
 
 		public:
 			// Proxies allow switchable, clutter-free error checking
@@ -281,6 +299,8 @@ namespace olc
 			void glDeleteRenderbuffers(GLsizei n, const GLuint* renderbuffers);
 			void glGetInternalformativ(GLenum target, GLenum internalformat, GLenum pname, GLsizei bufSize, GLint* params);
 			void glGetShaderiv(GLuint shader, GLenum pname, GLint* params);
+			void glGetRenderbufferParameteriv(GLenum target, GLenum pname, GLint* params);
+			void glRenderbufferStorage(GLenum target, GLenum internalformat, GLsizei width, GLsizei height);
 
 			// OpenGL1.2 Proxies (just keeps things tidy imo)
 			void glGenTextures(GLsizei n, GLuint* textures);
@@ -302,7 +322,7 @@ namespace olc
 			void glGetTexImage(GLenum target, GLint level, GLenum format, GLenum type, void* pixels);
 			void glHint(GLenum target, GLenum mode);
 			void glPolygonMode(GLenum face, GLenum mode);
-			
+			void glFrontFace(GLenum mode);
 			void glGetIntegerv(GLenum pname, GLint *data);
 
 
@@ -327,8 +347,9 @@ namespace olc
 			static constexpr GLenum GL_SAMPLES_X = 0x80A9;
 			static constexpr GLenum GL_COMPILE_STATUS_X = 0x8B81;
 			static constexpr GLenum GL_INFO_LOG_LENGTH_X = 0x8B84;
-
-
+			static constexpr GLenum GL_DEPTH_COMPONENT24_X = 0x81A6;
+			static constexpr GLenum GL_DEPTH_ATTACHMENT_X = 0x8D00;
+			static constexpr GLenum GL_RENDERBUFFER_SAMPLES_X = 0x8CAB;
 		private:
 			bool CheckError(const std::source_location loc = std::source_location::current());
 
@@ -337,8 +358,3 @@ namespace olc
 	
 } // olc namespace
 //! END DECLARATION
-
-
-
-
-

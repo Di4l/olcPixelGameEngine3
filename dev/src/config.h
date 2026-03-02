@@ -26,13 +26,14 @@
 
 
 // Choose "Operating System"
-#define OLC_HOST_WINDOWS 1
-#define OLC_HOST_LINUX_X11 2
+#define OLC_HOST_NONE 1
+#define OLC_HOST_WINDOWS 2
 #define OLC_HOST_LINUX_WAYLAND 3
-#define OLC_HOST_MACOS 4
-#define OLC_HOST_EMSCRIPTEN 5
-#define OLC_HOST_ANDROID 6
-#define OLC_HOST_IOS 7
+#define OLC_HOST_LINUX_X11 4
+#define OLC_HOST_MACOS 5
+#define OLC_HOST_EMSCRIPTEN 6
+#define OLC_HOST_ANDROID 7
+#define OLC_HOST_IOS 8
 
 #if !defined(OLC_HOST)
 	#if defined(_WIN32)
@@ -67,42 +68,69 @@
 #define OLC_GPU_NONE 1
 #define OLC_GPU_OPENGL33 2
 
+#if defined(OLC_USE_HEADLESS)
+	#define OLC_GPU OLC_GPU_NONE
+#endif
+
 #if !defined(OLC_GPU)
 	#define OLC_GPU OLC_GPU_OPENGL33
 #endif
 
+#if OLC_GPU == OLC_GPU_NONE
+	#define OLC_GPU_CLASS Renderer_None
+	#define OLC_SHADER_CLASS Shader_None
+#endif
 
+#if OLC_GPU == OLC_GPU_OPENGL33
+	#define OLC_GPU_CLASS Renderer_OGL33
+	#define OLC_SHADER_CLASS Shader_GLSL33
+#endif
 
 #define OLC_IMAGELOADER_NONE 1
 #define OLC_IMAGELOADER_WINGDI 2
 #define OLC_IMAGELOADER_MACOS 3
 #define OLC_IMAGELOADER_LIB_PNG 4
 #define OLC_IMAGELOADER_NDK_IMAGEDECODER 5
+#define OLC_IMAGELOADER_STB_IMAGE 6
 
-#if OLC_HOST == OLC_HOST_MACOS
-	#undef OLC_IMAGELOADER
-	#define OLC_IMAGELOADER OLC_IMAGELOADER_MACOS
-#endif
-
-#if OLC_HOST == OLC_HOST_LINUX_X11 || OLC_HOST == OLC_HOST_LINUX_WAYLAND
-	#undef OLC_IMAGELOADER
-	#define OLC_IMAGELOADER OLC_IMAGELOADER_LIB_PNG
-#endif
-
-#if OLC_HOST == OLC_HOST_EMSCRIPTEN
-	#undef OLC_IMAGELOADER
-	#define OLC_IMAGELOADER OLC_IMAGELOADER_LIB_PNG
-#endif
-
-#if OLC_HOST == OLC_HOST_ANDROID
-    #undef OLC_IMAGELOADER
-    #define OLC_IMAGELOADER OLC_IMAGELOADER_NDK_IMAGEDECODER
+#if defined(OLC_USE_STB_IMAGE)
+	#define OLC_IMAGELOADER OLC_IMAGELOADER_STB_IMAGE
+	#define OLC_IMAGELOADER_CLASS ImageLoader_STB_Image
 #endif
 
 #if !defined(OLC_IMAGELOADER)
-	#define OLC_IMAGELOADER OLC_IMAGELOADER_WINGDI
+	#if OLC_HOST == OLC_HOST_WINDOWS
+		#define OLC_IMAGELOADER OLC_IMAGELOADER_WINGDI
+		#define OLC_IMAGELOADER_CLASS ImageLoader_WinGDI
+	#endif
+
+	#if OLC_HOST == OLC_HOST_MACOS
+		#define OLC_IMAGELOADER OLC_IMAGELOADER_MACOS
+		#define OLC_IMAGELOADER_CLASS ImageLoader_MacOS
+	#endif
+
+	#if OLC_HOST == OLC_HOST_LINUX_X11 || OLC_HOST == OLC_HOST_LINUX_WAYLAND
+		#define OLC_IMAGELOADER OLC_IMAGELOADER_LIB_PNG
+		#define OLC_IMAGELOADER_CLASS ImageLoader_LibPNG
+	#endif
+
+	#if OLC_HOST == OLC_HOST_EMSCRIPTEN
+		#define OLC_IMAGELOADER OLC_IMAGELOADER_LIB_PNG
+		#define OLC_IMAGELOADER_CLASS ImageLoader_LibPNG
+	#endif
+
+	#if OLC_HOST == OLC_HOST_ANDROID
+		#define OLC_IMAGELOADER OLC_IMAGELOADER_NDK_IMAGEDECODER
+		#define OLC_IMAGELOADER_CLASS ImageLoader_NDKImageDecoder
+	#endif
 #endif
 
+// We wait until after the platform specific image loader is selected
+// to lock in the headless host.
+#if defined(OLC_USE_HEADLESS)
+	#undef OLC_HOST
+	#define OLC_HOST OLC_HOST_NONE
+#endif
 
 #define OLC_MULTIWINDOW_NO 1
 #define OLC_MULTIWINDOW_YES 2
@@ -131,6 +159,10 @@
 
 template<typename... Args>
 inline constexpr void olc_IgnoreUnused(Args&&...) noexcept {}
+
+#if OLC_HOST == OLC_HOST_NONE
+#define OLC_FRIENDLY_HOST Host_None
+#endif
 
 #if OLC_HOST == OLC_HOST_WINDOWS
 #define OLC_FRIENDLY_HOST Host_Windows_WinAPI

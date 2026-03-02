@@ -265,12 +265,13 @@ namespace olc::host
 		olc::vi2d vWinPos = vWindowPos;
 		olc::vi2d vWinSize = vWindowSize;
 		
+		hCursorNow = hCursorDefault = LoadCursor(NULL, IDC_ARROW);
 
 		// Define WindowClass
 		WNDCLASSEX wc = { 0 };		
 		wc.cbSize = sizeof(WNDCLASSEX);
 		wc.hIcon = LoadIcon(NULL, IDI_APPLICATION);
-		wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+		wc.hCursor = hCursorDefault;
 		wc.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
 		wc.hInstance = GetModuleHandle(nullptr);
 		wc.lpfnWndProc = WINAPI_EventHandler;
@@ -321,6 +322,8 @@ namespace olc::host
 		lp = GetWindowLongPtr(hWnd, GWL_EXSTYLE);
 		SetWindowLongPtr(hWnd, GWL_EXSTYLE, lp | (WS_EX_WINDOWEDGE));
 
+		pWindow->olc_OnFocus(true);
+
 		//SetWindowPos(hWnd, NULL, vWinPos.x, vWinPos.y, width, height, SWP_SHOWWINDOW);
 		//ShowWindow(hWnd, 1);
 		//UpdateWindow(hWnd);
@@ -331,7 +334,6 @@ namespace olc::host
 		// modern systems. This is awkward because we havent yet associated the
 		// source window with a long_ptr to this class, and therefore we can't
 		// call the appropriate event handler.
-
 
 		// Store the link bewteen host resource and window
 		mapUID2HWND.insert_or_assign(pWindow->GetUID(), hWnd);
@@ -371,6 +373,56 @@ namespace olc::host
 		return DwmFlush() == S_OK;
 	}
 
+	bool Host_Windows_WinAPI::SetMousePosition(olc::Window* pWindow, const olc::vi2d& vPos)
+	{
+		POINT pt;
+		pt.x = vPos.x;
+		pt.y = vPos.y;
+		ClientToScreen(mapUID2HWND.at(pWindow->GetUID()), &pt);
+		SetCursorPos(pt.x, pt.y);
+		return true;
+	}
+
+	bool Host_Windows_WinAPI::SetMouseVisible(olc::Window* pWindow, const bool bVisible)
+	{
+		olc_IgnoreUnused(pWindow);
+
+		hCursorNow = bVisible ? hCursorDefault : NULL;
+
+		// Fire fake move event to update cursor visibility immediately
+		POINT p;
+		GetCursorPos(&p);
+		SetCursorPos(p.x, p.y + 1);
+		SetCursorPos(p.x, p.y);
+		return true;
+	}
+
+	bool Host_Windows_WinAPI::SetFullScreen(olc::Window* pWindow, const bool bFullScreen)
+	{
+		HWND hWnd = mapUID2HWND.at(pWindow->GetUID());
+
+		if (bFullScreen)
+		{
+			// Maximise, make on top, remove border and titlebar
+			SetWindowLongPtr(hWnd, GWL_STYLE, WS_POPUP | WS_VISIBLE);
+			SetWindowLongPtr(hWnd, GWL_EXSTYLE, WS_EX_TOPMOST);
+			ShowWindow(hWnd, SW_MAXIMIZE);		
+		}
+		else
+		{
+			// Restore original window style and position
+			SetWindowLongPtr(hWnd, GWL_STYLE, WS_CAPTION | WS_SYSMENU | WS_VISIBLE | WS_THICKFRAME);
+			SetWindowLongPtr(hWnd, GWL_EXSTYLE, WS_EX_APPWINDOW | WS_EX_WINDOWEDGE);
+			ShowWindow(hWnd, SW_RESTORE);	
+		}
+
+		UpdateWindow(hWnd);
+		SetForegroundWindow(hWnd);
+		SetFocus(hWnd);
+		SetActiveWindow(hWnd);			
+		return true;
+	}
+		
 	LRESULT Host_Windows_WinAPI::OnWindowEvent(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 	{
 		if (!mapHWND2PTR.contains(hWnd))
@@ -409,12 +461,34 @@ namespace olc::host
 				window->olc_OnMouseWheel(GET_WHEEL_DELTA_WPARAM(wParam));
 				break;
 			}
-			//		case WM_MOUSELEAVE: ptrPGE->olc_UpdateMouseFocus(false);                                    return 0;
-			//		case WM_SETFOCUS:	ptrPGE->olc_UpdateKeyFocus(true);                                       return 0;
-			//		case WM_KILLFOCUS:	ptrPGE->olc_UpdateKeyFocus(false);                                      return 0;
+
+		case WM_ACTIVATE:
+			{
+				window->olc_OnFocus((LOWORD(wParam) != WA_INACTIVE));
+				return 0;
+			}
+
+    	case WM_MOUSEACTIVATE:
+			{
+				window->olc_OnFocus(true);
+				return MA_ACTIVATE;
+			}
+        
+		case WM_SETFOCUS:
+			{
+				window->olc_OnFocus(true);
+				return 0;
+			}
+
+		case WM_KILLFOCUS:
+			{
+				window->olc_OnFocus(false);
+				return 0;
+			}
 
 		case WM_KEYDOWN:
 			{
+				window->olc_OnFocus(true);
 				if (mapKeys.contains(int32_t(wParam)))
 				{
 					window->olc_OnKeyPress(mapKeys[int32_t(wParam)], true);
@@ -479,6 +553,34 @@ namespace olc::host
 				window->olc_OnMouseButton(2, false);
 				break;
 			}
+		case WM_XBUTTONDOWN:
+			{
+				UINT button = GET_XBUTTON_WPARAM(wParam);
+				if(button == XBUTTON1)
+				{
+					window->olc_OnMouseButton(3, true);
+				}
+				else if(button == XBUTTON2)
+				{
+					window->olc_OnMouseButton(4, true);
+				}
+				
+				break;
+			}
+		case WM_XBUTTONUP:
+			{
+				UINT button = GET_XBUTTON_WPARAM(wParam);
+				if(button == XBUTTON1)
+				{
+					window->olc_OnMouseButton(3, false);
+				}
+				else if(button == XBUTTON2)
+				{
+					window->olc_OnMouseButton(4, false);
+				}
+				
+				break;
+			}
 			//		case WM_DROPFILES:
 			//		{
 			//			// This is all eww...
@@ -522,6 +624,17 @@ namespace olc::host
 				window->olc_OnWindowClose();
 				break;
 				//return DefWindowProc(hWnd, uMsg, wParam, lParam);
+			}
+
+			case WM_SETCURSOR:
+			{
+				if (LOWORD(lParam) == HTCLIENT)
+				{
+					SetCursor(hCursorNow);
+					return TRUE; // Sigh ffs microsoft...
+				}
+
+				break;
 			}
 
 		case WM_DESTROY:	

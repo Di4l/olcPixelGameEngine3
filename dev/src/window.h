@@ -13,7 +13,7 @@
 #include "config.h"
 #include "pixel.h"
 #include "vector2d.h"
-#include "draw2d.h"
+#include "draw.h"
 #include "hw_mouse.h"
 #include "hw_keyboard.h"
 //! END CUSTOMHEADER
@@ -62,7 +62,7 @@ namespace olc
 		virtual bool olc_OnMouseButton(const uint8_t nButton, const bool bPressed);
 		virtual bool olc_OnMouseMove(const olc::vi2d& vMousePos);
 		virtual bool olc_OnMouseWheel(const int32_t nScroll);
-		virtual bool olc_OnMouseFocus(const bool bHasFocus);
+		virtual bool olc_OnFocus(const bool bHasFocus);
 		
 		// Set Window State
 		virtual bool olc_OnWindowPosition(const olc::vi2d& vPos);
@@ -90,9 +90,22 @@ namespace olc
 		const std::string& GetWindowTitle() const;
 		bool SetWindowTitle(const std::string& sTitle);
 
+		// Force the mouse position, in "screen" coordinates
+		void SetWindowMousePosition(const olc::vi2d& vPos);
+
+		// Show or hide mouse cursor
+		void ShowMouseCursor(const bool bShow);
+
+		// Set the Window to be FullScreen or Not Fullscreen
+		void ShowFullScreen(const bool bFullScreen);
+
+		// Focus
+		bool IsFocused() const;
+
 	protected:
 		bool bRequestToClose = false;
 		bool bShouldRemove = false;
+		bool bWindowIsFocused = false;
 
 	protected:
 		size_t nUniqueID = size_t(-1);

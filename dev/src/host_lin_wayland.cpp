@@ -103,6 +103,7 @@ namespace olc::host
         mapKeys[XKB_KEY_Scroll_Lock] = Key::SCROLL; mapKeys[XKB_KEY_Tab] = Key::TAB; mapKeys[XKB_KEY_Delete] = Key::DEL; mapKeys[XKB_KEY_Home] = Key::HOME;
         mapKeys[XKB_KEY_End] = Key::END; mapKeys[XKB_KEY_Page_Up] = Key::PGUP; mapKeys[XKB_KEY_Page_Down] = Key::PGDN;	mapKeys[XKB_KEY_Insert] = Key::INS;
         mapKeys[XKB_KEY_Shift_L] = Key::SHIFT; mapKeys[XKB_KEY_Shift_R] = Key::SHIFT; mapKeys[XKB_KEY_Control_L] = Key::CTRL; mapKeys[XKB_KEY_Control_R] = Key::CTRL;
+        mapKeys[XKB_KEY_Alt_L] = Key::ALT; mapKeys[XKB_KEY_Alt_R] = Key::ALT;
         mapKeys[XKB_KEY_space] = Key::SPACE; mapKeys[XKB_KEY_period] = Key::PERIOD;
 
         mapKeys[XKB_KEY_0] = Key::K0; mapKeys[XKB_KEY_1] = Key::K1; mapKeys[XKB_KEY_2] = Key::K2; mapKeys[XKB_KEY_3] = Key::K3; mapKeys[XKB_KEY_4] = Key::K4;
@@ -321,6 +322,49 @@ namespace olc::host
         return keyboardLayout;
     }
 
+    bool Host_Linux_Wayland::SetMousePosition(olc::Window* pWindow, const olc::vi2d& vPos)
+    {
+        if(pointer_warp) {
+            auto itr = mapUID2Window.find(pWindow->GetUID());
+            if(itr != mapUID2Window.end()) {
+                wp_pointer_warp_v1_warp_pointer(pointer_warp, itr->second.surface, pointer, wl_fixed_from_int(vPos.x), wl_fixed_from_int(vPos.y), enter_serial);
+                pWindow->olc_OnMouseMove(vPos);
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    bool Host_Linux_Wayland::SetMouseVisible(olc::Window* pWindow, const bool bVisible)
+    {
+        auto itr = mapUID2Window.find(pWindow->GetUID());
+        if(itr != mapUID2Window.end()) {
+            itr->second.cursor_visible = bVisible;
+
+            if(bVisible) {
+                wp_cursor_shape_device_v1_set_shape(cursor_shape_device, enter_serial, WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_DEFAULT);
+            } else {
+                wl_pointer_set_cursor(pointer, enter_serial, nullptr, 0, 0);
+            }
+        }
+
+        return true;
+    }
+
+    bool Host_Linux_Wayland::SetFullScreen(olc::Window* pWindow, const bool bFullScreen)
+    {
+        auto itr = mapUID2Window.find(pWindow->GetUID());
+        if(itr != mapUID2Window.end()) {
+            itr->second.fullscreen = bFullScreen;
+            if(bFullScreen) {
+                xdg_toplevel_set_fullscreen(itr->second.toplevel, nullptr);
+            } else {
+                xdg_toplevel_unset_fullscreen(itr->second.toplevel);
+            }
+        }
+        return true;
+    }
 
     void Host_Linux_Wayland::registry_handle_global(wl_registry* registry, uint32_t name, const char* interface, uint32_t version)
     {
@@ -339,6 +383,12 @@ namespace olc::host
         if(std::strcmp(interface, wl_keyboard_interface.name) == 0) {
             keyboard = static_cast<wl_keyboard*>(wl_registry_bind(registry, name, &wl_keyboard_interface, version));
         }
+        if(std::strcmp(interface, wp_pointer_warp_v1_interface.name) == 0) {
+            pointer_warp = static_cast<wp_pointer_warp_v1*>(wl_registry_bind(registry, name, &wp_pointer_warp_v1_interface, version));
+        }
+        if(std::strcmp(interface, wp_cursor_shape_manager_v1_interface.name) == 0) {
+            cursor_shape_manager = static_cast<wp_cursor_shape_manager_v1*>(wl_registry_bind(registry, name, &wp_cursor_shape_manager_v1_interface, version));
+        }
     }
     
     void Host_Linux_Wayland::registry_handle_global_remove(wl_registry* registry, uint32_t name)
@@ -350,11 +400,13 @@ namespace olc::host
     {
         if (capabilities & WL_SEAT_CAPABILITY_POINTER && pointer == nullptr) {
             pointer = wl_seat_get_pointer(seat);
-            wl_pointer_add_listener(pointer, &wayland::pointer_listener, this);
+            cursor_shape_device = wp_cursor_shape_manager_v1_get_pointer(cursor_shape_manager, pointer);
+            wl_pointer_add_listener(pointer, &wayland::pointer_listener, this);    
         }
 
         if (capabilities & WL_SEAT_CAPABILITY_KEYBOARD && keyboard == nullptr) {
             keyboard = wl_seat_get_keyboard(seat);
+            keyboard_version = wl_keyboard_get_version(keyboard);
             wl_keyboard_add_listener(keyboard, &wayland::keyboard_listener, this);
         }
     }
@@ -366,12 +418,14 @@ namespace olc::host
             if(w.toplevel == toplevel) {
                 // Attempt to constrain the window size to what the compositor may have told us earlier
                 // in a bounds_configure message
-                if(w.bounds_x != 0) {
-                    width = std::min<int32_t>(width, w.bounds_x);
-                }
-
-                if(w.bounds_y != 0) {
-                    height = std::min<int32_t>(height, w.bounds_y);
+                if(!w.fullscreen) {
+                    if(w.bounds_x != 0) {
+                        width = std::min<int32_t>(width, w.bounds_x);
+                    }
+    
+                    if(w.bounds_y != 0) {
+                        height = std::min<int32_t>(height, w.bounds_y);
+                    }
                 }
                 
                 mapUID2OlcWindow[i.first]->olc_OnWindowSize({width, height});
@@ -437,6 +491,9 @@ namespace olc::host
     {
         pointer_state.event_mask |= wayland::PointerEventMask::PointerEventEnter;
         pointer_state.serial = serial;
+        // Save so we can reuse the serial for pointer warping
+        enter_serial = serial;
+        pointer_state.surface = surface;
         pointer_state.surface_x = surface_x;
         pointer_state.surface_y = surface_y;
     }
@@ -505,16 +562,25 @@ namespace olc::host
     void Host_Linux_Wayland::pointer_frame(wl_pointer* pointer)
     {
         wayland::PointerState *event = &pointer_state;
-
+        auto pointer_window = active_window_id;
+        // Since PGE does not distinguish between "mouse hover" and "window focus" we won't actually trigger a Window Focus
+        // for the mouse hovering over the window.  We'll just send this mouse event to that window without actually marking it as focused.
         if (pointer_state.event_mask & wayland::PointerEventMask::PointerEventEnter) {
             for(auto& itr : mapUID2Window) {
                 if (itr.second.surface == event->surface) {
-                    active_window_id = itr.first;
+                    pointer_window = itr.first;
+                    
+                    // Need to set the mouse back to the correct hidden / not hidden state when it enters the window
+                    if(itr.second.cursor_visible) {
+                        wp_cursor_shape_device_v1_set_shape(cursor_shape_device, enter_serial, WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_DEFAULT);
+                    } else {
+                        wl_pointer_set_cursor(pointer, enter_serial, nullptr, 0, 0);
+                    }
                 }
             }
         }
-
-        auto* pge_window = mapUID2OlcWindow[active_window_id];
+        
+        auto* pge_window = mapUID2OlcWindow[pointer_window];
 
         if (pointer_state.event_mask & wayland::PointerEventMask::PointerEventMotion) {
                 pge_window->olc_OnMouseMove(olc::vi2d{
@@ -528,6 +594,8 @@ namespace olc::host
                 case BTN_LEFT: pge_window->olc_OnMouseButton(0, pointer_state.state == WL_POINTER_BUTTON_STATE_PRESSED); break;
                 case BTN_MIDDLE: pge_window->olc_OnMouseButton(2, pointer_state.state == WL_POINTER_BUTTON_STATE_PRESSED); break;
                 case BTN_RIGHT: pge_window->olc_OnMouseButton(1, pointer_state.state == WL_POINTER_BUTTON_STATE_PRESSED); break;
+                case BTN_SIDE: pge_window->olc_OnMouseButton(3, pointer_state.state == WL_POINTER_BUTTON_STATE_PRESSED); break;
+                case BTN_EXTRA: pge_window->olc_OnMouseButton(4, pointer_state.state == WL_POINTER_BUTTON_STATE_PRESSED); break;
                 default: break;
             }
         }
@@ -590,7 +658,7 @@ namespace olc::host
         //auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
         //host->pointer_axis_relative_direction(pointer, axis, direction);
     }
-
+ 
     // Keyboard Callbacks
     void Host_Linux_Wayland::keyboard_keymap_callback(void* data, wl_keyboard* keyboard, uint32_t format, int fd, uint32_t size)
     {
@@ -636,7 +704,15 @@ namespace olc::host
 
     void Host_Linux_Wayland::keyboard_enter(wl_keyboard* keyboard, uint32_t serial, wl_surface* surface, wl_array* keys)
     {
-        // Currently do nothing
+        // Find the window that the keyboard is active on and mark it active
+        for(auto& i : mapUID2Window) {
+            if(i.second.surface == surface) {
+                active_window_id = i.first;
+            }
+        }
+        
+        auto* pge_window = mapUID2OlcWindow[active_window_id];
+        pge_window->olc_OnFocus(true);
     }
 
     void Host_Linux_Wayland::keyboard_leave_callback(void* data, wl_keyboard* keyboard, uint32_t serial, wl_surface* surface)
@@ -647,7 +723,8 @@ namespace olc::host
 
     void Host_Linux_Wayland::keyboard_leave(wl_keyboard* keyboard, uint32_t serial, wl_surface* surface)
     {
-        // Currently do nothing
+        auto* pge_window = mapUID2OlcWindow[active_window_id];
+        pge_window->olc_OnFocus(false);
     }
 
     void Host_Linux_Wayland::keyboard_key_callback(void* data, wl_keyboard* keyboard, uint32_t serial, uint32_t time, uint32_t key, uint32_t state)
@@ -663,7 +740,27 @@ namespace olc::host
         if(itr != mapKeys.end()) {
             auto olc_key = itr->second;
             auto* pge_window = mapUID2OlcWindow[active_window_id];
-            pge_window->olc_OnKeyPress(olc_key, state == WL_KEYBOARD_KEY_STATE_PRESSED);
+            
+            // Wayland keyboard version 10 and above support key repeat and release states
+            if(keyboard_version >= 10)
+            {
+                switch (state) {
+                    case WL_KEYBOARD_KEY_STATE_RELEASED:
+                        pge_window->olc_OnKeyPress(olc_key, false);
+                        break;
+                    case WL_KEYBOARD_KEY_STATE_REPEATED:
+                        pge_window->olc_OnKeyPress(olc_key, false);
+                        // Intentional fallthrough
+                    case WL_KEYBOARD_KEY_STATE_PRESSED:
+                        pge_window->olc_OnKeyPress(olc_key, true);
+                        break;
+                }
+            }
+            else
+            {
+                // Ubuntu still parties like its 1999 apparently
+                pge_window->olc_OnKeyPress(olc_key, state == WL_KEYBOARD_KEY_STATE_PRESSED);
+            }
         }
     }
 

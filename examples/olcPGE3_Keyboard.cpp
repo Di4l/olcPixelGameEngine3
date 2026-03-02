@@ -20,7 +20,7 @@ class Example_Keyboard : public olc::PixelGameEngine
 public:
 	Example_Keyboard()
 	{
-
+		sAppName = "Example - Keyboard";
 	}
 
 protected:
@@ -39,6 +39,14 @@ public:
 	// Called every frame, so update things here
 	bool OnUserUpdate(float fElapsedTime) override
 	{
+		if(!IsFocused())
+		{
+			// Clear whole screen
+			draw.Clear(olc::Colour::VERY_DARK_RED);
+			draw.String((ScreenSize() / 2) - (draw.GetTextSize("Not Focused") / 2), "Not Focused");
+			return true;
+		}
+		
 		auto metrics = draw.GetDrawMetrics();
 		draw.ResetDrawMetrics();
 
@@ -58,7 +66,15 @@ public:
 		if (keyboard.GetKey(olc::Key::RIGHT).bHeld)
 			vPosition.x += 50.0f * fElapsedTime;
 
-		draw.FilledCircle(vPosition.round(), 10.0f);
+		olc::Pixel col = olc::Colour::WHITE;
+
+		if(keyboard.GetKey(olc::Key::SHIFT).bHeld)
+			col = olc::Colour::MAGENTA;
+		
+		if(keyboard.GetKey(olc::Key::CTRL).bHeld)
+			col = olc::Colour::TANGERINE;
+
+		draw.FilledCircle(vPosition.round(), 10.0f, col);
 
 
 		// Capture text input from keyboard

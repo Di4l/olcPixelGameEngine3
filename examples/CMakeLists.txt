@@ -7,6 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(BUILD_WAYLAND "Build example programs with Wayland" OFF)
+option(USE_STB "Use stb_image.h for image loading" OFF)
 
 ######################################################################
 # Directories
@@ -32,61 +33,50 @@ if(UNIX AND BUILD_WAYLAND)
     # Find wayland-scanner
     find_program(WAYLAND_SCANNER wayland-scanner REQUIRED)
 
-    # Check for wayland protocols
-    set(XDG_SHELL_PROTOCOL "/usr/share/wayland-protocols/stable/xdg-shell/xdg-shell.xml")
-    set(XDG_DECORATION_PROTOCOL "/usr/share/wayland-protocols/unstable/xdg-decoration/xdg-decoration-unstable-v1.xml")
+    function(generate_wayland_protocol PROTOCOL_TARGET PROTOCOL_FILE)
+        if(NOT EXISTS ${PROTOCOL_FILE})
+            message(FATAL_ERROR ${PROTOCOL_FILE} " not found. You may need to install wayland-protocols via your package manager")
+        endif()
 
-    if(NOT EXISTS ${XDG_SHELL_PROTOCOL})
-        message(FATAL_ERROR "xdg-shell protocol not found. You may need to install wayland-protocols via your package manager")
-    endif()
+        set(C_FILENAME "${CMAKE_CURRENT_BINARY_DIR}/${PROTOCOL_TARGET}.c")
+        set(H_FILENAME "${CMAKE_CURRENT_BINARY_DIR}/${PROTOCOL_TARGET}.h")
 
-    if(NOT EXISTS ${XDG_DECORATION_PROTOCOL})
-        message(FATAL_ERROR "xdg-decoration protocol not found. You may need to install wayland-protocols via your package manager")
-    endif()
+        add_custom_command(
+            OUTPUT ${C_FILENAME}
+            COMMAND ${WAYLAND_SCANNER} private-code ${PROTOCOL_FILE} ${C_FILENAME}
+            DEPENDS ${PROTOCOL_FILE}
+            VERBATIM
+        )
 
-    # Generate wayland protocol files
-    set(XDG_SHELL_C ${CMAKE_CURRENT_BINARY_DIR}/xdg-shell.c)
-    set(XDG_SHELL_H ${CMAKE_CURRENT_BINARY_DIR}/xdg-shell.h)
-    set(XDG_DECORATION_C ${CMAKE_CURRENT_BINARY_DIR}/xdg-decoration.c)
-    set(XDG_DECORATION_H ${CMAKE_CURRENT_BINARY_DIR}/xdg-decoration.h)
+        add_custom_command(
+            OUTPUT ${H_FILENAME}
+            COMMAND ${WAYLAND_SCANNER} client-header ${PROTOCOL_FILE} ${H_FILENAME}
+            DEPENDS ${PROTOCOL_FILE}
+            VERBATIM
+        )
 
-    add_custom_command(
-        OUTPUT ${XDG_SHELL_C}
-        COMMAND ${WAYLAND_SCANNER} private-code ${XDG_SHELL_PROTOCOL} ${XDG_SHELL_C}
-        DEPENDS ${XDG_SHELL_PROTOCOL}
-        VERBATIM
-    )
+        set_source_files_properties(${C_FILENAME} ${H_FILENAME} PROPERTIES GENERATED TRUE)
 
-    add_custom_command(
-        OUTPUT ${XDG_SHELL_H}
-        COMMAND ${WAYLAND_SCANNER} client-header ${XDG_SHELL_PROTOCOL} ${XDG_SHELL_H}
-        DEPENDS ${XDG_SHELL_PROTOCOL}
-        VERBATIM
-    )
+        add_library(wayland_${PROTOCOL_TARGET} STATIC ${C_FILENAME} ${H_FILENAME})
+    endfunction()
 
-    add_custom_command(
-        OUTPUT ${XDG_DECORATION_C}
-        COMMAND ${WAYLAND_SCANNER} private-code ${XDG_DECORATION_PROTOCOL} ${XDG_DECORATION_C}
-        DEPENDS ${XDG_DECORATION_PROTOCOL}
-        VERBATIM
-    )
-
-    add_custom_command(
-        OUTPUT ${XDG_DECORATION_H}
-        COMMAND ${WAYLAND_SCANNER} client-header ${XDG_DECORATION_PROTOCOL} ${XDG_DECORATION_H}
-        DEPENDS ${XDG_DECORATION_PROTOCOL}
-        VERBATIM
-    )
+    generate_wayland_protocol("xdg-shell" "/usr/share/wayland-protocols/stable/xdg-shell/xdg-shell.xml")
+    generate_wayland_protocol("xdg-decoration" "/usr/share/wayland-protocols/unstable/xdg-decoration/xdg-decoration-unstable-v1.xml")
+    generate_wayland_protocol("pointer-warp" "/usr/share/wayland-protocols/staging/pointer-warp/pointer-warp-v1.xml")
+    generate_wayland_protocol("cursor-shape" "/usr/share/wayland-protocols/staging/cursor-shape/cursor-shape-v1.xml")
+    generate_wayland_protocol("tablet" "/usr/share/wayland-protocols/stable/tablet/tablet-v2.xml")
 
     # Create a library for the wayland protocol files
-    add_library(wayland_protocols STATIC
-        ${XDG_SHELL_C}
-        ${XDG_SHELL_H}
-        ${XDG_DECORATION_C}
-        ${XDG_DECORATION_H}
+    add_library(wayland_protocols INTERFACE)
+    target_link_libraries(wayland_protocols INTERFACE
+        wayland_xdg-shell
+        wayland_xdg-decoration
+        wayland_pointer-warp
+        wayland_cursor-shape
+        wayland_tablet
     )
 
-    target_include_directories(wayland_protocols PUBLIC
+    target_include_directories(wayland_protocols INTERFACE
         ${CMAKE_CURRENT_BINARY_DIR}
     )
 endif()
@@ -95,6 +85,10 @@ foreach(source ${SOURCES})
     get_filename_component(EXE_NAME ${source} NAME_WE)
     add_executable(${EXE_NAME} ${source})
     target_link_libraries(${EXE_NAME} PRIVATE olcPixelGameEngine3)
+    
+    if(USE_STB)
+        target_compile_definitions(${EXE_NAME} PRIVATE OLC_USE_STB_IMAGE=1)
+    endif()
 
     if(APPLE)
         if(CMAKE_SYSTEM_NAME STREQUAL "iOS")

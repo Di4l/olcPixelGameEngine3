@@ -23,6 +23,7 @@
 #include <objc/message.h>
 #include <OpenGL/gl.h>
 #include <OpenGL/OpenGL.h>
+#include <CoreGraphics/CoreGraphics.h>
 
 extern "C" {
     // NSRect (OSX rectangle structure same as GCRect C structure)
@@ -49,6 +50,7 @@ extern "C" {
     void application_initialize          (struct Application* self);
     void application_activate            (struct Application* self);
     void application_run                 (struct Application* self);
+    void application_stop                (struct Application* self);
     void application_destroy             (struct Application* self);
     const char* application_getSystemLocale (struct Application* self);
     
@@ -68,7 +70,9 @@ extern "C" {
     void window_setWindowSize            (struct Window* self, double width, double height);
     void window_getContentViewFrame      (const struct Window* self, double* x, double* y, double* width, double* height);
     void window_setContentViewFrame      (struct Window* self, double* x, double* y, double* width, double* height);
-    
+    void window_setCursorVisibility      (struct Window* self, BOOL visible);
+    void window_setCursorPosition        (struct Window* self, double x, double y);
+
     // OpenGL Renderer API - as implemented in api_macos.c
     struct OpenGLRenderer* opengl_init    (void);
     void opengl_initialize                (struct OpenGLRenderer* self, struct Window* window);
@@ -105,6 +109,7 @@ extern "C" {
     // Event handler setup
     void window_setKeyDownCallback          (struct Window* self, KeyEventCallback callback, void* userData);
     void window_setKeyUpCallback            (struct Window* self, KeyEventCallback callback, void* userData);
+    void window_setFlagsChangedCallback     (struct Window* self, void (*callback)(unsigned int, void*), void* userData);
     void window_setMouseDownCallback        (struct Window* self, MouseEventCallback callback, void* userData);
     void window_setMouseUpCallback          (struct Window* self, MouseEventCallback callback, void* userData);
     void window_setMouseMovedCallback       (struct Window* self, MouseEventCallback callback, void* userData);
@@ -116,6 +121,8 @@ extern "C" {
     void window_setOtherMouseUpCallback     (struct Window* self, MouseEventCallback callback, void* userData);
     void window_setOtherMouseDraggedCallback(struct Window* self, MouseEventCallback callback, void* userData);
     void window_setScrollWheelCallback      (struct Window* self, void (*callback)(double, double, double, double, unsigned int, void*), void* userData);
+    void window_setMouseEnteredCallback     (struct Window* self, MouseEventCallback callback, void* userData);
+    void window_setMouseExitedCallback      (struct Window* self, MouseEventCallback callback, void* userData); 
 
     // Event system management
     void window_enableEventHandling     (struct Window* self);

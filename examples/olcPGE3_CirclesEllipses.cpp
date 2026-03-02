@@ -20,13 +20,10 @@ class Example_RoundThings : public olc::PixelGameEngine
 public:
 	Example_RoundThings()
 	{
-
+		sAppName = "Example - Circles and Ellipses";
 	}
 
 protected:
-	// We accumulate total time for some animation
-	float fTotalTime = 0.0f;
-
 	std::vector<olc::vf2d> vecBubblePos;
 	std::vector<olc::vf2d> vecBubbleVel;
 	std::vector<olc::Pixel> vecBubbleCol;
@@ -39,8 +36,8 @@ public:
 		for (int i = 0; i < 20; i++)
 		{
 			vecBubblePos.push_back({ 
-				float((rand() % (GetDefaultImage().Size().x - 64)) + 32), 
-				float((rand() % (GetDefaultImage().Size().y - 64)) + 32)});
+				float((rand() % (GetScreen().Size().x - 64)) + 32), 
+				float((rand() % (GetScreen().Size().y - 64)) + 32)});
 
 			vecBubbleVel.push_back({ 
 				(float(rand() % 2000) - 1000.0f) / 100.0f, 
@@ -112,22 +109,22 @@ public:
 			vecBubblePos[i] += vecBubbleVel[i] * fElapsedTime * 10.0f;
 
 			// Bounce off walls
-			if (vecBubblePos[i].x < 32.0f || vecBubblePos[i].x > float(GetDefaultImage().Size().x - 32))
+			if (vecBubblePos[i].x < 32.0f || vecBubblePos[i].x > float(GetScreen().Size().x - 32))
 			{
 				if(vecBubbleVel[i].x < 0)
 					vecBubblePos[i].x = 32.0f;
 				else
-					vecBubblePos[i].x = float(GetDefaultImage().Size().x - 32);
+					vecBubblePos[i].x = float(GetScreen().Size().x - 32);
 
 				vecBubbleVel[i].x = -vecBubbleVel[i].x;
 			}
 
-			if (vecBubblePos[i].y < 32.0f || vecBubblePos[i].y > float(GetDefaultImage().Size().y - 32))
+			if (vecBubblePos[i].y < 32.0f || vecBubblePos[i].y > float(GetScreen().Size().y - 32))
 			{
 				if (vecBubbleVel[i].y < 0)
 					vecBubblePos[i].y = 32.0f;
 				else
-					vecBubblePos[i].y = float(GetDefaultImage().Size().y - 32);
+					vecBubblePos[i].y = float(GetScreen().Size().y - 32);
 
 				vecBubbleVel[i].y = -vecBubbleVel[i].y;
 			}

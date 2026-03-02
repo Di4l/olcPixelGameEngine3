@@ -22,6 +22,7 @@ class Example_AntiAliasing : public olc::PixelGameEngine
 public:
 	Example_AntiAliasing()
 	{
+		sAppName = "Example - Anti-Aliasing";
 	}
 
 protected:
@@ -34,7 +35,7 @@ public:
 	{
 		// Create an image that uses anti-aliasing and is half
 		// teh width of the screen
-		CreateImage(imgAntiAliased, GetDefaultImage().Size(),
+		CreateImage(imgAntiAliased, GetScreen().Size(),
 			olc::ImageConfig{ .MSAA=true, .MSAASamples=16 });
 
 		// There is a global config that sets the default number
@@ -44,20 +45,16 @@ public:
 		return true;
 	}
 
-	// Total time elapsed
-	float fTotalTime = 0;
-
-
 	// Called every frame, so update things here
 	bool OnUserUpdate(float fElapsedTime) override
 	{
-		fTotalTime += fElapsedTime * 0.1f;
-		
+		float fTotalTime = TotalTimeElapsed() * 0.1f;
+
 		// Lambda to draw a rotating fan of lines and circles
 		auto DrawFan = [&]()
 			{
 				// Rotating gradient lines
-				olc::vf2d p1 = GetDefaultImage().Size() / 2.0f;
+				olc::vf2d p1 = GetScreen().Size() / 2.0f;
 				olc::vf2d p2 = olc::vf2d{ std::cos(fTotalTime), std::sin(fTotalTime) } * 300.0f;
 				draw.Line(p1, olc::Colour::CYAN, p1 + p2, olc::Colour::MAGENTA);
 				draw.Line(p1, olc::Colour::CYAN, p1 - p2, olc::Colour::MAGENTA);
@@ -104,7 +101,7 @@ public:
 		draw.WorldReset();
 
 		// Draw to normal buffer
-		draw.SetTarget(GetDefaultImage());
+		draw.SetTarget(GetScreen());
 		draw.Clear(olc::Colour::BLACK);
 		DrawFan();
 		draw.WorldReset();

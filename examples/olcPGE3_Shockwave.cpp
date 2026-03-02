@@ -29,13 +29,10 @@ class Example_Shockwave : public olc::PixelGameEngine
 public:
 	Example_Shockwave()
 	{
-
+		sAppName = "Example - Shockwave Pixel Shader";
 	}
 
 protected:
-	// We accumulate total time for some animation
-	float fTotalTime = 0.0f;
-
 	olc::gpu::Shader_GLSL33 shaderExample;
 	olc::Image imgWithoutFX;
 
@@ -121,7 +118,7 @@ public:
 		shaderExample.CreateUniform("sw_radius");
 
 		// Create off-screen image to draw to
-		CreateImage(imgWithoutFX, GetDefaultImage().Size());
+		CreateImage(imgWithoutFX, GetScreen().Size());
 
 		// Load a fake game scene to demonstrate effect on
 		CreateImageFromFile(imgGameScene, "./assets/gamescene.png");
@@ -156,7 +153,7 @@ public:
 		
 				
 		// Copy image to screen with new shader
-		draw.SetTarget(GetDefaultImage());
+		draw.SetTarget(GetScreen());
 
 		// Set the custom shader
 		draw.SetShader(shaderExample);		

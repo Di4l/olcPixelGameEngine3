@@ -146,56 +146,126 @@ namespace olc::host
         return host->OnInputEvent(app, event);
     }
 
-    bool Host_Android::StartSystemEventLoop(bool bBlockIfPossible)
+    bool Host_Android::StartSystem()
     {
-        int events;
-        struct android_poll_source* source = nullptr;
+        pPrimaryPGE->OnPreContextStart();
 
-        if (ALooper_pollOnce(
-            bBlockIfPossible || !initialized ? -1 : 0,
-            nullptr,
-            &events,
-            (void**)&source
-        ) >= 0) {
-            if (source) source->process(androidApp, source);
+        PollEvents(
+            [this]() {
+                return !initialized.load();
+            },
+            true
+        );
+
+        if (androidApp->destroyRequested)
+        {
+            return false;
         }
 
-        if (!androidApp || !initialized) return true;
+        systemActive = true;
 
-        if (androidApp->destroyRequested != 0) return false;
+        std::thread threadSys([this]() {
+            if (!OnSystemThreadStart())
+            {
+                StopSystem();
+                return;
+            }
 
+            while (systemActive.load())
+            {
+                if (!OnSystemTick())
+                {
+                    StopSystem();
+                }
+            }
+
+            if (!this->OnSystemThreadEnd())
+            {
+                return;
+            }
+        });
+
+        PollEvents(
+            [this]() {
+                return systemActive.load() && !androidApp->destroyRequested;
+            },
+            true
+        );
+
+        systemActive = false;
+        if (threadSys.joinable())
+        {
+            threadSys.join();
+        }
+
+        return pPrimaryPGE->OnPostContextEnd();
+    }
+
+    bool Host_Android::StopSystem()
+    {
+        systemActive = false;
+        return true;
+    }
+
+    bool Host_Android::OnSystemThreadStart()
+    {
+        return pPrimaryPGE->OnContextStart();
+    }
+
+    bool Host_Android::OnSystemTick()
+    {
+        return pPrimaryPGE->OnContextTick();;
+    }
+
+    bool Host_Android::OnSystemThreadEnd()
+    {
+        return pPrimaryPGE->OnContextEnd();
+    }
+
+    bool Host_Android::OnApplicationStart(olc::PixelGameEngine* pPrimary)
+    {
+        pPrimaryPGE = pPrimary;
+        return true;
+    }
+
+    bool Host_Android::OnApplicationEnd()
+    {
         return true;
     }
 
     void Host_Android::OnAppCmd(struct android_app *app, int32_t cmd)
     {
         auto host = reinterpret_cast<olc::host::Host_Android*>(app->userData);
+        if (!host->pgeWindow) return;
+
         switch (cmd) {
             case APP_CMD_WINDOW_RESIZED:
                 host->pgeWindow->olc_OnWindowSize({
                   ANativeWindow_getWidth(app->window),
                   ANativeWindow_getHeight(app->window)
                 });
-                __android_log_print(ANDROID_LOG_DEBUG, "PGE ANDROID",
-                                    "APP_CMD_WINDOW_RESIZED received: %dx%d",
-                                    ANativeWindow_getWidth(app->window),
-                                    ANativeWindow_getHeight(app->window));
+                LOGD("APP_CMD_WINDOW_RESIZED: %dx%d",
+                      ANativeWindow_getWidth(app->window),
+                      ANativeWindow_getHeight(app->window));
                 break;
             case APP_CMD_INIT_WINDOW:
                 if (app->window) {
                     host->initialized = true;
-                    __android_log_print(ANDROID_LOG_DEBUG, "PGE ANDROID",
-                                        "APP_CMD_INIT_WINDOW received with Window");
+                    LOGD("APP_CMD_INIT_WINDOW received with Window");
                 }
                 break;
             case APP_CMD_TERM_WINDOW: {
                 host->pgeWindow->olc_OnWindowClose();
+                host->initialized = false;
+                LOGD("APP_CMD_TERM_WINDOW received");
             } break;
             case APP_CMD_GAINED_FOCUS: {
                 host->pgeWindow->olc_OnMouseFocus(true);
+                LOGD("APP_CMD_GAINED_FOCUS received");
             } break;
             case APP_CMD_LOST_FOCUS: {
                 host->pgeWindow->olc_OnMouseFocus(false);
+                LOGD("APP_CMD_LOST_FOCUS received");
             } break;
             default: break;
         }
@@ -204,6 +274,8 @@ namespace olc::host
     int32_t Host_Android::OnInputEvent(AndroidApp *app, AInputEvent *event)
     {
         auto host = reinterpret_cast<olc::host::Host_Android*>(app->userData);
+        if (!host->pgeWindow) return 0;
+
         auto type = AInputEvent_getType(event);
         
         if (type == AINPUT_EVENT_TYPE_MOTION) {
@@ -307,11 +379,6 @@ namespace olc::host
     std::vector<void*> Host_Android::GetHostWindowDescriptor(olc::Window *pWindow)
     {
         return { reinterpret_cast<void*>(androidApp->window) };
-    }
-
-    bool Host_Android::ConnectHostResourceToRenderer()
-    {
-        return true;
     }
 
     bool Host_Android::SyncWithDesktopComposite()
@@ -528,15 +595,35 @@ namespace olc::host
 
         return content;
     }
+    
+    void Host_Android::PollEvents(const std::function<bool()>& funcContinue, bool bBlocking)
+    {
+        while (funcContinue()) {
+            int events;
+            struct android_poll_source* source;
+
+            const int timeOut = bBlocking ? -1 : 0;
+            const int ident = ALooper_pollOnce(timeOut, nullptr, &events, (void**)&source);
+            
+            if (ident >= 0) {
+                if (source) {
+                    source->process(androidApp, source);
+                }
+            } else if (!bBlocking) {
+                break;
+            }
+        }
+    }
+    
 }
 
 void android_main(struct android_app* app)
 {
-    char arg0[] = "olcPixelGameEngine 3.0";
+    char arg0[] = "olc::PixelGameEngine 3.0";
     char* argv[] = { arg0, nullptr };
     
-    olc::host::JNI::Init(app);
     olc::host::Host_Android::androidApp = app;
+    olc::host::JNI::Init(app);
 
     (void)main(1, argv);
 
@@ -546,7 +633,7 @@ void android_main(struct android_app* app)
         int events;
         struct android_poll_source* source;
 
-        while (ALooper_pollOnce(0, nullptr, &events, (void**)&source) > ALOOPER_POLL_TIMEOUT) {
+        if (ALooper_pollOnce(0, nullptr, &events, (void**)&source) > ALOOPER_POLL_TIMEOUT) {
             if (source) {
                 source->process(app, source);
             }

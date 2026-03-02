@@ -44,9 +44,9 @@ namespace olc
 		return true;
 	}
 
-	bool Window::olc_OnMouseFocus(const bool bHasFocus)
+	bool Window::olc_OnFocus(const bool bHasFocus)
 	{
-		olc_IgnoreUnused(bHasFocus);
+		bWindowIsFocused = bHasFocus;
 		return false;
 	}
 
@@ -120,6 +120,26 @@ namespace olc
 		sFrameTitle = sTitle;
 		pHost->UpdateWindowFrameTitle(this);
 		return false;
+	}
+
+	void Window::SetWindowMousePosition(const olc::vi2d& vPos)
+	{
+		pHost->SetMousePosition(this, vPos);
+	}
+
+	void Window::ShowMouseCursor(const bool bShow)
+	{
+		pHost->SetMouseVisible(this, bShow);
+	}
+
+	void Window::ShowFullScreen(const bool bFullScreen)
+	{
+		pHost->SetFullScreen(this, bFullScreen);
+	}
+
+	bool Window::IsFocused() const
+	{
+		return bWindowIsFocused;
 	}
 
 };

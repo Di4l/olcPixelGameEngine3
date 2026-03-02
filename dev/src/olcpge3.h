@@ -3,7 +3,9 @@
 #include "config.h"
 #include "pixel.h"
 #include "vector2d.h"
+#include "vector4d.h"
 #include "matrix3d.h"
+#include "matrix4d.h"
 #include "transform2d.h"
 #include "window.h"
 #include "core.h"
@@ -20,8 +22,14 @@
 
 #include "gputask.h"
 #include "gpu_iface.h"
-#include "gpu_opengl33.h"
 
+#if OLC_GPU == OLC_GPU_NONE
+#include "gpu_none.h"
+#endif
+
+#if OLC_GPU == OLC_GPU_OPENGL33
+#include "gpu_opengl33.h"
+#endif
 
 
 

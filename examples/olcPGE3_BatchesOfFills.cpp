@@ -20,13 +20,10 @@ class Example_BatchesOfFills : public olc::PixelGameEngine
 public:
 	Example_BatchesOfFills()
 	{
-
+		sAppName = "Example - Batches of Fills";
 	}
 
 protected:
-	// We accumulate total time for some animation
-	float fTotalTime = 0.0f;
-
 	std::vector<olc::vf2d> vecBubblePos;
 	std::vector<olc::vf2d> vecBubbleVel;
 	std::vector<olc::Pixel> vecBubbleCol;
@@ -39,8 +36,8 @@ public:
 		for (int i = 0; i < 20; i++)
 		{
 			vecBubblePos.push_back({
-				float((rand() % (GetDefaultImage().Size().x - 64)) + 32),
-				float((rand() % (GetDefaultImage().Size().y - 64)) + 32) });
+				float((rand() % (GetScreen().Size().x - 64)) + 32),
+				float((rand() % (GetScreen().Size().y - 64)) + 32) });
 
 			vecBubbleVel.push_back({
 				(float(rand() % 2000) - 1000.0f) / 100.0f,
@@ -79,7 +76,7 @@ public:
 
 		// Draw a gradient circle
 		draw.FilledCircle(batch, { 224.0f, 32.0f }, 20.0f,
-			olc::Colour::RED, olc::Colour::YELLOW);
+			olc::Colour::RED, olc::Colour::YELLOW, olc::Colour::WHITE);
 
 
 
@@ -95,7 +92,7 @@ public:
 
 		// Draw a gradient ellipse
 		draw.FilledEllipse(batch, { 224.0f, 96.0f }, 10, 20,
-			olc::Colour::BLUE, olc::Colour::CYAN);
+			olc::Colour::BLUE, olc::Colour::CYAN, olc::Colour::WHITE);
 
 
 		// Draw a circle outline with fewer facets
@@ -118,22 +115,22 @@ public:
 			vecBubblePos[i] += vecBubbleVel[i] * fElapsedTime * 10.0f;
 
 			// Bounce off walls
-			if (vecBubblePos[i].x < 32.0f || vecBubblePos[i].x > float(GetDefaultImage().Size().x - 32))
+			if (vecBubblePos[i].x < 32.0f || vecBubblePos[i].x > float(GetScreen().Size().x - 32))
 			{
 				if (vecBubbleVel[i].x < 0)
 					vecBubblePos[i].x = 32.0f;
 				else
-					vecBubblePos[i].x = float(GetDefaultImage().Size().x - 32);
+					vecBubblePos[i].x = float(GetScreen().Size().x - 32);
 
 				vecBubbleVel[i].x = -vecBubbleVel[i].x;
 			}
 
-			if (vecBubblePos[i].y < 32.0f || vecBubblePos[i].y > float(GetDefaultImage().Size().y - 32))
+			if (vecBubblePos[i].y < 32.0f || vecBubblePos[i].y > float(GetScreen().Size().y - 32))
 			{
 				if (vecBubbleVel[i].y < 0)
 					vecBubblePos[i].y = 32.0f;
 				else
-					vecBubblePos[i].y = float(GetDefaultImage().Size().y - 32);
+					vecBubblePos[i].y = float(GetScreen().Size().y - 32);
 
 				vecBubbleVel[i].y = -vecBubbleVel[i].y;
 			}

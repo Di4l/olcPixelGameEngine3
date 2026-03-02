@@ -1,8 +1,11 @@
 #pragma once
+#include "core.h"
 
 //! START STDHEADER GLOBAL
 #include <atomic>
+#include <cstdlib>
 #include <cstdint>
+#include <string>
 #include <vector>
 #include <unordered_map>
 //! END STDHEADER
@@ -22,16 +25,28 @@ namespace olc::host
     {
     public:
         Host_Web_Emscripten();
+    
+    public: // OS Window Handling
+        // Make OS Create a window frame, associated with olc::Window
         bool AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen) override;
+        // Make OS Close a window frame, associated with olc::Window
         bool CloseWindowFrame(olc::Window* pWindow) override;
+        // Make OS Update a window frame title, associated with olc::Window
         bool UpdateWindowFrameTitle(olc::Window* pWindow) override;
-
+        // Get OS-specific window descriptor(s) for given olc::Window
         std::vector<void*> GetHostWindowDescriptor(olc::Window* pWindow) override;
-        
         // Wait for entire host desktop refresh (for smooooth vsync)
         bool SyncWithDesktopComposite() override;
+
+    public: // Platform specific Mouse Control
+        // Force the mouse position in pixels relative to window
+        bool SetMousePosition(olc::Window* pWindow, const olc::vi2d& vPos) override;
+        // Show or hide mouse cursor for given window
+        bool SetMouseVisible(olc::Window* pWindow, const bool bVisible) override;
+
+    public: // OS Specific Environment Information
         olc::KeyboardLayout GetKeyboardLayout() const override;
-    
+
     public:
         // Called at very start of application
         bool OnApplicationStart(olc::PixelGameEngine* pPrimary) override;
@@ -52,19 +67,20 @@ namespace olc::host
 
     public: // event callbacks
         static EM_BOOL keyboard_callback(int eventType, const EmscriptenKeyboardEvent* e, void* userData);
-        static EM_BOOL wheel_callback(int eventType, const EmscriptenWheelEvent* e, void* userData);
         static EM_BOOL mouse_callback(int eventType, const EmscriptenMouseEvent* e, void* userData);
+        static EM_BOOL wheel_callback(int eventType, const EmscriptenWheelEvent* e, void* userData);
         static EM_BOOL touch_callback(int eventType, const EmscriptenTouchEvent* e, void* userData);
         static EM_BOOL fullscreen_change_callback(int eventType, const EmscriptenFullscreenChangeEvent *event, void *userData);
         static EM_BOOL resize_callback(int eventType, const EmscriptenUiEvent *event, void *userData);
         static EM_BOOL focus_callback(int eventType, const EmscriptenFocusEvent* focusEvent, void* userData);
-    
+        static EM_BOOL visibility_callback(int eventType, const EmscriptenVisibilityChangeEvent *visibilityChangeEvent, void *userData);
+
     private: // Window Wrappers
 		// Set Mouse Device State
 		static bool olc_OnMouseButton(olc::Window* pWindow, const uint8_t nButton, const bool bPressed);
 		static bool olc_OnMouseMove(olc::Window* pWindow, const olc::vi2d& vMousePos);
 		static bool olc_OnMouseWheel(olc::Window* pWindow, const int32_t nScroll);
-		static bool olc_OnMouseFocus(olc::Window* pWindow, const bool bHasFocus);
+		static bool olc_OnFocus(olc::Window* pWindow, const bool bHasFocus);
 		
         // Set Keyboard Device State
         static bool olc_OnKeyPress(olc::Window* pWindow, const olc::Key key, const bool bPressed);
@@ -74,9 +90,9 @@ namespace olc::host
 		static bool olc_OnWindowSize(olc::Window* pWindow, const olc::vi2d& vWindowSize);
 		static bool olc_OnWindowClose(olc::Window* pWindow);
     
-    private: // helpers
-        static olc::Window* GetWindowFromCanvasId(std::string canvasId);
-        
+    private: // Emscripten internal funcs
+        std::string getNavigatorLocale();
+
     public: // Callback data type
         struct CallbackData {
             Host_Web_Emscripten* pHost;
@@ -91,6 +107,10 @@ namespace olc::host
         
         // Map of system keycodes to olc::Keycodes
         std::unordered_map<int32_t, olc::Key> mapKeys;
+        // Map of system mouse buttons to olc mouse buttons
+        std::unordered_map<int32_t, int32_t> mapMouseButtons;
+        std::chrono::steady_clock::time_point timeHidden;
+        olc::KeyboardLayout keyboardLayout{OLC_DEFAULT_KEYBOARD_LAYOUT};
     };
     
     

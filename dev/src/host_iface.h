@@ -21,37 +21,10 @@ namespace olc
 	{
 		inline static size_t uuid = 0;
 
-		#if OLC_HOST == OLC_HOST_WINDOWS
-		inline constexpr size_t CreateUID()
-		{
-			return uuid++;
-		}
-		#endif
-		#if OLC_HOST == OLC_HOST_LINUX_X11
 		inline size_t CreateUID()
 		{
 			return uuid++;
 		}
-		#endif
-		#if OLC_HOST == OLC_HOST_LINUX_WAYLAND
-		inline size_t CreateUID()
-		{
-			return uuid++;
-		}
-		#endif
-		#if OLC_HOST == OLC_HOST_MACOS
-		// Clang compiler on MacOS requires constexpr to be removed
-		inline size_t CreateUID()
-		{
-			return uuid++;
-		}
-		#endif
-		#if OLC_HOST == OLC_HOST_EMSCRIPTEN || OLC_HOST == OLC_HOST_ANDROID
-		inline size_t CreateUID()
-		{
-			return uuid++;
-		}		
-		#endif
 	}
 
 	class PixelGameEngine;
@@ -93,6 +66,14 @@ namespace olc
 			virtual std::vector<void*> GetHostWindowDescriptor(olc::Window* pWindow) = 0;
 			// Wait for OS desktop refresh (for smooooth vsync)
 			virtual bool SyncWithDesktopComposite() = 0;
+
+		public: // Platform specific Mouse Control
+			// Force the mouse position in pixels relative to window
+			virtual bool SetMousePosition(olc::Window* pWindow, const olc::vi2d& vPos) = 0;
+			// Show or hide mouse cursor for given window
+			virtual bool SetMouseVisible(olc::Window* pWindow, const bool bVisible) = 0;
+			// Set a window to fullscreen or not fullscreen
+			virtual bool SetFullScreen(olc::Window* pWindow, const bool bFullScreen) = 0;
 
 		public: // OS Specific Environment Information
 			virtual olc::KeyboardLayout GetKeyboardLayout() const = 0;
