@@ -362,6 +362,25 @@ namespace olc
 	{		
 		config = cfg;
 
+		// Check for constructor sAppName, if not set use Config sAppName
+		if (sAppName.empty())
+		{
+			sAppName = config.sAppName;
+		}
+		else
+		{
+			if (config.sAppName == "PGE3")
+			{
+				// User has not set Config sAppName to something specific, so set the Config sAppName to constructor sAppName
+				config.sAppName = sAppName;
+			}
+			else
+			{
+				// User has set config.sAppName therefore we override constructor sAppname , 
+				sAppName = config.sAppName;
+			}
+		}
+
 		// This is the earliest point within familiar PGE ecosystem
 		// where we can instatiate the host interface.
 
@@ -542,7 +561,7 @@ namespace olc
 		if (durationFrameCount >= 1s)
 		{
 			durationFrameCount -= 1s;
-			std::string sTitle = "OneLoneCoder.com - Pixel Game Engine 3 - Test - FPS: " + std::to_string(frameCount);
+			std::string sTitle = "OneLoneCoder.com - Pixel Game Engine 3 - " + sAppName + " - FPS: " + std::to_string(frameCount);
 			SetWindowTitle(sTitle);
 			fps = frameCount;
 			frameCount = 0;

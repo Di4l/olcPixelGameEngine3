@@ -30,7 +30,7 @@ class Example_CustomPixelShader : public olc::PixelGameEngine
 public:
 	Example_CustomPixelShader()
 	{
-
+		sAppName = "Example - Custom Pixel Shader";
 	}
 
 protected:

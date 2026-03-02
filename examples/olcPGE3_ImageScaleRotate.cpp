@@ -22,7 +22,7 @@ class Example_ImageRotated : public olc::PixelGameEngine
 public:
 	Example_ImageRotated()
 	{
-
+		sAppName = "Example - ImageRotated (and scaled)";
 	}
 
 protected:

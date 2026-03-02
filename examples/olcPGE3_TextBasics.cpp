@@ -20,7 +20,7 @@ class Example_Text : public olc::PixelGameEngine
 public:
 	Example_Text()
 	{
-
+		sAppName = "Example - Text Basics";
 	}
 
 protected:

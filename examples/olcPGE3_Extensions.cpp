@@ -89,6 +89,8 @@ public:
 		// You can install as many extensions as you like, and they will be called in 
 		// the order they were installed
 		InstallWindowExtension(&pgex);
+
+		sAppName = "Example - Extensions";
 	}
 
 protected:

@@ -20,7 +20,7 @@ class Example_Lines : public olc::PixelGameEngine
 public:
 	Example_Lines()
 	{
-
+		sAppName = "Example - Lines";
 	}
 
 public:

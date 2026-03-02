@@ -20,7 +20,7 @@ class Example_BatchesOfLines : public olc::PixelGameEngine
 public:
 	Example_BatchesOfLines()
 	{
-
+		sAppName = "Example - Batches of Lines";
 	}
 
 public:

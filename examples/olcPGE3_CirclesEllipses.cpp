@@ -20,7 +20,7 @@ class Example_RoundThings : public olc::PixelGameEngine
 public:
 	Example_RoundThings()
 	{
-
+		sAppName = "Example - Circles and Ellipses";
 	}
 
 protected:

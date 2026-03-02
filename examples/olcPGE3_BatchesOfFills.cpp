@@ -20,7 +20,7 @@ class Example_BatchesOfFills : public olc::PixelGameEngine
 public:
 	Example_BatchesOfFills()
 	{
-
+		sAppName = "Example - Batches of Fills";
 	}
 
 protected:

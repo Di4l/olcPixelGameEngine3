@@ -20,7 +20,7 @@ class Example_Pixels : public olc::PixelGameEngine
 public:
 	Example_Pixels()
 	{
-
+		sAppName = "Example - Pixels ...lots of pixels";
 	}
 
 public:

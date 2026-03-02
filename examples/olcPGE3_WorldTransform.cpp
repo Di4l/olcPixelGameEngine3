@@ -29,7 +29,7 @@ class Example_WorldTransform: public olc::PixelGameEngine
 public:
 	Example_WorldTransform()
 	{
-
+		sAppName = "Example - World Transformations";
 	}
 
 protected:

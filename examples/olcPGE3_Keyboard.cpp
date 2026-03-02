@@ -20,7 +20,7 @@ class Example_Keyboard : public olc::PixelGameEngine
 public:
 	Example_Keyboard()
 	{
-
+		sAppName = "Example - Keyboard";
 	}
 
 protected:

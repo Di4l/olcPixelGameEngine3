@@ -29,7 +29,7 @@ class Example_Shockwave : public olc::PixelGameEngine
 public:
 	Example_Shockwave()
 	{
-
+		sAppName = "Example - Shockwave Pixel Shader";
 	}
 
 protected:
