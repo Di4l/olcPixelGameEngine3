@@ -260,11 +260,9 @@ namespace olc::host
                 LOGD("APP_CMD_TERM_WINDOW received");
             } break;
             case APP_CMD_GAINED_FOCUS: {
-                host->pgeWindow->olc_OnMouseFocus(true);
                 LOGD("APP_CMD_GAINED_FOCUS received");
             } break;
             case APP_CMD_LOST_FOCUS: {
-                host->pgeWindow->olc_OnMouseFocus(false);
                 LOGD("APP_CMD_LOST_FOCUS received");
             } break;
             default: break;
@@ -614,7 +612,21 @@ namespace olc::host
             }
         }
     }
+
+    bool Host_Android::SetMousePosition(olc::Window *pWindow, const olc::vi2d &vPos)
+    {
+        return false;
+    }
+
+    bool Host_Android::SetMouseVisible(olc::Window *pWindow, const bool bVisible)
+    {
+        return false;
+    }
     
+    bool Host_Android::SetFullScreen(olc::Window *pWindow, const bool bFullScreen)
+    {
+        return false;
+    }
 }
 
 void android_main(struct android_app* app)
