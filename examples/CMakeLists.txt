@@ -8,6 +8,8 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(BUILD_WAYLAND "Build example programs with Wayland" OFF)
 option(USE_STB "Use stb_image.h for image loading" OFF)
+option(DISABLE_LIBDECOR "Disable libdecor usage in wayland builds" OFF)
+option(FORCE_WAYLAND_LIBDECOR "Force wayland builds to only use libdecor" OFF)
 
 ######################################################################
 # Directories
@@ -25,6 +27,10 @@ if(UNIX AND BUILD_WAYLAND)
     pkg_check_modules(WAYLAND_CLIENT REQUIRED wayland-client)
     pkg_check_modules(WAYLAND_EGL REQUIRED wayland-egl)
     pkg_check_modules(EGL REQUIRED egl)
+
+    if(NOT DISABLE_LIBDECOR)
+    pkg_check_modules(LIBDECOR REQUIRED IMPORTED_TARGET libdecor-0)
+    endif()
 
     find_package(OpenGL REQUIRED)
     find_package(PNG REQUIRED)
@@ -61,20 +67,25 @@ if(UNIX AND BUILD_WAYLAND)
     endfunction()
 
     generate_wayland_protocol("xdg-shell" "/usr/share/wayland-protocols/stable/xdg-shell/xdg-shell.xml")
-    generate_wayland_protocol("xdg-decoration" "/usr/share/wayland-protocols/unstable/xdg-decoration/xdg-decoration-unstable-v1.xml")
     generate_wayland_protocol("pointer-warp" "/usr/share/wayland-protocols/staging/pointer-warp/pointer-warp-v1.xml")
     generate_wayland_protocol("cursor-shape" "/usr/share/wayland-protocols/staging/cursor-shape/cursor-shape-v1.xml")
     generate_wayland_protocol("tablet" "/usr/share/wayland-protocols/stable/tablet/tablet-v2.xml")
-
+    
     # Create a library for the wayland protocol files
     add_library(wayland_protocols INTERFACE)
     target_link_libraries(wayland_protocols INTERFACE
         wayland_xdg-shell
-        wayland_xdg-decoration
         wayland_pointer-warp
         wayland_cursor-shape
         wayland_tablet
     )
+    
+    if(NOT FORCE_WAYLAND_LIBDECOR)
+        generate_wayland_protocol("xdg-decoration" "/usr/share/wayland-protocols/unstable/xdg-decoration/xdg-decoration-unstable-v1.xml")
+        target_link_libraries(wayland_protocols INTERFACE
+            wayland_xdg-decoration
+        )
+    endif()
 
     target_include_directories(wayland_protocols INTERFACE
         ${CMAKE_CURRENT_BINARY_DIR}
@@ -106,6 +117,12 @@ foreach(source ${SOURCES})
     if(UNIX AND NOT APPLE AND NOT EMSCRIPTEN)
         if(BUILD_WAYLAND)
             target_compile_definitions(${EXE_NAME} PRIVATE OLC_HOST=3)
+            if(FORCE_WAYLAND_LIBDECOR)
+                target_compile_definitions(${EXE_NAME} PRIVATE FORCE_WAYLAND_LIBDECOR=1)
+            endif()
+            if(DISABLE_LIBDECOR)
+                target_compile_definitions(${EXE_NAME} PRIVATE DISABLE_LIBDECOR=1)
+            endif()
 
             target_link_libraries(${EXE_NAME} PRIVATE
                 wayland_protocols
@@ -116,7 +133,13 @@ foreach(source ${SOURCES})
                 OpenGL::GL
                 PNG::PNG
                 Threads::Threads
-            )            
+            )
+
+            if(NOT DISABLE_LIBDECOR)
+                target_link_libraries(${EXE_NAME} PRIVATE
+                    PkgConfig::LIBDECOR
+                )
+            endif()
 
         else() # x11
             target_link_libraries(${EXE_NAME} PRIVATE png)
