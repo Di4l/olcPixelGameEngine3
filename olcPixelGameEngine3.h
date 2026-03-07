@@ -3990,6 +3990,16 @@ namespace olc
 		bool bFullScreenable = true;
 		// Allow the window to be resized by user
 		bool bResizeable = true;
+		// Allow the window border to be hidden by user
+		bool bShowWindowBorder = true;
+		// Allow the window title bar to be hidden by user
+		bool bShowWindowTilebar = true;
+		// Allow the windows minimise button to be hidden by user
+		bool bShowWindowMinimiseButton = true;
+		// Allow the windows maximised button to be hidden by user
+		bool bShowWindowMaximiseButton = true;
+		// Allow the windows close button to be hidden by user
+		bool bShowWindowCloseButton = true;
 		// Synchronise rendering with monitor
 		bool bVSync = OLC_DEFAULT_VSYNC;
 		// Behave like a host window, resizing the screen in response to window resize
@@ -4313,6 +4323,7 @@ namespace olc
 			std::atomic<bool> systemActive = false;
 			HCURSOR hCursorDefault = nullptr;
 			HCURSOR hCursorNow = nullptr;
+			DWORD ConvertPGE2WindowStyle(const olc::Window* pWindow);
 
 		public:
 			LRESULT OnWindowEvent(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
@@ -7296,25 +7307,26 @@ namespace olc::host
 
 		// Define window furniture
 		DWORD dwExStyle = WS_EX_APPWINDOW | WS_EX_WINDOWEDGE;
-		DWORD dwStyle = WS_CAPTION | WS_SYSMENU | WS_VISIBLE | WS_THICKFRAME;
+		DWORD dwStyle = ConvertPGE2WindowStyle(pWindow);
 
 		olc::vi2d vTopLeft = vWindowPos;
 
-		//// Handle Fullscreen
-		//if (bFullScreen)
-		//{
-		//	dwExStyle = 0;
-		//	dwStyle = WS_VISIBLE | WS_POPUP;
-		//	HMONITOR hmon = MonitorFromWindow(olc_hWnd, MONITOR_DEFAULTTONEAREST);
-		//	MONITORINFO mi = { sizeof(mi) };
-		//	if (!GetMonitorInfo(hmon, &mi)) return olc::rcode::FAIL;
-		//	vWindowSize = { mi.rcMonitor.right, mi.rcMonitor.bottom };
-		//	vTopLeft.x = 0;
-		//	vTopLeft.y = 0;
-		//}
+		if (bFullScreen || pPrimaryPGE->config.bFullScreen)
+		{
+			dwExStyle = 0;
+			dwStyle = WS_VISIBLE | WS_POPUP;
+			POINT olc_pt = { vWinPos.x, vWinPos.y };
+			HMONITOR hmon = MonitorFromPoint(olc_pt, MONITOR_DEFAULTTONEAREST);
+			MONITORINFO mi = { sizeof(mi) };
+			if (!GetMonitorInfo(hmon, &mi)) return false;
+			vWinSize = { mi.rcMonitor.right, mi.rcMonitor.bottom };
+			vTopLeft.x = 0;
+			vTopLeft.y = 0;
+		}
+
 
 		// Keep client size as requested
-		RECT rWndRect = { 0, 0, vWindowSize.x, vWindowSize.y };
+		RECT rWndRect = { 0, 0, vWinSize.x, vWinSize.y };
 		AdjustWindowRectEx(&rWndRect, dwStyle, FALSE, dwExStyle);
 		int width = rWndRect.right - rWndRect.left;
 		int height = rWndRect.bottom - rWndRect.top;
@@ -7329,8 +7341,15 @@ namespace olc::host
 		GetClientRect(hWnd, &rClient);
 		pWindow->SetWindowSize({ rClient.right - rClient.left, rClient.bottom - rClient.top });
 
+		// Hide the close button if the user requested it, but only after styles are applied,
+		if (!pPrimaryPGE->config.bShowWindowCloseButton)
+		{
+			HMENU hMenu = GetSystemMenu(hWnd, FALSE);
+			DeleteMenu(hMenu, SC_CLOSE, MF_BYCOMMAND);
+		}
+
 		LONG_PTR lp = GetWindowLongPtr(hWnd, GWL_STYLE);
-		SetWindowLongPtr(hWnd, GWL_STYLE, lp | (WS_CAPTION | WS_SYSMENU | WS_POPUPWINDOW | WS_THICKFRAME));
+		SetWindowLongPtr(hWnd, GWL_STYLE, lp | (dwStyle));
 		lp = GetWindowLongPtr(hWnd, GWL_EXSTYLE);
 		SetWindowLongPtr(hWnd, GWL_EXSTYLE, lp | (WS_EX_WINDOWEDGE));
 
@@ -7418,21 +7437,56 @@ namespace olc::host
 			// Maximise, make on top, remove border and titlebar
 			SetWindowLongPtr(hWnd, GWL_STYLE, WS_POPUP | WS_VISIBLE);
 			SetWindowLongPtr(hWnd, GWL_EXSTYLE, WS_EX_TOPMOST);
-			ShowWindow(hWnd, SW_MAXIMIZE);		
+			ShowWindow(hWnd, SW_MAXIMIZE);
 		}
 		else
 		{
+			olc::vi2d vWinPos = pPrimaryPGE->config.vWindowOffset;
+			olc::vi2d vWinSize = pPrimaryPGE->config.vScreenSize * pPrimaryPGE->config.vPixelSize;
+
 			// Restore original window style and position
-			SetWindowLongPtr(hWnd, GWL_STYLE, WS_CAPTION | WS_SYSMENU | WS_VISIBLE | WS_THICKFRAME);
-			SetWindowLongPtr(hWnd, GWL_EXSTYLE, WS_EX_APPWINDOW | WS_EX_WINDOWEDGE);
-			ShowWindow(hWnd, SW_RESTORE);	
+			DWORD dwExStyle = WS_EX_APPWINDOW | WS_EX_WINDOWEDGE;
+			// Get the style we should have based on the window config
+			DWORD dwStyle = ConvertPGE2WindowStyle(pWindow);
+
+			LONG_PTR lp = GetWindowLongPtr(hWnd, GWL_STYLE);
+			SetWindowLongPtr(hWnd, GWL_STYLE, lp | dwStyle);
+			lp = GetWindowLongPtr(hWnd, GWL_EXSTYLE);
+			SetWindowLongPtr(hWnd, GWL_EXSTYLE, lp | dwExStyle);
+			ShowWindow(hWnd, SW_NORMAL);
 		}
 
 		UpdateWindow(hWnd);
 		SetForegroundWindow(hWnd);
 		SetFocus(hWnd);
-		SetActiveWindow(hWnd);			
+		SetActiveWindow(hWnd);
 		return true;
+	}
+
+	DWORD Host_Windows_WinAPI::ConvertPGE2WindowStyle(const olc::Window* pWindow)
+	{
+		olc_IgnoreUnused(pWindow);
+
+		DWORD dwStyle = WS_OVERLAPPED | WS_VISIBLE; // Default style for CreateWindowEx
+
+		// Note for Microsoft: if you hide the border, it hides the title bar too, and via versa
+
+		// For fullscreen,borderless/noTitlebar we want to skip all the window furniture and just have a big ol canvas
+		if (!pPrimaryPGE->config.bShowWindowBorder || !pPrimaryPGE->config.bShowWindowTilebar) return dwStyle |= WS_POPUP;
+
+		// If any max/min/close button(s) display the button menu
+		if (pPrimaryPGE->config.bShowWindowCloseButton || pPrimaryPGE->config.bShowWindowMaximiseButton || pPrimaryPGE->config.bShowWindowMinimiseButton) dwStyle |= WS_SYSMENU;
+		if (pPrimaryPGE->config.bShowWindowTilebar)			dwStyle |= WS_CAPTION;		// Add a title bar
+		if (pPrimaryPGE->config.bShowWindowBorder)			dwStyle |= WS_BORDER;		// Add a border
+		if (pPrimaryPGE->config.bResizeable)				dwStyle |= WS_THICKFRAME;	// Enable resizing
+		if (pPrimaryPGE->config.bShowWindowMinimiseButton)	dwStyle |= WS_MINIMIZEBOX;	// Add Min Button
+		if (pPrimaryPGE->config.bShowWindowMaximiseButton)	dwStyle |= WS_MAXIMIZEBOX;	// Add Max Button
+
+		// Note: Close button is handled after dwStlyes are applied
+
+		return dwStyle;
+
+
 	}
 		
 	LRESULT Host_Windows_WinAPI::OnWindowEvent(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)

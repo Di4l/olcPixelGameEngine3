@@ -45,6 +45,16 @@ namespace olc
 		bool bFullScreenable = true;
 		// Allow the window to be resized by user
 		bool bResizeable = true;
+		// Allow the window border to be hidden by user
+		bool bShowWindowBorder = true;
+		// Allow the window title bar to be hidden by user
+		bool bShowWindowTilebar = true;
+		// Allow the windows minimise button to be hidden by user
+		bool bShowWindowMinimiseButton = true;
+		// Allow the windows maximised button to be hidden by user
+		bool bShowWindowMaximiseButton = true;
+		// Allow the windows close button to be hidden by user
+		bool bShowWindowCloseButton = true;
 		// Synchronise rendering with monitor
 		bool bVSync = OLC_DEFAULT_VSYNC;
 		// Behave like a host window, resizing the screen in response to window resize
