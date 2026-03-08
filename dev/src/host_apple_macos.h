@@ -62,6 +62,9 @@ namespace olc
             virtual bool SetMousePosition(olc::Window* pWindow, const olc::vi2d& vPos) override;
             // Show or hide mouse cursor for given window
             virtual bool SetMouseVisible(olc::Window* pWindow, const bool bVisible) override;
+            // Set a window to fullscreen or not fullscreen
+            virtual bool SetFullScreen(olc::Window* pWindow, const bool bFullScreen) override;
+            
 
         public: // OS Specific Environment Information
             virtual olc::KeyboardLayout GetKeyboardLayout() const override;

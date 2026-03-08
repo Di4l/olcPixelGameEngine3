@@ -5463,6 +5463,9 @@ namespace olc
             virtual bool SetMousePosition(olc::Window* pWindow, const olc::vi2d& vPos) override;
             // Show or hide mouse cursor for given window
             virtual bool SetMouseVisible(olc::Window* pWindow, const bool bVisible) override;
+            // Set a window to fullscreen or not fullscreen
+            virtual bool SetFullScreen(olc::Window* pWindow, const bool bFullScreen) override;
+            
 
         public: // OS Specific Environment Information
             virtual olc::KeyboardLayout GetKeyboardLayout() const override;
@@ -7882,6 +7885,11 @@ namespace olc::host {
         return true;
     }
 
+    bool Host_Apple_MacOS::SetFullScreen(olc::Window* pWindow, const bool bFullScreen)
+{
+        return false; // Fullscreen is currently not supported on MacOS Host
+    }
+
     bool Host_Apple_MacOS::OnApplicationStart(olc::PixelGameEngine* pPrimary){
         pPrimaryPGE = pPrimary;
         return true;
@@ -9641,11 +9649,14 @@ void windowDidResize(id self, SEL _cmd, id notification) {
 // handle window will close events
 void windowWillClose(id self, SEL _cmd, id notification) {
    (void)self;(void)_cmd;(void)notification;
-    gptrWindowDelegate->acceptsInputEvents = NO; // Stop accepting input events immediately to prevent processing events for a closing window
-    gptrWindowDelegate->removeDelegate(gptrWindowDelegate); // remove delegate to ensure no more events are processed for this window
-    if (gptrWindowDelegate && gptrWindowDelegate->windowWillCloseCallback) {
-        gptrWindowDelegate->windowWillCloseCallback(gptrWindowDelegate->windowWillCloseUserData);
-    }
+    dispatch_async(dispatch_get_main_queue(), ^{
+       // Ensure all pending events are processed before closing the window
+       gptrWindowDelegate->acceptsInputEvents = NO; // Stop accepting input events immediately to prevent processing events for a closing window
+       gptrWindowDelegate->removeDelegate(gptrWindowDelegate); // remove delegate to ensure no more events are processed for this window
+       if (gptrWindowDelegate && gptrWindowDelegate->windowWillCloseCallback) {
+           gptrWindowDelegate->windowWillCloseCallback(gptrWindowDelegate->windowWillCloseUserData);
+       }
+   });
 }
 
 // handle window did become key events

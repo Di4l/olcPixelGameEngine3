@@ -208,6 +208,11 @@ namespace olc::host {
         return true;
     }
 
+    bool Host_Apple_MacOS::SetFullScreen(olc::Window* pWindow, const bool bFullScreen)
+{
+        return false; // Fullscreen is currently not supported on MacOS Host
+    }
+
     bool Host_Apple_MacOS::OnApplicationStart(olc::PixelGameEngine* pPrimary){
         pPrimaryPGE = pPrimary;
         return true;
