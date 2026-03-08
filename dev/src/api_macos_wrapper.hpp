@@ -220,10 +220,10 @@ namespace olc {
                 struct ::Window* getCHandle() const noexcept { return window_; }
                 
                 // Create and show the window
-                void show() {
+                void show(unsigned long styleMask) {
                     if (window_) {
                         setTitle(title_);
-                        window_create(window_);
+                        window_create(window_, styleMask);
                         window_show(window_);
                     }
                 }
@@ -479,6 +479,19 @@ namespace olc {
                     if (window_) {
                         window_setCursorVisibility(window_, visible);
                     }
+                }
+                
+                void toggleFullScreen() noexcept {
+                    if (window_) {
+                        window_toggleFullScreen(window_);
+                    }
+                }
+
+                bool isFullScreen() noexcept {
+                    if (window_) {
+                        return window_isFullScreen(window_);
+                    }
+                    return false;
                 }
                 
                 

@@ -418,9 +418,6 @@ namespace olc::host
 		}
 		else
 		{
-			olc::vi2d vWinPos = pPrimaryPGE->config.vWindowOffset;
-			olc::vi2d vWinSize = pPrimaryPGE->config.vScreenSize * pPrimaryPGE->config.vPixelSize;
-
 			// Restore original window style and position
 			DWORD dwExStyle = WS_EX_APPWINDOW | WS_EX_WINDOWEDGE;
 			// Get the style we should have based on the window config
