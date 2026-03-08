@@ -5747,7 +5747,7 @@ namespace olc::host
         uint32_t keyboard_version{0};
         xkb_context* kb_context{nullptr};
         xkb_state* kb_state{nullptr};
-        xkb_keymap* kb_keymap;
+        xkb_keymap* kb_keymap{nullptr};
         uint32_t kb_group{0};
         xdg_wm_base* xdg_wm{nullptr};
         #ifdef ENABLE_DECORATION_PROTOCOL
@@ -5766,7 +5766,7 @@ namespace olc::host
         #ifdef ENABLE_LIBDECOR
         // libdecor support
         bool using_libdecor{false};
-        libdecor* decor_context;
+        libdecor* decor_context{nullptr};
         #endif
 
     public:
