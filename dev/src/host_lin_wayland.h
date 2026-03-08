@@ -29,16 +29,16 @@
 #endif
 
 #include <wayland-client.h>
+#include <wayland-cursor.h>
 #include <wayland-egl.h>
 #include "xdg-shell.h"
 
-// Only include the decoration protcol if we are not forcing libdecor
+// Only include the decoration protocol if we are not forcing libdecor
 #ifdef ENABLE_DECORATION_PROTOCOL
 #include "xdg-decoration.h"
 #endif
 
 #include "pointer-warp.h"
-#include "cursor-shape.h"
 #include <linux/input-event-codes.h>
 #include <xkbcommon/xkbcommon.h>
 #include <sys/mman.h>
@@ -123,6 +123,7 @@ namespace olc::host
 	private:
 		wl_display* display{nullptr};
         wl_registry* registry{nullptr};
+        wl_shm* shm{nullptr};
         wl_compositor* compositor{nullptr};
         wl_seat* seat{nullptr};
         wl_pointer* pointer{nullptr};
@@ -138,11 +139,12 @@ namespace olc::host
         #endif
         wp_pointer_warp_v1* pointer_warp{nullptr};
         uint32_t enter_serial{0};
-        wp_cursor_shape_device_v1* cursor_shape_device{nullptr};
-        wp_cursor_shape_manager_v1* cursor_shape_manager{nullptr};
         
         wayland::PointerState pointer_state;
-        
+        wl_surface* cursor_surface{nullptr};
+        wl_cursor_image* cursor_image{nullptr};
+        wl_cursor_theme* cursor_theme{nullptr};
+
         size_t active_window_id;
         
         #ifdef ENABLE_LIBDECOR

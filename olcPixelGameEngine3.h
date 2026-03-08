@@ -5645,16 +5645,16 @@ namespace olc::host
 #endif
 
 #include <wayland-client.h>
+#include <wayland-cursor.h>
 #include <wayland-egl.h>
 #include "xdg-shell.h"
 
-// Only include the decoration protcol if we are not forcing libdecor
+// Only include the decoration protocol if we are not forcing libdecor
 #ifdef ENABLE_DECORATION_PROTOCOL
 #include "xdg-decoration.h"
 #endif
 
 #include "pointer-warp.h"
-#include "cursor-shape.h"
 #include <linux/input-event-codes.h>
 #include <xkbcommon/xkbcommon.h>
 #include <sys/mman.h>
@@ -5739,6 +5739,7 @@ namespace olc::host
 	private:
 		wl_display* display{nullptr};
         wl_registry* registry{nullptr};
+        wl_shm* shm{nullptr};
         wl_compositor* compositor{nullptr};
         wl_seat* seat{nullptr};
         wl_pointer* pointer{nullptr};
@@ -5754,11 +5755,12 @@ namespace olc::host
         #endif
         wp_pointer_warp_v1* pointer_warp{nullptr};
         uint32_t enter_serial{0};
-        wp_cursor_shape_device_v1* cursor_shape_device{nullptr};
-        wp_cursor_shape_manager_v1* cursor_shape_manager{nullptr};
         
         wayland::PointerState pointer_state;
-        
+        wl_surface* cursor_surface{nullptr};
+        wl_cursor_image* cursor_image{nullptr};
+        wl_cursor_theme* cursor_theme{nullptr};
+
         size_t active_window_id;
         
         #ifdef ENABLE_LIBDECOR
@@ -11357,7 +11359,19 @@ namespace olc::host
         #else
         xdg_wm_base_add_listener(xdg_wm, &xdg::xdg_base_listener, this);
         #endif
-        
+
+        // Load the default cursor
+        cursor_theme = wl_cursor_theme_load(NULL, 24, shm);
+        wl_cursor *cursor = wl_cursor_theme_get_cursor(cursor_theme, "left_ptr");
+
+        cursor_image = cursor->images[0];
+        wl_buffer *cursor_buffer = wl_cursor_image_get_buffer(cursor_image);
+
+        cursor_surface = wl_compositor_create_surface(compositor);
+        wl_surface_attach(cursor_surface, cursor_buffer, 0, 0);
+        wl_surface_commit(cursor_surface);
+
+
         kb_context = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
 
         wl_display_roundtrip(display);
@@ -11444,6 +11458,7 @@ namespace olc::host
         xkb_state_unref(kb_state);
         xkb_keymap_unref(kb_keymap);
         xkb_context_unref(kb_context);
+        wl_cursor_theme_destroy(cursor_theme);
 
         wl_display_disconnect(display);
     }
@@ -11677,7 +11692,7 @@ namespace olc::host
             itr->second.cursor_visible = bVisible;
 
             if(bVisible) {
-                wp_cursor_shape_device_v1_set_shape(cursor_shape_device, enter_serial, WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_DEFAULT);
+                wl_pointer_set_cursor(pointer, enter_serial, cursor_surface, cursor_image->hotspot_x, cursor_image->hotspot_y);
             } else {
                 wl_pointer_set_cursor(pointer, enter_serial, nullptr, 0, 0);
             }
@@ -11721,6 +11736,9 @@ namespace olc::host
         if(std::strcmp(interface, wl_compositor_interface.name) == 0) {
             compositor = static_cast<wl_compositor*>(wl_registry_bind(registry, name, &wl_compositor_interface, version));
         }
+        if(std::strcmp(interface, wl_shm_interface.name) == 0) {
+            shm = static_cast<wl_shm*>(wl_registry_bind(registry, name, &wl_shm_interface, version));
+        }
         if(std::strcmp(interface, xdg_wm_base_interface.name) == 0) {
             xdg_wm = static_cast<xdg_wm_base*>(wl_registry_bind(registry, name, &xdg_wm_base_interface, version));
         }
@@ -11739,9 +11757,6 @@ namespace olc::host
         if(std::strcmp(interface, wp_pointer_warp_v1_interface.name) == 0) {
             pointer_warp = static_cast<wp_pointer_warp_v1*>(wl_registry_bind(registry, name, &wp_pointer_warp_v1_interface, version));
         }
-        if(std::strcmp(interface, wp_cursor_shape_manager_v1_interface.name) == 0) {
-            cursor_shape_manager = static_cast<wp_cursor_shape_manager_v1*>(wl_registry_bind(registry, name, &wp_cursor_shape_manager_v1_interface, version));
-        }
     }
     
     void Host_Linux_Wayland::registry_handle_global_remove(wl_registry* registry, uint32_t name)
@@ -11753,7 +11768,6 @@ namespace olc::host
     {
         if (capabilities & WL_SEAT_CAPABILITY_POINTER && pointer == nullptr) {
             pointer = wl_seat_get_pointer(seat);
-            cursor_shape_device = wp_cursor_shape_manager_v1_get_pointer(cursor_shape_manager, pointer);
             wl_pointer_add_listener(pointer, &wayland::pointer_listener, this);    
         }
 
@@ -11925,7 +11939,7 @@ namespace olc::host
                     
                     // Need to set the mouse back to the correct hidden / not hidden state when it enters the window
                     if(itr.second.cursor_visible) {
-                        wp_cursor_shape_device_v1_set_shape(cursor_shape_device, enter_serial, WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_DEFAULT);
+                        wl_pointer_set_cursor(pointer, enter_serial, cursor_surface, cursor_image->hotspot_x, cursor_image->hotspot_y);
                     } else {
                         wl_pointer_set_cursor(pointer, enter_serial, nullptr, 0, 0);
                     }

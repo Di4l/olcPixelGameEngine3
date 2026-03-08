@@ -27,6 +27,7 @@ if(UNIX AND BUILD_WAYLAND)
     pkg_check_modules(WAYLAND_CLIENT REQUIRED wayland-client)
     pkg_check_modules(WAYLAND_EGL REQUIRED wayland-egl)
     pkg_check_modules(EGL REQUIRED egl)
+    pkg_check_modules(WAYLAND_CURSOR REQUIRED wayland-cursor)
 
     if(NOT DISABLE_LIBDECOR)
     pkg_check_modules(LIBDECOR REQUIRED IMPORTED_TARGET libdecor-0)
@@ -68,7 +69,6 @@ if(UNIX AND BUILD_WAYLAND)
 
     generate_wayland_protocol("xdg-shell" "/usr/share/wayland-protocols/stable/xdg-shell/xdg-shell.xml")
     generate_wayland_protocol("pointer-warp" "/usr/share/wayland-protocols/staging/pointer-warp/pointer-warp-v1.xml")
-    generate_wayland_protocol("cursor-shape" "/usr/share/wayland-protocols/staging/cursor-shape/cursor-shape-v1.xml")
     generate_wayland_protocol("tablet" "/usr/share/wayland-protocols/stable/tablet/tablet-v2.xml")
     
     # Create a library for the wayland protocol files
@@ -76,7 +76,6 @@ if(UNIX AND BUILD_WAYLAND)
     target_link_libraries(wayland_protocols INTERFACE
         wayland_xdg-shell
         wayland_pointer-warp
-        wayland_cursor-shape
         wayland_tablet
     )
     
@@ -129,6 +128,7 @@ foreach(source ${SOURCES})
                 ${XKBCOMMON_LIBRARIES}
                 ${WAYLAND_CLIENT_LIBRARIES}
                 ${WAYLAND_EGL_LIBRARIES}
+                ${WAYLAND_CURSOR_LIBRARIES}
                 ${EGL_LIBRARIES}
                 OpenGL::GL
                 PNG::PNG
