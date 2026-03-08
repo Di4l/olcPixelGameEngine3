@@ -17535,7 +17535,7 @@ namespace olc
 			{
 				if (!pgex->OnBeforeSystemUpdate(this, fDT))
 				{
-					std::cout << "PGE OnContextTick(): User aborted in extension OnAfterUserCreate()\n";
+					std::cout << "PGE OnContextTick(): User aborted in extension OnBeforeSystemUpdate()\n";
 					return false;
 				}
 			}
