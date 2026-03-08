@@ -12954,9 +12954,11 @@ namespace olc::host
             } break;
             case APP_CMD_GAINED_FOCUS: {
                 LOGD("APP_CMD_GAINED_FOCUS received");
+                host->pgeWindow->olc_OnFocus(true);
             } break;
             case APP_CMD_LOST_FOCUS: {
                 LOGD("APP_CMD_LOST_FOCUS received");
+                host->pgeWindow->olc_OnFocus(false);
             } break;
             default: break;
         }
