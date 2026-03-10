@@ -76,13 +76,13 @@ namespace olc::host
         #ifdef ENABLE_LIBDECOR
         // libdecor support
         libdecor_frame* decor_frame{nullptr};
-        libdecor_frame_interface* decor_interface{nullptr};
         int configured_width{};
         int configured_height{};
         libdecor_window_state decor_window_state;
         int floating_width{};
         int floating_height{};
         #endif
+        ~WaylandWindow();
     };
 
     namespace wayland {
@@ -151,6 +151,7 @@ namespace olc::host
         // libdecor support
         bool using_libdecor{false};
         libdecor* decor_context{nullptr};
+        std::mutex decor_mutex;
         #endif
 
     public:
