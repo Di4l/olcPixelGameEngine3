@@ -554,6 +554,34 @@ namespace olc::host
 
     void Host_Linux_Wayland::xdg_toplevel_configure(xdg_toplevel* toplevel, int32_t width, int32_t height, wl_array* states)
     {
+        bool attempt_fullscreen {false};
+        bool attempt_resize {false};
+
+        static const std::array<xdg_toplevel_state, 7> resize_states {
+            xdg_toplevel_state::XDG_TOPLEVEL_STATE_FULLSCREEN,
+            xdg_toplevel_state::XDG_TOPLEVEL_STATE_RESIZING,
+            xdg_toplevel_state::XDG_TOPLEVEL_STATE_TILED_LEFT,
+            xdg_toplevel_state::XDG_TOPLEVEL_STATE_TILED_RIGHT,
+            xdg_toplevel_state::XDG_TOPLEVEL_STATE_TILED_TOP,
+            xdg_toplevel_state::XDG_TOPLEVEL_STATE_TILED_BOTTOM
+        };
+
+        auto* state = reinterpret_cast<xdg_toplevel_state*>(states->data);
+        auto* end = static_cast<const char*>(states->data) + states->size;
+        for(;reinterpret_cast<const char*>(state) < end; state++)
+        {
+            if (*state == xdg_toplevel_state::XDG_TOPLEVEL_STATE_FULLSCREEN)
+            {
+                attempt_fullscreen = true;
+            }
+
+            if(std::find(resize_states.begin(), resize_states.end(), *state) != resize_states.end())
+            {
+                attempt_resize = true;
+            }
+            std::cout << *state << std::endl;
+        }
+
         for(auto& i : mapUID2Window) {
             auto& w = i.second;
             if(w.toplevel == toplevel) {
