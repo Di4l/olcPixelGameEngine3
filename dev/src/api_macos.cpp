@@ -1,6 +1,7 @@
 #include "api_macos.h"
 #include <iostream>
 #include <algorithm>
+#include <dispatch/dispatch.h>
 
 //! START IMPLEMENTATION
 
@@ -1234,11 +1235,14 @@ void windowDidResize(id self, SEL _cmd, id notification) {
 // handle window will close events
 void windowWillClose(id self, SEL _cmd, id notification) {
    (void)self;(void)_cmd;(void)notification;
-    gptrWindowDelegate->acceptsInputEvents = NO; // Stop accepting input events immediately to prevent processing events for a closing window
-    gptrWindowDelegate->removeDelegate(gptrWindowDelegate); // remove delegate to ensure no more events are processed for this window
-    if (gptrWindowDelegate && gptrWindowDelegate->windowWillCloseCallback) {
-        gptrWindowDelegate->windowWillCloseCallback(gptrWindowDelegate->windowWillCloseUserData);
-    }
+    dispatch_async(dispatch_get_main_queue(), ^{
+       // Ensure all pending events are processed before closing the window
+       gptrWindowDelegate->acceptsInputEvents = NO; // Stop accepting input events immediately to prevent processing events for a closing window
+       gptrWindowDelegate->removeDelegate(gptrWindowDelegate); // remove delegate to ensure no more events are processed for this window
+       if (gptrWindowDelegate && gptrWindowDelegate->windowWillCloseCallback) {
+           gptrWindowDelegate->windowWillCloseCallback(gptrWindowDelegate->windowWillCloseUserData);
+       }
+   });
 }
 
 // handle window did become key events
