@@ -44,6 +44,17 @@ namespace olc
 		class Keyboard;
 	}
 
+	struct WindowConfig
+	{
+		// Start in full-screen mode
+		bool bFullScreen = false;
+		// Allow full screen as an option with ALT-ENTER
+		bool bFullScreenable = true;
+		// Allow the window to be resized by user
+		bool bResizeable = true;
+	};
+
+
 	class Window
 	{
 		friend class olc::host::OLC_FRIENDLY_HOST;
@@ -115,6 +126,7 @@ namespace olc
 	
 	protected:
 		olc::host::Host* pHost = nullptr;
+		olc::WindowConfig config;
 
 	protected:
 		olc::hw::Mouse mouse;
