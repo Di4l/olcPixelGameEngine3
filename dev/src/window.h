@@ -62,6 +62,7 @@ namespace olc
 
 	public:
 		Window();
+		Window(const WindowConfig& config);
 		virtual ~Window();
 										
 		void LinkToHost(olc::host::Host* host);

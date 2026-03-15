@@ -39,12 +39,15 @@ namespace olc
 		olc::vi2d vPixelSize = { 4, 4 };
 		// Top left location of shown main window
 		olc::vi2d vWindowOffset = { 30,30 };
+
+		// These three are inherited from WindowConfig
 		// Start in full-screen mode
 		// bool bFullScreen = false;
 		// // Allow full screen as an option with ALT-ENTER
 		// bool bFullScreenable = true;
 		// // Allow the window to be resized by user
 		// bool bResizeable = true;
+		
 		// Synchronise rendering with monitor
 		bool bVSync = OLC_DEFAULT_VSYNC;
 		// Behave like a host window, resizing the screen in response to window resize
@@ -68,6 +71,7 @@ namespace olc
 	{
 	public:
 		PGEWindow();
+		PGEWindow(const WindowConfig& config);
 		bool Create(const olc::vi2d& vScreenSize, const olc::vi2d& vPixelSize);
 	
 	public:
