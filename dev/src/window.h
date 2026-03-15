@@ -118,6 +118,7 @@ namespace olc
 		bool bRequestToClose = false;
 		bool bShouldRemove = false;
 		bool bWindowIsFocused = false;
+		bool bWindowIsFullscreen = false;
 
 	protected:
 		size_t nUniqueID = size_t(-1);
