@@ -14658,10 +14658,11 @@ void main()
 		if (pfnCreateContextAttribs)
 		{
 			int gl33_attribs[] = {
-				0x2091, 3,			// WGL_CONTEXT_MAJOR_VERSION_ARB
-				0x2092, 3,			// WGL_CONTEXT_MINOR_VERSION_ARB
-				0x9126, 0x00000001, // WGL_CONTEXT_PROFILE_MASK_ARB = CORE
-				0};
+				0x2091, 3,			// WGL_CONTEXT_MAJOR_VERSION_ARB = 3
+				0x2092, 3,			// WGL_CONTEXT_MINOR_VERSION_ARB = 3	
+				0x2094, 0,			// WGL_CONTEXT_FLAGS_ARB = 0 (no flags)
+				0x9126, 0x00000002, // WGL_CONTEXT_PROFILE_MASK_ARB = COMPATIBILITY
+				0 };
 			glRenderContext = pfnCreateContextAttribs(glDeviceContext, nullptr, gl33_attribs);
 		}
 		else
