@@ -4333,6 +4333,7 @@ namespace olc
 #include <OpenGL/gl.h>
 #include <OpenGL/OpenGL.h>
 #include <CoreGraphics/CoreGraphics.h>
+#include <ImageIO/ImageIO.h>
 
 extern "C" {
     // NSRect (OSX rectangle structure same as GCRect C structure)
@@ -4394,9 +4395,15 @@ extern "C" {
     void opengl_destroy                   (struct OpenGLRenderer* self);
     bool opengl_resetContextForSize       (struct OpenGLRenderer* self, double width, double height);
 
+    // Pixel Struct used by Image Loader API
+    typedef struct {
+        uint8_t r; uint8_t g; uint8_t b; uint8_t a;
+    } imageloader_pixel_t;
+    
     // Image Loader API - as implemented in api_macos.c
     struct ImageLoader* imageloader_init        (void);
     BOOL imageloader_loadFromFile               (struct ImageLoader* self, const char* filePath);
+    BOOL imageloader_loadFromMemory             (struct ImageLoader* self, const uint8_t* data, size_t bytes);
     void imageloader_destroy                    (struct ImageLoader* self);
     unsigned char* imageloader_getPixelData     (const struct ImageLoader* self);
     void imageloader_getImageInfo               (const struct ImageLoader* self, int* width, int* height, int* bytesPerPixel);
@@ -5079,6 +5086,15 @@ namespace olc {
                     filePath_ = filePath;
                     if (loader_) {
                         BOOL result = imageloader_loadFromFile(loader_, filePath.c_str());
+                        loaded_ = (result != 0);
+                        return loaded_;
+                    }
+                    return false;
+                }
+
+                bool loadFromMemory(const uint8_t* data, size_t bytes) {
+                    if (loader_) {
+                        BOOL result = imageloader_loadFromMemory(loader_, data, bytes);
                         loaded_ = (result != 0);
                         return loaded_;
                     }
@@ -6768,7 +6784,8 @@ namespace olc
 
 			// Store an image as a file asset in memory
 			bool WriteImageToMemoryFile(olc::Image& image, const std::vector<uint8_t>& data) override;
-
+		private:
+			bool DecodeBMP(olc::Image& image, Gdiplus::Bitmap* bmp);
 		};
 	}
 }
@@ -6812,6 +6829,8 @@ namespace olc
 
 #if OLC_IMAGELOADER == OLC_IMAGELOADER_LIB_PNG
 #if !defined(PGE_IMAGELOADER_LIB_PNG_DECLARED)
+#include <png.h>
+
 namespace olc::imload
 {
     class ImageLoader_LibPNG : public ImageLoader
@@ -6830,7 +6849,13 @@ namespace olc::imload
 
         // Store an image as a file asset in memory
         bool WriteImageToMemoryFile(olc::Image& image, const std::vector<uint8_t>& data) override;
+    
+    public: // libpng readers
+        struct MemReader { const uint8_t* data; size_t offset; };
+        static void PNGReadFromMemory(png_structp png, png_bytep out, png_size_t count);
 
+    private: // libpng internals
+        bool DecodePNG(olc::Image& image, png_structp png, png_infop info);
     };
 }
 
@@ -8381,8 +8406,6 @@ static constexpr const char* kNSStringClass                     = "NSString";
 static constexpr const char* kNSOpenGLPixelFormatClass          = "NSOpenGLPixelFormat";
 static constexpr const char* kNSOpenGLViewClass                 = "NSOpenGLView";
 static constexpr const char* kNSObjectClass                     = "NSObject";
-static constexpr const char* kNSImageClass                      = "NSImage";
-static constexpr const char* kNSBitmapImageRepClass             = "NSBitmapImageRep";
 static constexpr const char* kAppDelegateClass                  = "AppDelegate";
 static constexpr const char* kWindowDelegateClass               = "WindowDelegate";
 static constexpr const char* kCustomOpenGLViewClass             = "CustomOpenGLView";
@@ -8496,18 +8519,6 @@ static constexpr const char* kButtonNumberSel                   = "buttonNumber"
 static constexpr const char* kClickCountSel                     = "clickCount";
 static constexpr const char* kModifierFlagsSel                  = "modifierFlags";
 static constexpr const char* kUTF8StringSel                     = "UTF8String";
-
-// NSImage, NSBitmapImageRep, and image data access selectors
-static constexpr const char* kInitWithContentsOfFileSel         = "initWithContentsOfFile:";
-static constexpr const char* kRepresentationsSel                = "representations";
-static constexpr const char* kCountSel                          = "count";
-static constexpr const char* kObjectAtIndexSel                  = "objectAtIndex:";
-static constexpr const char* kPixelsWideSel                     = "pixelsWide";
-static constexpr const char* kPixelsHighSel                     = "pixelsHigh";
-static constexpr const char* kBitsPerPixelSel                   = "bitsPerPixel";
-static constexpr const char* kBytesPerRowSel                    = "bytesPerRow";
-static constexpr const char* kHasAlphaSel                       = "hasAlpha";
-static constexpr const char* kBitmapDataSel                     = "bitmapData";
 
 // NSLocale class and method names
 static constexpr const char* kNSLocaleClass                     = "NSLocale";
@@ -8654,18 +8665,6 @@ namespace ObjectiveCSEL {
    static SEL modifierFlagsSel    = nullptr;
    static SEL utf8StringSel       = nullptr;
 
-   // NSImage, NSBitmapImageRep, and image data access selectors
-   static SEL initWithContentsOfFileSel = nullptr;
-   static SEL representationsSel        = nullptr;
-   static SEL countSel                  = nullptr;
-   static SEL objectAtIndexSel          = nullptr;
-   static SEL pixelsWideSel             = nullptr;
-   static SEL pixelsHighSel             = nullptr;
-   static SEL bitsPerPixelSel           = nullptr;
-   static SEL bytesPerRowSel            = nullptr;
-   static SEL hasAlphaSel               = nullptr;
-   static SEL bitmapDataSel             = nullptr;
-
    // NSLocale selectors
    static SEL currentLocaleSel               = nullptr;
    static SEL localeIdentifierSel            = nullptr;
@@ -8779,18 +8778,6 @@ namespace ObjectiveCSEL {
         clickCountSel                      = sel_registerName(kClickCountSel);
         modifierFlagsSel                   = sel_registerName(kModifierFlagsSel);
         utf8StringSel                      = sel_registerName(kUTF8StringSel);
-
-        // NSImage, NSBitmapImageRep, and image data access selectors
-        initWithContentsOfFileSel          = sel_registerName(kInitWithContentsOfFileSel);
-        representationsSel                 = sel_registerName(kRepresentationsSel);
-        countSel                           = sel_registerName(kCountSel);
-        objectAtIndexSel                   = sel_registerName(kObjectAtIndexSel);
-        pixelsWideSel                      = sel_registerName(kPixelsWideSel);
-        pixelsHighSel                      = sel_registerName(kPixelsHighSel);
-        bitsPerPixelSel                    = sel_registerName(kBitsPerPixelSel);
-        bytesPerRowSel                     = sel_registerName(kBytesPerRowSel);
-        hasAlphaSel                        = sel_registerName(kHasAlphaSel);
-        bitmapDataSel                      = sel_registerName(kBitmapDataSel);
 
         // NSLocale selectors
         currentLocaleSel                   = sel_registerName(kCurrentLocaleSel);
@@ -9150,7 +9137,7 @@ struct OpenGLRenderer {
 
 // Modern image loading and pixel data extraction
 struct ImageLoader {
-    unsigned char* pixelData{nullptr}; // Raw pixel data (RGBA format)
+    imageloader_pixel_t* pixelData{nullptr}; // Raw pixel data (RGBA format)
     int width{kMinValidDimension};     // Image width in pixels
     int height{kMinValidDimension};    // Image height in pixels
     int bytesPerPixel{kZeroBytes};     // Number of bytes per pixel (typically 4 for RGBA)
@@ -9159,6 +9146,7 @@ struct ImageLoader {
     
     // Method function pointers with nullptr initialization
     BOOL (*loadFromFile)           (struct ImageLoader* self, const char* filePath){nullptr};
+    BOOL (*loadFromMemory)         (struct ImageLoader* self, const uint8_t* data, size_t bytes);
     void (*destroy)                (struct ImageLoader* self){nullptr};
     unsigned char* (*getPixelData) (const struct ImageLoader* self){nullptr};
     void (*getImageInfo)           (const struct ImageLoader* self, int* width, int* height, int* bytesPerPixel){nullptr};
@@ -10273,7 +10261,65 @@ extern "C" {
         return renderer;
     }
 
-    // Load image from file path using NSImage and NSBitmapImageRep
+    static BOOL imageloader_decodeImage(struct ImageLoader* self, CGImageRef image)
+    {
+        if(!image) return NO;
+
+        // Clear any existing data
+        if (self->pixelData) {
+            free(self->pixelData);
+            self->pixelData = NULL;
+        }
+
+        CGDataProviderRef provider = CGImageGetDataProvider(image);
+        CFDataRef rawData = CGDataProviderCopyData(provider);
+
+        CGBitmapInfo bitmapInfo = CGImageGetBitmapInfo(image);
+        CGImageAlphaInfo alphaInfo = (CGImageAlphaInfo)(bitmapInfo & kCGBitmapAlphaInfoMask);
+        CGBitmapInfo byteOrder = bitmapInfo & kCGBitmapByteOrderMask;
+        
+        self->width         = CGImageGetWidth(image);
+        self->height        = CGImageGetHeight(image);
+        self->bytesPerPixel = 4;
+        self->bytesPerRow   = self->width * self->bytesPerPixel;
+        self->hasAlpha      = YES;
+
+        const uint8_t* imageData = CFDataGetBytePtr(rawData);
+        self->pixelData = (imageloader_pixel_t*)malloc(self->width * self->height * self->bytesPerPixel);
+        if(!self->pixelData)
+        {
+            return NO;
+        }
+        memcpy(self->pixelData, imageData, self->width * self->height * self->bytesPerPixel);
+        
+        // NOTE from Moros1138
+        // 
+        // On Apple Silicon and x86 Macs kCGBitmapByteOrder32Little is by far
+        // the most common case, so in practice this block of code will never
+        // be run. However, if we find that there is a need to adjust the
+        // pixel data, this will need fleshing out.
+
+        /*
+        if(byteOrder != kCGBitmapByteOrder32Little)
+        {
+            int pixelCount = self->width * self->height;
+            for(int i = 0; i < pixelCount; ++i)
+            {
+                auto p = self->pixelData[i];
+                
+                // TODO: detect byte order, adjust as appropriate
+                
+                self->pixelData[i] = p;
+            }
+        }
+        */
+
+        CFRelease(rawData);
+        CGImageRelease(image);
+
+        return YES;
+    }
+
     BOOL imageloader_loadFromFile(struct ImageLoader* self, const char* filePath) {
         // Clear any existing data
         if (self->pixelData) {
@@ -10281,97 +10327,64 @@ extern "C" {
             self->pixelData = NULL;
         }
 
-        self->width         = kZeroWidth;
-        self->height        = kZeroHeight;
-        self->bytesPerPixel = kZeroBytes;
-        self->bytesPerRow   = kZeroRows;
-        self->hasAlpha      = NO;
+        CFStringRef pathStr = CFStringCreateWithCString(nullptr, filePath, kCFStringEncodingUTF8);
+        CFURLRef    url     = CFURLCreateWithFileSystemPath(nullptr, pathStr, kCFURLPOSIXPathStyle, false);
+        CFRelease(pathStr);
 
-        // Get required classes and selectors
-        Class NSStringClass           = objc_getClass(kNSStringClass);
-        Class NSImageClass            = objc_getClass(kNSImageClass);
-        Class NSBitmapImageRepClass   = objc_getClass(kNSBitmapImageRepClass);
+        if(!url)
+        {
+            printf("loadImageFromFile: bad path '%s'\n", filePath);
+            return NO;
+        }
 
-        SEL stringWithUTF8StringSel   = sel_registerName(kStringWithUTF8StringSel);
-        SEL allocSel                  = sel_registerName(kAllocSel);
-        SEL initWithContentsOfFileSel = sel_registerName(kInitWithContentsOfFileSel);
-        SEL representationsSel        = sel_registerName(kRepresentationsSel);
-        SEL countSel                  = sel_registerName(kCountSel);
-        SEL objectAtIndexSel          = sel_registerName(kObjectAtIndexSel);
+        CGImageSourceRef src = CGImageSourceCreateWithURL(url, nullptr);
+        CFRelease(url);
 
-        // Create NSString from file path
-        id pathString = ((id(*)(Class, SEL, const char*))objc_msgSend)(
-            NSStringClass, stringWithUTF8StringSel, filePath);
-        
-        if (!pathString) {
+        if(!src)
+        {
+            printf("loadImageFromFile: couldn't open '%s'\n", filePath);
             return NO;
         }
         
-        // Create NSImage from file
-        id image = ((id(*)(id, SEL, id))objc_msgSend)(
-                    ((id(*)(Class, SEL))objc_msgSend)(NSImageClass, allocSel),
-                    initWithContentsOfFileSel, pathString);
-        
-        if (!image) {
-            return NO;
-        }
-        
-        // Get image representations
-        id representations = ((id(*)(id, SEL))objc_msgSend)(image, representationsSel);
-        NSUInteger repCount = ((NSUInteger(*)(id, SEL))objc_msgSend)(representations, countSel);
-        
-        if (repCount == 0) {
-            return NO;
-        }
-        
-        // Get first bitmap representation
-        id bitmapRep = ((id(*)(id, SEL, NSUInteger))objc_msgSend)(representations, objectAtIndexSel, 0);
-        
-        // Check if it's a bitmap representation
-        if (!((BOOL(*)(id, SEL, Class))objc_msgSend)(bitmapRep, sel_registerName(kIsKindOfClassSel), NSBitmapImageRepClass)) {
-            return NO;
-        }
-        
-        // Extract image properties
-        SEL pixelsWideSel    = sel_registerName(kPixelsWideSel);
-        SEL pixelsHighSel    = sel_registerName(kPixelsHighSel);
-        SEL bitsPerPixelSel  = sel_registerName(kBitsPerPixelSel);
-        SEL bytesPerRowSel   = sel_registerName(kBytesPerRowSel);
-        SEL hasAlphaSel      = sel_registerName(kHasAlphaSel);
-        SEL bitmapDataSel    = sel_registerName(kBitmapDataSel);
-        
-        self->width          = (int)((NSInteger(*)(id, SEL))objc_msgSend)(bitmapRep, pixelsWideSel);
-        self->height         = (int)((NSInteger(*)(id, SEL))objc_msgSend)(bitmapRep, pixelsHighSel);
-        int bitsPerPixel     = (int)((NSInteger(*)(id, SEL))objc_msgSend)(bitmapRep, bitsPerPixelSel);
-        self->bytesPerRow    = (int)((NSInteger(*)(id, SEL))objc_msgSend)(bitmapRep, bytesPerRowSel);
-        self->hasAlpha       = (BOOL)((BOOL(*)(id, SEL))objc_msgSend)(bitmapRep, hasAlphaSel);
+        CGImageRef image = CGImageSourceCreateImageAtIndex(src, 0, nullptr);
+        CFRelease(src);
 
-        self->bytesPerPixel  = bitsPerPixel / kBitsPerByte;
+        return imageloader_decodeImage(self, image);
+    }
 
-        // Get raw bitmap data
-        unsigned char* sourceData = ((unsigned char*(*)(id, SEL))objc_msgSend)(bitmapRep, bitmapDataSel);
+    BOOL imageloader_loadFromMemory(struct ImageLoader* self, const uint8_t* data, size_t bytes) {
         
-        if (!sourceData || self->width <= kMinValidDimension || self->height <= kMinValidDimension) {
+        CFDataRef cfData = CFDataCreateWithBytesNoCopy(
+            nullptr,
+            reinterpret_cast<const UInt8*>(data),
+            (CFIndex)bytes,
+            kCFAllocatorNull          // we own the buffer, CF must not free it
+        );
+
+        if (!cfData)
+        {
+            printf("loadImageFromMemory: CFData creation failed\n");
             return NO;
         }
-        
-        // Allocate memory for pixel data
-        size_t totalBytes = self->height * self->bytesPerRow;
-        self->pixelData = (unsigned char*)malloc(totalBytes);
-        
-        if (!self->pixelData) {
+
+        CGImageSourceRef src = CGImageSourceCreateWithData(cfData, nullptr);
+        CFRelease(cfData);
+
+        if (!src)
+        {
+            printf("loadImageFromMemory: src creation failed\n");
             return NO;
         }
+
+        CGImageRef image = CGImageSourceCreateImageAtIndex(src, 0, nullptr);
+        CFRelease(src);        
         
-        // Copy pixel data
-        memcpy(self->pixelData, sourceData, totalBytes);
-        
-        return YES;
+        return imageloader_decodeImage(self, image);
     }
 
     // Get raw pixel data pointer
     unsigned char* imageloader_getPixelData(const struct ImageLoader* self) {
-        return self->pixelData;
+        return (unsigned char*)self->pixelData;
     }
 
     // Get image information
@@ -10405,13 +10418,13 @@ extern "C" {
         
         // Calculate pixel offset (macOS uses bottom-left origin, so flip Y)
         int flippedY = self->height - kFlippedOffset - y;
-        unsigned char* pixel = self->pixelData + (flippedY * self->bytesPerRow) + (x * self->bytesPerPixel);
-        
+        imageloader_pixel_t* pixel = self->pixelData + (flippedY * self->width) + x;
+
         // Extract color components (assuming RGBA or RGB format)
-        if (red) *red     = pixel[0];
-        if (green) *green = pixel[1];
-        if (blue) *blue   = pixel[2];
-        if (alpha && self->bytesPerPixel >= kRGBABytesPerPixel)  *alpha = pixel[3];
+        if (red) *red     = pixel->r;
+        if (green) *green = pixel->g;
+        if (blue) *blue   = pixel->b;
+        if (alpha && self->bytesPerPixel >= kRGBABytesPerPixel)  *alpha = pixel->a;
         else if (alpha) *alpha = kFullyOpaque; // Fully opaque if no alpha channel
         
         return YES;
@@ -10444,6 +10457,7 @@ extern "C" {
         
         // Assign method pointers
         loader->loadFromFile        = imageloader_loadFromFile;
+        loader->loadFromMemory      = imageloader_loadFromMemory;
         loader->destroy             = imageloader_destroy;
         loader->getPixelData        = imageloader_getPixelData;
         loader->getImageInfo        = imageloader_getImageInfo;
@@ -17194,7 +17208,24 @@ namespace olc
 
 	bool PGEWindow::CreateImageFromMemory(olc::Image& image, const uint8_t* data, const size_t bytes, const ImageConfig& cfg)
 	{
-		olc_IgnoreUnused(image, data, bytes, cfg);
+		if (pImageLoader->CreateImageFromMemory(image, data, bytes))
+		{
+			// Image has loaded ok, and populated into pixel vector
+			// 
+			// Create GPU Image
+			auto id = pRenderer->CreateTexture(image.Size(), cfg);
+			if (id == 0)
+			{
+				image.Create({ 0,0 });
+				return false;
+			}
+
+			// Associate CPU object with GPU Resource
+			image.SetGPUID(id);
+			return true;
+		}
+
+		std::cout << "Create From Memory Failed\n";
 		return false;
 	}
 
@@ -18322,15 +18353,7 @@ namespace olc::imload
 		if (bmp->GetLastStatus() != Gdiplus::Ok)
 			return false; // File wasn't valid
 
-		// Need to swizzle each pixel...
-		image.Create(olc::vi2d(bmp->GetWidth(), bmp->GetHeight()));
-		for (int y = 0; y < image.Size().y; y++)
-			for (int x = 0; x < image.Size().x; x++)
-			{
-				Gdiplus::Color c;
-				bmp->GetPixel(x, y, &c);
-				image.Pixel(olc::vi2d(x, y)) = olc::Pixel(c.GetRed(), c.GetGreen(), c.GetBlue(), c.GetAlpha());
-			}
+		DecodeBMP(image, bmp);
 
 		// All done
 		delete bmp;
@@ -18339,13 +18362,22 @@ namespace olc::imload
 
 	bool ImageLoader_WinGDI::CreateImageFromMemory(olc::Image& image, const uint8_t* data, const size_t bytes)
 	{
-		olc_IgnoreUnused(image, data, bytes);
-		return false;
+		// Load file into windows "bitmap". 1992 calling...
+		Gdiplus::Bitmap* bmp = nullptr;
+		bmp = Gdiplus::Bitmap::FromStream(SHCreateMemStream((BYTE*)data, UINT(bytes)));
+		if (bmp->GetLastStatus() != Gdiplus::Ok)
+			return false; // File wasn't valid
+		
+		DecodeBMP(image, bmp);
+
+		// All done
+		delete bmp;
+		return true;
 	}
 
 	bool ImageLoader_WinGDI::CreateImageFromMemory(olc::Image& image, const std::vector<uint8_t>& data)
 	{
-		olc_IgnoreUnused(image, data);
+		CreateImageFromMemory(image, data.data(), data.size());
 		return false;
 	}
 
@@ -18359,6 +18391,21 @@ namespace olc::imload
 	{
 		olc_IgnoreUnused(image, data);
 		return false;
+	}
+
+	bool ImageLoader_WinGDI::DecodeBMP(olc::Image& image, Gdiplus::Bitmap* bmp)
+	{
+		// Need to swizzle each pixel...
+		image.Create(olc::vi2d(bmp->GetWidth(), bmp->GetHeight()));
+		for (int y = 0; y < image.Size().y; y++)
+			for (int x = 0; x < image.Size().x; x++)
+			{
+				Gdiplus::Color c;
+				bmp->GetPixel(x, y, &c);
+				image.Pixel(olc::vi2d(x, y)) = olc::Pixel(c.GetRed(), c.GetGreen(), c.GetBlue(), c.GetAlpha());
+			}
+		
+		return true;
 	}
 }
 #endif
@@ -18406,17 +18453,51 @@ namespace olc::imload
         std::memcpy(image.GetPixels().data(), pixelData, width * height * 4);
         
         return true;
-
     }
 
     bool ImageLoader_MacOS::CreateImageFromMemory(olc::Image& image, const uint8_t* data, const size_t bytes)
     {
-        return false;
+        if(!data) return false;
+
+        // Create macOS API wrapper image loader
+        olc::apis::macos::ImageLoader loader;
+        
+        if (!loader.loadFromMemory(data, bytes) || !loader.isLoaded()) {
+            return false; // Failed to load file
+        }
+        
+        // Get image dimensions and info
+        int width, height, bytesPerPixel;
+        loader.getImageInfo(width, height, bytesPerPixel);
+        
+        if (width <= 0 || height <= 0) {
+            return false; // Invalid dimensions
+        }
+        
+        // Get raw pixel data from the loader
+        unsigned char* pixelData = imageloader_getPixelData(loader.getCHandle());
+        if (!pixelData) {
+            return false; // Failed to get pixel data
+        }
+        
+        // Create our olc::Image
+        if (!image.Create({width, height})) {
+            return false; // Failed to create image
+        }
+        
+        // Clear and resize the pixel vector
+        image.GetPixels().clear();
+        image.GetPixels().resize(width * height);
+        
+        // The api_macos will provide RGBA format with 4 bytes per pixel
+        std::memcpy(image.GetPixels().data(), pixelData, width * height * 4);
+        
+        return true;
     }
 
     bool ImageLoader_MacOS::CreateImageFromMemory(olc::Image& image, const std::vector<uint8_t>& data)
     {
-        return false;
+        return CreateImageFromMemory(image, data.data(), data.size());
     }
 
     bool ImageLoader_MacOS::WriteImageToFile(const olc::Image& image, const std::string& sFileName)
@@ -18431,100 +18512,68 @@ namespace olc::imload
 }
 #endif
 #if OLC_IMAGELOADER == OLC_IMAGELOADER_LIB_PNG
-#include <png.h>
-
 namespace olc::imload
 {
     // Create an image resource based on an image file asset on disk
     bool ImageLoader_LibPNG::CreateImageFromFile(olc::Image& image, const std::string& sFileName)
     {
-        ////////////////////////////////////////////////////////////////////////////
-        // Use libpng, Thanks to Guillaume Cottenceau
-        // https://gist.github.com/niw/5963798
-        // Also reading png from streams
-        // http://www.piko3d.net/tutorials/libpng-tutorial-loading-png-files-from-streams/
-        png_structp png;
-        png_infop info;
+        FILE* pngFileHandle = fopen(sFileName.c_str(), "rb");
+        if(!pngFileHandle)
+            return false;
 
-        auto loadPNG = [&]()
-            {
-                png_read_info(png, info);
-                png_byte color_type;
-                png_byte bit_depth;
-                png_bytep* row_pointers;
-                image.Create(
-                    {
-                        static_cast<int>(png_get_image_width(png, info)),
-                        static_cast<int>(png_get_image_height(png, info))
-                    }
-                );
-
-                color_type = png_get_color_type(png, info);
-                bit_depth = png_get_bit_depth(png, info);
-                if (bit_depth == 16) png_set_strip_16(png);
-                if (color_type == PNG_COLOR_TYPE_PALETTE) png_set_palette_to_rgb(png);
-                if (color_type == PNG_COLOR_TYPE_GRAY && bit_depth < 8)	png_set_expand_gray_1_2_4_to_8(png);
-                if (png_get_valid(png, info, PNG_INFO_tRNS)) png_set_tRNS_to_alpha(png);
-                if (color_type == PNG_COLOR_TYPE_RGB || color_type == PNG_COLOR_TYPE_GRAY || color_type == PNG_COLOR_TYPE_PALETTE)
-                    png_set_filler(png, 0xFF, PNG_FILLER_AFTER);
-                if (color_type == PNG_COLOR_TYPE_GRAY || color_type == PNG_COLOR_TYPE_GRAY_ALPHA)
-                    png_set_gray_to_rgb(png);
-                png_read_update_info(png, info);
-                row_pointers = (png_bytep*)malloc(sizeof(png_bytep) * image.Size().y);
-                for (int y = 0; y < image.Size().y; y++) {
-                    row_pointers[y] = (png_byte*)malloc(png_get_rowbytes(png, info));
-                }
-                png_read_image(png, row_pointers);
-
-                // Iterate through image rows, converting into sprite format
-                for (int y = 0; y < image.Size().y; y++)
-                {
-                    png_bytep row = row_pointers[y];
-                    for (int x = 0; x < image.Size().x; x++)
-                    {
-                        png_bytep px = &(row[x * 4]);
-                        image.Pixel(olc::vi2d(x, y)) = olc::Pixel(px[0], px[1], px[2], px[3]);
-                    }
-                }
-
-                for (int y = 0; y < image.Size().y; y++) // Thanks maksym33
-                    free(row_pointers[y]);
-                free(row_pointers);
-                png_destroy_read_struct(&png, &info, nullptr);
-            };
-
-        png = png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+        png_structp png = png_create_read_struct(PNG_LIBPNG_VER_STRING, nullptr, nullptr, nullptr);
         if (!png)
             return false;
 
-        info = png_create_info_struct(png);
+        png_infop info = png_create_info_struct(png);
         if (!info)
             return false;
 
-        if (setjmp(png_jmpbuf(png)))
-            return false;
-
+        if(setjmp(png_jmpbuf(png)))
         {
-            FILE* f = fopen(sFileName.c_str(), "rb");
-            if (!f) return false;
-            png_init_io(png, f);
-            loadPNG();
-            fclose(f);
+            png_destroy_read_struct(&png, &info, nullptr);
+            fclose(pngFileHandle);
+            return false;
         }
+        
+        png_init_io(png, pngFileHandle);
+        bool decodeResult = DecodePNG(image, png, info);
+        
+        png_destroy_read_struct(&png, &info, nullptr);
+        fclose(pngFileHandle);
 
-        return true;
+        return decodeResult;
     }
     
     // Create an image resource based on an image file asset in memory
     bool ImageLoader_LibPNG::CreateImageFromMemory(olc::Image& image, const uint8_t* data, const size_t bytes)
     {
-        return false;
+        MemReader reader{ data, 0 };
+        png_structp png = png_create_read_struct(PNG_LIBPNG_VER_STRING, nullptr, nullptr, nullptr);
+        if (!png)
+            return false;
+
+        png_infop info = png_create_info_struct(png);
+        if (!info)
+            return false;
+        
+        if(setjmp(png_jmpbuf(png)))
+        {
+            png_destroy_read_struct(&png, &info, nullptr);
+            return false;
+        }
+
+        png_set_read_fn(png, &reader, &ImageLoader_LibPNG::PNGReadFromMemory);
+        bool decodeResult = DecodePNG(image, png, info);
+        
+        png_destroy_read_struct(&png, &info, nullptr);
+        return decodeResult;
     }
     
     // Create an image resource based on an image file asset in memory
     bool ImageLoader_LibPNG::CreateImageFromMemory(olc::Image& image, const std::vector<uint8_t>& data)
     {
-        return false;
+        return CreateImageFromMemory(image, data.data(), data.size());
     }
     
     // Store an image as a file asset on disk
@@ -18538,7 +18587,65 @@ namespace olc::imload
     {
         return false;
     }
+    
+    void ImageLoader_LibPNG::PNGReadFromMemory(png_structp png, png_bytep out, png_size_t count)
+    {
+        auto* reader = (MemReader*)png_get_io_ptr(png);
+        std::memcpy(out, reader->data + reader->offset, count);
+        reader->offset += count;
+    }
 
+    bool ImageLoader_LibPNG::DecodePNG(olc::Image& image, png_structp png, png_infop info)
+    {
+        ////////////////////////////////////////////////////////////////////////////
+        // Use libpng, Thanks to Guillaume Cottenceau
+        // https://gist.github.com/niw/5963798
+        // Also reading png from streams
+        // http://www.piko3d.net/tutorials/libpng-tutorial-loading-png-files-from-streams/
+        png_read_info(png, info);
+        png_byte color_type;
+        png_byte bit_depth;
+        image.Create(
+            {
+                static_cast<int>(png_get_image_width(png, info)),
+                static_cast<int>(png_get_image_height(png, info))
+            }
+        );
+
+        color_type = png_get_color_type(png, info);
+        bit_depth = png_get_bit_depth(png, info);
+        if (bit_depth == 16) png_set_strip_16(png);
+        if (color_type == PNG_COLOR_TYPE_PALETTE) png_set_palette_to_rgb(png);
+        if (color_type == PNG_COLOR_TYPE_GRAY && bit_depth < 8)	png_set_expand_gray_1_2_4_to_8(png);
+        if (png_get_valid(png, info, PNG_INFO_tRNS)) png_set_tRNS_to_alpha(png);
+        if (color_type == PNG_COLOR_TYPE_RGB || color_type == PNG_COLOR_TYPE_GRAY || color_type == PNG_COLOR_TYPE_PALETTE)
+            png_set_filler(png, 0xFF, PNG_FILLER_AFTER);
+        if (color_type == PNG_COLOR_TYPE_GRAY || color_type == PNG_COLOR_TYPE_GRAY_ALPHA)
+            png_set_gray_to_rgb(png);
+        
+        png_read_update_info(png, info);
+        
+        std::vector<png_bytep> rows(image.Size().y);
+        std::vector<std::vector<png_byte>> rowData(image.Size().y);
+        for (int y = 0; y < image.Size().y; y++) {
+            rowData[y].resize(png_get_rowbytes(png, info));
+            rows[y] = rowData[y].data();
+        }
+        png_read_image(png, rows.data());
+
+        // Iterate through image rows, converting into sprite format
+        for (int y = 0; y < image.Size().y; y++)
+        {
+            png_bytep row = rows[y];
+            for (int x = 0; x < image.Size().x; x++)
+            {
+                png_bytep px = &(row[x * 4]);
+                image.Pixel(olc::vi2d(x, y)) = olc::Pixel(px[0], px[1], px[2], px[3]);
+            }
+        }
+        
+        return true;
+    }
 }
 #endif
 #if OLC_IMAGELOADER == OLC_IMAGELOADER_NDK_IMAGEDECODER

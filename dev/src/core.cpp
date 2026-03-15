@@ -256,7 +256,24 @@ namespace olc
 
 	bool PGEWindow::CreateImageFromMemory(olc::Image& image, const uint8_t* data, const size_t bytes, const ImageConfig& cfg)
 	{
-		olc_IgnoreUnused(image, data, bytes, cfg);
+		if (pImageLoader->CreateImageFromMemory(image, data, bytes))
+		{
+			// Image has loaded ok, and populated into pixel vector
+			// 
+			// Create GPU Image
+			auto id = pRenderer->CreateTexture(image.Size(), cfg);
+			if (id == 0)
+			{
+				image.Create({ 0,0 });
+				return false;
+			}
+
+			// Associate CPU object with GPU Resource
+			image.SetGPUID(id);
+			return true;
+		}
+
+		std::cout << "Create From Memory Failed\n";
 		return false;
 	}
 
