@@ -1,4 +1,5 @@
 #pragma once
+#include "core.h"
 
 //! START CUSTOMHEADER
 #include "host_iface.h"
@@ -56,6 +57,13 @@ namespace olc::host
         bool OnSystemThreadEnd() override;
         // Called at very end of application
         bool OnApplicationEnd() override;
+
+        // Force the mouse position in pixels relative to window
+        bool SetMousePosition(olc::Window* pWindow, const olc::vi2d& vPos) override;
+        // Show or hide mouse cursor for given window
+        bool SetMouseVisible(olc::Window* pWindow, const bool bVisible) override;
+        // Set a window to fullscreen or not fullscreen
+        bool SetFullScreen(olc::Window* pWindow, const bool bFullScreen) override;
 
         void OnAppCmd(AndroidApp* app, int32_t cmd);
         int32_t OnInputEvent(AndroidApp* app, AInputEvent* event);

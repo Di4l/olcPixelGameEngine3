@@ -4344,6 +4344,7 @@ namespace olc
 #include <OpenGL/gl.h>
 #include <OpenGL/OpenGL.h>
 #include <CoreGraphics/CoreGraphics.h>
+#include <ImageIO/ImageIO.h>
 
 extern "C" {
     // NSRect (OSX rectangle structure same as GCRect C structure)
@@ -4407,9 +4408,15 @@ extern "C" {
     void opengl_destroy                   (struct OpenGLRenderer* self);
     bool opengl_resetContextForSize       (struct OpenGLRenderer* self, double width, double height);
 
+    // Pixel Struct used by Image Loader API
+    typedef struct {
+        uint8_t r; uint8_t g; uint8_t b; uint8_t a;
+    } imageloader_pixel_t;
+    
     // Image Loader API - as implemented in api_macos.c
     struct ImageLoader* imageloader_init        (void);
     BOOL imageloader_loadFromFile               (struct ImageLoader* self, const char* filePath);
+    BOOL imageloader_loadFromMemory             (struct ImageLoader* self, const uint8_t* data, size_t bytes);
     void imageloader_destroy                    (struct ImageLoader* self);
     unsigned char* imageloader_getPixelData     (const struct ImageLoader* self);
     void imageloader_getImageInfo               (const struct ImageLoader* self, int* width, int* height, int* bytesPerPixel);
@@ -5110,6 +5117,15 @@ namespace olc {
                     }
                     return false;
                 }
+
+                bool loadFromMemory(const uint8_t* data, size_t bytes) {
+                    if (loader_) {
+                        BOOL result = imageloader_loadFromMemory(loader_, data, bytes);
+                        loaded_ = (result != 0);
+                        return loaded_;
+                    }
+                    return false;
+                }
                 
                 bool isLoaded() const noexcept {
                     return loaded_ && loader_ && imageloader_isLoaded(loader_);
@@ -5662,17 +5678,38 @@ namespace olc::host
 
 #if OLC_HOST == OLC_HOST_LINUX_WAYLAND
 
+#if !defined(DISABLE_LIBDECOR) || defined(FORCE_WAYLAND_LIBDECOR)
+#define ENABLE_LIBDECOR
+#endif
+
+#if !defined(FORCE_WAYLAND_LIBDECOR)
+#define ENABLE_DECORATION_PROTOCOL
+#endif
+
+#if !defined(ENABLE_LIBDECOR) && !defined(ENABLE_DECORATION_PROTOCOL)
+#error "Incorrect build configuration.  Either xdg-decoration or libdecor (or both) must be enabled."
+#endif
+
 #include <wayland-client.h>
+#include <wayland-cursor.h>
 #include <wayland-egl.h>
 #include "xdg-shell.h"
+
+// Only include the decoration protocol if we are not forcing libdecor
+#ifdef ENABLE_DECORATION_PROTOCOL
 #include "xdg-decoration.h"
+#endif
+
 #include "pointer-warp.h"
-#include "cursor-shape.h"
 #include <linux/input-event-codes.h>
 #include <xkbcommon/xkbcommon.h>
 #include <sys/mman.h>
 #include <unistd.h>
 #include <cstring>
+
+#ifdef ENABLE_LIBDECOR
+#include "libdecor.h"
+#endif
 
 #include <EGL/egl.h>
 #include <EGL/eglplatform.h>
@@ -5687,7 +5724,9 @@ namespace olc::host
         wl_surface* surface{nullptr};
         xdg_surface* surface_xdg{nullptr};
         xdg_toplevel* toplevel{nullptr};
+        #ifdef ENABLE_DECORATION_PROTOCOL
         zxdg_toplevel_decoration_v1* decorations{nullptr};
+        #endif
         wl_egl_window* window{nullptr};
         size_t olc_window_uid{0};
         int32_t bounds_x{0};
@@ -5695,6 +5734,17 @@ namespace olc::host
         bool cursor_visible{true};
         // Ignore window size bounds for fullscreen events
         bool fullscreen{false};
+
+        #ifdef ENABLE_LIBDECOR
+        // libdecor support
+        libdecor_frame* decor_frame{nullptr};
+        int configured_width{};
+        int configured_height{};
+        libdecor_window_state decor_window_state;
+        int floating_width{};
+        int floating_height{};
+        #endif
+        ~WaylandWindow();
     };
 
     namespace wayland {
@@ -5735,6 +5785,7 @@ namespace olc::host
 	private:
 		wl_display* display{nullptr};
         wl_registry* registry{nullptr};
+        wl_shm* shm{nullptr};
         wl_compositor* compositor{nullptr};
         wl_seat* seat{nullptr};
         wl_pointer* pointer{nullptr};
@@ -5742,18 +5793,28 @@ namespace olc::host
         uint32_t keyboard_version{0};
         xkb_context* kb_context{nullptr};
         xkb_state* kb_state{nullptr};
-        xkb_keymap* kb_keymap;
+        xkb_keymap* kb_keymap{nullptr};
         uint32_t kb_group{0};
         xdg_wm_base* xdg_wm{nullptr};
+        #ifdef ENABLE_DECORATION_PROTOCOL
         zxdg_decoration_manager_v1* decoration_manager{nullptr};
+        #endif
         wp_pointer_warp_v1* pointer_warp{nullptr};
         uint32_t enter_serial{0};
-        wp_cursor_shape_device_v1* cursor_shape_device{nullptr};
-        wp_cursor_shape_manager_v1* cursor_shape_manager{nullptr};
-
+        
         wayland::PointerState pointer_state;
+        wl_surface* cursor_surface{nullptr};
+        wl_cursor_image* cursor_image{nullptr};
+        wl_cursor_theme* cursor_theme{nullptr};
 
         size_t active_window_id;
+        
+        #ifdef ENABLE_LIBDECOR
+        // libdecor support
+        bool using_libdecor{false};
+        libdecor* decor_context{nullptr};
+        std::mutex decor_mutex;
+        #endif
 
     public:
         Host_Linux_Wayland();
@@ -5818,7 +5879,19 @@ namespace olc::host
         static void xdg_toplevel_close_callback(void* data, xdg_toplevel* toplevel);
         static void xdg_toplevel_configure_bounds_callback(void* data, xdg_toplevel* toplevel, int32_t width, int32_t height);
         static void xdg_toplevel_capabilities_callback(void* data, xdg_toplevel* toplevel, wl_array* capabilities);
+        #ifdef ENABLE_DECORATION_PROTOCOL
         static void xdg_toplevel_decoration_configure_callback(void* data, zxdg_toplevel_decoration_v1* zxdg_toplevel_decoration_v1, uint32_t mode);
+        #endif
+
+        #ifdef ENABLE_LIBDECOR
+        // libdecor callbacks
+        static void libdecor_error_callback(libdecor* context, libdecor_error error, const char* message);
+        static void libdecor_frame_configure_callback(libdecor_frame* frame, libdecor_configuration* config, void* data);
+        static void libdecor_close_callback(libdecor_frame* frame, void* data);
+        static void libdecor_commit_callback(libdecor_frame* frame, void* data);
+        static void libdecor_dismiss_popup_callback(libdecor_frame* frame, const char* seat_name, void* data);
+        #endif
+
     private:
         // Wayland callback functions
         void registry_handle_global(wl_registry* registry, uint32_t name, const char* interface, uint32_t version);
@@ -5849,6 +5922,13 @@ namespace olc::host
         void xdg_toplevel_configure(xdg_toplevel* toplevel, int32_t width, int32_t height, wl_array* states);
         void xdg_toplevel_close(xdg_toplevel* toplevel);
         void xdg_toplevel_configure_bounds(xdg_toplevel* toplevel, int32_t width, int32_t height);
+
+        #ifdef ENABLE_LIBDECOR
+        // libdecor callback functions
+        void libdecor_frame_configure(libdecor_frame* frame, libdecor_configuration* config);
+        void libdecor_close(libdecor_frame* frame);
+        void libdecor_commit(libdecor_frame* frame);
+        #endif
 
         bool CreateEGLContext(WaylandWindow* window);
 
@@ -6012,6 +6092,13 @@ namespace olc::host
         bool OnSystemThreadEnd() override;
         // Called at very end of application
         bool OnApplicationEnd() override;
+
+        // Force the mouse position in pixels relative to window
+        bool SetMousePosition(olc::Window* pWindow, const olc::vi2d& vPos) override;
+        // Show or hide mouse cursor for given window
+        bool SetMouseVisible(olc::Window* pWindow, const bool bVisible) override;
+        // Set a window to fullscreen or not fullscreen
+        bool SetFullScreen(olc::Window* pWindow, const bool bFullScreen) override;
 
         void OnAppCmd(AndroidApp* app, int32_t cmd);
         int32_t OnInputEvent(AndroidApp* app, AInputEvent* event);
@@ -6798,7 +6885,8 @@ namespace olc
 
 			// Store an image as a file asset in memory
 			bool WriteImageToMemoryFile(olc::Image& image, const std::vector<uint8_t>& data) override;
-
+		private:
+			bool DecodeBMP(olc::Image& image, Gdiplus::Bitmap* bmp);
 		};
 	}
 }
@@ -6842,6 +6930,8 @@ namespace olc
 
 #if OLC_IMAGELOADER == OLC_IMAGELOADER_LIB_PNG
 #if !defined(PGE_IMAGELOADER_LIB_PNG_DECLARED)
+#include <png.h>
+
 namespace olc::imload
 {
     class ImageLoader_LibPNG : public ImageLoader
@@ -6860,7 +6950,13 @@ namespace olc::imload
 
         // Store an image as a file asset in memory
         bool WriteImageToMemoryFile(olc::Image& image, const std::vector<uint8_t>& data) override;
+    
+    public: // libpng readers
+        struct MemReader { const uint8_t* data; size_t offset; };
+        static void PNGReadFromMemory(png_structp png, png_bytep out, png_size_t count);
 
+    private: // libpng internals
+        bool DecodePNG(olc::Image& image, png_structp png, png_infop info);
     };
 }
 
@@ -8513,8 +8609,6 @@ static constexpr const char* kNSStringClass                     = "NSString";
 static constexpr const char* kNSOpenGLPixelFormatClass          = "NSOpenGLPixelFormat";
 static constexpr const char* kNSOpenGLViewClass                 = "NSOpenGLView";
 static constexpr const char* kNSObjectClass                     = "NSObject";
-static constexpr const char* kNSImageClass                      = "NSImage";
-static constexpr const char* kNSBitmapImageRepClass             = "NSBitmapImageRep";
 static constexpr const char* kAppDelegateClass                  = "AppDelegate";
 static constexpr const char* kWindowDelegateClass               = "WindowDelegate";
 static constexpr const char* kCustomOpenGLViewClass             = "CustomOpenGLView";
@@ -8630,18 +8724,6 @@ static constexpr const char* kButtonNumberSel                   = "buttonNumber"
 static constexpr const char* kClickCountSel                     = "clickCount";
 static constexpr const char* kModifierFlagsSel                  = "modifierFlags";
 static constexpr const char* kUTF8StringSel                     = "UTF8String";
-
-// NSImage, NSBitmapImageRep, and image data access selectors
-static constexpr const char* kInitWithContentsOfFileSel         = "initWithContentsOfFile:";
-static constexpr const char* kRepresentationsSel                = "representations";
-static constexpr const char* kCountSel                          = "count";
-static constexpr const char* kObjectAtIndexSel                  = "objectAtIndex:";
-static constexpr const char* kPixelsWideSel                     = "pixelsWide";
-static constexpr const char* kPixelsHighSel                     = "pixelsHigh";
-static constexpr const char* kBitsPerPixelSel                   = "bitsPerPixel";
-static constexpr const char* kBytesPerRowSel                    = "bytesPerRow";
-static constexpr const char* kHasAlphaSel                       = "hasAlpha";
-static constexpr const char* kBitmapDataSel                     = "bitmapData";
 
 // NSLocale class and method names
 static constexpr const char* kNSLocaleClass                     = "NSLocale";
@@ -8790,18 +8872,6 @@ namespace ObjectiveCSEL {
    static SEL modifierFlagsSel    = nullptr;
    static SEL utf8StringSel       = nullptr;
 
-   // NSImage, NSBitmapImageRep, and image data access selectors
-   static SEL initWithContentsOfFileSel = nullptr;
-   static SEL representationsSel        = nullptr;
-   static SEL countSel                  = nullptr;
-   static SEL objectAtIndexSel          = nullptr;
-   static SEL pixelsWideSel             = nullptr;
-   static SEL pixelsHighSel             = nullptr;
-   static SEL bitsPerPixelSel           = nullptr;
-   static SEL bytesPerRowSel            = nullptr;
-   static SEL hasAlphaSel               = nullptr;
-   static SEL bitmapDataSel             = nullptr;
-
    // NSLocale selectors
    static SEL currentLocaleSel               = nullptr;
    static SEL localeIdentifierSel            = nullptr;
@@ -8917,18 +8987,6 @@ namespace ObjectiveCSEL {
         clickCountSel                      = sel_registerName(kClickCountSel);
         modifierFlagsSel                   = sel_registerName(kModifierFlagsSel);
         utf8StringSel                      = sel_registerName(kUTF8StringSel);
-
-        // NSImage, NSBitmapImageRep, and image data access selectors
-        initWithContentsOfFileSel          = sel_registerName(kInitWithContentsOfFileSel);
-        representationsSel                 = sel_registerName(kRepresentationsSel);
-        countSel                           = sel_registerName(kCountSel);
-        objectAtIndexSel                   = sel_registerName(kObjectAtIndexSel);
-        pixelsWideSel                      = sel_registerName(kPixelsWideSel);
-        pixelsHighSel                      = sel_registerName(kPixelsHighSel);
-        bitsPerPixelSel                    = sel_registerName(kBitsPerPixelSel);
-        bytesPerRowSel                     = sel_registerName(kBytesPerRowSel);
-        hasAlphaSel                        = sel_registerName(kHasAlphaSel);
-        bitmapDataSel                      = sel_registerName(kBitmapDataSel);
 
         // NSLocale selectors
         currentLocaleSel                   = sel_registerName(kCurrentLocaleSel);
@@ -9289,7 +9347,7 @@ struct OpenGLRenderer {
 
 // Modern image loading and pixel data extraction
 struct ImageLoader {
-    unsigned char* pixelData{nullptr}; // Raw pixel data (RGBA format)
+    imageloader_pixel_t* pixelData{nullptr}; // Raw pixel data (RGBA format)
     int width{kMinValidDimension};     // Image width in pixels
     int height{kMinValidDimension};    // Image height in pixels
     int bytesPerPixel{kZeroBytes};     // Number of bytes per pixel (typically 4 for RGBA)
@@ -9298,6 +9356,7 @@ struct ImageLoader {
     
     // Method function pointers with nullptr initialization
     BOOL (*loadFromFile)           (struct ImageLoader* self, const char* filePath){nullptr};
+    BOOL (*loadFromMemory)         (struct ImageLoader* self, const uint8_t* data, size_t bytes);
     void (*destroy)                (struct ImageLoader* self){nullptr};
     unsigned char* (*getPixelData) (const struct ImageLoader* self){nullptr};
     void (*getImageInfo)           (const struct ImageLoader* self, int* width, int* height, int* bytesPerPixel){nullptr};
@@ -9780,11 +9839,14 @@ void windowDidResize(id self, SEL _cmd, id notification) {
 // handle window will close events
 void windowWillClose(id self, SEL _cmd, id notification) {
    (void)self;(void)_cmd;(void)notification;
-    gptrWindowDelegate->acceptsInputEvents = NO; // Stop accepting input events immediately to prevent processing events for a closing window
-    gptrWindowDelegate->removeDelegate(gptrWindowDelegate); // remove delegate to ensure no more events are processed for this window
-    if (gptrWindowDelegate && gptrWindowDelegate->windowWillCloseCallback) {
-        gptrWindowDelegate->windowWillCloseCallback(gptrWindowDelegate->windowWillCloseUserData);
-    }
+    dispatch_async(dispatch_get_main_queue(), ^{
+       // Ensure all pending events are processed before closing the window
+       gptrWindowDelegate->acceptsInputEvents = NO; // Stop accepting input events immediately to prevent processing events for a closing window
+       gptrWindowDelegate->removeDelegate(gptrWindowDelegate); // remove delegate to ensure no more events are processed for this window
+       if (gptrWindowDelegate && gptrWindowDelegate->windowWillCloseCallback) {
+           gptrWindowDelegate->windowWillCloseCallback(gptrWindowDelegate->windowWillCloseUserData);
+       }
+   });
 }
 
 // handle window did become key events
@@ -10419,7 +10481,65 @@ extern "C" {
         return renderer;
     }
 
-    // Load image from file path using NSImage and NSBitmapImageRep
+    static BOOL imageloader_decodeImage(struct ImageLoader* self, CGImageRef image)
+    {
+        if(!image) return NO;
+
+        // Clear any existing data
+        if (self->pixelData) {
+            free(self->pixelData);
+            self->pixelData = NULL;
+        }
+
+        CGDataProviderRef provider = CGImageGetDataProvider(image);
+        CFDataRef rawData = CGDataProviderCopyData(provider);
+
+        CGBitmapInfo bitmapInfo = CGImageGetBitmapInfo(image);
+        CGImageAlphaInfo alphaInfo = (CGImageAlphaInfo)(bitmapInfo & kCGBitmapAlphaInfoMask);
+        CGBitmapInfo byteOrder = bitmapInfo & kCGBitmapByteOrderMask;
+        
+        self->width         = CGImageGetWidth(image);
+        self->height        = CGImageGetHeight(image);
+        self->bytesPerPixel = 4;
+        self->bytesPerRow   = self->width * self->bytesPerPixel;
+        self->hasAlpha      = YES;
+
+        const uint8_t* imageData = CFDataGetBytePtr(rawData);
+        self->pixelData = (imageloader_pixel_t*)malloc(self->width * self->height * self->bytesPerPixel);
+        if(!self->pixelData)
+        {
+            return NO;
+        }
+        memcpy(self->pixelData, imageData, self->width * self->height * self->bytesPerPixel);
+        
+        // NOTE from Moros1138
+        // 
+        // On Apple Silicon and x86 Macs kCGBitmapByteOrder32Little is by far
+        // the most common case, so in practice this block of code will never
+        // be run. However, if we find that there is a need to adjust the
+        // pixel data, this will need fleshing out.
+
+        /*
+        if(byteOrder != kCGBitmapByteOrder32Little)
+        {
+            int pixelCount = self->width * self->height;
+            for(int i = 0; i < pixelCount; ++i)
+            {
+                auto p = self->pixelData[i];
+                
+                // TODO: detect byte order, adjust as appropriate
+                
+                self->pixelData[i] = p;
+            }
+        }
+        */
+
+        CFRelease(rawData);
+        CGImageRelease(image);
+
+        return YES;
+    }
+
     BOOL imageloader_loadFromFile(struct ImageLoader* self, const char* filePath) {
         // Clear any existing data
         if (self->pixelData) {
@@ -10427,97 +10547,64 @@ extern "C" {
             self->pixelData = NULL;
         }
 
-        self->width         = kZeroWidth;
-        self->height        = kZeroHeight;
-        self->bytesPerPixel = kZeroBytes;
-        self->bytesPerRow   = kZeroRows;
-        self->hasAlpha      = NO;
+        CFStringRef pathStr = CFStringCreateWithCString(nullptr, filePath, kCFStringEncodingUTF8);
+        CFURLRef    url     = CFURLCreateWithFileSystemPath(nullptr, pathStr, kCFURLPOSIXPathStyle, false);
+        CFRelease(pathStr);
 
-        // Get required classes and selectors
-        Class NSStringClass           = objc_getClass(kNSStringClass);
-        Class NSImageClass            = objc_getClass(kNSImageClass);
-        Class NSBitmapImageRepClass   = objc_getClass(kNSBitmapImageRepClass);
+        if(!url)
+        {
+            printf("loadImageFromFile: bad path '%s'\n", filePath);
+            return NO;
+        }
 
-        SEL stringWithUTF8StringSel   = sel_registerName(kStringWithUTF8StringSel);
-        SEL allocSel                  = sel_registerName(kAllocSel);
-        SEL initWithContentsOfFileSel = sel_registerName(kInitWithContentsOfFileSel);
-        SEL representationsSel        = sel_registerName(kRepresentationsSel);
-        SEL countSel                  = sel_registerName(kCountSel);
-        SEL objectAtIndexSel          = sel_registerName(kObjectAtIndexSel);
+        CGImageSourceRef src = CGImageSourceCreateWithURL(url, nullptr);
+        CFRelease(url);
 
-        // Create NSString from file path
-        id pathString = ((id(*)(Class, SEL, const char*))objc_msgSend)(
-            NSStringClass, stringWithUTF8StringSel, filePath);
-        
-        if (!pathString) {
+        if(!src)
+        {
+            printf("loadImageFromFile: couldn't open '%s'\n", filePath);
             return NO;
         }
         
-        // Create NSImage from file
-        id image = ((id(*)(id, SEL, id))objc_msgSend)(
-                    ((id(*)(Class, SEL))objc_msgSend)(NSImageClass, allocSel),
-                    initWithContentsOfFileSel, pathString);
-        
-        if (!image) {
-            return NO;
-        }
-        
-        // Get image representations
-        id representations = ((id(*)(id, SEL))objc_msgSend)(image, representationsSel);
-        NSUInteger repCount = ((NSUInteger(*)(id, SEL))objc_msgSend)(representations, countSel);
-        
-        if (repCount == 0) {
-            return NO;
-        }
-        
-        // Get first bitmap representation
-        id bitmapRep = ((id(*)(id, SEL, NSUInteger))objc_msgSend)(representations, objectAtIndexSel, 0);
-        
-        // Check if it's a bitmap representation
-        if (!((BOOL(*)(id, SEL, Class))objc_msgSend)(bitmapRep, sel_registerName(kIsKindOfClassSel), NSBitmapImageRepClass)) {
-            return NO;
-        }
-        
-        // Extract image properties
-        SEL pixelsWideSel    = sel_registerName(kPixelsWideSel);
-        SEL pixelsHighSel    = sel_registerName(kPixelsHighSel);
-        SEL bitsPerPixelSel  = sel_registerName(kBitsPerPixelSel);
-        SEL bytesPerRowSel   = sel_registerName(kBytesPerRowSel);
-        SEL hasAlphaSel      = sel_registerName(kHasAlphaSel);
-        SEL bitmapDataSel    = sel_registerName(kBitmapDataSel);
-        
-        self->width          = (int)((NSInteger(*)(id, SEL))objc_msgSend)(bitmapRep, pixelsWideSel);
-        self->height         = (int)((NSInteger(*)(id, SEL))objc_msgSend)(bitmapRep, pixelsHighSel);
-        int bitsPerPixel     = (int)((NSInteger(*)(id, SEL))objc_msgSend)(bitmapRep, bitsPerPixelSel);
-        self->bytesPerRow    = (int)((NSInteger(*)(id, SEL))objc_msgSend)(bitmapRep, bytesPerRowSel);
-        self->hasAlpha       = (BOOL)((BOOL(*)(id, SEL))objc_msgSend)(bitmapRep, hasAlphaSel);
+        CGImageRef image = CGImageSourceCreateImageAtIndex(src, 0, nullptr);
+        CFRelease(src);
 
-        self->bytesPerPixel  = bitsPerPixel / kBitsPerByte;
+        return imageloader_decodeImage(self, image);
+    }
 
-        // Get raw bitmap data
-        unsigned char* sourceData = ((unsigned char*(*)(id, SEL))objc_msgSend)(bitmapRep, bitmapDataSel);
+    BOOL imageloader_loadFromMemory(struct ImageLoader* self, const uint8_t* data, size_t bytes) {
         
-        if (!sourceData || self->width <= kMinValidDimension || self->height <= kMinValidDimension) {
+        CFDataRef cfData = CFDataCreateWithBytesNoCopy(
+            nullptr,
+            reinterpret_cast<const UInt8*>(data),
+            (CFIndex)bytes,
+            kCFAllocatorNull          // we own the buffer, CF must not free it
+        );
+
+        if (!cfData)
+        {
+            printf("loadImageFromMemory: CFData creation failed\n");
             return NO;
         }
-        
-        // Allocate memory for pixel data
-        size_t totalBytes = self->height * self->bytesPerRow;
-        self->pixelData = (unsigned char*)malloc(totalBytes);
-        
-        if (!self->pixelData) {
+
+        CGImageSourceRef src = CGImageSourceCreateWithData(cfData, nullptr);
+        CFRelease(cfData);
+
+        if (!src)
+        {
+            printf("loadImageFromMemory: src creation failed\n");
             return NO;
         }
+
+        CGImageRef image = CGImageSourceCreateImageAtIndex(src, 0, nullptr);
+        CFRelease(src);        
         
-        // Copy pixel data
-        memcpy(self->pixelData, sourceData, totalBytes);
-        
-        return YES;
+        return imageloader_decodeImage(self, image);
     }
 
     // Get raw pixel data pointer
     unsigned char* imageloader_getPixelData(const struct ImageLoader* self) {
-        return self->pixelData;
+        return (unsigned char*)self->pixelData;
     }
 
     // Get image information
@@ -10551,13 +10638,13 @@ extern "C" {
         
         // Calculate pixel offset (macOS uses bottom-left origin, so flip Y)
         int flippedY = self->height - kFlippedOffset - y;
-        unsigned char* pixel = self->pixelData + (flippedY * self->bytesPerRow) + (x * self->bytesPerPixel);
-        
+        imageloader_pixel_t* pixel = self->pixelData + (flippedY * self->width) + x;
+
         // Extract color components (assuming RGBA or RGB format)
-        if (red) *red     = pixel[0];
-        if (green) *green = pixel[1];
-        if (blue) *blue   = pixel[2];
-        if (alpha && self->bytesPerPixel >= kRGBABytesPerPixel)  *alpha = pixel[3];
+        if (red) *red     = pixel->r;
+        if (green) *green = pixel->g;
+        if (blue) *blue   = pixel->b;
+        if (alpha && self->bytesPerPixel >= kRGBABytesPerPixel)  *alpha = pixel->a;
         else if (alpha) *alpha = kFullyOpaque; // Fully opaque if no alpha channel
         
         return YES;
@@ -10590,6 +10677,7 @@ extern "C" {
         
         // Assign method pointers
         loader->loadFromFile        = imageloader_loadFromFile;
+        loader->loadFromMemory      = imageloader_loadFromMemory;
         loader->destroy             = imageloader_destroy;
         loader->getPixelData        = imageloader_getPixelData;
         loader->getImageInfo        = imageloader_getImageInfo;
@@ -11384,10 +11472,27 @@ namespace olc::host
             .wm_capabilities = Host_Linux_Wayland::xdg_toplevel_capabilities_callback
         };
 
+        #ifdef ENABLE_DECORATION_PROTOCOL
         static const zxdg_toplevel_decoration_v1_listener toplevel_decoration_listener {
             .configure = Host_Linux_Wayland::xdg_toplevel_decoration_configure_callback
         };
+        #endif
     }
+
+    #ifdef ENABLE_LIBDECOR
+    namespace decor {
+        static libdecor_interface libdecor_error_listener = {
+            .error = Host_Linux_Wayland::libdecor_error_callback,
+        };
+
+        static libdecor_frame_interface libdecor_frame_listener = {
+            .configure = Host_Linux_Wayland::libdecor_frame_configure_callback,
+            .close = Host_Linux_Wayland::libdecor_close_callback,
+            .commit = Host_Linux_Wayland::libdecor_commit_callback,
+            .dismiss_popup = Host_Linux_Wayland::libdecor_dismiss_popup_callback
+        };
+    }
+    #endif
 
     Host_Linux_Wayland::Host_Linux_Wayland()
     {
@@ -11397,15 +11502,50 @@ namespace olc::host
 
         wl_registry_add_listener(registry, &wayland::registry_listener, this);
         wl_display_roundtrip(display);
-
-        if(compositor == nullptr || xdg_wm == nullptr || seat == nullptr || decoration_manager == nullptr) {
+        
+        if(compositor == nullptr || xdg_wm == nullptr || seat == nullptr) {
             throw;
         }
+
+        // If only the decoration protocol is enabled, then not having the protocol is a hard error
+        #if defined(ENABLE_DECORATION_PROTOCOL) && !defined(ENABLE_LIBDECOR)
+        if(decoration_manager == nullptr) {
+            throw;
+        }
+        // If only libdecor is enabled, then flag "using_libdecor"
+        #elif !defined(ENABLE_DECORATION_PROTOCOL) && defined(ENABLE_LIBDECOR)
+        using_libdecor = true;
         
+        // If both are enabled, use libdecor if the decoration protocol is not present
+        #else
+        using_libdecor = (decoration_manager == nullptr);
+        #endif
+
+        #ifdef ENABLE_LIBDECOR
+        if(!using_libdecor) {
+            xdg_wm_base_add_listener(xdg_wm, &xdg::xdg_base_listener, this);
+        } else {
+            decor_context = libdecor_new(display, &decor::libdecor_error_listener);
+        }
+        #else
         xdg_wm_base_add_listener(xdg_wm, &xdg::xdg_base_listener, this);
-        wl_seat_add_listener(seat, &wayland::seat_listener, this);
+        #endif
+
+        // Load the default cursor
+        cursor_theme = wl_cursor_theme_load(NULL, 24, shm);
+        wl_cursor *cursor = wl_cursor_theme_get_cursor(cursor_theme, "left_ptr");
+
+        cursor_image = cursor->images[0];
+        wl_buffer *cursor_buffer = wl_cursor_image_get_buffer(cursor_image);
+
+        cursor_surface = wl_compositor_create_surface(compositor);
+        wl_surface_attach(cursor_surface, cursor_buffer, 0, 0);
+        wl_surface_commit(cursor_surface);
+
 
         kb_context = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
+
+        wl_display_roundtrip(display);
 
         // Setup the keymap with XKB codes, which are basically the same as the X11 codes
         mapKeys[XKB_KEY_NoSymbol] = Key::NONE;
@@ -11467,20 +11607,59 @@ namespace olc::host
         UpdateKeyboardLayout();
     }
 
+    WaylandWindow::~WaylandWindow() {
+        if(window) {
+            wl_egl_window_destroy(window);
+        }
+        if(toplevel) {
+            xdg_toplevel_destroy(toplevel);
+        }
+        if(surface_xdg) {
+            xdg_surface_destroy(surface_xdg);
+        }
+        #ifdef ENABLE_DECORATION_PROTOCOL
+        zxdg_toplevel_decoration_v1_destroy(decorations);
+        #endif
+        #ifdef ENABLE_LIBDECOR
+        if(decor_frame) {
+            libdecor_frame_unref(decor_frame);
+        }
+        #endif
+        wl_surface_destroy(surface);
+    }
+
     Host_Linux_Wayland::~Host_Linux_Wayland()
     {
-        for (auto& itr : mapUID2Window) {
-            auto& wayland_window = itr.second;
-            wl_egl_window_destroy(wayland_window.window);
-            xdg_toplevel_destroy(wayland_window.toplevel);
-            xdg_surface_destroy(wayland_window.surface_xdg);
-            wl_surface_destroy(wayland_window.surface);
+        mapUID2OlcWindow.clear();
+        mapUID2Window.clear();
+
+        #ifdef ENABLE_DECORATION_PROTOCOL
+        zxdg_decoration_manager_v1_destroy(decoration_manager);
+        #endif
+        #ifdef ENABLE_LIBDECOR
+        if(decor_context) {
+            libdecor_unref(decor_context);
+            decor_context = nullptr;
         }
+        #endif
 
         xkb_state_unref(kb_state);
         xkb_keymap_unref(kb_keymap);
         xkb_context_unref(kb_context);
+        wl_cursor_theme_destroy(cursor_theme);
+        wl_surface_destroy(cursor_surface);
 
+        xdg_wm_base_destroy(xdg_wm);
+        if(pointer_warp)
+        {
+            wp_pointer_warp_v1_destroy(pointer_warp);
+        }
+        wl_keyboard_destroy(keyboard);
+        wl_pointer_destroy(pointer);
+        wl_seat_destroy(seat);
+        wl_compositor_destroy(compositor);
+        wl_shm_destroy(shm);
+        wl_registry_destroy(registry);
         wl_display_disconnect(display);
     }
 
@@ -11522,7 +11701,21 @@ namespace olc::host
 				}
 			});
         
+        #if !defined(ENABLE_LIBDECOR)
         while(systemActive && wl_display_dispatch_pending(display) != -1) { }
+        #else
+        bool keep_running = true;
+        while(systemActive && keep_running) {
+            if(using_libdecor) {
+                if(decor_context) {
+                    std::lock_guard<std::mutex> l{decor_mutex};
+                    keep_running = libdecor_dispatch(decor_context, 0) >= 0;
+                }
+            } else {
+                keep_running = wl_display_dispatch_pending(display) != -1;
+            }
+        }
+        #endif
         
         systemActive = false;
         if(threadSystem.joinable())
@@ -11560,49 +11753,58 @@ namespace olc::host
     bool Host_Linux_Wayland::AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen)
     {
         // Create a window
-        WaylandWindow w;
+        WaylandWindow& w = mapUID2Window[pWindow->GetUID()];
         wl_region* region = wl_compositor_create_region(compositor);
         wl_region_add(region, vWindowPos.x, vWindowPos.y, vWindowSize.x, vWindowSize.y);
         
         w.surface = wl_compositor_create_surface(compositor);
-        w.surface_xdg = xdg_wm_base_get_xdg_surface(xdg_wm, w.surface);
+        
+        #ifdef ENABLE_LIBDECOR
+        if(!using_libdecor) {
+        #endif
+            w.surface_xdg = xdg_wm_base_get_xdg_surface(xdg_wm, w.surface);
+            
+            xdg_surface_add_listener(w.surface_xdg, &xdg::surface_listener, this);
+            w.toplevel = xdg_surface_get_toplevel(w.surface_xdg);
+            xdg_toplevel_set_title(w.toplevel, "OneLoneCoder.com - Pixel Game Engine");
+            xdg_toplevel_add_listener(w.toplevel, &xdg::xdg_top_listener, this);
+            
+            #ifdef ENABLE_DECORATION_PROTOCOL
+            w.decorations = zxdg_decoration_manager_v1_get_toplevel_decoration(decoration_manager, w.toplevel);
+            zxdg_toplevel_decoration_v1_add_listener(w.decorations, &xdg::toplevel_decoration_listener, this);
+            zxdg_toplevel_decoration_v1_set_mode(w.decorations, 2);
+            #endif
+        #ifdef ENABLE_LIBDECOR
+        } else {
+            std::lock_guard<std::mutex> l{decor_mutex};
+            w.decor_frame = libdecor_decorate(decor_context, w.surface, &decor::libdecor_frame_listener, this);
+            w.floating_width = vWindowSize.x;
+            w.floating_height = vWindowSize.y;
+            libdecor_frame_set_app_id(w.decor_frame, "olcPixelGameEngine");
+            libdecor_frame_set_title(w.decor_frame, "OneLoneCoder.com - Pixel Game Engine");
+            libdecor_frame_map(w.decor_frame);
+        }
+        #endif
 
-        xdg_surface_add_listener(w.surface_xdg, &xdg::surface_listener, this);
-        w.toplevel = xdg_surface_get_toplevel(w.surface_xdg);
-        xdg_toplevel_set_title(w.toplevel, "OneLoneCoder.com - Pixel Game Engine");
-        xdg_toplevel_add_listener(w.toplevel, &xdg::xdg_top_listener, this);
         wl_surface_set_opaque_region(w.surface, region);
         w.window = wl_egl_window_create(w.surface, vWindowSize.x, vWindowSize.y);
         w.olc_window_uid = pWindow->GetUID();
         wl_surface_commit(w.surface);
         wl_region_destroy(region);
 
-        w.decorations = zxdg_decoration_manager_v1_get_toplevel_decoration(decoration_manager, w.toplevel);
-        zxdg_toplevel_decoration_v1_add_listener(w.decorations, &xdg::toplevel_decoration_listener, this);
-        zxdg_toplevel_decoration_v1_set_mode(w.decorations, 2);
-
         pWindow->SetWindowPosition(vWindowPos);
         pWindow->SetWindowSize(vWindowSize);
 
-        mapUID2Window.insert_or_assign(pWindow->GetUID(), w);
         mapUID2OlcWindow.insert_or_assign(pWindow->GetUID(), pWindow);
+
         return true;
     }
 
     bool Host_Linux_Wayland::CloseWindowFrame(olc::Window* pWindow)
     {
-        auto itr = mapUID2Window.find(pWindow->GetUID());
-        if(itr != mapUID2Window.end()) {
-            auto& wayland_window = itr->second;
-            wl_egl_window_destroy(wayland_window.window);
-            zxdg_toplevel_decoration_v1_destroy(wayland_window.decorations);
-            xdg_toplevel_destroy(wayland_window.toplevel);
-            xdg_surface_destroy(wayland_window.surface_xdg);
-            wl_surface_destroy(wayland_window.surface);
-            auto uid = wayland_window.olc_window_uid;
-            mapUID2Window.erase(uid);
-            mapUID2OlcWindow.erase(uid);
-        }
+        const auto uid = pWindow->GetUID();
+        mapUID2Window.erase(uid);
+        mapUID2OlcWindow.erase(uid);
 
         return true;
     }
@@ -11610,7 +11812,16 @@ namespace olc::host
     {
         auto itr = mapUID2Window.find(pWindow->GetUID());
         if(itr != mapUID2Window.end()) {
+            #ifdef ENABLE_LIBDECOR
+            if(using_libdecor) {
+                std::lock_guard<std::mutex> l{decor_mutex};
+                libdecor_frame_set_title(itr->second.decor_frame, pWindow->GetWindowTitle().c_str());
+            } else {
+                xdg_toplevel_set_title(itr->second.toplevel, pWindow->GetWindowTitle().c_str());
+            }
+            #else
             xdg_toplevel_set_title(itr->second.toplevel, pWindow->GetWindowTitle().c_str());
+            #endif
         }
         return true;
     }
@@ -11672,7 +11883,7 @@ namespace olc::host
             itr->second.cursor_visible = bVisible;
 
             if(bVisible) {
-                wp_cursor_shape_device_v1_set_shape(cursor_shape_device, enter_serial, WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_DEFAULT);
+                wl_pointer_set_cursor(pointer, enter_serial, cursor_surface, cursor_image->hotspot_x, cursor_image->hotspot_y);
             } else {
                 wl_pointer_set_cursor(pointer, enter_serial, nullptr, 0, 0);
             }
@@ -11687,9 +11898,25 @@ namespace olc::host
         if(itr != mapUID2Window.end()) {
             itr->second.fullscreen = bFullScreen;
             if(bFullScreen) {
+                #ifdef ENABLE_LIBDECOR
+                if(using_libdecor) {
+                    libdecor_frame_set_fullscreen(itr->second.decor_frame, nullptr);
+                } else {
+                    xdg_toplevel_set_fullscreen(itr->second.toplevel, nullptr);
+                }
+                #else
                 xdg_toplevel_set_fullscreen(itr->second.toplevel, nullptr);
+                #endif
             } else {
+                #ifdef ENABLE_LIBDECOR
+                if(using_libdecor) {
+                    libdecor_frame_unset_fullscreen(itr->second.decor_frame);
+                } else {
+                    xdg_toplevel_unset_fullscreen(itr->second.toplevel);
+                }
+                #else
                 xdg_toplevel_unset_fullscreen(itr->second.toplevel);
+                #endif
             }
         }
         return true;
@@ -11700,23 +11927,26 @@ namespace olc::host
         if(std::strcmp(interface, wl_compositor_interface.name) == 0) {
             compositor = static_cast<wl_compositor*>(wl_registry_bind(registry, name, &wl_compositor_interface, version));
         }
+        if(std::strcmp(interface, wl_shm_interface.name) == 0) {
+            shm = static_cast<wl_shm*>(wl_registry_bind(registry, name, &wl_shm_interface, version));
+        }
         if(std::strcmp(interface, xdg_wm_base_interface.name) == 0) {
             xdg_wm = static_cast<xdg_wm_base*>(wl_registry_bind(registry, name, &xdg_wm_base_interface, version));
         }
         if(std::strcmp(interface, wl_seat_interface.name) == 0) {
             seat = static_cast<wl_seat*>(wl_registry_bind(registry, name, &wl_seat_interface, version));
+            wl_seat_add_listener(seat, &wayland::seat_listener, this);
         }
+        #ifdef ENABLE_DECORATION_PROTOCOL
         if(std::strcmp(interface, zxdg_decoration_manager_v1_interface.name) == 0) {
             decoration_manager = static_cast<zxdg_decoration_manager_v1*>(wl_registry_bind(registry, name, &zxdg_decoration_manager_v1_interface, version));
         }
+        #endif
         if(std::strcmp(interface, wl_keyboard_interface.name) == 0) {
             keyboard = static_cast<wl_keyboard*>(wl_registry_bind(registry, name, &wl_keyboard_interface, version));
         }
         if(std::strcmp(interface, wp_pointer_warp_v1_interface.name) == 0) {
             pointer_warp = static_cast<wp_pointer_warp_v1*>(wl_registry_bind(registry, name, &wp_pointer_warp_v1_interface, version));
-        }
-        if(std::strcmp(interface, wp_cursor_shape_manager_v1_interface.name) == 0) {
-            cursor_shape_manager = static_cast<wp_cursor_shape_manager_v1*>(wl_registry_bind(registry, name, &wp_cursor_shape_manager_v1_interface, version));
         }
     }
     
@@ -11729,8 +11959,7 @@ namespace olc::host
     {
         if (capabilities & WL_SEAT_CAPABILITY_POINTER && pointer == nullptr) {
             pointer = wl_seat_get_pointer(seat);
-            cursor_shape_device = wp_cursor_shape_manager_v1_get_pointer(cursor_shape_manager, pointer);
-            wl_pointer_add_listener(pointer, &wayland::pointer_listener, this);    
+            wl_pointer_add_listener(pointer, &wayland::pointer_listener, this);
         }
 
         if (capabilities & WL_SEAT_CAPABILITY_KEYBOARD && keyboard == nullptr) {
@@ -11901,7 +12130,7 @@ namespace olc::host
                     
                     // Need to set the mouse back to the correct hidden / not hidden state when it enters the window
                     if(itr.second.cursor_visible) {
-                        wp_cursor_shape_device_v1_set_shape(cursor_shape_device, enter_serial, WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_DEFAULT);
+                        wl_pointer_set_cursor(pointer, enter_serial, cursor_surface, cursor_image->hotspot_x, cursor_image->hotspot_y);
                     } else {
                         wl_pointer_set_cursor(pointer, enter_serial, nullptr, 0, 0);
                     }
@@ -12156,11 +12385,99 @@ namespace olc::host
         return;
     }
 
+    #ifdef ENABLE_DECORATION_PROTOCOL
     void Host_Linux_Wayland::xdg_toplevel_decoration_configure_callback(void* data, zxdg_toplevel_decoration_v1* zxdg_toplevel_decoration_v1, uint32_t mode)
     {
         // auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
         // fprintf(stderr, "zxdg_decoration_manager_v1 mode %d\n", mode);
     }
+    #endif
+
+    #ifdef ENABLE_LIBDECOR
+    void Host_Linux_Wayland::libdecor_error_callback(libdecor* context, libdecor_error error, const char* message)
+    {
+        std::cerr << "libdecor: " << error << ": " << message << "\n";
+    }
+
+    void Host_Linux_Wayland::libdecor_frame_configure_callback(libdecor_frame* frame, libdecor_configuration* config, void* data)
+    {
+        auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
+        host->libdecor_frame_configure(frame, config);
+    }
+
+    void Host_Linux_Wayland::libdecor_frame_configure(libdecor_frame* frame, libdecor_configuration* config)
+    {
+        for(auto& i : mapUID2Window) {
+            if(i.second.decor_frame == frame) {
+                auto* window = &i.second;
+
+                int width{};
+                int height{};
+
+                if(!libdecor_configuration_get_window_state(config, &window->decor_window_state)) {
+                    window->decor_window_state = LIBDECOR_WINDOW_STATE_NONE;
+                }
+
+                libdecor_configuration_get_content_size(config, frame, &width, &height);
+
+                window->configured_width = width == 0 ? window->floating_width : width;
+                window->configured_height = height == 0 ? window->floating_height : height;
+
+                libdecor_state* state = libdecor_state_new(window->configured_width, window->configured_height);
+                libdecor_frame_commit(frame, state, config);
+                libdecor_state_free(state);
+
+                if(libdecor_frame_is_floating(frame)) {
+                    window->floating_width = width;
+                    window->floating_height = height;
+                }
+
+                mapUID2OlcWindow[i.first]->olc_OnWindowSize({window->configured_width, window->configured_height});
+                wl_egl_window_resize(window->window, window->configured_width, window->configured_height, 0, 0);
+                wl_surface_commit(window->surface);
+            }
+        }
+    }
+
+    void Host_Linux_Wayland::libdecor_close_callback(libdecor_frame* frame, void* data)
+    {
+        auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
+        host->libdecor_close(frame);
+    }
+    
+    void Host_Linux_Wayland::libdecor_close(libdecor_frame* frame)
+    {
+        for(auto& i : mapUID2Window) {
+            if(i.second.decor_frame == frame) {
+                auto itr = mapUID2OlcWindow.find(i.second.olc_window_uid);
+                if (itr != mapUID2OlcWindow.end()) {
+                    auto* ptr = itr->second;
+                    ptr->olc_OnWindowClose();
+                }
+            }
+        }        
+    }
+
+    void Host_Linux_Wayland::libdecor_commit_callback(libdecor_frame* frame, void* data)
+    {
+        auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
+        host->libdecor_commit(frame);
+    }
+
+    void Host_Linux_Wayland::libdecor_commit(libdecor_frame* frame)
+    {
+        for(auto& i : mapUID2Window) {
+            if(i.second.decor_frame == frame) {
+                wl_surface_commit(i.second.surface);
+            }
+        }
+    }
+
+    void Host_Linux_Wayland::libdecor_dismiss_popup_callback(libdecor_frame* frame, const char* seat_name, void* data)
+    {
+
+    }
+    #endif
 
     std::vector<void*> Host_Linux_Wayland::GetHostWindowDescriptor(olc::Window* pWindow)
     {
@@ -13092,12 +13409,12 @@ namespace olc::host
                 LOGD("APP_CMD_TERM_WINDOW received");
             } break;
             case APP_CMD_GAINED_FOCUS: {
-                host->pgeWindow->olc_OnMouseFocus(true);
                 LOGD("APP_CMD_GAINED_FOCUS received");
+                host->pgeWindow->olc_OnFocus(true);
             } break;
             case APP_CMD_LOST_FOCUS: {
-                host->pgeWindow->olc_OnMouseFocus(false);
                 LOGD("APP_CMD_LOST_FOCUS received");
+                host->pgeWindow->olc_OnFocus(false);
             } break;
             default: break;
         }
@@ -13446,7 +13763,21 @@ namespace olc::host
             }
         }
     }
+
+    bool Host_Android::SetMousePosition(olc::Window *pWindow, const olc::vi2d &vPos)
+    {
+        return false;
+    }
+
+    bool Host_Android::SetMouseVisible(olc::Window *pWindow, const bool bVisible)
+    {
+        return false;
+    }
     
+    bool Host_Android::SetFullScreen(olc::Window *pWindow, const bool bFullScreen)
+    {
+        return false;
+    }
 }
 
 void android_main(struct android_app* app)
@@ -14476,10 +14807,11 @@ void main()
 		if (pfnCreateContextAttribs)
 		{
 			int gl33_attribs[] = {
-				0x2091, 3,			// WGL_CONTEXT_MAJOR_VERSION_ARB
-				0x2092, 3,			// WGL_CONTEXT_MINOR_VERSION_ARB
-				0x9126, 0x00000001, // WGL_CONTEXT_PROFILE_MASK_ARB = CORE
-				0};
+				0x2091, 3,			// WGL_CONTEXT_MAJOR_VERSION_ARB = 3
+				0x2092, 3,			// WGL_CONTEXT_MINOR_VERSION_ARB = 3	
+				0x2094, 0,			// WGL_CONTEXT_FLAGS_ARB = 0 (no flags)
+				0x9126, 0x00000002, // WGL_CONTEXT_PROFILE_MASK_ARB = COMPATIBILITY
+				0 };
 			glRenderContext = pfnCreateContextAttribs(glDeviceContext, nullptr, gl33_attribs);
 		}
 		else
@@ -17340,7 +17672,24 @@ namespace olc
 
 	bool PGEWindow::CreateImageFromMemory(olc::Image& image, const uint8_t* data, const size_t bytes, const ImageConfig& cfg)
 	{
-		olc_IgnoreUnused(image, data, bytes, cfg);
+		if (pImageLoader->CreateImageFromMemory(image, data, bytes))
+		{
+			// Image has loaded ok, and populated into pixel vector
+			// 
+			// Create GPU Image
+			auto id = pRenderer->CreateTexture(image.Size(), cfg);
+			if (id == 0)
+			{
+				image.Create({ 0,0 });
+				return false;
+			}
+
+			// Associate CPU object with GPU Resource
+			image.SetGPUID(id);
+			return true;
+		}
+
+		std::cout << "Create From Memory Failed\n";
 		return false;
 	}
 
@@ -17662,7 +18011,7 @@ namespace olc
 			{
 				if (!pgex->OnBeforeSystemUpdate(this, fDT))
 				{
-					std::cout << "PGE OnContextTick(): User aborted in extension OnAfterUserCreate()\n";
+					std::cout << "PGE OnContextTick(): User aborted in extension OnBeforeSystemUpdate()\n";
 					return false;
 				}
 			}
@@ -18468,15 +18817,7 @@ namespace olc::imload
 		if (bmp->GetLastStatus() != Gdiplus::Ok)
 			return false; // File wasn't valid
 
-		// Need to swizzle each pixel...
-		image.Create(olc::vi2d(bmp->GetWidth(), bmp->GetHeight()));
-		for (int y = 0; y < image.Size().y; y++)
-			for (int x = 0; x < image.Size().x; x++)
-			{
-				Gdiplus::Color c;
-				bmp->GetPixel(x, y, &c);
-				image.Pixel(olc::vi2d(x, y)) = olc::Pixel(c.GetRed(), c.GetGreen(), c.GetBlue(), c.GetAlpha());
-			}
+		DecodeBMP(image, bmp);
 
 		// All done
 		delete bmp;
@@ -18485,13 +18826,22 @@ namespace olc::imload
 
 	bool ImageLoader_WinGDI::CreateImageFromMemory(olc::Image& image, const uint8_t* data, const size_t bytes)
 	{
-		olc_IgnoreUnused(image, data, bytes);
-		return false;
+		// Load file into windows "bitmap". 1992 calling...
+		Gdiplus::Bitmap* bmp = nullptr;
+		bmp = Gdiplus::Bitmap::FromStream(SHCreateMemStream((BYTE*)data, UINT(bytes)));
+		if (bmp->GetLastStatus() != Gdiplus::Ok)
+			return false; // File wasn't valid
+		
+		DecodeBMP(image, bmp);
+
+		// All done
+		delete bmp;
+		return true;
 	}
 
 	bool ImageLoader_WinGDI::CreateImageFromMemory(olc::Image& image, const std::vector<uint8_t>& data)
 	{
-		olc_IgnoreUnused(image, data);
+		CreateImageFromMemory(image, data.data(), data.size());
 		return false;
 	}
 
@@ -18505,6 +18855,21 @@ namespace olc::imload
 	{
 		olc_IgnoreUnused(image, data);
 		return false;
+	}
+
+	bool ImageLoader_WinGDI::DecodeBMP(olc::Image& image, Gdiplus::Bitmap* bmp)
+	{
+		// Need to swizzle each pixel...
+		image.Create(olc::vi2d(bmp->GetWidth(), bmp->GetHeight()));
+		for (int y = 0; y < image.Size().y; y++)
+			for (int x = 0; x < image.Size().x; x++)
+			{
+				Gdiplus::Color c;
+				bmp->GetPixel(x, y, &c);
+				image.Pixel(olc::vi2d(x, y)) = olc::Pixel(c.GetRed(), c.GetGreen(), c.GetBlue(), c.GetAlpha());
+			}
+		
+		return true;
 	}
 }
 #endif
@@ -18552,17 +18917,51 @@ namespace olc::imload
         std::memcpy(image.GetPixels().data(), pixelData, width * height * 4);
         
         return true;
-
     }
 
     bool ImageLoader_MacOS::CreateImageFromMemory(olc::Image& image, const uint8_t* data, const size_t bytes)
     {
-        return false;
+        if(!data) return false;
+
+        // Create macOS API wrapper image loader
+        olc::apis::macos::ImageLoader loader;
+        
+        if (!loader.loadFromMemory(data, bytes) || !loader.isLoaded()) {
+            return false; // Failed to load file
+        }
+        
+        // Get image dimensions and info
+        int width, height, bytesPerPixel;
+        loader.getImageInfo(width, height, bytesPerPixel);
+        
+        if (width <= 0 || height <= 0) {
+            return false; // Invalid dimensions
+        }
+        
+        // Get raw pixel data from the loader
+        unsigned char* pixelData = imageloader_getPixelData(loader.getCHandle());
+        if (!pixelData) {
+            return false; // Failed to get pixel data
+        }
+        
+        // Create our olc::Image
+        if (!image.Create({width, height})) {
+            return false; // Failed to create image
+        }
+        
+        // Clear and resize the pixel vector
+        image.GetPixels().clear();
+        image.GetPixels().resize(width * height);
+        
+        // The api_macos will provide RGBA format with 4 bytes per pixel
+        std::memcpy(image.GetPixels().data(), pixelData, width * height * 4);
+        
+        return true;
     }
 
     bool ImageLoader_MacOS::CreateImageFromMemory(olc::Image& image, const std::vector<uint8_t>& data)
     {
-        return false;
+        return CreateImageFromMemory(image, data.data(), data.size());
     }
 
     bool ImageLoader_MacOS::WriteImageToFile(const olc::Image& image, const std::string& sFileName)
@@ -18577,100 +18976,68 @@ namespace olc::imload
 }
 #endif
 #if OLC_IMAGELOADER == OLC_IMAGELOADER_LIB_PNG
-#include <png.h>
-
 namespace olc::imload
 {
     // Create an image resource based on an image file asset on disk
     bool ImageLoader_LibPNG::CreateImageFromFile(olc::Image& image, const std::string& sFileName)
     {
-        ////////////////////////////////////////////////////////////////////////////
-        // Use libpng, Thanks to Guillaume Cottenceau
-        // https://gist.github.com/niw/5963798
-        // Also reading png from streams
-        // http://www.piko3d.net/tutorials/libpng-tutorial-loading-png-files-from-streams/
-        png_structp png;
-        png_infop info;
+        FILE* pngFileHandle = fopen(sFileName.c_str(), "rb");
+        if(!pngFileHandle)
+            return false;
 
-        auto loadPNG = [&]()
-            {
-                png_read_info(png, info);
-                png_byte color_type;
-                png_byte bit_depth;
-                png_bytep* row_pointers;
-                image.Create(
-                    {
-                        static_cast<int>(png_get_image_width(png, info)),
-                        static_cast<int>(png_get_image_height(png, info))
-                    }
-                );
-
-                color_type = png_get_color_type(png, info);
-                bit_depth = png_get_bit_depth(png, info);
-                if (bit_depth == 16) png_set_strip_16(png);
-                if (color_type == PNG_COLOR_TYPE_PALETTE) png_set_palette_to_rgb(png);
-                if (color_type == PNG_COLOR_TYPE_GRAY && bit_depth < 8)	png_set_expand_gray_1_2_4_to_8(png);
-                if (png_get_valid(png, info, PNG_INFO_tRNS)) png_set_tRNS_to_alpha(png);
-                if (color_type == PNG_COLOR_TYPE_RGB || color_type == PNG_COLOR_TYPE_GRAY || color_type == PNG_COLOR_TYPE_PALETTE)
-                    png_set_filler(png, 0xFF, PNG_FILLER_AFTER);
-                if (color_type == PNG_COLOR_TYPE_GRAY || color_type == PNG_COLOR_TYPE_GRAY_ALPHA)
-                    png_set_gray_to_rgb(png);
-                png_read_update_info(png, info);
-                row_pointers = (png_bytep*)malloc(sizeof(png_bytep) * image.Size().y);
-                for (int y = 0; y < image.Size().y; y++) {
-                    row_pointers[y] = (png_byte*)malloc(png_get_rowbytes(png, info));
-                }
-                png_read_image(png, row_pointers);
-
-                // Iterate through image rows, converting into sprite format
-                for (int y = 0; y < image.Size().y; y++)
-                {
-                    png_bytep row = row_pointers[y];
-                    for (int x = 0; x < image.Size().x; x++)
-                    {
-                        png_bytep px = &(row[x * 4]);
-                        image.Pixel(olc::vi2d(x, y)) = olc::Pixel(px[0], px[1], px[2], px[3]);
-                    }
-                }
-
-                for (int y = 0; y < image.Size().y; y++) // Thanks maksym33
-                    free(row_pointers[y]);
-                free(row_pointers);
-                png_destroy_read_struct(&png, &info, nullptr);
-            };
-
-        png = png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+        png_structp png = png_create_read_struct(PNG_LIBPNG_VER_STRING, nullptr, nullptr, nullptr);
         if (!png)
             return false;
 
-        info = png_create_info_struct(png);
+        png_infop info = png_create_info_struct(png);
         if (!info)
             return false;
 
-        if (setjmp(png_jmpbuf(png)))
-            return false;
-
+        if(setjmp(png_jmpbuf(png)))
         {
-            FILE* f = fopen(sFileName.c_str(), "rb");
-            if (!f) return false;
-            png_init_io(png, f);
-            loadPNG();
-            fclose(f);
+            png_destroy_read_struct(&png, &info, nullptr);
+            fclose(pngFileHandle);
+            return false;
         }
+        
+        png_init_io(png, pngFileHandle);
+        bool decodeResult = DecodePNG(image, png, info);
+        
+        png_destroy_read_struct(&png, &info, nullptr);
+        fclose(pngFileHandle);
 
-        return true;
+        return decodeResult;
     }
     
     // Create an image resource based on an image file asset in memory
     bool ImageLoader_LibPNG::CreateImageFromMemory(olc::Image& image, const uint8_t* data, const size_t bytes)
     {
-        return false;
+        MemReader reader{ data, 0 };
+        png_structp png = png_create_read_struct(PNG_LIBPNG_VER_STRING, nullptr, nullptr, nullptr);
+        if (!png)
+            return false;
+
+        png_infop info = png_create_info_struct(png);
+        if (!info)
+            return false;
+        
+        if(setjmp(png_jmpbuf(png)))
+        {
+            png_destroy_read_struct(&png, &info, nullptr);
+            return false;
+        }
+
+        png_set_read_fn(png, &reader, &ImageLoader_LibPNG::PNGReadFromMemory);
+        bool decodeResult = DecodePNG(image, png, info);
+        
+        png_destroy_read_struct(&png, &info, nullptr);
+        return decodeResult;
     }
     
     // Create an image resource based on an image file asset in memory
     bool ImageLoader_LibPNG::CreateImageFromMemory(olc::Image& image, const std::vector<uint8_t>& data)
     {
-        return false;
+        return CreateImageFromMemory(image, data.data(), data.size());
     }
     
     // Store an image as a file asset on disk
@@ -18684,7 +19051,65 @@ namespace olc::imload
     {
         return false;
     }
+    
+    void ImageLoader_LibPNG::PNGReadFromMemory(png_structp png, png_bytep out, png_size_t count)
+    {
+        auto* reader = (MemReader*)png_get_io_ptr(png);
+        std::memcpy(out, reader->data + reader->offset, count);
+        reader->offset += count;
+    }
 
+    bool ImageLoader_LibPNG::DecodePNG(olc::Image& image, png_structp png, png_infop info)
+    {
+        ////////////////////////////////////////////////////////////////////////////
+        // Use libpng, Thanks to Guillaume Cottenceau
+        // https://gist.github.com/niw/5963798
+        // Also reading png from streams
+        // http://www.piko3d.net/tutorials/libpng-tutorial-loading-png-files-from-streams/
+        png_read_info(png, info);
+        png_byte color_type;
+        png_byte bit_depth;
+        image.Create(
+            {
+                static_cast<int>(png_get_image_width(png, info)),
+                static_cast<int>(png_get_image_height(png, info))
+            }
+        );
+
+        color_type = png_get_color_type(png, info);
+        bit_depth = png_get_bit_depth(png, info);
+        if (bit_depth == 16) png_set_strip_16(png);
+        if (color_type == PNG_COLOR_TYPE_PALETTE) png_set_palette_to_rgb(png);
+        if (color_type == PNG_COLOR_TYPE_GRAY && bit_depth < 8)	png_set_expand_gray_1_2_4_to_8(png);
+        if (png_get_valid(png, info, PNG_INFO_tRNS)) png_set_tRNS_to_alpha(png);
+        if (color_type == PNG_COLOR_TYPE_RGB || color_type == PNG_COLOR_TYPE_GRAY || color_type == PNG_COLOR_TYPE_PALETTE)
+            png_set_filler(png, 0xFF, PNG_FILLER_AFTER);
+        if (color_type == PNG_COLOR_TYPE_GRAY || color_type == PNG_COLOR_TYPE_GRAY_ALPHA)
+            png_set_gray_to_rgb(png);
+        
+        png_read_update_info(png, info);
+        
+        std::vector<png_bytep> rows(image.Size().y);
+        std::vector<std::vector<png_byte>> rowData(image.Size().y);
+        for (int y = 0; y < image.Size().y; y++) {
+            rowData[y].resize(png_get_rowbytes(png, info));
+            rows[y] = rowData[y].data();
+        }
+        png_read_image(png, rows.data());
+
+        // Iterate through image rows, converting into sprite format
+        for (int y = 0; y < image.Size().y; y++)
+        {
+            png_bytep row = rows[y];
+            for (int x = 0; x < image.Size().x; x++)
+            {
+                png_bytep px = &(row[x * 4]);
+                image.Pixel(olc::vi2d(x, y)) = olc::Pixel(px[0], px[1], px[2], px[3]);
+            }
+        }
+        
+        return true;
+    }
 }
 #endif
 #if OLC_IMAGELOADER == OLC_IMAGELOADER_NDK_IMAGEDECODER
