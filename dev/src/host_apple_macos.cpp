@@ -28,8 +28,8 @@ namespace olc::host {
         UtilityWindow            = (1 << 4),     // Utility window style
         DocModalWindow           = (1 << 6),     // Document-modal window
         NonactivatingPanel       = (1 << 7),     // Non-activating panel
-        HUDWindow                = (1 << 13),    // Heads-up display window
         TexturedBackground       = (1 << 8),     // Textured background
+        HUDWindow                = (1 << 13),    // Heads-up display window
         UnifiedTitleAndToolbar   = (1 << 12),    // Unified title and toolbar
         FullScreen               = (1 << 14),    // Full-screen window
         FullSizeContentView      = (1 << 15)     // Full-size content view
@@ -243,6 +243,10 @@ namespace olc::host {
         // Note for MacOS: You cannot fully hide both the title bar and border, therefore we return titled when both are disabled, which is the closest we can get to a borderless window
         if (!pPrimaryPGE->config.bShowWindowBorder || !pPrimaryPGE->config.bShowWindowTilebar) return static_cast<unsigned int>(NSWindowStyleMask::Titled);
 
+        // On MacOS, the maximize button is tied to the resizable style, so we disable it if the window is not resizable
+        if (pPrimaryPGE->config.bResizeable)
+            pPrimaryPGE->config.bShowWindowMaximiseButton = false;
+        
         // For MacOS you can only disable the buttons, you can't hide them
         if (pPrimaryPGE->config.bFullScreen)               nsStyle |= static_cast<unsigned int>(NSWindowStyleMask::FullSizeContentView);      // Fullscreen window
         if (pPrimaryPGE->config.bShowWindowTilebar)        nsStyle |= static_cast<unsigned int>(NSWindowStyleMask::Titled);          // Add a title bar
