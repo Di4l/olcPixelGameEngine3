@@ -5972,6 +5972,7 @@ namespace olc::host
         bool SetMousePosition(olc::Window* pWindow, const olc::vi2d& vPos) override;
         // Show or hide mouse cursor for given window
         bool SetMouseVisible(olc::Window* pWindow, const bool bVisible) override;
+        bool SetFullScreen(olc::Window* pWindow, const bool bFullScreen) override;
 
     public: // OS Specific Environment Information
         olc::KeyboardLayout GetKeyboardLayout() const override;
@@ -7556,9 +7557,6 @@ namespace olc::host
 		}
 		else
 		{
-			olc::vi2d vWinPos = pPrimaryPGE->config.vWindowOffset;
-			olc::vi2d vWinSize = pPrimaryPGE->config.vScreenSize * pPrimaryPGE->config.vPixelSize;
-
 			// Restore original window style and position
 			DWORD dwExStyle = WS_EX_APPWINDOW | WS_EX_WINDOWEDGE;
 			// Get the style we should have based on the window config
@@ -7871,8 +7869,8 @@ namespace olc::host {
         UtilityWindow            = (1 << 4),     // Utility window style
         DocModalWindow           = (1 << 6),     // Document-modal window
         NonactivatingPanel       = (1 << 7),     // Non-activating panel
-        HUDWindow                = (1 << 13),    // Heads-up display window
         TexturedBackground       = (1 << 8),     // Textured background
+        HUDWindow                = (1 << 13),    // Heads-up display window
         UnifiedTitleAndToolbar   = (1 << 12),    // Unified title and toolbar
         FullScreen               = (1 << 14),    // Full-screen window
         FullSizeContentView      = (1 << 15)     // Full-size content view
@@ -8086,13 +8084,13 @@ namespace olc::host {
         // Note for MacOS: You cannot fully hide both the title bar and border, therefore we return titled when both are disabled, which is the closest we can get to a borderless window
         if (!pPrimaryPGE->config.bShowWindowBorder || !pPrimaryPGE->config.bShowWindowTilebar) return static_cast<unsigned int>(NSWindowStyleMask::Titled);
 
+        // On MacOS, the maximize button is tied to the resizable style, therefore there is no need to implemenent a separate bShowWindowMaximiseButton config,
         // For MacOS you can only disable the buttons, you can't hide them
         if (pPrimaryPGE->config.bFullScreen)               nsStyle |= static_cast<unsigned int>(NSWindowStyleMask::FullSizeContentView);      // Fullscreen window
         if (pPrimaryPGE->config.bShowWindowTilebar)        nsStyle |= static_cast<unsigned int>(NSWindowStyleMask::Titled);          // Add a title bar
         if (pPrimaryPGE->config.bShowWindowBorder)         nsStyle |= static_cast<unsigned int>(NSWindowStyleMask::Titled);          // Add a border
         if (pPrimaryPGE->config.bResizeable)               nsStyle |= static_cast<unsigned int>(NSWindowStyleMask::Resizable);       // Enable resizing
         if (pPrimaryPGE->config.bShowWindowMinimiseButton) nsStyle |= static_cast<unsigned int>(NSWindowStyleMask::Miniaturizable);  // Add Min Button
-        if (pPrimaryPGE->config.bShowWindowMaximiseButton) nsStyle |= static_cast<unsigned int>(NSWindowStyleMask::Resizable);       // Add Max Button
         if (pPrimaryPGE->config.bShowWindowCloseButton)    nsStyle |= static_cast<unsigned int>(NSWindowStyleMask::Closable);        // Add Close Button
 
         return nsStyle;
@@ -12783,6 +12781,21 @@ namespace olc::host
         else
             EM_ASM({ document.querySelector(UTF8ToString($0)).style.cursor = 'none'; }, canvasID.c_str());
 
+        return true;
+    }
+    
+    bool Host_Web_Emscripten::SetFullScreen(olc::Window* pWindow, const bool bFullScreen)
+    {
+        if(!mapUID2CanvasId.contains(pWindow->GetUID()))
+            return false;
+
+        auto canvasID = mapUID2CanvasId.at(pWindow->GetUID());
+
+        if(bFullScreen)
+            emscripten_request_fullscreen(canvasID.c_str(), true);
+        else
+            emscripten_exit_fullscreen();
+        
         return true;
     }
 
