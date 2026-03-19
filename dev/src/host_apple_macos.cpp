@@ -289,7 +289,6 @@ namespace olc::host {
         pMacApplication->run();
                 
         // Once the application run loop ends, join the system thread
-        systemActive = false;
         if(threadSystem.joinable())
             threadSystem.join();
 
@@ -314,10 +313,11 @@ namespace olc::host {
             }
             if (pMacApplication)
             {
-                pMacApplication->terminate();
+                pMacApplication->stop();
             }
 
         });
+        systemActive = false;
         return true;
     }
 
