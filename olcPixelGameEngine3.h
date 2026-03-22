@@ -4533,6 +4533,7 @@ namespace olc {
                 ~Application() {
                     if (app_) {
                         application_destroy(app_);  // application_destroy now handles delete internally
+                        app_ = nullptr;
                     }
                 }
                 
@@ -4548,10 +4549,9 @@ namespace olc {
                     if (app_) application_run(app_);
                 }
                 
-                void terminate() noexcept {
+                void stop() noexcept {
                     if (app_) {
                         application_stop(app_);
-                        app_ = nullptr;
                     }
                 }
                 
@@ -5337,9 +5337,7 @@ namespace olc {
             public:
                 explicit EventHandler(Window& window) noexcept : window_(window) {}
                 
-                ~EventHandler() noexcept {
-                    disable();
-                }
+                ~EventHandler() noexcept {}
                 
                 // Event handler setters - now using template helper
                 void onKeyDown(std::function<void(const KeyEvent&)> handler) {
@@ -5945,6 +5943,7 @@ namespace olc::host
         bool SetMousePosition(olc::Window* pWindow, const olc::vi2d& vPos) override;
         // Show or hide mouse cursor for given window
         bool SetMouseVisible(olc::Window* pWindow, const bool bVisible) override;
+        bool SetFullScreen(olc::Window* pWindow, const bool bFullScreen) override;
 
     public: // OS Specific Environment Information
         olc::KeyboardLayout GetKeyboardLayout() const override;
@@ -8062,7 +8061,6 @@ namespace olc::host {
         pMacApplication->run();
                 
         // Once the application run loop ends, join the system thread
-        systemActive = false;
         if(threadSystem.joinable())
             threadSystem.join();
 
@@ -8087,10 +8085,11 @@ namespace olc::host {
             }
             if (pMacApplication)
             {
-                pMacApplication->terminate();
+                pMacApplication->stop();
             }
 
         });
+        systemActive = false;
         return true;
     }
 
@@ -8511,6 +8510,7 @@ static constexpr const char* kSharedApplicationSel              = "sharedApplica
 static constexpr const char* kActivateIgnoringOtherAppsSel      = "activateIgnoringOtherApps:";
 static constexpr const char* kSetActivationPolicySel            = "setActivationPolicy:";
 static constexpr const char* kRunSel                            = "run";
+static constexpr const char* kStopSel                           = "stop:";
 static constexpr const char* kTerminateSel                      = "terminate:";
 
 // NSApplicationDelegate lifecycle methods
@@ -8650,6 +8650,7 @@ namespace ObjectiveCSEL {
    static SEL activateIgnoringOtherAppsSel = nullptr;
    static SEL setActivationPolicySel       = nullptr;
    static SEL runSel                       = nullptr;
+   static SEL stopSel                      = nullptr;
    static SEL terminateSEL                 = nullptr;
 
    // Application Screen management selectors
@@ -8766,6 +8767,7 @@ namespace ObjectiveCSEL {
         activateIgnoringOtherAppsSel        = sel_registerName(kActivateIgnoringOtherAppsSel);
         setActivationPolicySel              = sel_registerName(kSetActivationPolicySel);
         runSel                              = sel_registerName(kRunSel);
+        stopSel                             = sel_registerName(kStopSel);
         terminateSEL                        = sel_registerName(kTerminateSel);
         
         // Application Screen management selectors
@@ -9112,11 +9114,7 @@ struct Application {
     
     Application() = default;
     
-    ~Application() {
-        if (destroy) {
-            destroy(this);
-        }
-    }
+    ~Application() {}
     
     // Delete copy constructor and assignment
     Application(const Application&) = delete;
@@ -9850,9 +9848,10 @@ extern "C" {
         ((void(*)(id, SEL))objc_msgSend)(self->nsApp, ObjectiveCSEL::runSel);
     }
 
+    // Request to OS to gracefully terminate the application (RAII compatible)
     void application_stop(Application* self) {
         if (self && self->nsApp) {
-            ((void(*)(id, SEL, id))objc_msgSend)(self->nsApp, ObjectiveCSEL::terminateSEL, self->nsApp);
+            ((void(*)(id, SEL, id))objc_msgSend)(self->nsApp, ObjectiveCSEL::stopSel, self->nsApp);
         }
     }
 
@@ -12645,6 +12644,21 @@ namespace olc::host
         else
             EM_ASM({ document.querySelector(UTF8ToString($0)).style.cursor = 'none'; }, canvasID.c_str());
 
+        return true;
+    }
+    
+    bool Host_Web_Emscripten::SetFullScreen(olc::Window* pWindow, const bool bFullScreen)
+    {
+        if(!mapUID2CanvasId.contains(pWindow->GetUID()))
+            return false;
+
+        auto canvasID = mapUID2CanvasId.at(pWindow->GetUID());
+
+        if(bFullScreen)
+            emscripten_request_fullscreen(canvasID.c_str(), true);
+        else
+            emscripten_exit_fullscreen();
+        
         return true;
     }
 
