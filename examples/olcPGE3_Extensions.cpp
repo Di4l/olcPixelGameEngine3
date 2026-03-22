@@ -24,7 +24,7 @@ class ExamplePGEX : public olc::PGEWindowExtension
 {
 	// Called when extension is installed, usually in PGEWindow Constructor
 	// Return true to continue application
-	virtual bool OnInstall([[maybe_unused]] olc::PGEWindow* pge) 
+	virtual bool OnInstall([[maybe_unused]] olc::PGEWindow* pge) override
 	{ 
 		return true; 
 	}
@@ -98,6 +98,8 @@ protected:
 	// We need to create an instance of our extension class, and then install it in the PGE constructor
 	ExamplePGEX pgex;
 
+    float fTotalTime = 0.0f;
+
 public:
 	// Called once at the start, so create things here
 	bool OnUserCreate() override
@@ -115,7 +117,7 @@ public:
 		draw.String({ 10.0f, 10.0f }, "This text is drawn from the\nmain application!\n\nMouse Move in X To Warp Time", olc::Colour::WHITE);
 
 		// Draw a clocking line to illustrate the passage of time...
-		float fTotalTime = TotalTimeElapsed();
+        fTotalTime += fElapsedTime;
 		draw.Line(GetScreen().Size() / 2, olc::vf2d(cos(fTotalTime), sin(fTotalTime)) * 50.0f + GetScreen().Size() / 2, olc::Colour::GREEN);
 		
 		// Successful frame
