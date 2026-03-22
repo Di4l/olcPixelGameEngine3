@@ -3734,6 +3734,17 @@ namespace olc
 		class Keyboard;
 	}
 
+	struct WindowConfig
+	{
+		// Start in full-screen mode
+		bool bFullScreen = false;
+		// Allow full screen as an option with ALT-ENTER
+		bool bFullScreenable = true;
+		// Allow the window to be resized by user
+		bool bResizeable = true;
+	};
+
+
 	class Window
 	{
 		friend class olc::host::OLC_FRIENDLY_HOST;
@@ -3741,6 +3752,7 @@ namespace olc
 
 	public:
 		Window();
+		Window(const WindowConfig& config);
 		virtual ~Window();
 										
 		void LinkToHost(olc::host::Host* host);
@@ -3805,6 +3817,7 @@ namespace olc
 	
 	protected:
 		olc::host::Host* pHost = nullptr;
+		olc::WindowConfig config;
 
 	protected:
 		olc::hw::Mouse mouse;
@@ -3976,7 +3989,7 @@ namespace olc
 namespace olc
 {
 	// A grouping of all settable PGE properties
-	struct PGEConfig
+	struct PGEConfig : public WindowConfig
 	{
 		// Size of "screen" in PGE pixels
 		olc::vi2d vScreenSize = { 256, 240 };
@@ -3984,17 +3997,20 @@ namespace olc
 		olc::vi2d vPixelSize = { 4, 4 };
 		// Top left location of shown main window
 		olc::vi2d vWindowOffset = { 30,30 };
+
+		// These three are inherited from WindowConfig
 		// Start in full-screen mode
-		bool bFullScreen = false;
-		// Allow full screen as an option with ALT-ENTER
-		bool bFullScreenable = true;
-		// Allow the window to be resized by user
-		bool bResizeable = true;
+		// bool bFullScreen = false;
+		// // Allow full screen as an option with ALT-ENTER
+		// bool bFullScreenable = true;
+		// // Allow the window to be resized by user
+		// bool bResizeable = true;
+		
 		// Synchronise rendering with monitor
 		bool bVSync = OLC_DEFAULT_VSYNC;
 		// Behave like a host window, resizing the screen in response to window resize
 		bool bRealWindow = false;
-		// Ensure aspect ratio of "screen" is mainatined regardless of window size
+		// Ensure aspect ratio of "screen" is maintained regardless of window size
 		bool bRetainAspectRatio = true;
 		// Force "screen" pixels to be integer in size
 		bool bForceIntegerPixelSize = false;
@@ -4013,6 +4029,7 @@ namespace olc
 	{
 	public:
 		PGEWindow();
+		PGEWindow(const WindowConfig& config);
 		bool Create(const olc::vi2d& vScreenSize, const olc::vi2d& vPixelSize);
 	
 	public:
@@ -17356,6 +17373,10 @@ namespace olc
 	{
 	}
 
+	PGEWindow::PGEWindow(const WindowConfig& config) : Window(config), draw()
+	{
+	}
+
 	bool PGEWindow::Create(const olc::vi2d& vScreenSize, const olc::vi2d& vPixelSize)
 	{
 		//pRenderer->RetargetDevice(pHost->GetHostWindowDescriptor(this));
@@ -17670,6 +17691,8 @@ namespace olc
 	bool PixelGameEngine::Construct(const PGEConfig& cfg)
 	{		
 		config = cfg;
+		// Also assign the window level config since that is what the Host will see
+		Window::config = cfg;
 
 		// Check for constructor sAppName, if not set use Config sAppName
 		if (sAppName.empty())
@@ -18504,7 +18527,11 @@ namespace olc
 	Window::Window()
 	{
 		nUniqueID = pgeguts::CreateUID();
-		
+	}
+
+	Window::Window(const WindowConfig& config) : config{config}
+	{
+		Window();
 	}
 
 	Window::~Window()

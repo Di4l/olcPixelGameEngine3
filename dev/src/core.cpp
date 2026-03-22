@@ -64,6 +64,10 @@ namespace olc
 	{
 	}
 
+	PGEWindow::PGEWindow(const WindowConfig& config) : Window(config), draw()
+	{
+	}
+
 	bool PGEWindow::Create(const olc::vi2d& vScreenSize, const olc::vi2d& vPixelSize)
 	{
 		//pRenderer->RetargetDevice(pHost->GetHostWindowDescriptor(this));
@@ -378,6 +382,8 @@ namespace olc
 	bool PixelGameEngine::Construct(const PGEConfig& cfg)
 	{		
 		config = cfg;
+		// Also assign the window level config since that is what the Host will see
+		Window::config = cfg;
 
 		// Check for constructor sAppName, if not set use Config sAppName
 		if (sAppName.empty())
