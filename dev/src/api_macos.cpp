@@ -60,6 +60,8 @@ static constexpr const char* kMakeKeyWindowSel                  = "makeKeyWindow
 static constexpr const char* kFrameSel                          = "frame";
 static constexpr const char* kSetFrameDisplaySel                = "setFrame:display:";
 static constexpr const char* kSetFrameSel                       = "setFrame:";
+static constexpr const char* kStyleMaskSel                      = "styleMask";
+static constexpr const char* kToggleFullScreenSel               = "toggleFullScreen:";
 
 // NSWindowDelegate lifecycle and event methods selectors
 static constexpr const char* kWindowDidResizeSel                = "windowDidResize:";
@@ -206,6 +208,8 @@ namespace ObjectiveCSEL {
    static SEL setFrameDisplaySel            = nullptr;
    static SEL setFrameSel                   = nullptr;
    static SEL makeFirstResponderSel         = nullptr;
+   static SEL styleMaskSel                  = nullptr;
+   static SEL toggleFullScreenSel           = nullptr;
 
    // NSWindowDelegate lifecycle and event methods selectors
    static SEL windowDidResizeSel        = nullptr;
@@ -323,7 +327,9 @@ namespace ObjectiveCSEL {
         frameSel                            = sel_registerName(kFrameSel);
         setFrameDisplaySel                  = sel_registerName(kSetFrameDisplaySel);
         setFrameSel                         = sel_registerName(kSetFrameSel);
-
+        styleMaskSel                        = sel_registerName(kStyleMaskSel);
+        toggleFullScreenSel                 = sel_registerName(kToggleFullScreenSel);
+        
         // NSWindowDelegate lifecycle and event methods selectors
         windowDidResizeSel                  = sel_registerName(kWindowDidResizeSel);
         windowWillCloseSel                  = sel_registerName(kWindowWillCloseSel);
@@ -536,6 +542,7 @@ static constexpr int NSWindowStyleMaskTitled         = static_cast<int>(NSWindow
 static constexpr int NSWindowStyleMaskClosable       = static_cast<int>(NSWindowStyleMask::Closable);
 static constexpr int NSWindowStyleMaskMiniaturizable = static_cast<int>(NSWindowStyleMask::Miniaturizable);
 static constexpr int NSWindowStyleMaskResizable      = static_cast<int>(NSWindowStyleMask::Resizable);
+static constexpr int NSWindowStyleMaskFullScreen     = static_cast<int>(NSWindowStyleMask::FullScreen);
 
 // enum for backing store types
 enum class NSBackingStoreType : uint8_t {
@@ -698,7 +705,7 @@ struct Window {
     void* windowDidDeminiaturizeUserData{nullptr}; // User data for window did deminiaturize callback
     
     // Method function pointers with nullptr initialization
-    void (*create)          (struct Window* self){nullptr};
+    void (*create)          (struct Window* self, unsigned long styleMask){nullptr};
     void (*show)            (struct Window* self){nullptr};
     void (*destroy)         (struct Window* self){nullptr};
     void (*setDelegate)     (struct Window* self, id delegate){nullptr};
@@ -1442,7 +1449,7 @@ extern "C" {
     }
 
     // Create the NSWindow instance
-    void window_create(Window* self) {
+    void window_create(Window* self, unsigned long styleMask) {
         ObjectiveCSEL::ensureInitialized(); // Ensure selectors are initialized
 
         // Get classes using const strings
@@ -1451,9 +1458,6 @@ extern "C" {
 
         // Create window
         id windowAlloc = ((id(*)(Class, SEL))objc_msgSend)(NSWindowClass, ObjectiveCSEL::allocSel);
-        
-        unsigned long styleMask = NSWindowStyleMaskTitled | NSWindowStyleMaskClosable |
-                                NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskResizable;
         
         self->nsWindow = ((id(*)(id, SEL, NSRect, unsigned long, unsigned long, BOOL))objc_msgSend)(
                         windowAlloc, ObjectiveCSEL::initWithContentRectSel, self->windowFrame, styleMask,
@@ -1692,6 +1696,16 @@ extern "C" {
         } else {
             ((void (*)(Class, SEL))objc_msgSend)(objc_getClass(kNSCursorClass), ObjectiveCSEL::unhideSel);
         }
+    }
+
+    void window_toggleFullScreen(Window* self) {
+        // Toggle fullscreen
+        ((void (*)(id, SEL, id))objc_msgSend)(self->nsWindow, ObjectiveCSEL::toggleFullScreenSel, nil);
+    }
+
+    bool window_isFullScreen(Window* self) {
+        unsigned long mask = ((unsigned long (*)(id, SEL))objc_msgSend)(self->nsWindow, ObjectiveCSEL::styleMaskSel);
+        return (mask & NSWindowStyleMaskFullScreen);
     }
 
     // Initialize OpenGL renderer

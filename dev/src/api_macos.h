@@ -57,7 +57,7 @@ extern "C" {
     
     // Window API - as implemented in api_macos.c
     struct Window* window_init           (double x, double y, double width, double height);
-    void window_create                   (struct Window* self);
+    void window_create                   (struct Window* self, unsigned long styleMask);
     void window_show                     (struct Window* self);
     void window_destroy                  (struct Window* self);
     void window_setTitle                 (struct Window* self, const char* title);
@@ -73,6 +73,8 @@ extern "C" {
     void window_setContentViewFrame      (struct Window* self, double* x, double* y, double* width, double* height);
     void window_setCursorVisibility      (struct Window* self, BOOL visible);
     void window_setCursorPosition        (struct Window* self, double x, double y);
+    void window_toggleFullScreen         (struct Window* self);
+    bool window_isFullScreen             (struct Window* self);
 
     // OpenGL Renderer API - as implemented in api_macos.c
     struct OpenGLRenderer* opengl_init    (void);

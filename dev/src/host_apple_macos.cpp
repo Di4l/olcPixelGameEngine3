@@ -19,6 +19,22 @@ namespace olc::host {
     constexpr unsigned int NSEventModifierFlagHelp       = 1 << 22; // 0x400000
     constexpr unsigned int NSEventModifierFlagFunction   = 1 << 23; // 0x800000
 
+    // enum for window appearance and behavior bit flags
+    enum class NSWindowStyleMask : uint16_t {
+        Titled                   = (1 << 0),     // Window has a title bar
+        Closable                 = (1 << 1),     // Window can be closed
+        Miniaturizable           = (1 << 2),     // Window can be minimized
+        Resizable                = (1 << 3),     // Window can be resized
+        UtilityWindow            = (1 << 4),     // Utility window style
+        DocModalWindow           = (1 << 6),     // Document-modal window
+        NonactivatingPanel       = (1 << 7),     // Non-activating panel
+        TexturedBackground       = (1 << 8),     // Textured background
+        HUDWindow                = (1 << 13),    // Heads-up display window
+        UnifiedTitleAndToolbar   = (1 << 12),    // Unified title and toolbar
+        FullScreen               = (1 << 14),    // Full-screen window
+        FullSizeContentView      = (1 << 15)     // Full-size content view
+    };
+
 
     Host_Apple_MacOS::Host_Apple_MacOS()
     {
@@ -209,8 +225,35 @@ namespace olc::host {
     }
 
     bool Host_Apple_MacOS::SetFullScreen(olc::Window* pWindow, const bool bFullScreen)
-{
-        return false; // Fullscreen is currently not supported on MacOS Host
+    {
+        // if we're already in the specified state, return early
+        if(pMacOSWindow->isFullScreen() == bFullScreen)
+            return true;
+
+        dispatch_async(dispatch_get_main_queue(), ^{
+            pMacOSWindow->toggleFullScreen();
+        });
+        return true;
+    }
+
+    uint16_t Host_Apple_MacOS::ConvertPGE2WindowStyle()
+    {
+        uint16_t nsStyle = 0;
+        
+        // Note for MacOS: You cannot fully hide both the title bar and border, therefore we return titled when both are disabled, which is the closest we can get to a borderless window
+        if (!pPrimaryPGE->config.bShowWindowBorder || !pPrimaryPGE->config.bShowWindowTilebar) return static_cast<unsigned int>(NSWindowStyleMask::Titled);
+
+        // On MacOS, the maximize button is tied to the resizable style, therefore there is no need to implemenent a separate bShowWindowMaximiseButton config,
+        // For MacOS you can only disable the buttons, you can't hide them
+        if (pPrimaryPGE->config.bFullScreen)               nsStyle |= static_cast<unsigned int>(NSWindowStyleMask::FullSizeContentView);      // Fullscreen window
+        if (pPrimaryPGE->config.bShowWindowTilebar)        nsStyle |= static_cast<unsigned int>(NSWindowStyleMask::Titled);          // Add a title bar
+        if (pPrimaryPGE->config.bShowWindowBorder)         nsStyle |= static_cast<unsigned int>(NSWindowStyleMask::Titled);          // Add a border
+        if (pPrimaryPGE->config.bResizeable)               nsStyle |= static_cast<unsigned int>(NSWindowStyleMask::Resizable);       // Enable resizing
+        if (pPrimaryPGE->config.bShowWindowMinimiseButton) nsStyle |= static_cast<unsigned int>(NSWindowStyleMask::Miniaturizable);  // Add Min Button
+        if (pPrimaryPGE->config.bShowWindowCloseButton)    nsStyle |= static_cast<unsigned int>(NSWindowStyleMask::Closable);        // Add Close Button
+
+        return nsStyle;
+        
     }
 
     bool Host_Apple_MacOS::OnApplicationStart(olc::PixelGameEngine* pPrimary){
@@ -245,7 +288,8 @@ namespace olc::host {
         MacEventsHandler();
         
         // Create the window
-        pMacOSWindow->show();
+        unsigned long styleMask = ConvertPGE2WindowStyle();
+        pMacOSWindow->show(styleMask);
         pMacOSEventHandler->enable();
         
         //--- Start up our engine threading system -----
@@ -383,7 +427,7 @@ namespace olc::host {
     {
         // This method should only be called on the PGE thread, use AddPendingMainThreadTask(CREATE_OPENGL_RENDERER); to queue it if needed
         if(pMacOSOpenGLRenderer == nullptr)
-       {
+        {
            vMacOSWindowDescriptors.clear(); // ensure we are starting fresh
            pMacOSOpenGLRenderer = std::make_shared<olc::apis::macos::OpenGLRenderer>();
            
@@ -405,7 +449,13 @@ namespace olc::host {
 
             // Set up OpenGL renderer for visual feedback
            pMacOSOpenGLRenderer->makeCurrentContext();
-       }
+            
+            // Finally we set full screen if needed to ensure all out OpenGL setup is done before toggling full screen,
+            if(pPrimaryPGE->config.bFullScreen){
+                SetFullScreen(pPGEwindow, true);
+            }
+           
+        }
         
         return true;
     }
@@ -533,9 +583,13 @@ namespace olc::host {
            vPendingMainThreadTasks.push_back(CREATE_OPENGL_RENDERER);
            // We need to wait until the application has launched to get the keyboard layout
            pPGEwindow->keyboard.UseKeyboardLayout(GetKeyboardLayout());
+        
+           
        });
        
-       pMacApplication->setWillTerminateCallback([&]() { });
+       pMacApplication->setWillTerminateCallback([&]() {
+		   //todo : add any cleanup code here if needed
+           });
        
        pMacApplication->setDidBecomeActiveCallback([]() { });
        

@@ -4000,12 +4000,21 @@ namespace olc
 
 		// These three are inherited from WindowConfig
 		// Start in full-screen mode
-		// bool bFullScreen = false;
-		// // Allow full screen as an option with ALT-ENTER
-		// bool bFullScreenable = true;
-		// // Allow the window to be resized by user
-		// bool bResizeable = true;
-		
+		bool bFullScreen = false;
+		// Allow full screen as an option with ALT-ENTER
+		bool bFullScreenable = true;
+		// Allow the window to be resized by user
+		bool bResizeable = true;
+		// Allow the window border to be hidden by user
+		bool bShowWindowBorder = true;
+		// Allow the window title bar to be hidden by user
+		bool bShowWindowTilebar = true;
+		// Allow the windows minimise button to be hidden by user
+		bool bShowWindowMinimiseButton = true;
+		// Allow the windows maximised button to be hidden by user
+		bool bShowWindowMaximiseButton = true;
+		// Allow the windows close button to be hidden by user
+		bool bShowWindowCloseButton = true;
 		// Synchronise rendering with monitor
 		bool bVSync = OLC_DEFAULT_VSYNC;
 		// Behave like a host window, resizing the screen in response to window resize
@@ -4330,6 +4339,7 @@ namespace olc
 			std::atomic<bool> systemActive = false;
 			HCURSOR hCursorDefault = nullptr;
 			HCURSOR hCursorNow = nullptr;
+			DWORD ConvertPGE2WindowStyle(const olc::Window* pWindow);
 
 		public:
 			LRESULT OnWindowEvent(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
@@ -4383,7 +4393,7 @@ extern "C" {
     
     // Window API - as implemented in api_macos.c
     struct Window* window_init           (double x, double y, double width, double height);
-    void window_create                   (struct Window* self);
+    void window_create                   (struct Window* self, unsigned long styleMask);
     void window_show                     (struct Window* self);
     void window_destroy                  (struct Window* self);
     void window_setTitle                 (struct Window* self, const char* title);
@@ -4399,6 +4409,8 @@ extern "C" {
     void window_setContentViewFrame      (struct Window* self, double* x, double* y, double* width, double* height);
     void window_setCursorVisibility      (struct Window* self, BOOL visible);
     void window_setCursorPosition        (struct Window* self, double x, double y);
+    void window_toggleFullScreen         (struct Window* self);
+    bool window_isFullScreen             (struct Window* self);
 
     // OpenGL Renderer API - as implemented in api_macos.c
     struct OpenGLRenderer* opengl_init    (void);
@@ -4689,10 +4701,10 @@ namespace olc {
                 struct ::Window* getCHandle() const noexcept { return window_; }
                 
                 // Create and show the window
-                void show() {
+                void show(unsigned long styleMask) {
                     if (window_) {
                         setTitle(title_);
-                        window_create(window_);
+                        window_create(window_, styleMask);
                         window_show(window_);
                     }
                 }
@@ -4948,6 +4960,19 @@ namespace olc {
                     if (window_) {
                         window_setCursorVisibility(window_, visible);
                     }
+                }
+                
+                void toggleFullScreen() noexcept {
+                    if (window_) {
+                        window_toggleFullScreen(window_);
+                    }
+                }
+
+                bool isFullScreen() noexcept {
+                    if (window_) {
+                        return window_isFullScreen(window_);
+                    }
+                    return false;
                 }
                 
                 
@@ -5496,7 +5521,6 @@ namespace olc
             virtual bool SetMouseVisible(olc::Window* pWindow, const bool bVisible) override;
             // Set a window to fullscreen or not fullscreen
             virtual bool SetFullScreen(olc::Window* pWindow, const bool bFullScreen) override;
-            
 
         public: // OS Specific Environment Information
             virtual olc::KeyboardLayout GetKeyboardLayout() const override;
@@ -5581,6 +5605,8 @@ namespace olc
             void MacOpenGLContextEventsHandler();
             void KeyboardEventHandler(const olc::apis::macos::KeyEvent& event, bool isPressed);
             bool bNumLockActive = true;         // Num Lock state, we assume it's active at start
+            uint16_t ConvertPGE2WindowStyle();
+            
             
         };
     }
@@ -7411,25 +7437,26 @@ namespace olc::host
 
 		// Define window furniture
 		DWORD dwExStyle = WS_EX_APPWINDOW | WS_EX_WINDOWEDGE;
-		DWORD dwStyle = WS_CAPTION | WS_SYSMENU | WS_VISIBLE | WS_THICKFRAME;
+		DWORD dwStyle = ConvertPGE2WindowStyle(pWindow);
 
 		olc::vi2d vTopLeft = vWindowPos;
 
-		//// Handle Fullscreen
-		//if (bFullScreen)
-		//{
-		//	dwExStyle = 0;
-		//	dwStyle = WS_VISIBLE | WS_POPUP;
-		//	HMONITOR hmon = MonitorFromWindow(olc_hWnd, MONITOR_DEFAULTTONEAREST);
-		//	MONITORINFO mi = { sizeof(mi) };
-		//	if (!GetMonitorInfo(hmon, &mi)) return olc::rcode::FAIL;
-		//	vWindowSize = { mi.rcMonitor.right, mi.rcMonitor.bottom };
-		//	vTopLeft.x = 0;
-		//	vTopLeft.y = 0;
-		//}
+		if (bFullScreen || pPrimaryPGE->config.bFullScreen)
+		{
+			dwExStyle = 0;
+			dwStyle = WS_VISIBLE | WS_POPUP;
+			POINT olc_pt = { vWinPos.x, vWinPos.y };
+			HMONITOR hmon = MonitorFromPoint(olc_pt, MONITOR_DEFAULTTONEAREST);
+			MONITORINFO mi = { sizeof(mi) };
+			if (!GetMonitorInfo(hmon, &mi)) return false;
+			vWinSize = { mi.rcMonitor.right, mi.rcMonitor.bottom };
+			vTopLeft.x = 0;
+			vTopLeft.y = 0;
+		}
+
 
 		// Keep client size as requested
-		RECT rWndRect = { 0, 0, vWindowSize.x, vWindowSize.y };
+		RECT rWndRect = { 0, 0, vWinSize.x, vWinSize.y };
 		AdjustWindowRectEx(&rWndRect, dwStyle, FALSE, dwExStyle);
 		int width = rWndRect.right - rWndRect.left;
 		int height = rWndRect.bottom - rWndRect.top;
@@ -7444,8 +7471,15 @@ namespace olc::host
 		GetClientRect(hWnd, &rClient);
 		pWindow->SetWindowSize({ rClient.right - rClient.left, rClient.bottom - rClient.top });
 
+		// Hide the close button if the user requested it, but only after styles are applied,
+		if (!pPrimaryPGE->config.bShowWindowCloseButton)
+		{
+			HMENU hMenu = GetSystemMenu(hWnd, FALSE);
+			DeleteMenu(hMenu, SC_CLOSE, MF_BYCOMMAND);
+		}
+
 		LONG_PTR lp = GetWindowLongPtr(hWnd, GWL_STYLE);
-		SetWindowLongPtr(hWnd, GWL_STYLE, lp | (WS_CAPTION | WS_SYSMENU | WS_POPUPWINDOW | WS_THICKFRAME));
+		SetWindowLongPtr(hWnd, GWL_STYLE, lp | (dwStyle));
 		lp = GetWindowLongPtr(hWnd, GWL_EXSTYLE);
 		SetWindowLongPtr(hWnd, GWL_EXSTYLE, lp | (WS_EX_WINDOWEDGE));
 
@@ -7533,21 +7567,53 @@ namespace olc::host
 			// Maximise, make on top, remove border and titlebar
 			SetWindowLongPtr(hWnd, GWL_STYLE, WS_POPUP | WS_VISIBLE);
 			SetWindowLongPtr(hWnd, GWL_EXSTYLE, WS_EX_TOPMOST);
-			ShowWindow(hWnd, SW_MAXIMIZE);		
+			ShowWindow(hWnd, SW_MAXIMIZE);
 		}
 		else
 		{
 			// Restore original window style and position
-			SetWindowLongPtr(hWnd, GWL_STYLE, WS_CAPTION | WS_SYSMENU | WS_VISIBLE | WS_THICKFRAME);
-			SetWindowLongPtr(hWnd, GWL_EXSTYLE, WS_EX_APPWINDOW | WS_EX_WINDOWEDGE);
-			ShowWindow(hWnd, SW_RESTORE);	
+			DWORD dwExStyle = WS_EX_APPWINDOW | WS_EX_WINDOWEDGE;
+			// Get the style we should have based on the window config
+			DWORD dwStyle = ConvertPGE2WindowStyle(pWindow);
+
+			LONG_PTR lp = GetWindowLongPtr(hWnd, GWL_STYLE);
+			SetWindowLongPtr(hWnd, GWL_STYLE, lp | dwStyle);
+			lp = GetWindowLongPtr(hWnd, GWL_EXSTYLE);
+			SetWindowLongPtr(hWnd, GWL_EXSTYLE, lp | dwExStyle);
+			ShowWindow(hWnd, SW_NORMAL);
 		}
 
 		UpdateWindow(hWnd);
 		SetForegroundWindow(hWnd);
 		SetFocus(hWnd);
-		SetActiveWindow(hWnd);			
+		SetActiveWindow(hWnd);
 		return true;
+	}
+
+	DWORD Host_Windows_WinAPI::ConvertPGE2WindowStyle(const olc::Window* pWindow)
+	{
+		olc_IgnoreUnused(pWindow);
+
+		DWORD dwStyle = WS_OVERLAPPED | WS_VISIBLE; // Default style for CreateWindowEx
+
+		// Note for Microsoft: if you hide the border, it hides the title bar too, and via versa
+
+		// For fullscreen,borderless/noTitlebar we want to skip all the window furniture and just have a big ol canvas
+		if (!pPrimaryPGE->config.bShowWindowBorder || !pPrimaryPGE->config.bShowWindowTilebar) return dwStyle |= WS_POPUP;
+
+		// If any max/min/close button(s) display the button menu
+		if (pPrimaryPGE->config.bShowWindowCloseButton || pPrimaryPGE->config.bShowWindowMaximiseButton || pPrimaryPGE->config.bShowWindowMinimiseButton) dwStyle |= WS_SYSMENU;
+		if (pPrimaryPGE->config.bShowWindowTilebar)			dwStyle |= WS_CAPTION;		// Add a title bar
+		if (pPrimaryPGE->config.bShowWindowBorder)			dwStyle |= WS_BORDER;		// Add a border
+		if (pPrimaryPGE->config.bResizeable)				dwStyle |= WS_THICKFRAME;	// Enable resizing
+		if (pPrimaryPGE->config.bShowWindowMinimiseButton)	dwStyle |= WS_MINIMIZEBOX;	// Add Min Button
+		if (pPrimaryPGE->config.bShowWindowMaximiseButton)	dwStyle |= WS_MAXIMIZEBOX;	// Add Max Button
+
+		// Note: Close button is handled after dwStlyes are applied
+
+		return dwStyle;
+
+
 	}
 		
 	LRESULT Host_Windows_WinAPI::OnWindowEvent(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
@@ -7808,6 +7874,22 @@ namespace olc::host {
     constexpr unsigned int NSEventModifierFlagHelp       = 1 << 22; // 0x400000
     constexpr unsigned int NSEventModifierFlagFunction   = 1 << 23; // 0x800000
 
+    // enum for window appearance and behavior bit flags
+    enum class NSWindowStyleMask : uint16_t {
+        Titled                   = (1 << 0),     // Window has a title bar
+        Closable                 = (1 << 1),     // Window can be closed
+        Miniaturizable           = (1 << 2),     // Window can be minimized
+        Resizable                = (1 << 3),     // Window can be resized
+        UtilityWindow            = (1 << 4),     // Utility window style
+        DocModalWindow           = (1 << 6),     // Document-modal window
+        NonactivatingPanel       = (1 << 7),     // Non-activating panel
+        TexturedBackground       = (1 << 8),     // Textured background
+        HUDWindow                = (1 << 13),    // Heads-up display window
+        UnifiedTitleAndToolbar   = (1 << 12),    // Unified title and toolbar
+        FullScreen               = (1 << 14),    // Full-screen window
+        FullSizeContentView      = (1 << 15)     // Full-size content view
+    };
+
 
     Host_Apple_MacOS::Host_Apple_MacOS()
     {
@@ -7998,8 +8080,35 @@ namespace olc::host {
     }
 
     bool Host_Apple_MacOS::SetFullScreen(olc::Window* pWindow, const bool bFullScreen)
-{
-        return false; // Fullscreen is currently not supported on MacOS Host
+    {
+        // if we're already in the specified state, return early
+        if(pMacOSWindow->isFullScreen() == bFullScreen)
+            return true;
+
+        dispatch_async(dispatch_get_main_queue(), ^{
+            pMacOSWindow->toggleFullScreen();
+        });
+        return true;
+    }
+
+    uint16_t Host_Apple_MacOS::ConvertPGE2WindowStyle()
+    {
+        uint16_t nsStyle = 0;
+        
+        // Note for MacOS: You cannot fully hide both the title bar and border, therefore we return titled when both are disabled, which is the closest we can get to a borderless window
+        if (!pPrimaryPGE->config.bShowWindowBorder || !pPrimaryPGE->config.bShowWindowTilebar) return static_cast<unsigned int>(NSWindowStyleMask::Titled);
+
+        // On MacOS, the maximize button is tied to the resizable style, therefore there is no need to implemenent a separate bShowWindowMaximiseButton config,
+        // For MacOS you can only disable the buttons, you can't hide them
+        if (pPrimaryPGE->config.bFullScreen)               nsStyle |= static_cast<unsigned int>(NSWindowStyleMask::FullSizeContentView);      // Fullscreen window
+        if (pPrimaryPGE->config.bShowWindowTilebar)        nsStyle |= static_cast<unsigned int>(NSWindowStyleMask::Titled);          // Add a title bar
+        if (pPrimaryPGE->config.bShowWindowBorder)         nsStyle |= static_cast<unsigned int>(NSWindowStyleMask::Titled);          // Add a border
+        if (pPrimaryPGE->config.bResizeable)               nsStyle |= static_cast<unsigned int>(NSWindowStyleMask::Resizable);       // Enable resizing
+        if (pPrimaryPGE->config.bShowWindowMinimiseButton) nsStyle |= static_cast<unsigned int>(NSWindowStyleMask::Miniaturizable);  // Add Min Button
+        if (pPrimaryPGE->config.bShowWindowCloseButton)    nsStyle |= static_cast<unsigned int>(NSWindowStyleMask::Closable);        // Add Close Button
+
+        return nsStyle;
+        
     }
 
     bool Host_Apple_MacOS::OnApplicationStart(olc::PixelGameEngine* pPrimary){
@@ -8034,7 +8143,8 @@ namespace olc::host {
         MacEventsHandler();
         
         // Create the window
-        pMacOSWindow->show();
+        unsigned long styleMask = ConvertPGE2WindowStyle();
+        pMacOSWindow->show(styleMask);
         pMacOSEventHandler->enable();
         
         //--- Start up our engine threading system -----
@@ -8172,7 +8282,7 @@ namespace olc::host {
     {
         // This method should only be called on the PGE thread, use AddPendingMainThreadTask(CREATE_OPENGL_RENDERER); to queue it if needed
         if(pMacOSOpenGLRenderer == nullptr)
-       {
+        {
            vMacOSWindowDescriptors.clear(); // ensure we are starting fresh
            pMacOSOpenGLRenderer = std::make_shared<olc::apis::macos::OpenGLRenderer>();
            
@@ -8194,7 +8304,13 @@ namespace olc::host {
 
             // Set up OpenGL renderer for visual feedback
            pMacOSOpenGLRenderer->makeCurrentContext();
-       }
+            
+            // Finally we set full screen if needed to ensure all out OpenGL setup is done before toggling full screen,
+            if(pPrimaryPGE->config.bFullScreen){
+                SetFullScreen(pPGEwindow, true);
+            }
+           
+        }
         
         return true;
     }
@@ -8322,9 +8438,13 @@ namespace olc::host {
            vPendingMainThreadTasks.push_back(CREATE_OPENGL_RENDERER);
            // We need to wait until the application has launched to get the keyboard layout
            pPGEwindow->keyboard.UseKeyboardLayout(GetKeyboardLayout());
+        
+           
        });
        
-       pMacApplication->setWillTerminateCallback([&]() { });
+       pMacApplication->setWillTerminateCallback([&]() {
+		   //todo : add any cleanup code here if needed
+           });
        
        pMacApplication->setDidBecomeActiveCallback([]() { });
        
@@ -8549,6 +8669,8 @@ static constexpr const char* kMakeKeyWindowSel                  = "makeKeyWindow
 static constexpr const char* kFrameSel                          = "frame";
 static constexpr const char* kSetFrameDisplaySel                = "setFrame:display:";
 static constexpr const char* kSetFrameSel                       = "setFrame:";
+static constexpr const char* kStyleMaskSel                      = "styleMask";
+static constexpr const char* kToggleFullScreenSel               = "toggleFullScreen:";
 
 // NSWindowDelegate lifecycle and event methods selectors
 static constexpr const char* kWindowDidResizeSel                = "windowDidResize:";
@@ -8695,6 +8817,8 @@ namespace ObjectiveCSEL {
    static SEL setFrameDisplaySel            = nullptr;
    static SEL setFrameSel                   = nullptr;
    static SEL makeFirstResponderSel         = nullptr;
+   static SEL styleMaskSel                  = nullptr;
+   static SEL toggleFullScreenSel           = nullptr;
 
    // NSWindowDelegate lifecycle and event methods selectors
    static SEL windowDidResizeSel        = nullptr;
@@ -8812,7 +8936,9 @@ namespace ObjectiveCSEL {
         frameSel                            = sel_registerName(kFrameSel);
         setFrameDisplaySel                  = sel_registerName(kSetFrameDisplaySel);
         setFrameSel                         = sel_registerName(kSetFrameSel);
-
+        styleMaskSel                        = sel_registerName(kStyleMaskSel);
+        toggleFullScreenSel                 = sel_registerName(kToggleFullScreenSel);
+        
         // NSWindowDelegate lifecycle and event methods selectors
         windowDidResizeSel                  = sel_registerName(kWindowDidResizeSel);
         windowWillCloseSel                  = sel_registerName(kWindowWillCloseSel);
@@ -9025,6 +9151,7 @@ static constexpr int NSWindowStyleMaskTitled         = static_cast<int>(NSWindow
 static constexpr int NSWindowStyleMaskClosable       = static_cast<int>(NSWindowStyleMask::Closable);
 static constexpr int NSWindowStyleMaskMiniaturizable = static_cast<int>(NSWindowStyleMask::Miniaturizable);
 static constexpr int NSWindowStyleMaskResizable      = static_cast<int>(NSWindowStyleMask::Resizable);
+static constexpr int NSWindowStyleMaskFullScreen     = static_cast<int>(NSWindowStyleMask::FullScreen);
 
 // enum for backing store types
 enum class NSBackingStoreType : uint8_t {
@@ -9187,7 +9314,7 @@ struct Window {
     void* windowDidDeminiaturizeUserData{nullptr}; // User data for window did deminiaturize callback
     
     // Method function pointers with nullptr initialization
-    void (*create)          (struct Window* self){nullptr};
+    void (*create)          (struct Window* self, unsigned long styleMask){nullptr};
     void (*show)            (struct Window* self){nullptr};
     void (*destroy)         (struct Window* self){nullptr};
     void (*setDelegate)     (struct Window* self, id delegate){nullptr};
@@ -9931,7 +10058,7 @@ extern "C" {
     }
 
     // Create the NSWindow instance
-    void window_create(Window* self) {
+    void window_create(Window* self, unsigned long styleMask) {
         ObjectiveCSEL::ensureInitialized(); // Ensure selectors are initialized
 
         // Get classes using const strings
@@ -9940,9 +10067,6 @@ extern "C" {
 
         // Create window
         id windowAlloc = ((id(*)(Class, SEL))objc_msgSend)(NSWindowClass, ObjectiveCSEL::allocSel);
-        
-        unsigned long styleMask = NSWindowStyleMaskTitled | NSWindowStyleMaskClosable |
-                                NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskResizable;
         
         self->nsWindow = ((id(*)(id, SEL, NSRect, unsigned long, unsigned long, BOOL))objc_msgSend)(
                         windowAlloc, ObjectiveCSEL::initWithContentRectSel, self->windowFrame, styleMask,
@@ -10181,6 +10305,16 @@ extern "C" {
         } else {
             ((void (*)(Class, SEL))objc_msgSend)(objc_getClass(kNSCursorClass), ObjectiveCSEL::unhideSel);
         }
+    }
+
+    void window_toggleFullScreen(Window* self) {
+        // Toggle fullscreen
+        ((void (*)(id, SEL, id))objc_msgSend)(self->nsWindow, ObjectiveCSEL::toggleFullScreenSel, nil);
+    }
+
+    bool window_isFullScreen(Window* self) {
+        unsigned long mask = ((unsigned long (*)(id, SEL))objc_msgSend)(self->nsWindow, ObjectiveCSEL::styleMaskSel);
+        return (mask & NSWindowStyleMaskFullScreen);
     }
 
     // Initialize OpenGL renderer
