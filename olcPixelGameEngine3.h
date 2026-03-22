@@ -7377,6 +7377,7 @@ namespace olc::host
 		mapKeys[VK_CONTROL] = Key::CTRL;
 		mapKeys[VK_SPACE] = Key::SPACE;
 		mapKeys[VK_CAPITAL] = Key::CAPS_LOCK;
+		mapKeys[VK_MENU] = Key::ALT;
 
 		// Numpad
 		mapKeys[VK_NUMPAD0] = Key::NP0;
