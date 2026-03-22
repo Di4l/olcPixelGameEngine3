@@ -370,7 +370,6 @@ protected:
 
     std::vector<Fish> others;
     std::vector<olc::vf2d> targets;
-    bool fullscreen = false;
 public:
 	// Called once at the start, so create things here
 	bool OnUserCreate() override
@@ -390,8 +389,8 @@ public:
 	{
         olc::Pixel background_color{73, 220, 222};
         if(GetKeyboard().GetKey(olc::Key::ALT).bHeld && GetKeyboard().GetKey(olc::Key::ENTER).bPressed) {
-            fullscreen = !fullscreen;
-            ShowFullScreen(fullscreen);
+            bWindowIsFullscreen = !bWindowIsFullscreen;
+            ShowFullScreen(bWindowIsFullscreen);
         }
 
         // Clear screen to a background color
@@ -437,10 +436,14 @@ int main()
 {
 	// Construct demo application
 	Example_Fish demo;
-
+    olc::PGEConfig config;
+    config.vScreenSize = {256, 240};
+    config.vPixelSize = {4, 4};
+    //config.bFullScreenable = false;
+    config.bResizeable = false;
 	// Create "screen" of 256x240 "pixels"
 	// with a pixel size of 4x4 actual screen pixels
-	if (demo.Construct({ 256, 240 }, { 4, 4 }))
+	if (demo.Construct(config))
 	{
 		// Start the application
 		demo.Start();

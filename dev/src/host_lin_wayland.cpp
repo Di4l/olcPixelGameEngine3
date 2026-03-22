@@ -351,6 +351,10 @@ namespace olc::host
             w.toplevel = xdg_surface_get_toplevel(w.surface_xdg);
             xdg_toplevel_set_title(w.toplevel, "OneLoneCoder.com - Pixel Game Engine");
             xdg_toplevel_add_listener(w.toplevel, &xdg::xdg_top_listener, this);
+            if (!pWindow->config.bResizeable) {
+                xdg_toplevel_set_max_size(w.toplevel, vWindowSize.x, vWindowSize.y);
+                xdg_toplevel_set_min_size(w.toplevel, vWindowSize.x, vWindowSize.y);
+            }
             
             #ifdef ENABLE_DECORATION_PROTOCOL
             w.decorations = zxdg_decoration_manager_v1_get_toplevel_decoration(decoration_manager, w.toplevel);
@@ -365,7 +369,13 @@ namespace olc::host
             w.floating_height = vWindowSize.y;
             libdecor_frame_set_app_id(w.decor_frame, "olcPixelGameEngine");
             libdecor_frame_set_title(w.decor_frame, "OneLoneCoder.com - Pixel Game Engine");
+
+            if(!pWindow->config.bResizeable) {
+                libdecor_frame_unset_capabilities(w.decor_frame, LIBDECOR_ACTION_RESIZE);
+            }
+
             libdecor_frame_map(w.decor_frame);
+
         }
         #endif
 
@@ -479,7 +489,7 @@ namespace olc::host
     {
         auto itr = mapUID2Window.find(pWindow->GetUID());
         if(itr != mapUID2Window.end()) {
-            itr->second.fullscreen = bFullScreen;
+            pWindow->bWindowIsFullscreen = bFullScreen;
             if(bFullScreen) {
                 #ifdef ENABLE_LIBDECOR
                 if(using_libdecor) {
@@ -554,26 +564,42 @@ namespace olc::host
 
     void Host_Linux_Wayland::xdg_toplevel_configure(xdg_toplevel* toplevel, int32_t width, int32_t height, wl_array* states)
     {
-        for(auto& i : mapUID2Window) {
-            auto& w = i.second;
-            if(w.toplevel == toplevel) {
-                // Attempt to constrain the window size to what the compositor may have told us earlier
-                // in a bounds_configure message
-                if(!w.fullscreen) {
-                    if(w.bounds_x != 0) {
-                        width = std::min<int32_t>(width, w.bounds_x);
-                    }
-    
-                    if(w.bounds_y != 0) {
-                        height = std::min<int32_t>(height, w.bounds_y);
-                    }
-                }
-                
-                mapUID2OlcWindow[i.first]->olc_OnWindowSize({width, height});
-                wl_egl_window_resize(i.second.window, width, height, 0, 0);
-                wl_surface_commit(i.second.surface);
+        const auto& itr = std::find_if(mapUID2Window.begin(), mapUID2Window.end(), [=](const auto& w){return w.second.toplevel == toplevel;});
+        if(itr == mapUID2Window.end())
+        {
+            return;
+        }
+
+        auto& [uid, window] = *itr;
+        const auto& olc_window = mapUID2OlcWindow.at(uid);
+
+        bool attempt_fullscreen {false};
+        auto* state = reinterpret_cast<xdg_toplevel_state*>(states->data);
+        auto* end = static_cast<const char*>(states->data) + states->size;
+        for(;reinterpret_cast<const char*>(state) < end; state++)
+        {
+            // The window.fullscreen is set any time the user commands via ShowFullscreen(), so we should allow this
+            if (*state == xdg_toplevel_state::XDG_TOPLEVEL_STATE_FULLSCREEN)
+            {
+                attempt_fullscreen = true;
             }
         }
+
+        // If we're not going fullscreen, try to obey the bounds that have been configured by the compositor
+        if(!attempt_fullscreen) {
+            if(window.bounds_x != 0) {
+                width = std::min<int32_t>(width, window.bounds_x);
+            }
+
+            if(window.bounds_y != 0) {
+                height = std::min<int32_t>(height, window.bounds_y);
+            }
+        }
+        
+        olc_window->bWindowIsFullscreen = attempt_fullscreen;
+        olc_window->olc_OnWindowSize({width, height});
+        wl_egl_window_resize(window.window, width, height, 0, 0);
+        wl_surface_commit(window.surface);
     }
 
     void Host_Linux_Wayland::xdg_toplevel_close(xdg_toplevel* toplevel)
@@ -993,6 +1019,7 @@ namespace olc::host
         for(auto& i : mapUID2Window) {
             if(i.second.decor_frame == frame) {
                 auto* window = &i.second;
+                auto& olc_window = mapUID2OlcWindow.at(i.first);
 
                 int width{};
                 int height{};
@@ -1010,11 +1037,13 @@ namespace olc::host
                 libdecor_frame_commit(frame, state, config);
                 libdecor_state_free(state);
 
-                if(libdecor_frame_is_floating(frame)) {
+                // If we're not returning from fullscreen, goahead and resize
+                if(libdecor_frame_is_floating(frame) && !olc_window->bWindowIsFullscreen) {
                     window->floating_width = width;
                     window->floating_height = height;
                 }
 
+                olc_window->bWindowIsFullscreen = (window->decor_window_state & LIBDECOR_WINDOW_STATE_FULLSCREEN) != 0;
                 mapUID2OlcWindow[i.first]->olc_OnWindowSize({window->configured_width, window->configured_height});
                 wl_egl_window_resize(window->window, window->configured_width, window->configured_height, 0, 0);
                 wl_surface_commit(window->surface);

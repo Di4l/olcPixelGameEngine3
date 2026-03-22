@@ -142,12 +142,50 @@ namespace olc::host
 
                 if (xev.type == Expose)
                 {
-                    //auto* expose_event = reinterpret_cast<XExposeEvent*>(&xev);
                     X11::XExposeEvent& e = xev.xexpose;
+                    X11::Atom wm_state;
+                    wm_state = X11::XInternAtom(olc_Display, "_NET_WM_STATE", True);
+                    bool did_fullscreen = false;
+
+                    X11::Atom actual_type;
+                    int actual_format;
+                    unsigned long int num_items;
+                    unsigned long int bytes;
+                    unsigned char* property{nullptr};
+                    int res = X11::XGetWindowProperty(e.display, e.window, wm_state, 
+                        0, 
+                        ~0, 
+                        False,
+                        AnyPropertyType,
+                        &actual_type,
+                        &actual_format,
+                        &num_items,
+                        &bytes,
+                        &property
+                    );
+
+                    if(res == Success) {
+                        char* name;
+                        if(X11::XGetAtomNames(e.display, (Atom*)property, num_items, &name))
+                        {
+                            for(int i = 0; i < num_items; i++)
+                            {
+                                if(std::strcmp(name + i, "_NET_WM_STATE_FULLSCREEN") == 0) {
+                                    did_fullscreen = true;
+                                }
+                            }
+                        }                        
+                    }
+
                     if(auto* pge_window = get_pge_window(e.window); pge_window) {
-                        X11::XWindowAttributes gwa;
-                        X11::XGetWindowAttributes(e.display, e.window, &gwa);
-                        pge_window->olc_OnWindowSize(olc::vi2d{gwa.width, gwa.height});
+                        if(did_fullscreen && (!pge_window->config.bFullScreenable || !pge_window->config.bResizeable) && !pge_window->bWindowIsFullscreen) {
+                            SetFullScreen(pge_window, false);
+                        } else {
+                            X11::XWindowAttributes gwa;
+                            X11::XGetWindowAttributes(e.display, e.window, &gwa);
+                            pge_window->olc_OnWindowSize(olc::vi2d{gwa.width, gwa.height});
+                            pge_window->bWindowIsFullscreen = did_fullscreen;
+                        }
                     }
                 }
                 else if (xev.type == ConfigureNotify)
@@ -303,6 +341,16 @@ namespace olc::host
             
         X11::Atom wmDelete = XInternAtom(olc_Display, "WM_DELETE_WINDOW", true);
         X11::XSetWMProtocols(olc_Display, olc_Window, &wmDelete, 1);
+        if(!pWindow->config.bResizeable)
+        {
+            X11::XSizeHints size_hints;
+            size_hints.min_width = vWindowSize.x;
+            size_hints.max_width = vWindowSize.x;
+            size_hints.min_height = vWindowSize.y;
+            size_hints.max_height = vWindowSize.y;
+            size_hints.flags = PMinSize | PMaxSize;
+            X11::XSetNormalHints(olc_Display, olc_Window, &size_hints);
+        }
         
         XMapWindow(olc_Display, olc_Window);
         XStoreName(olc_Display, olc_Window, "OneLoneCoder.com - Pixel Game Engine");
@@ -492,6 +540,7 @@ namespace olc::host
         XWindowAttributes gwa;
         XGetWindowAttributes(olc_Display, win, &gwa);
         pWindow->olc_OnWindowSize({gwa.width, gwa.height});
+        pWindow->bWindowIsFullscreen = bFullScreen;
 
         return true;
     }

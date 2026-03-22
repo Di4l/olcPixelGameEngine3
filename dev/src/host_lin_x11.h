@@ -4,6 +4,7 @@
 //! START STDHEADER GLOBAL
 #include <atomic>
 #include <cstdint>
+#include <cstring>
 #include <thread>
 #include <vector>
 #include <unordered_map>
