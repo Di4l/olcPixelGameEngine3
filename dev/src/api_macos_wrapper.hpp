@@ -81,6 +81,7 @@ namespace olc {
                 ~Application() {
                     if (app_) {
                         application_destroy(app_);  // application_destroy now handles delete internally
+                        app_ = nullptr;
                     }
                 }
                 
@@ -96,10 +97,9 @@ namespace olc {
                     if (app_) application_run(app_);
                 }
                 
-                void terminate() noexcept {
+                void stop() noexcept {
                     if (app_) {
                         application_stop(app_);
-                        app_ = nullptr;
                     }
                 }
                 
@@ -898,9 +898,7 @@ namespace olc {
             public:
                 explicit EventHandler(Window& window) noexcept : window_(window) {}
                 
-                ~EventHandler() noexcept {
-                    disable();
-                }
+                ~EventHandler() noexcept {}
                 
                 // Event handler setters - now using template helper
                 void onKeyDown(std::function<void(const KeyEvent&)> handler) {

@@ -3734,6 +3734,17 @@ namespace olc
 		class Keyboard;
 	}
 
+	struct WindowConfig
+	{
+		// Start in full-screen mode
+		bool bFullScreen = false;
+		// Allow full screen as an option with ALT-ENTER
+		bool bFullScreenable = true;
+		// Allow the window to be resized by user
+		bool bResizeable = true;
+	};
+
+
 	class Window
 	{
 		friend class olc::host::OLC_FRIENDLY_HOST;
@@ -3741,6 +3752,7 @@ namespace olc
 
 	public:
 		Window();
+		Window(const WindowConfig& config);
 		virtual ~Window();
 										
 		void LinkToHost(olc::host::Host* host);
@@ -3805,6 +3817,7 @@ namespace olc
 	
 	protected:
 		olc::host::Host* pHost = nullptr;
+		olc::WindowConfig config;
 
 	protected:
 		olc::hw::Mouse mouse;
@@ -3976,7 +3989,7 @@ namespace olc
 namespace olc
 {
 	// A grouping of all settable PGE properties
-	struct PGEConfig
+	struct PGEConfig : public WindowConfig
 	{
 		// Size of "screen" in PGE pixels
 		olc::vi2d vScreenSize = { 256, 240 };
@@ -3984,6 +3997,8 @@ namespace olc
 		olc::vi2d vPixelSize = { 4, 4 };
 		// Top left location of shown main window
 		olc::vi2d vWindowOffset = { 30,30 };
+
+		// These three are inherited from WindowConfig
 		// Start in full-screen mode
 		bool bFullScreen = false;
 		// Allow full screen as an option with ALT-ENTER
@@ -4004,7 +4019,7 @@ namespace olc
 		bool bVSync = OLC_DEFAULT_VSYNC;
 		// Behave like a host window, resizing the screen in response to window resize
 		bool bRealWindow = false;
-		// Ensure aspect ratio of "screen" is mainatined regardless of window size
+		// Ensure aspect ratio of "screen" is maintained regardless of window size
 		bool bRetainAspectRatio = true;
 		// Force "screen" pixels to be integer in size
 		bool bForceIntegerPixelSize = false;
@@ -4023,6 +4038,7 @@ namespace olc
 	{
 	public:
 		PGEWindow();
+		PGEWindow(const WindowConfig& config);
 		bool Create(const olc::vi2d& vScreenSize, const olc::vi2d& vPixelSize);
 	
 	public:
@@ -4546,6 +4562,7 @@ namespace olc {
                 ~Application() {
                     if (app_) {
                         application_destroy(app_);  // application_destroy now handles delete internally
+                        app_ = nullptr;
                     }
                 }
                 
@@ -4561,10 +4578,9 @@ namespace olc {
                     if (app_) application_run(app_);
                 }
                 
-                void terminate() noexcept {
+                void stop() noexcept {
                     if (app_) {
                         application_stop(app_);
-                        app_ = nullptr;
                     }
                 }
                 
@@ -5363,9 +5379,7 @@ namespace olc {
             public:
                 explicit EventHandler(Window& window) noexcept : window_(window) {}
                 
-                ~EventHandler() noexcept {
-                    disable();
-                }
+                ~EventHandler() noexcept {}
                 
                 // Event handler setters - now using template helper
                 void onKeyDown(std::function<void(const KeyEvent&)> handler) {
@@ -8174,7 +8188,6 @@ namespace olc::host {
         pMacApplication->run();
                 
         // Once the application run loop ends, join the system thread
-        systemActive = false;
         if(threadSystem.joinable())
             threadSystem.join();
 
@@ -8199,10 +8212,11 @@ namespace olc::host {
             }
             if (pMacApplication)
             {
-                pMacApplication->terminate();
+                pMacApplication->stop();
             }
 
         });
+        systemActive = false;
         return true;
     }
 
@@ -8633,6 +8647,7 @@ static constexpr const char* kSharedApplicationSel              = "sharedApplica
 static constexpr const char* kActivateIgnoringOtherAppsSel      = "activateIgnoringOtherApps:";
 static constexpr const char* kSetActivationPolicySel            = "setActivationPolicy:";
 static constexpr const char* kRunSel                            = "run";
+static constexpr const char* kStopSel                           = "stop:";
 static constexpr const char* kTerminateSel                      = "terminate:";
 
 // NSApplicationDelegate lifecycle methods
@@ -8774,6 +8789,7 @@ namespace ObjectiveCSEL {
    static SEL activateIgnoringOtherAppsSel = nullptr;
    static SEL setActivationPolicySel       = nullptr;
    static SEL runSel                       = nullptr;
+   static SEL stopSel                      = nullptr;
    static SEL terminateSEL                 = nullptr;
 
    // Application Screen management selectors
@@ -8892,6 +8908,7 @@ namespace ObjectiveCSEL {
         activateIgnoringOtherAppsSel        = sel_registerName(kActivateIgnoringOtherAppsSel);
         setActivationPolicySel              = sel_registerName(kSetActivationPolicySel);
         runSel                              = sel_registerName(kRunSel);
+        stopSel                             = sel_registerName(kStopSel);
         terminateSEL                        = sel_registerName(kTerminateSel);
         
         // Application Screen management selectors
@@ -9241,11 +9258,7 @@ struct Application {
     
     Application() = default;
     
-    ~Application() {
-        if (destroy) {
-            destroy(this);
-        }
-    }
+    ~Application() {}
     
     // Delete copy constructor and assignment
     Application(const Application&) = delete;
@@ -9979,9 +9992,10 @@ extern "C" {
         ((void(*)(id, SEL))objc_msgSend)(self->nsApp, ObjectiveCSEL::runSel);
     }
 
+    // Request to OS to gracefully terminate the application (RAII compatible)
     void application_stop(Application* self) {
         if (self && self->nsApp) {
-            ((void(*)(id, SEL, id))objc_msgSend)(self->nsApp, ObjectiveCSEL::terminateSEL, self->nsApp);
+            ((void(*)(id, SEL, id))objc_msgSend)(self->nsApp, ObjectiveCSEL::stopSel, self->nsApp);
         }
     }
 
@@ -17493,6 +17507,10 @@ namespace olc
 	{
 	}
 
+	PGEWindow::PGEWindow(const WindowConfig& config) : Window(config), draw()
+	{
+	}
+
 	bool PGEWindow::Create(const olc::vi2d& vScreenSize, const olc::vi2d& vPixelSize)
 	{
 		//pRenderer->RetargetDevice(pHost->GetHostWindowDescriptor(this));
@@ -17807,6 +17825,8 @@ namespace olc
 	bool PixelGameEngine::Construct(const PGEConfig& cfg)
 	{		
 		config = cfg;
+		// Also assign the window level config since that is what the Host will see
+		Window::config = cfg;
 
 		// Check for constructor sAppName, if not set use Config sAppName
 		if (sAppName.empty())
@@ -18641,7 +18661,11 @@ namespace olc
 	Window::Window()
 	{
 		nUniqueID = pgeguts::CreateUID();
-		
+	}
+
+	Window::Window(const WindowConfig& config) : config{config}
+	{
+		Window();
 	}
 
 	Window::~Window()

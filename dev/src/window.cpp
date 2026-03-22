@@ -10,7 +10,11 @@ namespace olc
 	Window::Window()
 	{
 		nUniqueID = pgeguts::CreateUID();
-		
+	}
+
+	Window::Window(const WindowConfig& config) : config{config}
+	{
+		Window();
 	}
 
 	Window::~Window()
