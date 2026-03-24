@@ -1242,6 +1242,7 @@ void main()
 
 #if OLC_HOST == OLC_HOST_MACOS
 		// The pointer value in os_win_id[1] will be set to true, when the OS requests to skip the frame swap
+		olc_IgnoreUnused(bVerticalSyncNow);
         const bool* bSkipFrame = static_cast<const bool*>(os_win_id[1]);
 		if (*bSkipFrame) return true;
 		CGLContextObj cglContext = static_cast<CGLContextObj>(os_win_id[0]);

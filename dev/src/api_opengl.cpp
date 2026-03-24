@@ -265,6 +265,8 @@ namespace olc::apis::opengl
 	{
 #if OLC_HOST == OLC_HOST_WINDOWS
 		_wglSwapIntervalEXT(n);
+#else
+		olc_IgnoreUnused(n);
 #endif
 	}
 

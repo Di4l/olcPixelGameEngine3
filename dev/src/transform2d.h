@@ -17,6 +17,10 @@
 
 //! START DECLARATION
 #if !defined(PGE_TRANSFORM2D_DECLARED)
+#if OLC_HOST == OLC_HOST_MACOS
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wignored-qualifiers" // Silence warnings about ignored qualifiers in olc::t_2d
+#endif
 namespace olc
 {
 	namespace internal
@@ -259,6 +263,9 @@ namespace olc
 	typedef t_2d<float> tf2d;
 	typedef t_2d<double> td2d;
 }
+#if OLC_HOST == OLC_HOST_MACOS
+#pragma clang diagnostic pop
+#endif
 #define PGE_TRANSFORM2D_DECLARED 1
 #endif
 //! END DECLARATION

@@ -3,6 +3,10 @@
 #include "gpu_iface.h"
 
 //! START IMPLEMENTATION
+#if OLC_HOST == OLC_HOST_MACOS
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wpessimizing-move"  // Suppress clang C++20 warning about moves preventing copy elision on macOS
+#endif
 using namespace olc;
 
 // Some local pools to reduce allocations
@@ -1167,5 +1171,9 @@ const olc::mf4d& olc::Draw::GetMVPMatrix() const
 {
 	return matMVP;
 }
+
+#if OLC_HOST == OLC_HOST_MACOS
+#pragma clang diagnostic pop
+#endif
 
 //! END IMPLEMENTATION
