@@ -127,10 +127,10 @@
 	[#] FilledPolygon(batch, structure, points[], colours[])	
 
 	[#] TexturedTriangle(p1, p2, p3, c1, c2, c3, uv1, uv2, uv3, image, [tint])
-	[ ] TexturedTriangle(batch, p1, p2, p3, c1, c2, c3, uv1, uv2, uv3, image, [tint])
+	[#] TexturedTriangle(batch, p1, p2, p3, c1, c2, c3, uv1, uv2, uv3, image, [tint])
 
 	[#] TexturedPolygon(structure, points[], colours[], uvs[], image, [tint])	
-	[ ] TexturedPolygon(batch, structure, points[], colours[], uvs[], image, [tint])
+	[#] TexturedPolygon(batch, structure, points[], colours[], uvs[], image, [tint])
 
 	[#] String(pos, text, col, [scale], [font])
 	[#] StringProp(pos, text, col, [scale], [font])
@@ -697,6 +697,15 @@ namespace olc
 			const olc::Pixel tint = olc::Colour::WHITE);
 
 		
+		// Draws a textured polygon with per vertex colouring into a batch
+		const TextureBatch& TexturedPolygon(
+			olc::TextureBatch& batch,
+			const olc::Structure structure,
+			const std::vector<olc::vf2d>& vecPoints,
+			const std::vector<olc::Pixel>& vecColours,
+			const std::vector<olc::vf2d>& vecTexCoords,			
+			const olc::Pixel tint = olc::Colour::WHITE);
+
 
 		// Draws a textured polygon with per vertex colouring
 		const GPUTask& TexturedPolygon(
