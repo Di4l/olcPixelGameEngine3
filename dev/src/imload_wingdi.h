@@ -71,7 +71,8 @@ namespace olc
 
 			// Store an image as a file asset in memory
 			bool WriteImageToMemoryFile(olc::Image& image, const std::vector<uint8_t>& data) override;
-
+		private:
+			bool DecodeBMP(olc::Image& image, Gdiplus::Bitmap* bmp);
 		};
 	}
 }

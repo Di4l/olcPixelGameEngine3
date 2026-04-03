@@ -62,6 +62,8 @@ namespace olc
             virtual bool SetMousePosition(olc::Window* pWindow, const olc::vi2d& vPos) override;
             // Show or hide mouse cursor for given window
             virtual bool SetMouseVisible(olc::Window* pWindow, const bool bVisible) override;
+            // Set a window to fullscreen or not fullscreen
+            virtual bool SetFullScreen(olc::Window* pWindow, const bool bFullScreen) override;
 
         public: // OS Specific Environment Information
             virtual olc::KeyboardLayout GetKeyboardLayout() const override;
@@ -146,6 +148,8 @@ namespace olc
             void MacOpenGLContextEventsHandler();
             void KeyboardEventHandler(const olc::apis::macos::KeyEvent& event, bool isPressed);
             bool bNumLockActive = true;         // Num Lock state, we assume it's active at start
+            uint16_t ConvertPGE2WindowStyle();
+            
             
         };
     }

@@ -18,6 +18,17 @@
 //! START IMPLEMENTATION
 using namespace olc;
 
+ImageBatch olc::Draw::CreateImageBatch(olc::Image& image)
+{
+	PrepareImageForHW(image);
+	PrepareTargetForHW();
+
+	ImageBatch b;
+	b.task.structure = olc::Structure::List;
+	b.task.pImage = &image;
+	return b;
+}
+
 const GPUTask& olc::Draw::Batch(olc::ImageBatch& batch, const olc::Pixel tint)
 {
 	batch.task.tint = tint;
@@ -45,6 +56,23 @@ LineBatch olc::Draw::CreateLineBatch()
 }
 
 const GPUTask& olc::Draw::Batch(olc::LineBatch& batch, const olc::Pixel tint)
+{
+	batch.task.tint = tint;
+	return vecGPUTasks.data.emplace_back(batch.task);
+}
+
+TextureBatch olc::Draw::CreateTextureBatch(olc::Image& image)
+{
+	PrepareImageForHW(image);
+	PrepareTargetForHW();
+
+	TextureBatch b;
+	b.task.structure = olc::Structure::List;
+	b.task.pImage = &image;
+	return b;
+}
+
+const GPUTask& olc::Draw::Batch(olc::TextureBatch& batch, const olc::Pixel tint)
 {
 	batch.task.tint = tint;
 	return vecGPUTasks.data.emplace_back(batch.task);
@@ -241,6 +269,90 @@ const FilledBatch& olc::Draw::FilledTriangle(olc::FilledBatch& batch, const olc:
 	return batch;
 }
 
+const TextureBatch& olc::Draw::TexturedTriangle(olc::TextureBatch& batch, const olc::vf2d& p1, const olc::vf2d& p2, const olc::vf2d& p3, const olc::Pixel c1, const olc::Pixel c2, const olc::Pixel c3, const olc::vf2d& t1, const olc::vf2d& t2, const olc::vf2d& t3, const olc::Pixel tint)
+{
+	batch.task.vertexBuffer.resize(batch.task.vertexBuffer.size() + 3);
+	size_t idx = batch.task.vertexBuffer.size() - 3;
+	const olc::vf2d a1 = transformAffine.forwardRound(p1);
+	const olc::vf2d a2 = transformAffine.forwardRound(p2);
+	const olc::vf2d a3 = transformAffine.forwardRound(p3);
+	batch.task.vertexBuffer[idx + 0] = { {a1.x, a1.y, 1.0f, 1.0f}, c1.blend(tint), {t1.x, t1.y}, {0, 0}, {0, 0}, {0, 0} };
+	batch.task.vertexBuffer[idx + 1] = { {a2.x, a2.y, 1.0f, 1.0f}, c2.blend(tint), {t2.x, t2.y}, {0, 0}, {0, 0}, {0, 0} };
+	batch.task.vertexBuffer[idx + 2] = { {a3.x, a3.y, 1.0f, 1.0f}, c3.blend(tint), {t3.x, t3.y}, {0, 0}, {0, 0}, {0, 0} };
+	return batch;
+}
+
+const TextureBatch& olc::Draw::TexturedPolygon(olc::TextureBatch& batch, const olc::Structure structure, const std::vector<olc::vf2d>& vecPoints, const std::vector<olc::Pixel>& vecColours, const std::vector<olc::vf2d>& vecTexCoords, const olc::Pixel tint)
+{
+	auto pushTriangle = [&](
+		const size_t idx, const olc::vf2d& p1, const olc::vf2d& p2, const olc::vf2d& p3, 
+		const olc::Pixel& c1, const olc::Pixel& c2, const olc::Pixel& c3, 
+		const olc::vf2d& t1, const olc::vf2d& t2, const olc::vf2d &t3)
+		{
+			batch.task.vertexBuffer[idx + 0] = { {p1.x, p1.y, 1.0f, 1.0f}, c1, {t1.x, t1.y}, {0, 0}, {0, 0}, {0, 0} };
+			batch.task.vertexBuffer[idx + 1] = { {p2.x, p2.y, 1.0f, 1.0f}, c2, {t2.x, t2.y}, {0, 0}, {0, 0}, {0, 0} };
+			batch.task.vertexBuffer[idx + 2] = { {p3.x, p3.y, 1.0f, 1.0f}, c3, {t3.x, t3.y}, {0, 0}, {0, 0}, {0, 0} };
+		};
+
+	// Transform unique verts into temporary buffer
+	buffPoints.data.clear();
+	buffColours.data.clear();
+	buffPoints.reserve(vecPoints.size());
+	buffColours.reserve(vecColours.size());
+	
+	for (size_t i = 0; i < vecPoints.size(); i++)
+	{
+		buffPoints.data[i] = transformAffine.forwardRound<float>(vecPoints[i]);
+		buffColours.data[i] = vecColours[i].blend(tint);
+	}
+
+	switch (structure)
+	{
+	case olc::Structure::Fan:
+	{
+		size_t idx = batch.task.vertexBuffer.size();
+		batch.task.vertexBuffer.resize(batch.task.vertexBuffer.size() + (vecPoints.size() - 2) * 3);
+
+		for (size_t i = 1; i < vecPoints.size() - 1; i++)
+			pushTriangle(idx + (i - 1) * 3,
+				buffPoints.data[0], buffPoints.data[i], buffPoints.data[i + 1],
+				buffColours.data[0], buffColours.data[i], buffColours.data[i + 1], 
+				vecTexCoords[0], vecTexCoords[i], vecTexCoords[i+1]);
+	}
+	break;
+
+	case olc::Structure::Strip:
+	{
+		size_t idx = batch.task.vertexBuffer.size();
+		batch.task.vertexBuffer.resize(batch.task.vertexBuffer.size() + (vecPoints.size() - 2) * 3);
+
+		for (size_t i = 0; i < vecPoints.size() - 2; i++)
+			pushTriangle(idx + (i * 3),
+				buffPoints.data[i], buffPoints.data[i + 1], buffPoints.data[i + 2],
+				buffColours.data[i], buffColours.data[i + 1], buffColours.data[i + 2],
+				vecTexCoords[i], vecTexCoords[i+1], vecTexCoords[i+2]);
+	}
+	break;
+
+	case olc::Structure::List:
+	{
+		size_t idx = batch.task.vertexBuffer.size();
+		batch.task.vertexBuffer.resize(batch.task.vertexBuffer.size() + (vecPoints.size() / 3));
+
+		for (size_t i = 0; i < vecPoints.size(); i += 3)
+			pushTriangle(idx + i,
+				buffPoints.data[i], buffPoints.data[i + 1], buffPoints.data[i + 2],
+				buffColours.data[i], buffColours.data[i + 1], buffColours.data[i + 2], 
+				vecTexCoords[i], vecTexCoords[i + 1], vecTexCoords[i + 2]);
+	}
+
+	default:
+		break;
+	}
+
+	return batch;
+}
+
 
 const LineBatch& olc::Draw::Polygon(olc::LineBatch& batch, const std::vector<olc::vf2d>& vecPoints, const olc::Pixel col, const olc::Pixel tint)
 {
@@ -257,6 +369,70 @@ const LineBatch& olc::Draw::Polygon(olc::LineBatch& batch, const std::vector<olc
 	for (size_t i = 0; i < vecPoints.size(); i++)
 	{
 		Line(batch, vecPoints[i], vecColours[i], vecPoints[(i + 1) % vecPoints.size()], vecColours[(i + 1) % vecColours.size()], tint);
+	}
+
+	return batch;
+}
+
+const FilledBatch& olc::Draw::FilledPolygon(FilledBatch& batch, const olc::Structure structure, const std::vector<olc::vf2d>& vecPoints, const olc::Pixel col, const olc::Pixel tint)
+{
+	auto pushTriangle = [&](const size_t idx, const olc::vf2d& p1, const olc::vf2d& p2, const olc::vf2d& p3, const olc::Pixel c1)
+		{
+			batch.task.vertexBuffer[idx + 0] = { {p1.x, p1.y, 1.0f, 1.0f}, c1, {0, 0}, {0, 0}, {0, 0}, {0, 0} };
+			batch.task.vertexBuffer[idx + 1] = { {p2.x, p2.y, 1.0f, 1.0f}, c1, {0, 0}, {0, 0}, {0, 0}, {0, 0} };
+			batch.task.vertexBuffer[idx + 2] = { {p3.x, p3.y, 1.0f, 1.0f}, c1, {0, 0}, {0, 0}, {0, 0}, {0, 0} };
+		};
+
+	// Transform unique verts into temporary buffer
+	buffPoints.data.clear();
+	buffColours.data.clear();
+	buffPoints.reserve(vecPoints.size());
+	for (size_t i = 0; i < vecPoints.size(); i++)
+	{
+		buffPoints.data[i] = transformAffine.forwardRound<float>(vecPoints[i]);
+	}
+
+	olc::Pixel blendedCol = col.blend(tint);
+
+	switch (structure)
+	{
+	case olc::Structure::Fan:
+	{
+		size_t idx = batch.task.vertexBuffer.size();
+		batch.task.vertexBuffer.resize(batch.task.vertexBuffer.size() + (vecPoints.size() - 2) * 3);
+
+		for (size_t i = 1; i < vecPoints.size() - 1; i++)
+			pushTriangle(idx + (i - 1) * 3,
+				buffPoints.data[0], buffPoints.data[i], buffPoints.data[i + 1],
+				blendedCol);
+	}
+	break;
+
+	case olc::Structure::Strip:
+	{
+		size_t idx = batch.task.vertexBuffer.size();
+		batch.task.vertexBuffer.resize(batch.task.vertexBuffer.size() + (vecPoints.size() - 2) * 3);
+
+		for (size_t i = 0; i < vecPoints.size() - 2; i++)
+			pushTriangle(idx + (i * 3),
+				buffPoints.data[i], buffPoints.data[i + 1], buffPoints.data[i + 2],
+				blendedCol);
+	}
+	break;
+
+	case olc::Structure::List:
+	{
+		size_t idx = batch.task.vertexBuffer.size();
+		batch.task.vertexBuffer.resize(batch.task.vertexBuffer.size() + (vecPoints.size() / 3));
+
+		for (size_t i = 0; i < vecPoints.size(); i += 3)
+			pushTriangle(idx + i,
+				buffPoints.data[i], buffPoints.data[i + 1], buffPoints.data[i + 2],
+				blendedCol);
+	}
+
+	default:
+		break;
 	}
 
 	return batch;
@@ -440,9 +616,20 @@ const ImageBatch& olc::Draw::ImageQuad(olc::ImageBatch& batch, olc::ImageRegion 
 }
 
 const ImageBatch& olc::Draw::ImageRect(olc::ImageBatch& batch, olc::ImageRegion image, const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel tint)
-{
-	olc_IgnoreUnused(image, pos, size, tint);
-	// TODO: Implement this function
+{	
+	// Add quad to existing task
+	olc::vf2d p0 = transformAffine.forward(olc::vf2d{ pos.x, pos.y });
+	olc::vf2d p1 = transformAffine.forward(olc::vf2d{ pos.x + size.x, pos.y });
+	olc::vf2d p2 = transformAffine.forward(olc::vf2d{ pos.x + size.x, pos.y + size.y });
+	olc::vf2d p3 = transformAffine.forward(olc::vf2d{ pos.x, pos.y + size.y });
+
+	// NOTE: We fake tint by simply setting vertex colour
+	batch.task.vertexBuffer.push_back({ {p0.x, p0.y, 1.0f, 1.0f}, tint, {image.coords[0].x, image.coords[0].y}, {0, 0}, {0, 0}, {0, 0} });
+	batch.task.vertexBuffer.push_back({ {p1.x, p1.y, 1.0f, 1.0f}, tint, {image.coords[1].x, image.coords[1].y}, {0, 0}, {0, 0}, {0, 0} });
+	batch.task.vertexBuffer.push_back({ {p2.x, p2.y, 1.0f, 1.0f}, tint, {image.coords[2].x, image.coords[2].y}, {0, 0}, {0, 0}, {0, 0} });
+	batch.task.vertexBuffer.push_back({ {p0.x, p0.y, 1.0f, 1.0f}, tint, {image.coords[0].x, image.coords[0].y}, {0, 0}, {0, 0}, {0, 0} });
+	batch.task.vertexBuffer.push_back({ {p2.x, p2.y, 1.0f, 1.0f}, tint, {image.coords[2].x, image.coords[2].y}, {0, 0}, {0, 0}, {0, 0} });
+	batch.task.vertexBuffer.push_back({ {p3.x, p3.y, 1.0f, 1.0f}, tint, {image.coords[3].x, image.coords[3].y}, {0, 0}, {0, 0}, {0, 0} });
 	return batch;
 }
 

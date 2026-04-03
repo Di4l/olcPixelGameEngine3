@@ -5,11 +5,14 @@
 //! END CUSTOMHEADER
 
 //! START STDHEADER GLOBAL
+#include <cstring>
 #include <filesystem>
 //! END STDHEADER
 
 //! START DECLARATION
 #if !defined(PGE_IMAGELOADER_LIB_PNG_DECLARED)
+#include <png.h>
+
 namespace olc::imload
 {
     class ImageLoader_LibPNG : public ImageLoader
@@ -28,7 +31,13 @@ namespace olc::imload
 
         // Store an image as a file asset in memory
         bool WriteImageToMemoryFile(olc::Image& image, const std::vector<uint8_t>& data) override;
+    
+    public: // libpng readers
+        struct MemReader { const uint8_t* data; size_t offset; };
+        static void PNGReadFromMemory(png_structp png, png_bytep out, png_size_t count);
 
+    private: // libpng internals
+        bool DecodePNG(olc::Image& image, png_structp png, png_infop info);
     };
 }
 

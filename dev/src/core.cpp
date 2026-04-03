@@ -64,6 +64,10 @@ namespace olc
 	{
 	}
 
+	PGEWindow::PGEWindow(const WindowConfig& config) : Window(config), draw()
+	{
+	}
+
 	bool PGEWindow::Create(const olc::vi2d& vScreenSize, const olc::vi2d& vPixelSize)
 	{
 		//pRenderer->RetargetDevice(pHost->GetHostWindowDescriptor(this));
@@ -256,7 +260,24 @@ namespace olc
 
 	bool PGEWindow::CreateImageFromMemory(olc::Image& image, const uint8_t* data, const size_t bytes, const ImageConfig& cfg)
 	{
-		olc_IgnoreUnused(image, data, bytes, cfg);
+		if (pImageLoader->CreateImageFromMemory(image, data, bytes))
+		{
+			// Image has loaded ok, and populated into pixel vector
+			// 
+			// Create GPU Image
+			auto id = pRenderer->CreateTexture(image.Size(), cfg);
+			if (id == 0)
+			{
+				image.Create({ 0,0 });
+				return false;
+			}
+
+			// Associate CPU object with GPU Resource
+			image.SetGPUID(id);
+			return true;
+		}
+
+		std::cout << "Create From Memory Failed\n";
 		return false;
 	}
 
@@ -361,6 +382,8 @@ namespace olc
 	bool PixelGameEngine::Construct(const PGEConfig& cfg)
 	{		
 		config = cfg;
+		// Also assign the window level config since that is what the Host will see
+		Window::config = cfg;
 
 		// Check for constructor sAppName, if not set use Config sAppName
 		if (sAppName.empty())
@@ -578,7 +601,7 @@ namespace olc
 			{
 				if (!pgex->OnBeforeSystemUpdate(this, fDT))
 				{
-					std::cout << "PGE OnContextTick(): User aborted in extension OnAfterUserCreate()\n";
+					std::cout << "PGE OnContextTick(): User aborted in extension OnBeforeSystemUpdate()\n";
 					return false;
 				}
 			}

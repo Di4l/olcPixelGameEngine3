@@ -287,6 +287,21 @@ namespace olc::host
 
         return true;
     }
+    
+    bool Host_Web_Emscripten::SetFullScreen(olc::Window* pWindow, const bool bFullScreen)
+    {
+        if(!mapUID2CanvasId.contains(pWindow->GetUID()))
+            return false;
+
+        auto canvasID = mapUID2CanvasId.at(pWindow->GetUID());
+
+        if(bFullScreen)
+            emscripten_request_fullscreen(canvasID.c_str(), true);
+        else
+            emscripten_exit_fullscreen();
+        
+        return true;
+    }
 
     olc::KeyboardLayout Host_Web_Emscripten::GetKeyboardLayout() const
 	{

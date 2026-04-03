@@ -107,6 +107,7 @@ namespace olc
 			std::atomic<bool> systemActive = false;
 			HCURSOR hCursorDefault = nullptr;
 			HCURSOR hCursorNow = nullptr;
+			DWORD ConvertPGE2WindowStyle(const olc::Window* pWindow);
 
 		public:
 			LRESULT OnWindowEvent(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);

@@ -81,6 +81,7 @@ namespace olc {
                 ~Application() {
                     if (app_) {
                         application_destroy(app_);  // application_destroy now handles delete internally
+                        app_ = nullptr;
                     }
                 }
                 
@@ -96,10 +97,9 @@ namespace olc {
                     if (app_) application_run(app_);
                 }
                 
-                void terminate() noexcept {
+                void stop() noexcept {
                     if (app_) {
                         application_stop(app_);
-                        app_ = nullptr;
                     }
                 }
                 
@@ -220,10 +220,10 @@ namespace olc {
                 struct ::Window* getCHandle() const noexcept { return window_; }
                 
                 // Create and show the window
-                void show() {
+                void show(unsigned long styleMask) {
                     if (window_) {
                         setTitle(title_);
-                        window_create(window_);
+                        window_create(window_, styleMask);
                         window_show(window_);
                     }
                 }
@@ -481,6 +481,19 @@ namespace olc {
                     }
                 }
                 
+                void toggleFullScreen() noexcept {
+                    if (window_) {
+                        window_toggleFullScreen(window_);
+                    }
+                }
+
+                bool isFullScreen() noexcept {
+                    if (window_) {
+                        return window_isFullScreen(window_);
+                    }
+                    return false;
+                }
+                
                 
                 // Non-copyable but movable
                 Window(const Window&) = delete;
@@ -634,6 +647,15 @@ namespace olc {
                     filePath_ = filePath;
                     if (loader_) {
                         BOOL result = imageloader_loadFromFile(loader_, filePath.c_str());
+                        loaded_ = (result != 0);
+                        return loaded_;
+                    }
+                    return false;
+                }
+
+                bool loadFromMemory(const uint8_t* data, size_t bytes) {
+                    if (loader_) {
+                        BOOL result = imageloader_loadFromMemory(loader_, data, bytes);
                         loaded_ = (result != 0);
                         return loaded_;
                     }
@@ -876,9 +898,7 @@ namespace olc {
             public:
                 explicit EventHandler(Window& window) noexcept : window_(window) {}
                 
-                ~EventHandler() noexcept {
-                    disable();
-                }
+                ~EventHandler() noexcept {}
                 
                 // Event handler setters - now using template helper
                 void onKeyDown(std::function<void(const KeyEvent&)> handler) {

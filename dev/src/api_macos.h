@@ -24,6 +24,7 @@
 #include <OpenGL/gl.h>
 #include <OpenGL/OpenGL.h>
 #include <CoreGraphics/CoreGraphics.h>
+#include <ImageIO/ImageIO.h>
 
 extern "C" {
     // NSRect (OSX rectangle structure same as GCRect C structure)
@@ -56,7 +57,7 @@ extern "C" {
     
     // Window API - as implemented in api_macos.c
     struct Window* window_init           (double x, double y, double width, double height);
-    void window_create                   (struct Window* self);
+    void window_create                   (struct Window* self, unsigned long styleMask);
     void window_show                     (struct Window* self);
     void window_destroy                  (struct Window* self);
     void window_setTitle                 (struct Window* self, const char* title);
@@ -72,6 +73,8 @@ extern "C" {
     void window_setContentViewFrame      (struct Window* self, double* x, double* y, double* width, double* height);
     void window_setCursorVisibility      (struct Window* self, BOOL visible);
     void window_setCursorPosition        (struct Window* self, double x, double y);
+    void window_toggleFullScreen         (struct Window* self);
+    bool window_isFullScreen             (struct Window* self);
 
     // OpenGL Renderer API - as implemented in api_macos.c
     struct OpenGLRenderer* opengl_init    (void);
@@ -85,9 +88,15 @@ extern "C" {
     void opengl_destroy                   (struct OpenGLRenderer* self);
     bool opengl_resetContextForSize       (struct OpenGLRenderer* self, double width, double height);
 
+    // Pixel Struct used by Image Loader API
+    typedef struct {
+        uint8_t r; uint8_t g; uint8_t b; uint8_t a;
+    } imageloader_pixel_t;
+    
     // Image Loader API - as implemented in api_macos.c
     struct ImageLoader* imageloader_init        (void);
     BOOL imageloader_loadFromFile               (struct ImageLoader* self, const char* filePath);
+    BOOL imageloader_loadFromMemory             (struct ImageLoader* self, const uint8_t* data, size_t bytes);
     void imageloader_destroy                    (struct ImageLoader* self);
     unsigned char* imageloader_getPixelData     (const struct ImageLoader* self);
     void imageloader_getImageInfo               (const struct ImageLoader* self, int* width, int* height, int* bytesPerPixel);

@@ -8,7 +8,7 @@
 	olcPixelGameEngine3.h
 
 	+-------------------------------------------------------------+
-	|           OneLoneCoder Pixel Game Engine v3.00              |
+	|           OneLoneCoder Pixel Game Engine v3.00 Beta A       |
 	|  "What do you need? Pixels... Lots of Pixels..." - javidx9  |
 	+-------------------------------------------------------------+
 

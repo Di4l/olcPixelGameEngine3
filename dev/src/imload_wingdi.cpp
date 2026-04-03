@@ -52,15 +52,7 @@ namespace olc::imload
 		if (bmp->GetLastStatus() != Gdiplus::Ok)
 			return false; // File wasn't valid
 
-		// Need to swizzle each pixel...
-		image.Create(olc::vi2d(bmp->GetWidth(), bmp->GetHeight()));
-		for (int y = 0; y < image.Size().y; y++)
-			for (int x = 0; x < image.Size().x; x++)
-			{
-				Gdiplus::Color c;
-				bmp->GetPixel(x, y, &c);
-				image.Pixel(olc::vi2d(x, y)) = olc::Pixel(c.GetRed(), c.GetGreen(), c.GetBlue(), c.GetAlpha());
-			}
+		DecodeBMP(image, bmp);
 
 		// All done
 		delete bmp;
@@ -69,13 +61,22 @@ namespace olc::imload
 
 	bool ImageLoader_WinGDI::CreateImageFromMemory(olc::Image& image, const uint8_t* data, const size_t bytes)
 	{
-		olc_IgnoreUnused(image, data, bytes);
-		return false;
+		// Load file into windows "bitmap". 1992 calling...
+		Gdiplus::Bitmap* bmp = nullptr;
+		bmp = Gdiplus::Bitmap::FromStream(SHCreateMemStream((BYTE*)data, UINT(bytes)));
+		if (bmp->GetLastStatus() != Gdiplus::Ok)
+			return false; // File wasn't valid
+		
+		DecodeBMP(image, bmp);
+
+		// All done
+		delete bmp;
+		return true;
 	}
 
 	bool ImageLoader_WinGDI::CreateImageFromMemory(olc::Image& image, const std::vector<uint8_t>& data)
 	{
-		olc_IgnoreUnused(image, data);
+		CreateImageFromMemory(image, data.data(), data.size());
 		return false;
 	}
 
@@ -89,6 +90,21 @@ namespace olc::imload
 	{
 		olc_IgnoreUnused(image, data);
 		return false;
+	}
+
+	bool ImageLoader_WinGDI::DecodeBMP(olc::Image& image, Gdiplus::Bitmap* bmp)
+	{
+		// Need to swizzle each pixel...
+		image.Create(olc::vi2d(bmp->GetWidth(), bmp->GetHeight()));
+		for (int y = 0; y < image.Size().y; y++)
+			for (int x = 0; x < image.Size().x; x++)
+			{
+				Gdiplus::Color c;
+				bmp->GetPixel(x, y, &c);
+				image.Pixel(olc::vi2d(x, y)) = olc::Pixel(c.GetRed(), c.GetGreen(), c.GetBlue(), c.GetAlpha());
+			}
+		
+		return true;
 	}
 }
 //! END IMPLEMENTATION

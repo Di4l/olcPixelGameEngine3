@@ -55,10 +55,27 @@ namespace olc::host
             .wm_capabilities = Host_Linux_Wayland::xdg_toplevel_capabilities_callback
         };
 
+        #ifdef ENABLE_DECORATION_PROTOCOL
         static const zxdg_toplevel_decoration_v1_listener toplevel_decoration_listener {
             .configure = Host_Linux_Wayland::xdg_toplevel_decoration_configure_callback
         };
+        #endif
     }
+
+    #ifdef ENABLE_LIBDECOR
+    namespace decor {
+        static libdecor_interface libdecor_error_listener = {
+            .error = Host_Linux_Wayland::libdecor_error_callback,
+        };
+
+        static libdecor_frame_interface libdecor_frame_listener = {
+            .configure = Host_Linux_Wayland::libdecor_frame_configure_callback,
+            .close = Host_Linux_Wayland::libdecor_close_callback,
+            .commit = Host_Linux_Wayland::libdecor_commit_callback,
+            .dismiss_popup = Host_Linux_Wayland::libdecor_dismiss_popup_callback
+        };
+    }
+    #endif
 
     Host_Linux_Wayland::Host_Linux_Wayland()
     {
@@ -68,15 +85,50 @@ namespace olc::host
 
         wl_registry_add_listener(registry, &wayland::registry_listener, this);
         wl_display_roundtrip(display);
-
-        if(compositor == nullptr || xdg_wm == nullptr || seat == nullptr || decoration_manager == nullptr) {
+        
+        if(compositor == nullptr || xdg_wm == nullptr || seat == nullptr) {
             throw;
         }
+
+        // If only the decoration protocol is enabled, then not having the protocol is a hard error
+        #if defined(ENABLE_DECORATION_PROTOCOL) && !defined(ENABLE_LIBDECOR)
+        if(decoration_manager == nullptr) {
+            throw;
+        }
+        // If only libdecor is enabled, then flag "using_libdecor"
+        #elif !defined(ENABLE_DECORATION_PROTOCOL) && defined(ENABLE_LIBDECOR)
+        using_libdecor = true;
         
+        // If both are enabled, use libdecor if the decoration protocol is not present
+        #else
+        using_libdecor = (decoration_manager == nullptr);
+        #endif
+
+        #ifdef ENABLE_LIBDECOR
+        if(!using_libdecor) {
+            xdg_wm_base_add_listener(xdg_wm, &xdg::xdg_base_listener, this);
+        } else {
+            decor_context = libdecor_new(display, &decor::libdecor_error_listener);
+        }
+        #else
         xdg_wm_base_add_listener(xdg_wm, &xdg::xdg_base_listener, this);
-        wl_seat_add_listener(seat, &wayland::seat_listener, this);
+        #endif
+
+        // Load the default cursor
+        cursor_theme = wl_cursor_theme_load(NULL, 24, shm);
+        wl_cursor *cursor = wl_cursor_theme_get_cursor(cursor_theme, "left_ptr");
+
+        cursor_image = cursor->images[0];
+        wl_buffer *cursor_buffer = wl_cursor_image_get_buffer(cursor_image);
+
+        cursor_surface = wl_compositor_create_surface(compositor);
+        wl_surface_attach(cursor_surface, cursor_buffer, 0, 0);
+        wl_surface_commit(cursor_surface);
+
 
         kb_context = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
+
+        wl_display_roundtrip(display);
 
         // Setup the keymap with XKB codes, which are basically the same as the X11 codes
         mapKeys[XKB_KEY_NoSymbol] = Key::NONE;
@@ -138,20 +190,59 @@ namespace olc::host
         UpdateKeyboardLayout();
     }
 
+    WaylandWindow::~WaylandWindow() {
+        if(window) {
+            wl_egl_window_destroy(window);
+        }
+        if(toplevel) {
+            xdg_toplevel_destroy(toplevel);
+        }
+        if(surface_xdg) {
+            xdg_surface_destroy(surface_xdg);
+        }
+        #ifdef ENABLE_DECORATION_PROTOCOL
+        zxdg_toplevel_decoration_v1_destroy(decorations);
+        #endif
+        #ifdef ENABLE_LIBDECOR
+        if(decor_frame) {
+            libdecor_frame_unref(decor_frame);
+        }
+        #endif
+        wl_surface_destroy(surface);
+    }
+
     Host_Linux_Wayland::~Host_Linux_Wayland()
     {
-        for (auto& itr : mapUID2Window) {
-            auto& wayland_window = itr.second;
-            wl_egl_window_destroy(wayland_window.window);
-            xdg_toplevel_destroy(wayland_window.toplevel);
-            xdg_surface_destroy(wayland_window.surface_xdg);
-            wl_surface_destroy(wayland_window.surface);
+        mapUID2OlcWindow.clear();
+        mapUID2Window.clear();
+
+        #ifdef ENABLE_DECORATION_PROTOCOL
+        zxdg_decoration_manager_v1_destroy(decoration_manager);
+        #endif
+        #ifdef ENABLE_LIBDECOR
+        if(decor_context) {
+            libdecor_unref(decor_context);
+            decor_context = nullptr;
         }
+        #endif
 
         xkb_state_unref(kb_state);
         xkb_keymap_unref(kb_keymap);
         xkb_context_unref(kb_context);
+        wl_cursor_theme_destroy(cursor_theme);
+        wl_surface_destroy(cursor_surface);
 
+        xdg_wm_base_destroy(xdg_wm);
+        if(pointer_warp)
+        {
+            wp_pointer_warp_v1_destroy(pointer_warp);
+        }
+        wl_keyboard_destroy(keyboard);
+        wl_pointer_destroy(pointer);
+        wl_seat_destroy(seat);
+        wl_compositor_destroy(compositor);
+        wl_shm_destroy(shm);
+        wl_registry_destroy(registry);
         wl_display_disconnect(display);
     }
 
@@ -193,7 +284,21 @@ namespace olc::host
 				}
 			});
         
+        #if !defined(ENABLE_LIBDECOR)
         while(systemActive && wl_display_dispatch_pending(display) != -1) { }
+        #else
+        bool keep_running = true;
+        while(systemActive && keep_running) {
+            if(using_libdecor) {
+                if(decor_context) {
+                    std::lock_guard<std::mutex> l{decor_mutex};
+                    keep_running = libdecor_dispatch(decor_context, 0) >= 0;
+                }
+            } else {
+                keep_running = wl_display_dispatch_pending(display) != -1;
+            }
+        }
+        #endif
         
         systemActive = false;
         if(threadSystem.joinable())
@@ -231,49 +336,68 @@ namespace olc::host
     bool Host_Linux_Wayland::AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen)
     {
         // Create a window
-        WaylandWindow w;
+        WaylandWindow& w = mapUID2Window[pWindow->GetUID()];
         wl_region* region = wl_compositor_create_region(compositor);
         wl_region_add(region, vWindowPos.x, vWindowPos.y, vWindowSize.x, vWindowSize.y);
         
         w.surface = wl_compositor_create_surface(compositor);
-        w.surface_xdg = xdg_wm_base_get_xdg_surface(xdg_wm, w.surface);
+        
+        #ifdef ENABLE_LIBDECOR
+        if(!using_libdecor) {
+        #endif
+            w.surface_xdg = xdg_wm_base_get_xdg_surface(xdg_wm, w.surface);
+            
+            xdg_surface_add_listener(w.surface_xdg, &xdg::surface_listener, this);
+            w.toplevel = xdg_surface_get_toplevel(w.surface_xdg);
+            xdg_toplevel_set_title(w.toplevel, "OneLoneCoder.com - Pixel Game Engine");
+            xdg_toplevel_add_listener(w.toplevel, &xdg::xdg_top_listener, this);
+            if (!pWindow->config.bResizeable) {
+                xdg_toplevel_set_max_size(w.toplevel, vWindowSize.x, vWindowSize.y);
+                xdg_toplevel_set_min_size(w.toplevel, vWindowSize.x, vWindowSize.y);
+            }
+            
+            #ifdef ENABLE_DECORATION_PROTOCOL
+            w.decorations = zxdg_decoration_manager_v1_get_toplevel_decoration(decoration_manager, w.toplevel);
+            zxdg_toplevel_decoration_v1_add_listener(w.decorations, &xdg::toplevel_decoration_listener, this);
+            zxdg_toplevel_decoration_v1_set_mode(w.decorations, 2);
+            #endif
+        #ifdef ENABLE_LIBDECOR
+        } else {
+            std::lock_guard<std::mutex> l{decor_mutex};
+            w.decor_frame = libdecor_decorate(decor_context, w.surface, &decor::libdecor_frame_listener, this);
+            w.floating_width = vWindowSize.x;
+            w.floating_height = vWindowSize.y;
+            libdecor_frame_set_app_id(w.decor_frame, "olcPixelGameEngine");
+            libdecor_frame_set_title(w.decor_frame, "OneLoneCoder.com - Pixel Game Engine");
 
-        xdg_surface_add_listener(w.surface_xdg, &xdg::surface_listener, this);
-        w.toplevel = xdg_surface_get_toplevel(w.surface_xdg);
-        xdg_toplevel_set_title(w.toplevel, "OneLoneCoder.com - Pixel Game Engine");
-        xdg_toplevel_add_listener(w.toplevel, &xdg::xdg_top_listener, this);
+            if(!pWindow->config.bResizeable) {
+                libdecor_frame_unset_capabilities(w.decor_frame, LIBDECOR_ACTION_RESIZE);
+            }
+
+            libdecor_frame_map(w.decor_frame);
+
+        }
+        #endif
+
         wl_surface_set_opaque_region(w.surface, region);
         w.window = wl_egl_window_create(w.surface, vWindowSize.x, vWindowSize.y);
         w.olc_window_uid = pWindow->GetUID();
         wl_surface_commit(w.surface);
         wl_region_destroy(region);
 
-        w.decorations = zxdg_decoration_manager_v1_get_toplevel_decoration(decoration_manager, w.toplevel);
-        zxdg_toplevel_decoration_v1_add_listener(w.decorations, &xdg::toplevel_decoration_listener, this);
-        zxdg_toplevel_decoration_v1_set_mode(w.decorations, 2);
-
         pWindow->SetWindowPosition(vWindowPos);
         pWindow->SetWindowSize(vWindowSize);
 
-        mapUID2Window.insert_or_assign(pWindow->GetUID(), w);
         mapUID2OlcWindow.insert_or_assign(pWindow->GetUID(), pWindow);
+
         return true;
     }
 
     bool Host_Linux_Wayland::CloseWindowFrame(olc::Window* pWindow)
     {
-        auto itr = mapUID2Window.find(pWindow->GetUID());
-        if(itr != mapUID2Window.end()) {
-            auto& wayland_window = itr->second;
-            wl_egl_window_destroy(wayland_window.window);
-            zxdg_toplevel_decoration_v1_destroy(wayland_window.decorations);
-            xdg_toplevel_destroy(wayland_window.toplevel);
-            xdg_surface_destroy(wayland_window.surface_xdg);
-            wl_surface_destroy(wayland_window.surface);
-            auto uid = wayland_window.olc_window_uid;
-            mapUID2Window.erase(uid);
-            mapUID2OlcWindow.erase(uid);
-        }
+        const auto uid = pWindow->GetUID();
+        mapUID2Window.erase(uid);
+        mapUID2OlcWindow.erase(uid);
 
         return true;
     }
@@ -281,7 +405,16 @@ namespace olc::host
     {
         auto itr = mapUID2Window.find(pWindow->GetUID());
         if(itr != mapUID2Window.end()) {
+            #ifdef ENABLE_LIBDECOR
+            if(using_libdecor) {
+                std::lock_guard<std::mutex> l{decor_mutex};
+                libdecor_frame_set_title(itr->second.decor_frame, pWindow->GetWindowTitle().c_str());
+            } else {
+                xdg_toplevel_set_title(itr->second.toplevel, pWindow->GetWindowTitle().c_str());
+            }
+            #else
             xdg_toplevel_set_title(itr->second.toplevel, pWindow->GetWindowTitle().c_str());
+            #endif
         }
         return true;
     }
@@ -343,7 +476,7 @@ namespace olc::host
             itr->second.cursor_visible = bVisible;
 
             if(bVisible) {
-                wp_cursor_shape_device_v1_set_shape(cursor_shape_device, enter_serial, WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_DEFAULT);
+                wl_pointer_set_cursor(pointer, enter_serial, cursor_surface, cursor_image->hotspot_x, cursor_image->hotspot_y);
             } else {
                 wl_pointer_set_cursor(pointer, enter_serial, nullptr, 0, 0);
             }
@@ -356,11 +489,27 @@ namespace olc::host
     {
         auto itr = mapUID2Window.find(pWindow->GetUID());
         if(itr != mapUID2Window.end()) {
-            itr->second.fullscreen = bFullScreen;
+            pWindow->bWindowIsFullscreen = bFullScreen;
             if(bFullScreen) {
+                #ifdef ENABLE_LIBDECOR
+                if(using_libdecor) {
+                    libdecor_frame_set_fullscreen(itr->second.decor_frame, nullptr);
+                } else {
+                    xdg_toplevel_set_fullscreen(itr->second.toplevel, nullptr);
+                }
+                #else
                 xdg_toplevel_set_fullscreen(itr->second.toplevel, nullptr);
+                #endif
             } else {
+                #ifdef ENABLE_LIBDECOR
+                if(using_libdecor) {
+                    libdecor_frame_unset_fullscreen(itr->second.decor_frame);
+                } else {
+                    xdg_toplevel_unset_fullscreen(itr->second.toplevel);
+                }
+                #else
                 xdg_toplevel_unset_fullscreen(itr->second.toplevel);
+                #endif
             }
         }
         return true;
@@ -371,23 +520,26 @@ namespace olc::host
         if(std::strcmp(interface, wl_compositor_interface.name) == 0) {
             compositor = static_cast<wl_compositor*>(wl_registry_bind(registry, name, &wl_compositor_interface, version));
         }
+        if(std::strcmp(interface, wl_shm_interface.name) == 0) {
+            shm = static_cast<wl_shm*>(wl_registry_bind(registry, name, &wl_shm_interface, version));
+        }
         if(std::strcmp(interface, xdg_wm_base_interface.name) == 0) {
             xdg_wm = static_cast<xdg_wm_base*>(wl_registry_bind(registry, name, &xdg_wm_base_interface, version));
         }
         if(std::strcmp(interface, wl_seat_interface.name) == 0) {
             seat = static_cast<wl_seat*>(wl_registry_bind(registry, name, &wl_seat_interface, version));
+            wl_seat_add_listener(seat, &wayland::seat_listener, this);
         }
+        #ifdef ENABLE_DECORATION_PROTOCOL
         if(std::strcmp(interface, zxdg_decoration_manager_v1_interface.name) == 0) {
             decoration_manager = static_cast<zxdg_decoration_manager_v1*>(wl_registry_bind(registry, name, &zxdg_decoration_manager_v1_interface, version));
         }
+        #endif
         if(std::strcmp(interface, wl_keyboard_interface.name) == 0) {
             keyboard = static_cast<wl_keyboard*>(wl_registry_bind(registry, name, &wl_keyboard_interface, version));
         }
         if(std::strcmp(interface, wp_pointer_warp_v1_interface.name) == 0) {
             pointer_warp = static_cast<wp_pointer_warp_v1*>(wl_registry_bind(registry, name, &wp_pointer_warp_v1_interface, version));
-        }
-        if(std::strcmp(interface, wp_cursor_shape_manager_v1_interface.name) == 0) {
-            cursor_shape_manager = static_cast<wp_cursor_shape_manager_v1*>(wl_registry_bind(registry, name, &wp_cursor_shape_manager_v1_interface, version));
         }
     }
     
@@ -400,8 +552,7 @@ namespace olc::host
     {
         if (capabilities & WL_SEAT_CAPABILITY_POINTER && pointer == nullptr) {
             pointer = wl_seat_get_pointer(seat);
-            cursor_shape_device = wp_cursor_shape_manager_v1_get_pointer(cursor_shape_manager, pointer);
-            wl_pointer_add_listener(pointer, &wayland::pointer_listener, this);    
+            wl_pointer_add_listener(pointer, &wayland::pointer_listener, this);
         }
 
         if (capabilities & WL_SEAT_CAPABILITY_KEYBOARD && keyboard == nullptr) {
@@ -413,26 +564,42 @@ namespace olc::host
 
     void Host_Linux_Wayland::xdg_toplevel_configure(xdg_toplevel* toplevel, int32_t width, int32_t height, wl_array* states)
     {
-        for(auto& i : mapUID2Window) {
-            auto& w = i.second;
-            if(w.toplevel == toplevel) {
-                // Attempt to constrain the window size to what the compositor may have told us earlier
-                // in a bounds_configure message
-                if(!w.fullscreen) {
-                    if(w.bounds_x != 0) {
-                        width = std::min<int32_t>(width, w.bounds_x);
-                    }
-    
-                    if(w.bounds_y != 0) {
-                        height = std::min<int32_t>(height, w.bounds_y);
-                    }
-                }
-                
-                mapUID2OlcWindow[i.first]->olc_OnWindowSize({width, height});
-                wl_egl_window_resize(i.second.window, width, height, 0, 0);
-                wl_surface_commit(i.second.surface);
+        const auto& itr = std::find_if(mapUID2Window.begin(), mapUID2Window.end(), [=](const auto& w){return w.second.toplevel == toplevel;});
+        if(itr == mapUID2Window.end())
+        {
+            return;
+        }
+
+        auto& [uid, window] = *itr;
+        const auto& olc_window = mapUID2OlcWindow.at(uid);
+
+        bool attempt_fullscreen {false};
+        auto* state = reinterpret_cast<xdg_toplevel_state*>(states->data);
+        auto* end = static_cast<const char*>(states->data) + states->size;
+        for(;reinterpret_cast<const char*>(state) < end; state++)
+        {
+            // The window.fullscreen is set any time the user commands via ShowFullscreen(), so we should allow this
+            if (*state == xdg_toplevel_state::XDG_TOPLEVEL_STATE_FULLSCREEN)
+            {
+                attempt_fullscreen = true;
             }
         }
+
+        // If we're not going fullscreen, try to obey the bounds that have been configured by the compositor
+        if(!attempt_fullscreen) {
+            if(window.bounds_x != 0) {
+                width = std::min<int32_t>(width, window.bounds_x);
+            }
+
+            if(window.bounds_y != 0) {
+                height = std::min<int32_t>(height, window.bounds_y);
+            }
+        }
+        
+        olc_window->bWindowIsFullscreen = attempt_fullscreen;
+        olc_window->olc_OnWindowSize({width, height});
+        wl_egl_window_resize(window.window, width, height, 0, 0);
+        wl_surface_commit(window.surface);
     }
 
     void Host_Linux_Wayland::xdg_toplevel_close(xdg_toplevel* toplevel)
@@ -572,7 +739,7 @@ namespace olc::host
                     
                     // Need to set the mouse back to the correct hidden / not hidden state when it enters the window
                     if(itr.second.cursor_visible) {
-                        wp_cursor_shape_device_v1_set_shape(cursor_shape_device, enter_serial, WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_DEFAULT);
+                        wl_pointer_set_cursor(pointer, enter_serial, cursor_surface, cursor_image->hotspot_x, cursor_image->hotspot_y);
                     } else {
                         wl_pointer_set_cursor(pointer, enter_serial, nullptr, 0, 0);
                     }
@@ -827,11 +994,102 @@ namespace olc::host
         return;
     }
 
+    #ifdef ENABLE_DECORATION_PROTOCOL
     void Host_Linux_Wayland::xdg_toplevel_decoration_configure_callback(void* data, zxdg_toplevel_decoration_v1* zxdg_toplevel_decoration_v1, uint32_t mode)
     {
         // auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
         // fprintf(stderr, "zxdg_decoration_manager_v1 mode %d\n", mode);
     }
+    #endif
+
+    #ifdef ENABLE_LIBDECOR
+    void Host_Linux_Wayland::libdecor_error_callback(libdecor* context, libdecor_error error, const char* message)
+    {
+        std::cerr << "libdecor: " << error << ": " << message << "\n";
+    }
+
+    void Host_Linux_Wayland::libdecor_frame_configure_callback(libdecor_frame* frame, libdecor_configuration* config, void* data)
+    {
+        auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
+        host->libdecor_frame_configure(frame, config);
+    }
+
+    void Host_Linux_Wayland::libdecor_frame_configure(libdecor_frame* frame, libdecor_configuration* config)
+    {
+        for(auto& i : mapUID2Window) {
+            if(i.second.decor_frame == frame) {
+                auto* window = &i.second;
+                auto& olc_window = mapUID2OlcWindow.at(i.first);
+
+                int width{};
+                int height{};
+
+                if(!libdecor_configuration_get_window_state(config, &window->decor_window_state)) {
+                    window->decor_window_state = LIBDECOR_WINDOW_STATE_NONE;
+                }
+
+                libdecor_configuration_get_content_size(config, frame, &width, &height);
+
+                window->configured_width = width == 0 ? window->floating_width : width;
+                window->configured_height = height == 0 ? window->floating_height : height;
+
+                libdecor_state* state = libdecor_state_new(window->configured_width, window->configured_height);
+                libdecor_frame_commit(frame, state, config);
+                libdecor_state_free(state);
+
+                // If we're not returning from fullscreen, goahead and resize
+                if(libdecor_frame_is_floating(frame) && !olc_window->bWindowIsFullscreen) {
+                    window->floating_width = width;
+                    window->floating_height = height;
+                }
+
+                olc_window->bWindowIsFullscreen = (window->decor_window_state & LIBDECOR_WINDOW_STATE_FULLSCREEN) != 0;
+                mapUID2OlcWindow[i.first]->olc_OnWindowSize({window->configured_width, window->configured_height});
+                wl_egl_window_resize(window->window, window->configured_width, window->configured_height, 0, 0);
+                wl_surface_commit(window->surface);
+            }
+        }
+    }
+
+    void Host_Linux_Wayland::libdecor_close_callback(libdecor_frame* frame, void* data)
+    {
+        auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
+        host->libdecor_close(frame);
+    }
+    
+    void Host_Linux_Wayland::libdecor_close(libdecor_frame* frame)
+    {
+        for(auto& i : mapUID2Window) {
+            if(i.second.decor_frame == frame) {
+                auto itr = mapUID2OlcWindow.find(i.second.olc_window_uid);
+                if (itr != mapUID2OlcWindow.end()) {
+                    auto* ptr = itr->second;
+                    ptr->olc_OnWindowClose();
+                }
+            }
+        }        
+    }
+
+    void Host_Linux_Wayland::libdecor_commit_callback(libdecor_frame* frame, void* data)
+    {
+        auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
+        host->libdecor_commit(frame);
+    }
+
+    void Host_Linux_Wayland::libdecor_commit(libdecor_frame* frame)
+    {
+        for(auto& i : mapUID2Window) {
+            if(i.second.decor_frame == frame) {
+                wl_surface_commit(i.second.surface);
+            }
+        }
+    }
+
+    void Host_Linux_Wayland::libdecor_dismiss_popup_callback(libdecor_frame* frame, const char* seat_name, void* data)
+    {
+
+    }
+    #endif
 
     std::vector<void*> Host_Linux_Wayland::GetHostWindowDescriptor(olc::Window* pWindow)
     {

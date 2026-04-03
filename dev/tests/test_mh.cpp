@@ -790,6 +790,16 @@ int main()
 	cfg.bVSync = false;
 	cfg.sAppName = "Test mh";
 
+	// Window furniture test
+	cfg.bFullScreen = false;
+	cfg.bFullScreenable = false;
+	cfg.bResizeable = true;
+	cfg.bShowWindowBorder = true;
+	cfg.bShowWindowTilebar = true;
+	cfg.bShowWindowMinimiseButton = false;
+	cfg.bShowWindowMaximiseButton = false;
+	cfg.bShowWindowCloseButton = true;
+
 	//if (demo.Construct({ 1280, 960 }, { 1, 1 }, cfg))
 	if(demo.Construct(cfg))
 		demo.Start();
