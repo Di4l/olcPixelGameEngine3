@@ -440,9 +440,20 @@ const ImageBatch& olc::Draw::ImageQuad(olc::ImageBatch& batch, olc::ImageRegion 
 }
 
 const ImageBatch& olc::Draw::ImageRect(olc::ImageBatch& batch, olc::ImageRegion image, const olc::vf2d& pos, const olc::vf2d& size, const olc::Pixel tint)
-{
-	olc_IgnoreUnused(image, pos, size, tint);
-	// TODO: Implement this function
+{	
+	// Add quad to existing task
+	olc::vf2d p0 = transformAffine.forward(olc::vf2d{ pos.x, pos.y });
+	olc::vf2d p1 = transformAffine.forward(olc::vf2d{ pos.x + size.x, pos.y });
+	olc::vf2d p2 = transformAffine.forward(olc::vf2d{ pos.x + size.x, pos.y + size.y });
+	olc::vf2d p3 = transformAffine.forward(olc::vf2d{ pos.x, pos.y + size.y });
+
+	// NOTE: We fake tint by simply setting vertex colour
+	batch.task.vertexBuffer.push_back({ {p0.x, p0.y, 1.0f, 1.0f}, tint, {image.coords[0].x, image.coords[0].y}, {0, 0}, {0, 0}, {0, 0} });
+	batch.task.vertexBuffer.push_back({ {p1.x, p1.y, 1.0f, 1.0f}, tint, {image.coords[1].x, image.coords[1].y}, {0, 0}, {0, 0}, {0, 0} });
+	batch.task.vertexBuffer.push_back({ {p2.x, p2.y, 1.0f, 1.0f}, tint, {image.coords[2].x, image.coords[2].y}, {0, 0}, {0, 0}, {0, 0} });
+	batch.task.vertexBuffer.push_back({ {p0.x, p0.y, 1.0f, 1.0f}, tint, {image.coords[0].x, image.coords[0].y}, {0, 0}, {0, 0}, {0, 0} });
+	batch.task.vertexBuffer.push_back({ {p2.x, p2.y, 1.0f, 1.0f}, tint, {image.coords[2].x, image.coords[2].y}, {0, 0}, {0, 0}, {0, 0} });
+	batch.task.vertexBuffer.push_back({ {p3.x, p3.y, 1.0f, 1.0f}, tint, {image.coords[3].x, image.coords[3].y}, {0, 0}, {0, 0}, {0, 0} });
 	return batch;
 }
 
