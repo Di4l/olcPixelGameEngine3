@@ -592,7 +592,8 @@ namespace olc
 			const olc::Pixel tint = olc::Colour::WHITE);
 
 		// Draws a textured triangle, with per vertex colouring into a batch
-		const GPUTask& TexturedTriangle(
+		const TextureBatch& TexturedTriangle(
+			olc::TextureBatch& batch,
 			const olc::vf2d& p1,
 			const olc::vf2d& p2,
 			const olc::vf2d& p3,
@@ -602,7 +603,6 @@ namespace olc
 			const olc::vf2d& t1,
 			const olc::vf2d& t2,
 			const olc::vf2d& t3,
-			olc::Image& texture,
 			const olc::Pixel tint = olc::Colour::WHITE);
 
 		// Draws a textured triangle, with per vertex colouring

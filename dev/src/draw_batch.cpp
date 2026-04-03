@@ -18,6 +18,17 @@
 //! START IMPLEMENTATION
 using namespace olc;
 
+ImageBatch olc::Draw::CreateImageBatch(olc::Image& image)
+{
+	PrepareImageForHW(image);
+	PrepareTargetForHW();
+
+	ImageBatch b;
+	b.task.structure = olc::Structure::List;
+	b.task.pImage = &image;
+	return b;
+}
+
 const GPUTask& olc::Draw::Batch(olc::ImageBatch& batch, const olc::Pixel tint)
 {
 	batch.task.tint = tint;
@@ -45,6 +56,23 @@ LineBatch olc::Draw::CreateLineBatch()
 }
 
 const GPUTask& olc::Draw::Batch(olc::LineBatch& batch, const olc::Pixel tint)
+{
+	batch.task.tint = tint;
+	return vecGPUTasks.data.emplace_back(batch.task);
+}
+
+TextureBatch olc::Draw::CreateTextureBatch(olc::Image& image)
+{
+	PrepareImageForHW(image);
+	PrepareTargetForHW();
+
+	TextureBatch b;
+	b.task.structure = olc::Structure::List;
+	b.task.pImage = &image;
+	return b;
+}
+
+const GPUTask& olc::Draw::Batch(olc::TextureBatch& batch, const olc::Pixel tint)
 {
 	batch.task.tint = tint;
 	return vecGPUTasks.data.emplace_back(batch.task);
@@ -238,6 +266,19 @@ const FilledBatch& olc::Draw::FilledTriangle(olc::FilledBatch& batch, const olc:
 	batch.task.vertexBuffer[idx + 0] = { {a1.x, a1.y, 1.0f, 1.0f}, c1.blend(tint), {0, 0}, {0, 0}, {0, 0}, {0, 0} };
 	batch.task.vertexBuffer[idx + 1] = { {a2.x, a2.y, 1.0f, 1.0f}, c2.blend(tint), {0, 0}, {0, 0}, {0, 0}, {0, 0} };
 	batch.task.vertexBuffer[idx + 2] = { {a3.x, a3.y, 1.0f, 1.0f}, c3.blend(tint), {0, 0}, {0, 0}, {0, 0}, {0, 0} };
+	return batch;
+}
+
+const TextureBatch& olc::Draw::TexturedTriangle(olc::TextureBatch& batch, const olc::vf2d& p1, const olc::vf2d& p2, const olc::vf2d& p3, const olc::Pixel c1, const olc::Pixel c2, const olc::Pixel c3, const olc::vf2d& t1, const olc::vf2d& t2, const olc::vf2d& t3, const olc::Pixel tint)
+{
+	batch.task.vertexBuffer.resize(batch.task.vertexBuffer.size() + 3);
+	size_t idx = batch.task.vertexBuffer.size() - 3;
+	const olc::vf2d a1 = transformAffine.forwardRound(p1);
+	const olc::vf2d a2 = transformAffine.forwardRound(p2);
+	const olc::vf2d a3 = transformAffine.forwardRound(p3);
+	batch.task.vertexBuffer[idx + 0] = { {a1.x, a1.y, 1.0f, 1.0f}, c1.blend(tint), {t1.x, t1.y}, {0, 0}, {0, 0}, {0, 0} };
+	batch.task.vertexBuffer[idx + 1] = { {a2.x, a2.y, 1.0f, 1.0f}, c2.blend(tint), {t2.x, t2.y}, {0, 0}, {0, 0}, {0, 0} };
+	batch.task.vertexBuffer[idx + 2] = { {a3.x, a3.y, 1.0f, 1.0f}, c3.blend(tint), {t3.x, t3.y}, {0, 0}, {0, 0}, {0, 0} };
 	return batch;
 }
 

@@ -715,6 +715,8 @@ const GPUTask& olc::Draw::FilledTriangle(const olc::vf2d& p1, const olc::vf2d& p
 	return FilledTriangle(p1, p2, p3, col, col, col, tint);
 }
 
+
+
 const GPUTask& olc::Draw::FilledTriangle(const olc::vf2d& p1, const olc::vf2d& p2, const olc::vf2d& p3, const olc::Pixel c1, const olc::Pixel c2, const olc::Pixel c3, const olc::Pixel tint)
 {
 	PrepareTargetForHW();
@@ -946,16 +948,7 @@ GPUTask& olc::Draw::Mesh(const olc::Structure structure, const std::vector<olc::
 		)));
 }
 
-ImageBatch olc::Draw::CreateImageBatch(olc::Image &image)
-{
-	PrepareImageForHW(image);
-	PrepareTargetForHW();
 
-	ImageBatch b;
-	b.task.structure = olc::Structure::List;
-	b.task.pImage = &image;
-	return b;
-}
 
 
 const GPUTask& olc::Draw::Image(olc::ImageRegion image, const olc::vf2d& pos, const olc::vf2d& scale, const olc::Pixel tint)
