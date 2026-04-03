@@ -123,7 +123,7 @@
 
 	[#] FilledPolygon(structure, points[], col, [tint])		
 	[#] FilledPolygon(structure, points[], colours[], [tint])	
-	[ ] FilledPolygon(batch, structure, points[], col)	
+	[#] FilledPolygon(batch, structure, points[], col)	
 	[#] FilledPolygon(batch, structure, points[], colours[])	
 
 	[#] TexturedTriangle(p1, p2, p3, c1, c2, c3, uv1, uv2, uv3, image, [tint])
@@ -152,6 +152,7 @@
 	[#] Batch(LineBtach, [tint])
 	[#] Batch(FilledBatch, [tint])
 	[#] Batch(ImageBatch, [tint])
+	[#] Batch(TexturedBatch, [tint])
 
 
 	3D Rendering Functions
@@ -186,6 +187,7 @@ namespace olc
 	struct ImageBatch { GPUTask task; };
 	struct FilledBatch { GPUTask task; };
 	struct LineBatch { GPUTask task; };
+	struct TextureBatch { GPUTask task; };
 
 	class Draw
 	{
@@ -589,6 +591,20 @@ namespace olc
 			const olc::Pixel col = olc::Colour::WHITE,
 			const olc::Pixel tint = olc::Colour::WHITE);
 
+		// Draws a textured triangle, with per vertex colouring into a batch
+		const GPUTask& TexturedTriangle(
+			const olc::vf2d& p1,
+			const olc::vf2d& p2,
+			const olc::vf2d& p3,
+			const olc::Pixel c1,
+			const olc::Pixel c2,
+			const olc::Pixel c3,
+			const olc::vf2d& t1,
+			const olc::vf2d& t2,
+			const olc::vf2d& t3,
+			olc::Image& texture,
+			const olc::Pixel tint = olc::Colour::WHITE);
+
 		// Draws a textured triangle, with per vertex colouring
 		const GPUTask& TexturedTriangle(
 			const olc::vf2d& p1,
@@ -648,6 +664,14 @@ namespace olc
 			const olc::Structure structure,
 			const std::vector<olc::vf2d>& vecPoints,
 			const std::vector<olc::Pixel>& vecColours,
+			const olc::Pixel tint = olc::Colour::WHITE);
+
+		// Draws a filled polygon with multiple colours into a btach
+		const FilledBatch& FilledPolygon(
+			FilledBatch& batch,
+			const olc::Structure structure,
+			const std::vector<olc::vf2d>& vecPoints,
+			const olc::Pixel col = olc::Colour::WHITE,
 			const olc::Pixel tint = olc::Colour::WHITE);
 
 		// Draws a filled polygon with multiple colours into a btach
@@ -860,6 +884,14 @@ namespace olc
 
 		// Draws a line shape batch to the current target
 		const GPUTask& Batch(olc::LineBatch& batch, const olc::Pixel tint = olc::Colour::WHITE);
+
+		// Create a Textured batch for efficient repeated drawing of
+		// the same source texture on a polygon with per vertex colouring
+		TextureBatch CreateTextureBatch(olc::Image& image);
+
+		// Draws an image batch to the current target
+		const GPUTask& Batch(olc::TextureBatch& batch, const olc::Pixel tint = olc::Colour::WHITE);
+
 
 
 	public: // GPU Task Creator Functions (not normally called by user)

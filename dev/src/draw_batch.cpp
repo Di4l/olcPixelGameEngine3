@@ -262,6 +262,70 @@ const LineBatch& olc::Draw::Polygon(olc::LineBatch& batch, const std::vector<olc
 	return batch;
 }
 
+const FilledBatch& olc::Draw::FilledPolygon(FilledBatch& batch, const olc::Structure structure, const std::vector<olc::vf2d>& vecPoints, const olc::Pixel col, const olc::Pixel tint)
+{
+	auto pushTriangle = [&](const size_t idx, const olc::vf2d& p1, const olc::vf2d& p2, const olc::vf2d& p3, const olc::Pixel c1)
+		{
+			batch.task.vertexBuffer[idx + 0] = { {p1.x, p1.y, 1.0f, 1.0f}, c1, {0, 0}, {0, 0}, {0, 0}, {0, 0} };
+			batch.task.vertexBuffer[idx + 1] = { {p2.x, p2.y, 1.0f, 1.0f}, c1, {0, 0}, {0, 0}, {0, 0}, {0, 0} };
+			batch.task.vertexBuffer[idx + 2] = { {p3.x, p3.y, 1.0f, 1.0f}, c1, {0, 0}, {0, 0}, {0, 0}, {0, 0} };
+		};
+
+	// Transform unique verts into temporary buffer
+	buffPoints.data.clear();
+	buffColours.data.clear();
+	buffPoints.reserve(vecPoints.size());
+	for (size_t i = 0; i < vecPoints.size(); i++)
+	{
+		buffPoints.data[i] = transformAffine.forwardRound<float>(vecPoints[i]);
+	}
+
+	olc::Pixel blendedCol = col.blend(tint);
+
+	switch (structure)
+	{
+	case olc::Structure::Fan:
+	{
+		size_t idx = batch.task.vertexBuffer.size();
+		batch.task.vertexBuffer.resize(batch.task.vertexBuffer.size() + (vecPoints.size() - 2) * 3);
+
+		for (size_t i = 1; i < vecPoints.size() - 1; i++)
+			pushTriangle(idx + (i - 1) * 3,
+				buffPoints.data[0], buffPoints.data[i], buffPoints.data[i + 1],
+				blendedCol);
+	}
+	break;
+
+	case olc::Structure::Strip:
+	{
+		size_t idx = batch.task.vertexBuffer.size();
+		batch.task.vertexBuffer.resize(batch.task.vertexBuffer.size() + (vecPoints.size() - 2) * 3);
+
+		for (size_t i = 0; i < vecPoints.size() - 2; i++)
+			pushTriangle(idx + (i * 3),
+				buffPoints.data[i], buffPoints.data[i + 1], buffPoints.data[i + 2],
+				blendedCol);
+	}
+	break;
+
+	case olc::Structure::List:
+	{
+		size_t idx = batch.task.vertexBuffer.size();
+		batch.task.vertexBuffer.resize(batch.task.vertexBuffer.size() + (vecPoints.size() / 3));
+
+		for (size_t i = 0; i < vecPoints.size(); i += 3)
+			pushTriangle(idx + i,
+				buffPoints.data[i], buffPoints.data[i + 1], buffPoints.data[i + 2],
+				blendedCol);
+	}
+
+	default:
+		break;
+	}
+
+	return batch;
+}
+
 const FilledBatch& olc::Draw::FilledPolygon(FilledBatch& batch, const olc::Structure structure, const std::vector<olc::vf2d>& vecPoints, const std::vector<olc::Pixel>& vecColours, const olc::Pixel tint)
 {
 	// TODO: Curiously, this approach is considerably slower than the naive approach of just 
