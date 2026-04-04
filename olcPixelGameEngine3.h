@@ -290,10 +290,19 @@
 
 #define LICENCE_DEFAULT "OneLoneCoder.com - Pixel Game Engine 3 - "
 
+#if OLC_HOST == OLC_HOST_MACOS
+// De-Noise in clang (C++20) MacOS
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunknown-pragmas" 	  // Allow unknown pragmas for compatibility with different compilers
+#pragma clang diagnostic ignored "-Wgnu-anonymous-struct" // Allow anonymous structs in unions
+
+#endif
+
 // De-Noise in MSVC (C++20) /Wall
 #pragma warning(disable:4820) // Disable Padding Warnings
 #pragma warning(disable:5045) // Disable Spectre Mitigation Warnings
 #pragma warning(disable:4514) // Disable Unreferenced Inline Function Warnings
+
 
 template<typename... Args>
 inline constexpr void olc_IgnoreUnused(Args&&...) noexcept {}
@@ -328,6 +337,10 @@ inline constexpr void olc_IgnoreUnused(Args&&...) noexcept {}
 
 
 #if !defined(PGE_PIXEL_DECLARED)
+#if OLC_HOST == OLC_HOST_MACOS
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-copy-with-user-provided-copy" // Silence warnings about implicitly generated copy constructor for Pixel
+#endif
 namespace olc
 {
 	class Pixel
@@ -634,6 +647,10 @@ namespace olc
 			TANGERINE(255, 165, 0);
 	}
 }
+
+#if OLC_HOST == OLC_HOST_MACOS
+#pragma clang diagnostic pop
+#endif
 
 #define PGE_PIXEL_DECLARED 1
 #endif
@@ -1965,6 +1982,10 @@ namespace olc
 #endif
 
 #if !defined(PGE_TRANSFORM2D_DECLARED)
+#if OLC_HOST == OLC_HOST_MACOS
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wignored-qualifiers" // Silence warnings about ignored qualifiers in olc::t_2d
+#endif
 namespace olc
 {
 	namespace internal
@@ -2207,6 +2228,9 @@ namespace olc
 	typedef t_2d<float> tf2d;
 	typedef t_2d<double> td2d;
 }
+#if OLC_HOST == OLC_HOST_MACOS
+#pragma clang diagnostic pop
+#endif
 #define PGE_TRANSFORM2D_DECLARED 1
 #endif
  
@@ -7927,15 +7951,15 @@ namespace olc::host {
 
 
     // NSEventModifierFlags values
-    constexpr unsigned int NSEventModifierNoFlags        = 1 << 8;  // 0x100
-    constexpr unsigned int NSEventModifierFlagCapsLock   = 1 << 16; // 0x10000
+    // constexpr unsigned int NSEventModifierNoFlags        = 1 << 8;  // 0x100     // Temp remove unused variable warning
+    // constexpr unsigned int NSEventModifierFlagCapsLock   = 1 << 16; // 0x10000   // Temp remove unused variable warning
     constexpr unsigned int NSEventModifierFlagShift      = 1 << 17; // 0x20000
     constexpr unsigned int NSEventModifierFlagControl    = 1 << 18; // 0x40000
-    constexpr unsigned int NSEventModifierFlagOption     = 1 << 19; // 0x80000
+    // constexpr unsigned int NSEventModifierFlagOption     = 1 << 19; // 0x80000   // Temp remove unused variable warning
     constexpr unsigned int NSEventModifierFlagCommand    = 1 << 20; // 0x100000
-    constexpr unsigned int NSEventModifierFlagNumericPad = 1 << 21; // 0x200000
-    constexpr unsigned int NSEventModifierFlagHelp       = 1 << 22; // 0x400000
-    constexpr unsigned int NSEventModifierFlagFunction   = 1 << 23; // 0x800000
+    // constexpr unsigned int NSEventModifierFlagNumericPad = 1 << 21; // 0x200000  // Temp remove unused variable warning
+    // constexpr unsigned int NSEventModifierFlagHelp       = 1 << 22; // 0x400000  // Temp remove unused variable warning
+    // constexpr unsigned int NSEventModifierFlagFunction   = 1 << 23; // 0x800000  // Temp remove unused variable warning
 
     // enum for window appearance and behavior bit flags
     enum class NSWindowStyleMask : uint16_t {
@@ -8072,6 +8096,7 @@ namespace olc::host {
 
 
     bool Host_Apple_MacOS::AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen){
+        olc_IgnoreUnused(bFullScreen);
         pPGEwindow = pWindow;
         pPGEwindow->SetWindowPosition(vWindowPos);
         pPGEwindow->SetWindowSize(vWindowSize);
@@ -8099,7 +8124,7 @@ namespace olc::host {
     }
 
     std::vector<void*> Host_Apple_MacOS::GetHostWindowDescriptor(olc::Window* pWindow){
-        
+        olc_IgnoreUnused(pWindow);
         // Ensure OpenGL renderer is created
         if(pMacOSOpenGLRenderer == nullptr)
             CreateCGLContextObj();
@@ -8128,6 +8153,7 @@ namespace olc::host {
 
     bool Host_Apple_MacOS::SetMousePosition(olc::Window* pWindow, const olc::vi2d& vPos)
     {
+        olc_IgnoreUnused(pWindow);
         dispatch_sync(dispatch_get_main_queue(), ^{
             pMacOSWindow->setCursorPosition(vPos.x, vPos.y);
         });
@@ -8136,6 +8162,7 @@ namespace olc::host {
 
     bool Host_Apple_MacOS::SetMouseVisible(olc::Window* pWindow, const bool bVisible)
     {
+        olc_IgnoreUnused(pWindow);
         dispatch_sync(dispatch_get_main_queue(), ^{
             pMacOSWindow->setCursorVisibility(bVisible);
         });
@@ -8144,6 +8171,7 @@ namespace olc::host {
 
     bool Host_Apple_MacOS::SetFullScreen(olc::Window* pWindow, const bool bFullScreen)
     {
+        olc_IgnoreUnused(pWindow);
         // if we're already in the specified state, return early
         if(pMacOSWindow->isFullScreen() == bFullScreen)
             return true;
@@ -8690,7 +8718,7 @@ static constexpr const char* kCustomOpenGLViewClass             = "CustomOpenGLV
 static constexpr const char* kGeneralWindowDelegateClass        = "GeneralWindowDelegate";
 
 // Application Screen management selectors
-static constexpr const char* kNSScreenClass                     = "NSScreen";
+//static constexpr const char* kNSScreenClass                     = "NSScreen"; // Temp remove unused variable warning
 static constexpr const char* kScreenSel                         = "screen";
 static constexpr const char* kNSCursorClass                     = "NSCursor";
 static constexpr const char* kUnhideSel                         = "unhide";
@@ -8811,7 +8839,7 @@ static constexpr const char* kLocaleIdentifierSel               = "localeIdentif
 static constexpr const char* kWindowTitle                       = "C macOS OpenGL Framework";
 static constexpr double kDefaultWindowWidth                     = 800.0;
 static constexpr double kDefaultWindowHeight                    = 600.0;
-static constexpr int kBitsPerByte                               = 8;
+// static constexpr int kBitsPerByte                               = 8; // Temp remove unused variable warning
 static constexpr int kMinValidDimension                         = 0;
 static constexpr int kRGBABytesPerPixel                         = 4;
 static constexpr int kFullyOpaque                               = 255;
@@ -8821,7 +8849,7 @@ static constexpr int kZeroWidth                                 = 0;
 static constexpr int kZeroHeight                                = 0;
 static constexpr int kFlippedOffset                             = 1;
 static constexpr int kNoButton                                  = -1;
-static constexpr int kDefaultScreenNumber                       = 1;
+// static constexpr int kDefaultScreenNumber                       = 1;  // Temp remove unused variable warning
 bool bAllowHideCursor                                           = true;
 bool bHideCursor                                                = false;
 
@@ -8952,8 +8980,8 @@ namespace ObjectiveCSEL {
    // NSLocale selectors
    static SEL currentLocaleSel               = nullptr;
    static SEL localeIdentifierSel            = nullptr;
-   static SEL currentInputContextSel         = nullptr;
-   static SEL localizedNameSel               = nullptr;
+   // static SEL currentInputContextSel         = nullptr; // Temp remove unused variable warning
+   // static SEL localizedNameSel               = nullptr; // Temp remove unused variable warning
 
    // Initialize all selectors - called once at startup
     void initializeSelectors() {
@@ -9180,13 +9208,21 @@ static constexpr int NSOpenGLPFAOpenGLProfile = static_cast<int>(NSOpenGLPixelFo
 static constexpr int NSOpenGLPFASampleBuffers = static_cast<int>(NSOpenGLPixelFormatAttribute::SampleBuffers);
 static constexpr int NSOpenGLPFAMultisample        = static_cast<int>(NSOpenGLPixelFormatAttribute::Multisample);
 static constexpr int NSOpenGLAllowOfflineRenderers = static_cast<int>(NSOpenGLPixelFormatAttribute::AllowOfflineRenderers);
-static constexpr int NSOpenGLPFAAcceleratedCompute = static_cast<int>(NSOpenGLPixelFormatAttribute::AcceleratedCompute);
+// static constexpr int NSOpenGLPFAAcceleratedCompute = static_cast<int>(NSOpenGLPixelFormatAttribute::AcceleratedCompute); // Temp remove unused variable warning
 
 // enum for OpenGL profile versions
 enum class NSOpenGLProfile : int {
     VersionLegacy    = 0x1000,   // Legacy OpenGL (deprecated)
     Version3_2Core   = 0x3200,   // OpenGL 3.2 Core Profile
     Version4_1Core   = 0x4100,   // OpenGL 4.1 Core Profile
+};
+
+// enum for OpenGL context parameters
+enum NSOpenGLContextParameter : int {
+    NSOpenGLContextParameterSwapInterval       = 222,
+    NSOpenGLContextParameterSurfaceOrder       = 235,
+    NSOpenGLContextParameterSurfaceOpacity     = 236,
+    NSOpenGLContextParameterSurfaceBackingSize = 237
 };
 
 // Backward compatibility
@@ -9210,10 +9246,10 @@ enum class NSWindowStyleMask : uint16_t {
 };
 
 // Backward compatibility
-static constexpr int NSWindowStyleMaskTitled         = static_cast<int>(NSWindowStyleMask::Titled);
-static constexpr int NSWindowStyleMaskClosable       = static_cast<int>(NSWindowStyleMask::Closable);
-static constexpr int NSWindowStyleMaskMiniaturizable = static_cast<int>(NSWindowStyleMask::Miniaturizable);
-static constexpr int NSWindowStyleMaskResizable      = static_cast<int>(NSWindowStyleMask::Resizable);
+// static constexpr int NSWindowStyleMaskTitled         = static_cast<int>(NSWindowStyleMask::Titled);          // Temp remove unused variable warning
+// static constexpr int NSWindowStyleMaskClosable       = static_cast<int>(NSWindowStyleMask::Closable);        // Temp remove unused variable warning
+// static constexpr int NSWindowStyleMaskMiniaturizable = static_cast<int>(NSWindowStyleMask::Miniaturizable);  // Temp remove unused variable warning
+// static constexpr int NSWindowStyleMaskResizable      = static_cast<int>(NSWindowStyleMask::Resizable);       // Temp remove unused variable warning
 static constexpr int NSWindowStyleMaskFullScreen     = static_cast<int>(NSWindowStyleMask::FullScreen);
 
 // enum for backing store types
@@ -10518,7 +10554,7 @@ extern "C" {
         GLint swapInterval = enabled ? 1 : 0;
         
         // Use NSOpenGLContext setValues:forParameter: to set swap interval
-        const GLint parameter = 222; // NSOpenGLContextParameterSwapInterval
+        const GLint parameter = NSOpenGLContextParameterSwapInterval;
         ((void(*)(id, SEL, const GLint*, GLint))objc_msgSend)(self->glContext, ObjectiveCSEL::setValuesSel, &swapInterval, parameter);
     }
 
@@ -10569,13 +10605,13 @@ extern "C" {
         CGDataProviderRef provider = CGImageGetDataProvider(image);
         CFDataRef rawData = CGDataProviderCopyData(provider);
 
-        CGBitmapInfo bitmapInfo = CGImageGetBitmapInfo(image);
-        CGImageAlphaInfo alphaInfo = (CGImageAlphaInfo)(bitmapInfo & kCGBitmapAlphaInfoMask);
-        CGBitmapInfo byteOrder = bitmapInfo & kCGBitmapByteOrderMask;
+        //CGBitmapInfo bitmapInfo = CGImageGetBitmapInfo(image);                               // Temp remove unused variable warning
+        //CGImageAlphaInfo alphaInfo = (CGImageAlphaInfo)(bitmapInfo & kCGBitmapAlphaInfoMask); // Temp remove unused variable warning
+        //CGBitmapInfo byteOrder = bitmapInfo & kCGBitmapByteOrderMask;                         // Temp remove unused variable warning
         
-        self->width         = CGImageGetWidth(image);
-        self->height        = CGImageGetHeight(image);
-        self->bytesPerPixel = 4;
+        self->width         = (int)CGImageGetWidth(image); 
+        self->height        = (int)CGImageGetHeight(image);
+        self->bytesPerPixel = kRGBABytesPerPixel; // 4 bytes for RGBA
         self->bytesPerRow   = self->width * self->bytesPerPixel;
         self->hasAlpha      = YES;
 
@@ -14462,6 +14498,8 @@ namespace olc::apis::opengl
 	{
 #if OLC_HOST == OLC_HOST_WINDOWS
 		_wglSwapIntervalEXT(n);
+#else
+		olc_IgnoreUnused(n);
 #endif
 	}
 
@@ -15982,6 +16020,7 @@ void main()
 
 #if OLC_HOST == OLC_HOST_MACOS
 		// The pointer value in os_win_id[1] will be set to true, when the OS requests to skip the frame swap
+		olc_IgnoreUnused(bVerticalSyncNow);
         const bool* bSkipFrame = static_cast<const bool*>(os_win_id[1]);
 		if (*bSkipFrame) return true;
 		CGLContextObj cglContext = static_cast<CGLContextObj>(os_win_id[0]);
@@ -16060,6 +16099,10 @@ void main()
 #endif
 
 #if defined(OLC_PGE3_APPLICATION) && !defined(PGE_DRAW_IMPLEMENTED)
+#if OLC_HOST == OLC_HOST_MACOS
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wpessimizing-move"  // Suppress clang C++20 warning about moves preventing copy elision on macOS
+#endif
 using namespace olc;
 
 // Some local pools to reduce allocations
@@ -17233,6 +17276,10 @@ const olc::mf4d& olc::Draw::GetMVPMatrix() const
 {
 	return matMVP;
 }
+
+#if OLC_HOST == OLC_HOST_MACOS
+#pragma clang diagnostic pop
+#endif
 
 using namespace olc;
 
@@ -18690,7 +18737,8 @@ namespace olc
 					fontClassicPGE.glyphs.push_back(glyph);
 				}
 				else
-					fontClassicPGE.glyphs.push_back(FontGlyph{ fontClassicPGE.imgFont.region({0,0}, {8,8}) , 8.0f, {8.0f, 8.0f} });
+					// Added missing vMonoSize for non-printable characters, which was causing -Wmissing-field-initializers
+					fontClassicPGE.glyphs.push_back(FontGlyph{ fontClassicPGE.imgFont.region({0,0}, {8,8}) , 8.0f, {8.0f, 8.0f}, { 0.0f, 0.0f } });
 			}
 
 			fontClassicPGE.fLineHeight = 8.0f;
@@ -19364,11 +19412,13 @@ namespace olc::imload
 
     bool ImageLoader_MacOS::WriteImageToFile(const olc::Image& image, const std::string& sFileName)
     {
+        olc_IgnoreUnused(image, sFileName);
         return false;
     }
 
     bool ImageLoader_MacOS::WriteImageToMemoryFile(olc::Image& image, const std::vector<uint8_t>& data)
     {
+        olc_IgnoreUnused(image, data);
         return false;
     }
 }

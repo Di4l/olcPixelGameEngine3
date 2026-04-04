@@ -17,6 +17,10 @@
 
 //! START DECLARATION
 #if !defined(PGE_PIXEL_DECLARED)
+#if OLC_HOST == OLC_HOST_MACOS
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-copy-with-user-provided-copy" // Silence warnings about implicitly generated copy constructor for Pixel
+#endif
 namespace olc
 {
 	class Pixel
@@ -323,6 +327,10 @@ namespace olc
 			TANGERINE(255, 165, 0);
 	}
 }
+
+#if OLC_HOST == OLC_HOST_MACOS
+#pragma clang diagnostic pop
+#endif
 
 #define PGE_PIXEL_DECLARED 1
 #endif

@@ -18,7 +18,7 @@ static constexpr const char* kCustomOpenGLViewClass             = "CustomOpenGLV
 static constexpr const char* kGeneralWindowDelegateClass        = "GeneralWindowDelegate";
 
 // Application Screen management selectors
-static constexpr const char* kNSScreenClass                     = "NSScreen";
+//static constexpr const char* kNSScreenClass                     = "NSScreen"; // Temp remove unused variable warning
 static constexpr const char* kScreenSel                         = "screen";
 static constexpr const char* kNSCursorClass                     = "NSCursor";
 static constexpr const char* kUnhideSel                         = "unhide";
@@ -139,7 +139,7 @@ static constexpr const char* kLocaleIdentifierSel               = "localeIdentif
 static constexpr const char* kWindowTitle                       = "C macOS OpenGL Framework";
 static constexpr double kDefaultWindowWidth                     = 800.0;
 static constexpr double kDefaultWindowHeight                    = 600.0;
-static constexpr int kBitsPerByte                               = 8;
+// static constexpr int kBitsPerByte                               = 8; // Temp remove unused variable warning
 static constexpr int kMinValidDimension                         = 0;
 static constexpr int kRGBABytesPerPixel                         = 4;
 static constexpr int kFullyOpaque                               = 255;
@@ -149,7 +149,7 @@ static constexpr int kZeroWidth                                 = 0;
 static constexpr int kZeroHeight                                = 0;
 static constexpr int kFlippedOffset                             = 1;
 static constexpr int kNoButton                                  = -1;
-static constexpr int kDefaultScreenNumber                       = 1;
+// static constexpr int kDefaultScreenNumber                       = 1;  // Temp remove unused variable warning
 bool bAllowHideCursor                                           = true;
 bool bHideCursor                                                = false;
 
@@ -280,8 +280,8 @@ namespace ObjectiveCSEL {
    // NSLocale selectors
    static SEL currentLocaleSel               = nullptr;
    static SEL localeIdentifierSel            = nullptr;
-   static SEL currentInputContextSel         = nullptr;
-   static SEL localizedNameSel               = nullptr;
+   // static SEL currentInputContextSel         = nullptr; // Temp remove unused variable warning
+   // static SEL localizedNameSel               = nullptr; // Temp remove unused variable warning
 
    // Initialize all selectors - called once at startup
     void initializeSelectors() {
@@ -508,13 +508,21 @@ static constexpr int NSOpenGLPFAOpenGLProfile = static_cast<int>(NSOpenGLPixelFo
 static constexpr int NSOpenGLPFASampleBuffers = static_cast<int>(NSOpenGLPixelFormatAttribute::SampleBuffers);
 static constexpr int NSOpenGLPFAMultisample        = static_cast<int>(NSOpenGLPixelFormatAttribute::Multisample);
 static constexpr int NSOpenGLAllowOfflineRenderers = static_cast<int>(NSOpenGLPixelFormatAttribute::AllowOfflineRenderers);
-static constexpr int NSOpenGLPFAAcceleratedCompute = static_cast<int>(NSOpenGLPixelFormatAttribute::AcceleratedCompute);
+// static constexpr int NSOpenGLPFAAcceleratedCompute = static_cast<int>(NSOpenGLPixelFormatAttribute::AcceleratedCompute); // Temp remove unused variable warning
 
 // enum for OpenGL profile versions
 enum class NSOpenGLProfile : int {
     VersionLegacy    = 0x1000,   // Legacy OpenGL (deprecated)
     Version3_2Core   = 0x3200,   // OpenGL 3.2 Core Profile
     Version4_1Core   = 0x4100,   // OpenGL 4.1 Core Profile
+};
+
+// enum for OpenGL context parameters
+enum NSOpenGLContextParameter : int {
+    NSOpenGLContextParameterSwapInterval       = 222,
+    NSOpenGLContextParameterSurfaceOrder       = 235,
+    NSOpenGLContextParameterSurfaceOpacity     = 236,
+    NSOpenGLContextParameterSurfaceBackingSize = 237
 };
 
 // Backward compatibility
@@ -538,10 +546,10 @@ enum class NSWindowStyleMask : uint16_t {
 };
 
 // Backward compatibility
-static constexpr int NSWindowStyleMaskTitled         = static_cast<int>(NSWindowStyleMask::Titled);
-static constexpr int NSWindowStyleMaskClosable       = static_cast<int>(NSWindowStyleMask::Closable);
-static constexpr int NSWindowStyleMaskMiniaturizable = static_cast<int>(NSWindowStyleMask::Miniaturizable);
-static constexpr int NSWindowStyleMaskResizable      = static_cast<int>(NSWindowStyleMask::Resizable);
+// static constexpr int NSWindowStyleMaskTitled         = static_cast<int>(NSWindowStyleMask::Titled);          // Temp remove unused variable warning
+// static constexpr int NSWindowStyleMaskClosable       = static_cast<int>(NSWindowStyleMask::Closable);        // Temp remove unused variable warning
+// static constexpr int NSWindowStyleMaskMiniaturizable = static_cast<int>(NSWindowStyleMask::Miniaturizable);  // Temp remove unused variable warning
+// static constexpr int NSWindowStyleMaskResizable      = static_cast<int>(NSWindowStyleMask::Resizable);       // Temp remove unused variable warning
 static constexpr int NSWindowStyleMaskFullScreen     = static_cast<int>(NSWindowStyleMask::FullScreen);
 
 // enum for backing store types
@@ -1846,7 +1854,7 @@ extern "C" {
         GLint swapInterval = enabled ? 1 : 0;
         
         // Use NSOpenGLContext setValues:forParameter: to set swap interval
-        const GLint parameter = 222; // NSOpenGLContextParameterSwapInterval
+        const GLint parameter = NSOpenGLContextParameterSwapInterval;
         ((void(*)(id, SEL, const GLint*, GLint))objc_msgSend)(self->glContext, ObjectiveCSEL::setValuesSel, &swapInterval, parameter);
     }
 
@@ -1897,13 +1905,13 @@ extern "C" {
         CGDataProviderRef provider = CGImageGetDataProvider(image);
         CFDataRef rawData = CGDataProviderCopyData(provider);
 
-        CGBitmapInfo bitmapInfo = CGImageGetBitmapInfo(image);
-        CGImageAlphaInfo alphaInfo = (CGImageAlphaInfo)(bitmapInfo & kCGBitmapAlphaInfoMask);
-        CGBitmapInfo byteOrder = bitmapInfo & kCGBitmapByteOrderMask;
+        //CGBitmapInfo bitmapInfo = CGImageGetBitmapInfo(image);                               // Temp remove unused variable warning
+        //CGImageAlphaInfo alphaInfo = (CGImageAlphaInfo)(bitmapInfo & kCGBitmapAlphaInfoMask); // Temp remove unused variable warning
+        //CGBitmapInfo byteOrder = bitmapInfo & kCGBitmapByteOrderMask;                         // Temp remove unused variable warning
         
-        self->width         = CGImageGetWidth(image);
-        self->height        = CGImageGetHeight(image);
-        self->bytesPerPixel = 4;
+        self->width         = (int)CGImageGetWidth(image); 
+        self->height        = (int)CGImageGetHeight(image);
+        self->bytesPerPixel = kRGBABytesPerPixel; // 4 bytes for RGBA
         self->bytesPerRow   = self->width * self->bytesPerPixel;
         self->hasAlpha      = YES;
 

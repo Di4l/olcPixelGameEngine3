@@ -364,8 +364,8 @@ public:
 
 
 
-		// Draw 3 triangle points
-		for (int i = 0; i < vecTestPoints.size(); i++)
+		// Draw 3 triangle points (change to size_t to remove warning -Wsign-compare)
+		for (size_t i = 0; i < vecTestPoints.size(); i++)
 		{
 			//draw.Rect(vecTestPoints[i] - (vTestPointSize * 0.5f), vTestPointSize, olc::Colour::MAGENTA);
 
@@ -398,8 +398,8 @@ public:
 		t2.translate(0.0f, 6.0f, 0.0f);
 		t3.translate(7.0f, 0.0f, 0.0f);
 
-		olc::vf4d v1 = { 1,0,0,1 };
-		olc::vf4d v2 = t3 * t2 * t1 * v1;
+		//olc::vf4d v1 = { 1,0,0,1 };		// Temp remove unused variable warning
+		//olc::vf4d v2 = t3 * t2 * t1 * v1; // Temp remove unused variable warning
 
 
 		olc::mf4d matProj;
@@ -452,7 +452,8 @@ public:
 		if (mouse.GetButton(0).bPressed)
 		{
 			nSelectedPoint = -1;
-			for (int i = 0; i < vecTestPoints.size(); i++)
+			// change to size_t to remove warning -Wsign-compare
+			for (int i = 0; i < (int)vecTestPoints.size(); i++)
 			{
 				if ((mouse.GetPosition() - vecTestPoints[i]).mag2() < 9)
 				{

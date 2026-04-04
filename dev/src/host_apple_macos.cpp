@@ -9,15 +9,15 @@ namespace olc::host {
 
 
     // NSEventModifierFlags values
-    constexpr unsigned int NSEventModifierNoFlags        = 1 << 8;  // 0x100
-    constexpr unsigned int NSEventModifierFlagCapsLock   = 1 << 16; // 0x10000
+    // constexpr unsigned int NSEventModifierNoFlags        = 1 << 8;  // 0x100     // Temp remove unused variable warning
+    // constexpr unsigned int NSEventModifierFlagCapsLock   = 1 << 16; // 0x10000   // Temp remove unused variable warning
     constexpr unsigned int NSEventModifierFlagShift      = 1 << 17; // 0x20000
     constexpr unsigned int NSEventModifierFlagControl    = 1 << 18; // 0x40000
-    constexpr unsigned int NSEventModifierFlagOption     = 1 << 19; // 0x80000
+    // constexpr unsigned int NSEventModifierFlagOption     = 1 << 19; // 0x80000   // Temp remove unused variable warning
     constexpr unsigned int NSEventModifierFlagCommand    = 1 << 20; // 0x100000
-    constexpr unsigned int NSEventModifierFlagNumericPad = 1 << 21; // 0x200000
-    constexpr unsigned int NSEventModifierFlagHelp       = 1 << 22; // 0x400000
-    constexpr unsigned int NSEventModifierFlagFunction   = 1 << 23; // 0x800000
+    // constexpr unsigned int NSEventModifierFlagNumericPad = 1 << 21; // 0x200000  // Temp remove unused variable warning
+    // constexpr unsigned int NSEventModifierFlagHelp       = 1 << 22; // 0x400000  // Temp remove unused variable warning
+    // constexpr unsigned int NSEventModifierFlagFunction   = 1 << 23; // 0x800000  // Temp remove unused variable warning
 
     // enum for window appearance and behavior bit flags
     enum class NSWindowStyleMask : uint16_t {
@@ -154,6 +154,7 @@ namespace olc::host {
 
 
     bool Host_Apple_MacOS::AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen){
+        olc_IgnoreUnused(bFullScreen);
         pPGEwindow = pWindow;
         pPGEwindow->SetWindowPosition(vWindowPos);
         pPGEwindow->SetWindowSize(vWindowSize);
@@ -181,7 +182,7 @@ namespace olc::host {
     }
 
     std::vector<void*> Host_Apple_MacOS::GetHostWindowDescriptor(olc::Window* pWindow){
-        
+        olc_IgnoreUnused(pWindow);
         // Ensure OpenGL renderer is created
         if(pMacOSOpenGLRenderer == nullptr)
             CreateCGLContextObj();
@@ -210,6 +211,7 @@ namespace olc::host {
 
     bool Host_Apple_MacOS::SetMousePosition(olc::Window* pWindow, const olc::vi2d& vPos)
     {
+        olc_IgnoreUnused(pWindow);
         dispatch_sync(dispatch_get_main_queue(), ^{
             pMacOSWindow->setCursorPosition(vPos.x, vPos.y);
         });
@@ -218,6 +220,7 @@ namespace olc::host {
 
     bool Host_Apple_MacOS::SetMouseVisible(olc::Window* pWindow, const bool bVisible)
     {
+        olc_IgnoreUnused(pWindow);
         dispatch_sync(dispatch_get_main_queue(), ^{
             pMacOSWindow->setCursorVisibility(bVisible);
         });
@@ -226,6 +229,7 @@ namespace olc::host {
 
     bool Host_Apple_MacOS::SetFullScreen(olc::Window* pWindow, const bool bFullScreen)
     {
+        olc_IgnoreUnused(pWindow);
         // if we're already in the specified state, return early
         if(pMacOSWindow->isFullScreen() == bFullScreen)
             return true;
