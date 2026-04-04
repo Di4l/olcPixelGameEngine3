@@ -37,6 +37,29 @@ namespace olc
 		// Vertex buffer is a series of discrete triangles
 		List, 
 	};
+
+	// Define blend modes for drawing operations
+	enum class BlendMode : uint8_t
+	{
+		// Alpha blend source and destination pixels based on source alpha
+		Alpha = 0,
+		// Additively blend source and destination pixels together
+		Additive,
+		// Multiplicatively blend source and destination pixels together
+		Multiplicative,
+		// No blending, just overwrite pixels with source colour
+		None,
+	};
+
+	enum class CullMode : uint8_t
+	{
+		// No
+		None = 0,
+		// Cull if vertices are listed in clockwise order
+		ClockWise,
+		// Cull if vertices are listed in anticlockwise order
+		CounterClockWise
+	};
 	
 	// This is the default "packet" of work that is sent to 
 	// a GPU for drawing. Various drawing operations throughout
@@ -85,21 +108,17 @@ namespace olc
 		// Overall biasing colour (great for blends)
 		olc::Pixel tint = olc::Colour::WHITE;
 
+		// Texture to be used for drawing (if any) (in slot #0)
 		olc::Image* pImage = nullptr;
 
 		// Define super structure to be drawn
 		Structure structure = Structure::Fan;
 
 		// Define if GPU should face cull based on winding order
-		enum class CullMode : uint8_t
-		{
-			// No
-			None = 0,
-			// Cull if vertices are listed in clockwise order
-			ClockWise,
-			// Cull if vertices are listed in anticlockwise order
-			CounterClockWise
-		} cullmode = CullMode::None;
+		CullMode cullmode = CullMode::None;
+
+		// Define blend mode for drawing
+		BlendMode blendmode = BlendMode::Alpha;
 	};
 }
 #define PGE_GPUTASK_DECLARED 1

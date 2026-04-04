@@ -826,7 +826,8 @@ namespace olc
 			const olc::Pixel tint = olc::Colour::WHITE);
 
 	public: // Applied Rendering Modes
-		void SetCullMode(const olc::GPUTask::CullMode mode);
+		void SetCullMode(const olc::CullMode mode);
+		void SetBlendMode(const olc::BlendMode mode);
 		void EnableDepth(const bool bEnable);
 		void SetViewport(const olc::vi2d& pos, const olc::vi2d& size);
 
@@ -1026,7 +1027,8 @@ namespace olc
 			olc::vi2d vViewportSize = { 0, 0 };
 
 
-			olc::GPUTask::CullMode cullMode = olc::GPUTask::CullMode::None;
+			olc::CullMode cullMode = olc::CullMode::None;
+			olc::BlendMode blendMode = olc::BlendMode::Alpha;	
 			bool bDepth = true;
 
 

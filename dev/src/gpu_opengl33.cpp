@@ -1124,31 +1124,51 @@ void main()
 				
 
 				// Apply Culling modes
-				if (task.cullmode == GPUTask::CullMode::None)
+				if (task.cullmode == olc::CullMode::None)
 				{
 					gl.glDisable(GL_CULL_FACE);
 				}
-				else if (task.cullmode == GPUTask::CullMode::ClockWise)
+				else if (task.cullmode == olc::CullMode::ClockWise)
 				{
 					gl.glCullFace(GL_FRONT);
 					gl.glEnable(GL_CULL_FACE);
 				}
-				else if (task.cullmode == GPUTask::CullMode::CounterClockWise)
+				else if (task.cullmode == olc::CullMode::CounterClockWise)
 				{
 					gl.glCullFace(GL_BACK);
 					gl.glEnable(GL_CULL_FACE);
 				}
 
-				//// Apply Depth Testing (if required)
+				// Apply Depth Testing (if required)
 				if (task.bDepth)
+				{
 					gl.glEnable(GL_DEPTH_TEST);
+					gl.glDepthFunc(GL_LESS);
+				}
 
-				glDepthFunc(GL_LESS);
 
-				gl.glEnable(GL_BLEND);
+				// Apply Blending Mode
+				if (task.blendmode == olc::BlendMode::Alpha)
+				{
+					gl.glEnable(GL_BLEND);
+					gl.glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+				}
+				else if(task.blendmode == olc::BlendMode::Additive)
+				{
+					gl.glEnable(GL_BLEND);
+					gl.glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+				}
+				else if(task.blendmode == olc::BlendMode::Multiplicative)
+				{
+					gl.glEnable(GL_BLEND);
+					gl.glBlendFunc(GL_DST_COLOR, GL_ONE_MINUS_SRC_ALPHA);
+				}
+
+				//gl.glEnable(GL_BLEND);
 				//gl.glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-				gl.glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+				//gl.glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 
+				// Apply Rendering Mode
 				if (task.bWireframe)
 					gl.glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 

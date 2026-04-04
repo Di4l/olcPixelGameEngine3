@@ -2479,6 +2479,29 @@ namespace olc
 		// Vertex buffer is a series of discrete triangles
 		List, 
 	};
+
+	// Define blend modes for drawing operations
+	enum class BlendMode : uint8_t
+	{
+		// Alpha blend source and destination pixels based on source alpha
+		Alpha = 0,
+		// Additively blend source and destination pixels together
+		Additive,
+		// Multiplicatively blend source and destination pixels together
+		Multiplicative,
+		// No blending, just overwrite pixels with source colour
+		None,
+	};
+
+	enum class CullMode : uint8_t
+	{
+		// No
+		None = 0,
+		// Cull if vertices are listed in clockwise order
+		ClockWise,
+		// Cull if vertices are listed in anticlockwise order
+		CounterClockWise
+	};
 	
 	// This is the default "packet" of work that is sent to 
 	// a GPU for drawing. Various drawing operations throughout
@@ -2527,21 +2550,17 @@ namespace olc
 		// Overall biasing colour (great for blends)
 		olc::Pixel tint = olc::Colour::WHITE;
 
+		// Texture to be used for drawing (if any) (in slot #0)
 		olc::Image* pImage = nullptr;
 
 		// Define super structure to be drawn
 		Structure structure = Structure::Fan;
 
 		// Define if GPU should face cull based on winding order
-		enum class CullMode : uint8_t
-		{
-			// No
-			None = 0,
-			// Cull if vertices are listed in clockwise order
-			ClockWise,
-			// Cull if vertices are listed in anticlockwise order
-			CounterClockWise
-		} cullmode = CullMode::None;
+		CullMode cullmode = CullMode::None;
+
+		// Define blend mode for drawing
+		BlendMode blendmode = BlendMode::Alpha;
 	};
 }
 #define PGE_GPUTASK_DECLARED 1
@@ -3349,7 +3368,8 @@ namespace olc
 			const olc::Pixel tint = olc::Colour::WHITE);
 
 	public: // Applied Rendering Modes
-		void SetCullMode(const olc::GPUTask::CullMode mode);
+		void SetCullMode(const olc::CullMode mode);
+		void SetBlendMode(const olc::BlendMode mode);
 		void EnableDepth(const bool bEnable);
 		void SetViewport(const olc::vi2d& pos, const olc::vi2d& size);
 
@@ -3549,7 +3569,8 @@ namespace olc
 			olc::vi2d vViewportSize = { 0, 0 };
 
 
-			olc::GPUTask::CullMode cullMode = olc::GPUTask::CullMode::None;
+			olc::CullMode cullMode = olc::CullMode::None;
+			olc::BlendMode blendMode = olc::BlendMode::Alpha;	
 			bool bDepth = true;
 
 
@@ -15823,31 +15844,51 @@ void main()
 				
 
 				// Apply Culling modes
-				if (task.cullmode == GPUTask::CullMode::None)
+				if (task.cullmode == olc::CullMode::None)
 				{
 					gl.glDisable(GL_CULL_FACE);
 				}
-				else if (task.cullmode == GPUTask::CullMode::ClockWise)
+				else if (task.cullmode == olc::CullMode::ClockWise)
 				{
 					gl.glCullFace(GL_FRONT);
 					gl.glEnable(GL_CULL_FACE);
 				}
-				else if (task.cullmode == GPUTask::CullMode::CounterClockWise)
+				else if (task.cullmode == olc::CullMode::CounterClockWise)
 				{
 					gl.glCullFace(GL_BACK);
 					gl.glEnable(GL_CULL_FACE);
 				}
 
-				//// Apply Depth Testing (if required)
+				// Apply Depth Testing (if required)
 				if (task.bDepth)
+				{
 					gl.glEnable(GL_DEPTH_TEST);
+					gl.glDepthFunc(GL_LESS);
+				}
 
-				glDepthFunc(GL_LESS);
 
-				gl.glEnable(GL_BLEND);
+				// Apply Blending Mode
+				if (task.blendmode == olc::BlendMode::Alpha)
+				{
+					gl.glEnable(GL_BLEND);
+					gl.glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+				}
+				else if(task.blendmode == olc::BlendMode::Additive)
+				{
+					gl.glEnable(GL_BLEND);
+					gl.glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+				}
+				else if(task.blendmode == olc::BlendMode::Multiplicative)
+				{
+					gl.glEnable(GL_BLEND);
+					gl.glBlendFunc(GL_DST_COLOR, GL_ONE_MINUS_SRC_ALPHA);
+				}
+
+				//gl.glEnable(GL_BLEND);
 				//gl.glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-				gl.glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+				//gl.glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 
+				// Apply Rendering Mode
 				if (task.bWireframe)
 					gl.glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
@@ -16282,6 +16323,7 @@ GPUTask olc::Draw::TaskDrawLine(const std::vector<olc::vf2d>& vPoints, const std
 		task.vertexBuffer[i*2+0] = { {vPoints[i].x, vPoints[i].y, 1.0f, 1.0f}, vColours[i], {0, 0}, {0, 0}, {0, 0}, {0, 0} };
 		task.vertexBuffer[i*2+1] = { {vPoints[i + 1].x, vPoints[i + 1].y, 1.0f, 1.0f}, vColours[i + 1], {0, 0}, {0, 0}, {0, 0}, {0, 0} };
 	}
+	task.blendmode = blendMode;
 	task.tint = tint;
 	return task;
 }
@@ -16294,6 +16336,7 @@ GPUTask olc::Draw::TaskDrawPolygon(olc::Structure structure, const std::vector<o
 	task.vertexBuffer.resize(vPoints.size());
 	for (size_t i = 0; i < vPoints.size(); i++)
 		task.vertexBuffer[i] = { {vPoints[i].x, vPoints[i].y, 1.0f, 1.0f}, vColours[i], {0, 0}, {0, 0}, {0, 0}, {0, 0} };
+	task.blendmode = blendMode;
 	task.tint = tint;
 	return task;
 }
@@ -16306,6 +16349,7 @@ GPUTask olc::Draw::TaskDrawPolygon(olc::Structure structure, const std::vector<o
 	task.vertexBuffer.resize(vPoints.size());
 	for (size_t i = 0; i < vPoints.size(); i++)
 		task.vertexBuffer[i] = {{vPoints[i].x, vPoints[i].y, 1.0f, 1.0f}, colour, {0, 0}, {0, 0}, {0, 0}, {0, 0}};
+	task.blendmode = blendMode;
 	task.tint = tint;
 	return task;
 }
@@ -16317,6 +16361,7 @@ GPUTask olc::Draw::TaskFillPolygon(olc::Structure structure, const std::vector<o
 	task.vertexBuffer.resize(vPoints.size());
 	for (size_t i = 0; i < vPoints.size(); i++)
 		task.vertexBuffer[i] = { {vPoints[i].x, vPoints[i].y, 1.0f, 1.0f}, vColours[i], {0, 0}, {0, 0}, {0, 0}, {0, 0} };
+	task.blendmode = blendMode;
 	task.tint = tint;
 	return task;
 }
@@ -16328,6 +16373,7 @@ GPUTask olc::Draw::TaskFillPolygon(olc::Structure structure, const std::vector<o
 	task.vertexBuffer.resize(vPoints.size());
 	for (size_t i = 0; i < vPoints.size(); i++)
 		task.vertexBuffer[i] = { {vPoints[i].x, vPoints[i].y, 1.0f, 1.0f}, colour, {0, 0}, {0, 0}, {0, 0}, {0, 0} };
+	task.blendmode = blendMode;
 	task.tint = tint;
 	return task;	
 }
@@ -16340,6 +16386,7 @@ GPUTask olc::Draw::TaskTexturedPolygon(olc::Structure structure, const std::vect
 	for (size_t i = 0; i<vPoints.size(); i++)
 		task.vertexBuffer[i] = { {vPoints[i].x, vPoints[i].y, 1.0f, 1.0f}, vColours[i], {vTexCoords[i].x, vTexCoords[i].y}, {0, 0}, {0, 0}, {0, 0} };
 	task.pImage = image;
+	task.blendmode = blendMode;
 	task.tint = tint;
 	return task;
 }
@@ -16352,6 +16399,7 @@ GPUTask olc::Draw::TaskTexturedPolygon(olc::Structure structure, const std::vect
 	for (size_t i = 0; i < vPoints.size(); i++)
 		task.vertexBuffer[i] = { {vPoints[i].x, vPoints[i].y, vZWs[i].x, vZWs[i].y}, vColours[i], {vTexCoords[i].x, vTexCoords[i].y}, {0, 0}, {0, 0}, {0, 0} };
 	task.pImage = image;
+	task.blendmode = blendMode;
 	task.tint = tint;
 	return task;
 }
@@ -16366,6 +16414,7 @@ GPUTask olc::Draw::TaskWireMesh(olc::Structure structure, const std::vector<olc:
 	task.bDepth = bDepth;
 	task.cullmode = cullMode;
 	task.bIs3D = true;
+	task.blendmode = blendMode;
 	task.mvpMatrix = matMVP.m;
 
 	for (size_t i = 0; i < vPoints.size(); i++)
@@ -16383,6 +16432,7 @@ GPUTask olc::Draw::TaskFillMesh(olc::Structure structure, const std::vector<olc:
 	task.cullmode = cullMode;
 	task.bIs3D = true;
 	task.mvpMatrix = matMVP.m;
+	task.blendmode = blendMode;
 
 	for (size_t i = 0; i < vPoints.size(); i++)
 		task.vertexBuffer[i] = { {vPoints[i].x, vPoints[i].y, vPoints[i].z, vPoints[i].w}, vColours[i], {0, 0}, {0, 0}, {0, 0}, {0, 0} };
@@ -16400,6 +16450,8 @@ GPUTask olc::Draw::TaskTexturedMesh(olc::Structure structure, const std::vector<
 	task.bDepth = bDepth;
 	task.cullmode = cullMode;
 	task.mvpMatrix = matMVP.m;
+	task.blendmode = blendMode;
+
 	for (size_t i = 0; i < vPoints.size(); i++)
 		task.vertexBuffer[i] = { {vPoints[i].x, vPoints[i].y, vPoints[i].z, vPoints[i].w}, vColours[i], {vTexCoords[i].x, vTexCoords[i].y}, {0, 0}, {0, 0}, {0, 0} };
 	return task;
@@ -17109,9 +17161,14 @@ const GPUTask& olc::Draw::ImageRect(olc::ImageRegion image, const olc::vf2d& pos
 }
 
 
-void olc::Draw::SetCullMode(const olc::GPUTask::CullMode mode)
+void olc::Draw::SetCullMode(const olc::CullMode mode)
 {
 	cullMode = mode;
+}
+
+void olc::Draw::SetBlendMode(const olc::BlendMode mode)
+{
+	blendMode = mode;
 }
 
 void olc::Draw::EnableDepth(const bool bEnable)
@@ -17944,6 +18001,8 @@ namespace olc
 		// Present final composite
 		pRenderer->SetViewport(vViewPos, vViewSize);
 		pRenderer->ClearViewport(config.colClear, true, true);
+		draw.SetBlendMode(olc::BlendMode::Alpha);
+		draw.SetCullMode(olc::CullMode::None);
 		draw.ImageRect(GetScreen().flipV(), { 0.0,0.0 }, vViewSize);
 		draw.ProcessGPUTasks();
 
@@ -18257,6 +18316,8 @@ namespace olc
 		draw.ProcessGPUTasks();
 
 		// Set to known default state
+		draw.SetBlendMode(olc::BlendMode::Alpha);
+		draw.SetCullMode(olc::CullMode::None);
 		draw.SetTarget(GetScreen());
 		draw.WorldReset();
 		gpu->ApplyDefaultShader();
