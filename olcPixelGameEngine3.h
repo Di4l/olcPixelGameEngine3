@@ -8219,6 +8219,9 @@ namespace olc::host {
         pMacApplication->initialize();
         pMacApplication->activate();
         
+        // Pre-context start hook
+        pPrimaryPGE->OnPreContextStart();
+        
         // Initialize the MacOS Window
         pMacOSWindow = std::make_unique<olc::apis::macos::Window>(frameBounds.width, frameBounds.height, "OLC PGE 3 MacOS Demo");
         pMacOSWindow->setPosition(frameBounds.x, frameBounds.y);
@@ -8238,10 +8241,7 @@ namespace olc::host {
         pMacOSWindow->show(styleMask);
         pMacOSEventHandler->enable();
         
-        //--- Start up our engine threading system -----
-        // Pre-context start hook
-        pPrimaryPGE->OnPreContextStart();
-        
+        //--- Start up our engine threading system ----
         // Start the PGE context on the main thread
         // Mark system as active
         systemActive = true;
@@ -8811,6 +8811,9 @@ static constexpr const char* kInitWithFramePixelFormatSel       = "initWithFrame
 static constexpr const char* kSetContentViewSel                 = "setContentView:";
 static constexpr const char* kContentViewSel                    = "contentView";
 static constexpr const char* kBoundsSel                         = "bounds";
+static constexpr const char* kConvertRectToBackingSel           = "convertRectToBacking:";      // Thank you - Ben the Ultimate Guru
+static constexpr const char* kConvertPointToBackingSel          = "convertPointToBacking:";
+static constexpr const char* kConvertPointFromBackingSel        = "convertPointFromBacking:";
 static constexpr const char* kConvertPointFromViewSel           = "convertPoint:fromView:";
 static constexpr const char* kOpenGLContextSel                  = "openGLContext";
 static constexpr const char* kMakeCurrentContextSel             = "makeCurrentContext";
@@ -8959,6 +8962,9 @@ namespace ObjectiveCSEL {
    static SEL setContentViewSel           = nullptr;
    static SEL contentViewSel              = nullptr;
    static SEL boundsSel                   = nullptr;
+   static SEL convertRectToBackingSel     = nullptr; // Thank you - Ben the Ultimate Guru
+   static SEL convertPointToBackingSel    = nullptr;
+   static SEL convertPointFromBackingSel  = nullptr;
    static SEL convertPointFromViewSel     = nullptr;
    static SEL openGLContextSel            = nullptr;
    static SEL makeCurrentContextSel       = nullptr;
@@ -9076,6 +9082,9 @@ namespace ObjectiveCSEL {
         setContentViewSel                  = sel_registerName(kSetContentViewSel);
         contentViewSel                     = sel_registerName(kContentViewSel);
         boundsSel                          = sel_registerName(kBoundsSel);
+        convertRectToBackingSel            = sel_registerName(kConvertRectToBackingSel);    // Thank you - Ben the Ultimate Guru
+        convertPointToBackingSel           = sel_registerName(kConvertPointToBackingSel);
+        convertPointFromBackingSel         = sel_registerName(kConvertPointFromBackingSel);
         convertPointFromViewSel            = sel_registerName(kConvertPointFromViewSel);
         openGLContextSel                   = sel_registerName(kOpenGLContextSel);
         makeCurrentContextSel              = sel_registerName(kMakeCurrentContextSel);
@@ -9597,8 +9606,9 @@ void view_flagsChanged(id self, SEL _cmd, id event) {
 //====================================================================//
 // Mouse Event Handling
 
-// Convert from window coordinates to content view coordinates and flip Y coordinate
-// from bottom-left (macOS format) to top-left (standard format)
+// All values are converted to physical backing pixels so they match the OpenGL
+// viewport on HighDPI displays - AppKit reports locations in logical points, but
+// PGE is in physical pixels.
 void convertToContentViewCoordinates(NSPoint& location) {
 
     if(gptrNSWindowEvents && gptrNSWindowEvents->nsWindow) [[likely]]
@@ -9607,16 +9617,23 @@ void convertToContentViewCoordinates(NSPoint& location) {
         id contentView = ((id(*)(id, SEL))objc_msgSend)(gptrNSWindowEvents->nsWindow, ObjectiveCSEL::contentViewSel);
         if (contentView) {
 
-            // Convert from window coordinates to view coordinates
+            
+            // Convert from window coordinates to view coordinates (still logical points)
             NSPoint contentLocation = ((NSPoint(*)(id, SEL, NSPoint, id))objc_msgSend)(
-                contentView, ObjectiveCSEL::convertPointFromViewSel, location, nil);
+                 contentView, ObjectiveCSEL::convertPointFromViewSel, location, nil);
             
-            // Get the content view bounds to flip Y coordinate
+            // Scale from logical points to physical backing pixels
+            NSPoint pixelLocation = ((NSPoint(*)(id, SEL, NSPoint))objc_msgSend)(
+                contentView, ObjectiveCSEL::convertPointToBackingSel, contentLocation);
+
+            // Get content bounds in physical pixels for Y-flip
             NSRect contentBounds = ((NSRect(*)(id, SEL))objc_msgSend)(contentView, ObjectiveCSEL::boundsSel);
-            
+            NSRect pixelBounds   = ((NSRect(*)(id, SEL, NSRect))objc_msgSend)(contentView, ObjectiveCSEL::convertRectToBackingSel, contentBounds);
+
             // Flip Y coordinate from bottom-left to top-left
-            location.x = contentLocation.x;
-            location.y = contentBounds.height - contentLocation.y;
+            location.x = pixelLocation.x;
+            location.y = pixelBounds.height - pixelLocation.y;
+            
         }
     }
     else
@@ -10282,13 +10299,19 @@ extern "C" {
             return;
         }
         
-        // Get the content view bounds
+        // Thank you, Ben the ultimate Guru,
+        // Get the content view bounds in points (logical coordinates).
+        // On macOS, AppKit uses points rather than physical pixels. On HighDPI
+        // displays (that are scaling) a point maps to >1 pixels.
+        // convertRectToBacking: converts the point-based rect to physical pixels,
+        // which is what OpenGL expects
         NSRect contentBounds = ((NSRect(*)(id, SEL))objc_msgSend)(contentView, ObjectiveCSEL::boundsSel);
+        NSRect pixelBounds   = ((NSRect(*)(id, SEL, NSRect))objc_msgSend)(contentView, ObjectiveCSEL::convertRectToBackingSel, contentBounds);
         
-        if (x) *x = contentBounds.x;
-        if (y) *y = contentBounds.y;
-        if (width) *width = contentBounds.width;
-        if (height) *height = contentBounds.height;
+        if (x) *x = pixelBounds.x;
+        if (y) *y = pixelBounds.y;
+        if (width) *width = pixelBounds.width;
+        if (height) *height = pixelBounds.height;
         
     }
 
@@ -10380,17 +10403,25 @@ extern "C" {
         
         // Get the content view
         id contentView = ((id(*)(id, SEL))objc_msgSend)(gptrNSWindowEvents->nsWindow, ObjectiveCSEL::contentViewSel);
+        
         if (contentView) {
         
-            // Get the content view bounds to flip Y coordinate
+            // x,y are in physical backing pixels. CGWarpMouseCursorPosition
+            // and all AppKit frame/bounds values use logical points, so convert the incoming
+            // pixel position to points.
+            NSPoint pixelPos  = { x, y };
+            NSPoint pointPos  = ((NSPoint(*)(id, SEL, NSPoint))objc_msgSend)( contentView, ObjectiveCSEL::convertPointFromBackingSel, pixelPos);
+            
+            // Get content bounds in points for clamping and Y-flip
             NSRect contentBounds = ((NSRect(*)(id, SEL))objc_msgSend)(contentView, ObjectiveCSEL::boundsSel);
-        
-            // NOTE: we need to ensure the new cursor position is within the window bounds to prevent unexpected behavior
-            auto posX = std::clamp(location.x +x, location.x, location.x + contentBounds.width);
-            auto posY = std::clamp(screenFrame.height - location.y - contentBounds.height + y,
-                                   screenFrame.height - location.y - contentBounds.height,
-                                   screenFrame.height - location.y);
+            
+            // NOTE: clamp to keep the cursor within the window content area
+            auto posX = std::clamp(location.x + pointPos.x, location.x, location.x + contentBounds.width);
+            auto posY = std::clamp(screenFrame.height - location.y - contentBounds.height + pointPos.y,
+                                                screenFrame.height - location.y - contentBounds.height,
+                                                screenFrame.height - location.y);
             CGWarpMouseCursorPosition(CGPointMake(posX, posY));
+            
         }
         
     }
