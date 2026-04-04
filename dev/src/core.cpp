@@ -201,6 +201,8 @@ namespace olc
 		// Present final composite
 		pRenderer->SetViewport(vViewPos, vViewSize);
 		pRenderer->ClearViewport(config.colClear, true, true);
+		draw.SetBlendMode(olc::BlendMode::Alpha);
+		draw.SetCullMode(olc::CullMode::None);
 		draw.ImageRect(GetScreen().flipV(), { 0.0,0.0 }, vViewSize);
 		draw.ProcessGPUTasks();
 
@@ -514,6 +516,8 @@ namespace olc
 		draw.ProcessGPUTasks();
 
 		// Set to known default state
+		draw.SetBlendMode(olc::BlendMode::Alpha);
+		draw.SetCullMode(olc::CullMode::None);
 		draw.SetTarget(GetScreen());
 		draw.WorldReset();
 		gpu->ApplyDefaultShader();

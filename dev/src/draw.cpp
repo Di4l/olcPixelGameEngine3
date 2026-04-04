@@ -266,6 +266,7 @@ GPUTask olc::Draw::TaskDrawLine(const std::vector<olc::vf2d>& vPoints, const std
 		task.vertexBuffer[i*2+0] = { {vPoints[i].x, vPoints[i].y, 1.0f, 1.0f}, vColours[i], {0, 0}, {0, 0}, {0, 0}, {0, 0} };
 		task.vertexBuffer[i*2+1] = { {vPoints[i + 1].x, vPoints[i + 1].y, 1.0f, 1.0f}, vColours[i + 1], {0, 0}, {0, 0}, {0, 0}, {0, 0} };
 	}
+	task.blendmode = blendMode;
 	task.tint = tint;
 	return task;
 }
@@ -278,6 +279,7 @@ GPUTask olc::Draw::TaskDrawPolygon(olc::Structure structure, const std::vector<o
 	task.vertexBuffer.resize(vPoints.size());
 	for (size_t i = 0; i < vPoints.size(); i++)
 		task.vertexBuffer[i] = { {vPoints[i].x, vPoints[i].y, 1.0f, 1.0f}, vColours[i], {0, 0}, {0, 0}, {0, 0}, {0, 0} };
+	task.blendmode = blendMode;
 	task.tint = tint;
 	return task;
 }
@@ -290,6 +292,7 @@ GPUTask olc::Draw::TaskDrawPolygon(olc::Structure structure, const std::vector<o
 	task.vertexBuffer.resize(vPoints.size());
 	for (size_t i = 0; i < vPoints.size(); i++)
 		task.vertexBuffer[i] = {{vPoints[i].x, vPoints[i].y, 1.0f, 1.0f}, colour, {0, 0}, {0, 0}, {0, 0}, {0, 0}};
+	task.blendmode = blendMode;
 	task.tint = tint;
 	return task;
 }
@@ -301,6 +304,7 @@ GPUTask olc::Draw::TaskFillPolygon(olc::Structure structure, const std::vector<o
 	task.vertexBuffer.resize(vPoints.size());
 	for (size_t i = 0; i < vPoints.size(); i++)
 		task.vertexBuffer[i] = { {vPoints[i].x, vPoints[i].y, 1.0f, 1.0f}, vColours[i], {0, 0}, {0, 0}, {0, 0}, {0, 0} };
+	task.blendmode = blendMode;
 	task.tint = tint;
 	return task;
 }
@@ -312,6 +316,7 @@ GPUTask olc::Draw::TaskFillPolygon(olc::Structure structure, const std::vector<o
 	task.vertexBuffer.resize(vPoints.size());
 	for (size_t i = 0; i < vPoints.size(); i++)
 		task.vertexBuffer[i] = { {vPoints[i].x, vPoints[i].y, 1.0f, 1.0f}, colour, {0, 0}, {0, 0}, {0, 0}, {0, 0} };
+	task.blendmode = blendMode;
 	task.tint = tint;
 	return task;	
 }
@@ -324,6 +329,7 @@ GPUTask olc::Draw::TaskTexturedPolygon(olc::Structure structure, const std::vect
 	for (size_t i = 0; i<vPoints.size(); i++)
 		task.vertexBuffer[i] = { {vPoints[i].x, vPoints[i].y, 1.0f, 1.0f}, vColours[i], {vTexCoords[i].x, vTexCoords[i].y}, {0, 0}, {0, 0}, {0, 0} };
 	task.pImage = image;
+	task.blendmode = blendMode;
 	task.tint = tint;
 	return task;
 }
@@ -336,6 +342,7 @@ GPUTask olc::Draw::TaskTexturedPolygon(olc::Structure structure, const std::vect
 	for (size_t i = 0; i < vPoints.size(); i++)
 		task.vertexBuffer[i] = { {vPoints[i].x, vPoints[i].y, vZWs[i].x, vZWs[i].y}, vColours[i], {vTexCoords[i].x, vTexCoords[i].y}, {0, 0}, {0, 0}, {0, 0} };
 	task.pImage = image;
+	task.blendmode = blendMode;
 	task.tint = tint;
 	return task;
 }
@@ -350,6 +357,7 @@ GPUTask olc::Draw::TaskWireMesh(olc::Structure structure, const std::vector<olc:
 	task.bDepth = bDepth;
 	task.cullmode = cullMode;
 	task.bIs3D = true;
+	task.blendmode = blendMode;
 	task.mvpMatrix = matMVP.m;
 
 	for (size_t i = 0; i < vPoints.size(); i++)
@@ -367,6 +375,7 @@ GPUTask olc::Draw::TaskFillMesh(olc::Structure structure, const std::vector<olc:
 	task.cullmode = cullMode;
 	task.bIs3D = true;
 	task.mvpMatrix = matMVP.m;
+	task.blendmode = blendMode;
 
 	for (size_t i = 0; i < vPoints.size(); i++)
 		task.vertexBuffer[i] = { {vPoints[i].x, vPoints[i].y, vPoints[i].z, vPoints[i].w}, vColours[i], {0, 0}, {0, 0}, {0, 0}, {0, 0} };
@@ -384,6 +393,8 @@ GPUTask olc::Draw::TaskTexturedMesh(olc::Structure structure, const std::vector<
 	task.bDepth = bDepth;
 	task.cullmode = cullMode;
 	task.mvpMatrix = matMVP.m;
+	task.blendmode = blendMode;
+
 	for (size_t i = 0; i < vPoints.size(); i++)
 		task.vertexBuffer[i] = { {vPoints[i].x, vPoints[i].y, vPoints[i].z, vPoints[i].w}, vColours[i], {vTexCoords[i].x, vTexCoords[i].y}, {0, 0}, {0, 0}, {0, 0} };
 	return task;
@@ -1093,9 +1104,14 @@ const GPUTask& olc::Draw::ImageRect(olc::ImageRegion image, const olc::vf2d& pos
 }
 
 
-void olc::Draw::SetCullMode(const olc::GPUTask::CullMode mode)
+void olc::Draw::SetCullMode(const olc::CullMode mode)
 {
 	cullMode = mode;
+}
+
+void olc::Draw::SetBlendMode(const olc::BlendMode mode)
+{
+	blendMode = mode;
 }
 
 void olc::Draw::EnableDepth(const bool bEnable)
