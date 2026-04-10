@@ -110,7 +110,7 @@ public:
 		// so cull counter-clockwise faces to show it off in all its glory! This is
 		// counter to OpenGL's default culling mode, so it's a good test of the culling 
 		// system as well.
-		draw.SetCullMode(olc::GPUTask::CullMode::CounterClockWise);
+		draw.SetCullMode(olc::CullMode::CounterClockWise);
 		
 		// Draw the cube using the sanity cube's layout, and vectors of vertices, colours
 		// and texture coordinates.		 

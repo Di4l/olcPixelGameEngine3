@@ -28,10 +28,7 @@ if(UNIX AND BUILD_WAYLAND)
     pkg_check_modules(WAYLAND_EGL REQUIRED wayland-egl)
     pkg_check_modules(EGL REQUIRED egl)
     pkg_check_modules(WAYLAND_CURSOR REQUIRED wayland-cursor)
-
-    if(NOT DISABLE_LIBDECOR)
     pkg_check_modules(LIBDECOR REQUIRED IMPORTED_TARGET libdecor-0)
-    endif()
 
     find_package(OpenGL REQUIRED)
     find_package(PNG REQUIRED)
@@ -69,22 +66,13 @@ if(UNIX AND BUILD_WAYLAND)
 
     generate_wayland_protocol("xdg-shell" "/usr/share/wayland-protocols/stable/xdg-shell/xdg-shell.xml")
     generate_wayland_protocol("pointer-warp" "/usr/share/wayland-protocols/staging/pointer-warp/pointer-warp-v1.xml")
-    generate_wayland_protocol("tablet" "/usr/share/wayland-protocols/stable/tablet/tablet-v2.xml")
-    
+
     # Create a library for the wayland protocol files
     add_library(wayland_protocols INTERFACE)
     target_link_libraries(wayland_protocols INTERFACE
         wayland_xdg-shell
         wayland_pointer-warp
-        wayland_tablet
     )
-    
-    if(NOT FORCE_WAYLAND_LIBDECOR)
-        generate_wayland_protocol("xdg-decoration" "/usr/share/wayland-protocols/unstable/xdg-decoration/xdg-decoration-unstable-v1.xml")
-        target_link_libraries(wayland_protocols INTERFACE
-            wayland_xdg-decoration
-        )
-    endif()
 
     target_include_directories(wayland_protocols INTERFACE
         ${CMAKE_CURRENT_BINARY_DIR}
@@ -116,12 +104,6 @@ foreach(source ${SOURCES})
     if(UNIX AND NOT APPLE AND NOT EMSCRIPTEN)
         if(BUILD_WAYLAND)
             target_compile_definitions(${EXE_NAME} PRIVATE OLC_HOST=3)
-            if(FORCE_WAYLAND_LIBDECOR)
-                target_compile_definitions(${EXE_NAME} PRIVATE FORCE_WAYLAND_LIBDECOR=1)
-            endif()
-            if(DISABLE_LIBDECOR)
-                target_compile_definitions(${EXE_NAME} PRIVATE DISABLE_LIBDECOR=1)
-            endif()
 
             target_link_libraries(${EXE_NAME} PRIVATE
                 wayland_protocols
@@ -135,11 +117,7 @@ foreach(source ${SOURCES})
                 Threads::Threads
             )
 
-            if(NOT DISABLE_LIBDECOR)
-                target_link_libraries(${EXE_NAME} PRIVATE
-                    PkgConfig::LIBDECOR
-                )
-            endif()
+            target_link_libraries(${EXE_NAME} PRIVATE PkgConfig::LIBDECOR )
 
         else() # x11
             target_link_libraries(${EXE_NAME} PRIVATE png)
