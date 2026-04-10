@@ -4086,11 +4086,11 @@ namespace olc
 
 		// These three are inherited from WindowConfig
 		// Start in full-screen mode
-		bool bFullScreen = false;
-		// Allow full screen as an option with ALT-ENTER
-		bool bFullScreenable = true;
-		// Allow the window to be resized by user
-		bool bResizeable = true;
+		// bool bFullScreen = false;
+		// // Allow full screen as an option with ALT-ENTER
+		// bool bFullScreenable = true;
+		// // Allow the window to be resized by user
+		// bool bResizeable = true;
 		// Allow the window border to be hidden by user
 		bool bShowWindowBorder = true;
 		// Allow the window title bar to be hidden by user
@@ -5806,7 +5806,7 @@ namespace olc::host
     struct WaylandWindow  {
         wl_surface* surface{nullptr};
         xdg_surface* surface_xdg{nullptr};
-        xdg_toplevel* toplevel{nullptr};
+        //xdg_toplevel* toplevel{nullptr};
         wl_egl_window* window{nullptr};
         size_t olc_window_uid{0};
         int32_t bounds_x{0};
@@ -5948,10 +5948,6 @@ namespace olc::host
         // xdg callbacks
         static void xdg_wm_ping_callback(void* data, xdg_wm_base* wm, uint32_t serial);
         static void xdg_surface_configure_callback(void* data, xdg_surface* surface, uint32_t serial);
-        static void xdg_toplevel_configure_callback(void* data, xdg_toplevel* toplevel, int32_t width, int32_t height, wl_array* states);
-        static void xdg_toplevel_close_callback(void* data, xdg_toplevel* toplevel);
-        static void xdg_toplevel_configure_bounds_callback(void* data, xdg_toplevel* toplevel, int32_t width, int32_t height);
-        static void xdg_toplevel_capabilities_callback(void* data, xdg_toplevel* toplevel, wl_array* capabilities);
 
         // libdecor callbacks
         static void libdecor_error_callback(libdecor* context, libdecor_error error, const char* message);
@@ -5985,11 +5981,6 @@ namespace olc::host
         void keyboard_leave(wl_keyboard* keyboard, uint32_t serial, wl_surface* surface);
         void keyboard_key(wl_keyboard* keyboard, uint32_t serial, uint32_t time, uint32_t key, uint32_t state);
         void keyboard_modifiers(wl_keyboard* keyboard, uint32_t serial, uint32_t mods_depressed, uint32_t mods_latched, uint32_t mods_locked, uint32_t group);
-
-        // XDG toplevel callback functions
-        void xdg_toplevel_configure(xdg_toplevel* toplevel, int32_t width, int32_t height, wl_array* states);
-        void xdg_toplevel_close(xdg_toplevel* toplevel);
-        void xdg_toplevel_configure_bounds(xdg_toplevel* toplevel, int32_t width, int32_t height);
 
         // libdecor callback functions
         void libdecor_frame_configure(libdecor_frame* frame, libdecor_configuration* config);
@@ -11590,13 +11581,6 @@ namespace olc::host
         static const xdg_surface_listener surface_listener {
             .configure = Host_Linux_Wayland::xdg_surface_configure_callback
         };
-
-        static const xdg_toplevel_listener xdg_top_listener {
-            .configure = Host_Linux_Wayland::xdg_toplevel_configure_callback,
-            .close = Host_Linux_Wayland::xdg_toplevel_close_callback,
-            .configure_bounds = Host_Linux_Wayland::xdg_toplevel_configure_bounds_callback,
-            .wm_capabilities = Host_Linux_Wayland::xdg_toplevel_capabilities_callback
-        };
     }
 
     namespace decor {
@@ -11707,9 +11691,9 @@ namespace olc::host
         if(window) {
             wl_egl_window_destroy(window);
         }
-        if(toplevel) {
-            xdg_toplevel_destroy(toplevel);
-        }
+        // if(toplevel) {
+        //     xdg_toplevel_destroy(toplevel);
+        // }
         if(surface_xdg) {
             xdg_surface_destroy(surface_xdg);
         }
@@ -12002,69 +11986,6 @@ namespace olc::host
             keyboard = wl_seat_get_keyboard(seat);
             keyboard_version = wl_keyboard_get_version(keyboard);
             wl_keyboard_add_listener(keyboard, &wayland::keyboard_listener, this);
-        }
-    }
-
-    void Host_Linux_Wayland::xdg_toplevel_configure(xdg_toplevel* toplevel, int32_t width, int32_t height, wl_array* states)
-    {
-        const auto& itr = std::find_if(mapUID2Window.begin(), mapUID2Window.end(), [=](const auto& w){return w.second.toplevel == toplevel;});
-        if(itr == mapUID2Window.end())
-        {
-            return;
-        }
-
-        auto& [uid, window] = *itr;
-        const auto& olc_window = mapUID2OlcWindow.at(uid);
-
-        bool attempt_fullscreen {false};
-        auto* state = reinterpret_cast<xdg_toplevel_state*>(states->data);
-        auto* end = static_cast<const char*>(states->data) + states->size;
-        for(;reinterpret_cast<const char*>(state) < end; state++)
-        {
-            // The window.fullscreen is set any time the user commands via ShowFullscreen(), so we should allow this
-            if (*state == xdg_toplevel_state::XDG_TOPLEVEL_STATE_FULLSCREEN)
-            {
-                attempt_fullscreen = true;
-            }
-        }
-
-        // If we're not going fullscreen, try to obey the bounds that have been configured by the compositor
-        if(!attempt_fullscreen) {
-            if(window.bounds_x != 0) {
-                width = std::min<int32_t>(width, window.bounds_x);
-            }
-
-            if(window.bounds_y != 0) {
-                height = std::min<int32_t>(height, window.bounds_y);
-            }
-        }
-        
-        olc_window->bWindowIsFullscreen = attempt_fullscreen;
-        olc_window->olc_OnWindowSize({width, height});
-        wl_egl_window_resize(window.window, width, height, 0, 0);
-        wl_surface_commit(window.surface);
-    }
-
-    void Host_Linux_Wayland::xdg_toplevel_close(xdg_toplevel* toplevel)
-    {
-        for(auto& i : mapUID2Window) {
-            if(i.second.toplevel == toplevel) {
-                auto itr = mapUID2OlcWindow.find(i.second.olc_window_uid);
-                if(itr != mapUID2OlcWindow.end()) {
-                    auto* ptr = itr->second;
-                    ptr->olc_OnWindowClose();
-                }
-            }
-        }
-    }
-
-    void Host_Linux_Wayland::xdg_toplevel_configure_bounds(xdg_toplevel* toplevel, int32_t width, int32_t height)
-    {
-        for(auto& i : mapUID2Window) {
-            if(i.second.toplevel == toplevel) {
-                i.second.bounds_x = width;
-                i.second.bounds_y = height;
-            }
         }
     }
 
@@ -12414,28 +12335,6 @@ namespace olc::host
         xdg_surface_ack_configure(surface, serial);
     }
 
-    void Host_Linux_Wayland::xdg_toplevel_configure_callback(void* data, xdg_toplevel* toplevel, int32_t width, int32_t height, wl_array* states)
-    {
-        auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
-        host->xdg_toplevel_configure(toplevel, width, height, states);
-    }
-
-    void Host_Linux_Wayland::xdg_toplevel_close_callback(void* data, xdg_toplevel* toplevel)
-    {
-        auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
-        host->xdg_toplevel_close(toplevel);
-    }
-
-    void Host_Linux_Wayland::xdg_toplevel_configure_bounds_callback(void* data, xdg_toplevel* toplevel, int32_t width, int32_t height) {
-        auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
-        host->xdg_toplevel_configure_bounds(toplevel, width, height);
-        return;
-    }
-
-    void Host_Linux_Wayland::xdg_toplevel_capabilities_callback(void* data, xdg_toplevel* toplevel, wl_array* capabilities)
-    {
-        return;
-    }
 
     void Host_Linux_Wayland::libdecor_error_callback(libdecor* context, libdecor_error error, const char* message)
     {

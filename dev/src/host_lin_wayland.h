@@ -44,7 +44,6 @@ namespace olc::host
     struct WaylandWindow  {
         wl_surface* surface{nullptr};
         xdg_surface* surface_xdg{nullptr};
-        xdg_toplevel* toplevel{nullptr};
         wl_egl_window* window{nullptr};
         size_t olc_window_uid{0};
         int32_t bounds_x{0};
@@ -186,10 +185,6 @@ namespace olc::host
         // xdg callbacks
         static void xdg_wm_ping_callback(void* data, xdg_wm_base* wm, uint32_t serial);
         static void xdg_surface_configure_callback(void* data, xdg_surface* surface, uint32_t serial);
-        static void xdg_toplevel_configure_callback(void* data, xdg_toplevel* toplevel, int32_t width, int32_t height, wl_array* states);
-        static void xdg_toplevel_close_callback(void* data, xdg_toplevel* toplevel);
-        static void xdg_toplevel_configure_bounds_callback(void* data, xdg_toplevel* toplevel, int32_t width, int32_t height);
-        static void xdg_toplevel_capabilities_callback(void* data, xdg_toplevel* toplevel, wl_array* capabilities);
 
         // libdecor callbacks
         static void libdecor_error_callback(libdecor* context, libdecor_error error, const char* message);
@@ -223,11 +218,6 @@ namespace olc::host
         void keyboard_leave(wl_keyboard* keyboard, uint32_t serial, wl_surface* surface);
         void keyboard_key(wl_keyboard* keyboard, uint32_t serial, uint32_t time, uint32_t key, uint32_t state);
         void keyboard_modifiers(wl_keyboard* keyboard, uint32_t serial, uint32_t mods_depressed, uint32_t mods_latched, uint32_t mods_locked, uint32_t group);
-
-        // XDG toplevel callback functions
-        void xdg_toplevel_configure(xdg_toplevel* toplevel, int32_t width, int32_t height, wl_array* states);
-        void xdg_toplevel_close(xdg_toplevel* toplevel);
-        void xdg_toplevel_configure_bounds(xdg_toplevel* toplevel, int32_t width, int32_t height);
 
         // libdecor callback functions
         void libdecor_frame_configure(libdecor_frame* frame, libdecor_configuration* config);
