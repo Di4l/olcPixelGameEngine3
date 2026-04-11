@@ -842,7 +842,6 @@ namespace olc::host
                 olc_window->bWindowIsFullscreen = (window->decor_window_state & LIBDECOR_WINDOW_STATE_FULLSCREEN) != 0;
                 mapUID2OlcWindow[i.first]->olc_OnWindowSize({window->configured_width, window->configured_height});
                 wl_egl_window_resize(window->window, window->configured_width, window->configured_height, 0, 0);
-                wl_surface_commit(window->surface);
             }
         }
     }
@@ -868,17 +867,14 @@ namespace olc::host
 
     void Host_Linux_Wayland::libdecor_commit_callback(libdecor_frame* frame, void* data)
     {
-        auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
-        host->libdecor_commit(frame);
+        // Don't want to actually do anything here because it messes with the EGL surface swapping for refresh
+        // and causes the application to close (not crash) due to a wayland protocol violation
+        //auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
+        //host->libdecor_commit(frame);
     }
 
     void Host_Linux_Wayland::libdecor_commit(libdecor_frame* frame)
     {
-        for(auto& i : mapUID2Window) {
-            if(i.second.decor_frame == frame) {
-                wl_surface_commit(i.second.surface);
-            }
-        }
     }
 
     void Host_Linux_Wayland::libdecor_dismiss_popup_callback(libdecor_frame* frame, const char* seat_name, void* data)
