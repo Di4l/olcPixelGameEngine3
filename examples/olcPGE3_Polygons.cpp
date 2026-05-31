@@ -137,11 +137,16 @@ public:
 		std::vector<olc::vf2d> polygon3_points(vecPolygonPoints.begin() + 16, vecPolygonPoints.end());
 		draw.FilledPolygon(olc::Structure::Strip, polygon3_points, vecPolygonColours);
 			
+		// Draw polygon 3, a strip, filled, gradient
+		draw.Polygon(olc::Structure::Strip, polygon3_points, olc::Colour::WHITE);
+
+
+
 
 		// Draw Control Points
 		for (int i = 0; i < vecPolygonPoints.size(); i++)
 		{
-			draw.Circle(vecPolygonPoints[i], 4, olc::Colour::RED);
+			draw.Circle(vecPolygonPoints[i].floor(), 4, olc::Colour::RED);
 		}
 
 		// Successful frame

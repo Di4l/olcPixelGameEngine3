@@ -2565,9 +2565,6 @@ namespace olc
 		// Use depth components
 		bool bDepth = false;
 
-		// Use hardware wire drawing
-		bool bWireframe = false;
-
 		// Constrain with pixel biases
 		bool bPixelConstrained = true;
 
@@ -3478,7 +3475,15 @@ namespace olc
 			const std::vector<olc::vf2d>& vPoints,
 			const std::vector<olc::Pixel>& vColours,
 			const olc::Pixel tint = olc::Colour::WHITE,
-			const bool constrain = true);
+			const bool constrain = true,
+			const bool looped = false);
+
+		GPUTask TaskDrawLine(
+			const std::vector<olc::vf2d>& vPoints,
+			const olc::Pixel colour,
+			const olc::Pixel tint = olc::Colour::WHITE,
+			const bool constrain = true,
+			const bool looped = false);
 		
 		GPUTask TaskDrawPolygon(
 			olc::Structure structure,
@@ -15727,9 +15732,9 @@ void main()
 				//gl.glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 				//gl.glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 
-				// Apply Rendering Mode
-				if (task.bWireframe)
-					gl.glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+				//// Apply Rendering Mode
+				//if (task.bWireframe)
+				//	gl.glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
 				if (task.bIs3D)
 				{
@@ -15782,8 +15787,8 @@ void main()
 					gl.glDrawArrays(GL_POINTS, 0, (GLsizei)task.vertexBuffer.size());
 
 
-				if (task.bWireframe)
-					gl.glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+				//if (task.bWireframe)
+				//	gl.glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
 				if (task.bDepth)
 					gl.glDisable(GL_DEPTH_TEST);
@@ -16173,10 +16178,10 @@ void olc::Draw::Clear(const olc::Pixel& col)
 	pRenderer->ClearViewport(col, true, true);
 }
 
-GPUTask olc::Draw::TaskDrawLine(const std::vector<olc::vf2d>& vPoints, const std::vector<olc::Pixel>& vColours, const olc::Pixel tint, const bool constrain)
+GPUTask olc::Draw::TaskDrawLine(const std::vector<olc::vf2d>& vPoints, const std::vector<olc::Pixel>& vColours, const olc::Pixel tint, const bool constrain, const bool looped)
 {
 	GPUTask task;
-	task.structure = olc::Structure::Line;
+	task.structure = looped ? olc::Structure::LineLoop : olc::Structure::Line;
 	task.vertexBuffer.resize((vPoints.size()-1) * 2);
 	for (size_t i = 0; i < vPoints.size() - 1; i++)
 	{
@@ -16189,30 +16194,31 @@ GPUTask olc::Draw::TaskDrawLine(const std::vector<olc::vf2d>& vPoints, const std
 	return task;
 }
 
-GPUTask olc::Draw::TaskDrawPolygon(olc::Structure structure, const std::vector<olc::vf2d>& vPoints, const std::vector<olc::Pixel>& vColours, const olc::Pixel tint)
+GPUTask olc::Draw::TaskDrawLine(const std::vector<olc::vf2d>& vPoints, const olc::Pixel colour, const olc::Pixel tint, const bool constrain, const bool looped)
 {
 	GPUTask task;
-	task.structure = structure;
-	task.bWireframe = true;
-	task.vertexBuffer.resize(vPoints.size());
-	for (size_t i = 0; i < vPoints.size(); i++)
-		task.vertexBuffer[i] = { {vPoints[i].x, vPoints[i].y, 1.0f, 1.0f}, vColours[i], {0, 0}, {0, 0}, {0, 0}, {0, 0} };
+	task.structure = looped ? olc::Structure::LineLoop : olc::Structure::Line;
+	task.vertexBuffer.resize((vPoints.size() - 1) * 2);
+	for (size_t i = 0; i < vPoints.size() - 1; i++)
+	{
+		task.vertexBuffer[i * 2 + 0] = { {vPoints[i].x, vPoints[i].y, 1.0f, 1.0f}, colour, {0, 0}, {0, 0}, {0, 0}, {0, 0} };
+		task.vertexBuffer[i * 2 + 1] = { {vPoints[i + 1].x, vPoints[i + 1].y, 1.0f, 1.0f}, colour, {0, 0}, {0, 0}, {0, 0}, {0, 0} };
+	}
 	task.blendmode = blendMode;
 	task.tint = tint;
+	task.bPixelConstrained = constrain;
 	return task;
+
+}
+
+GPUTask olc::Draw::TaskDrawPolygon(olc::Structure structure, const std::vector<olc::vf2d>& vPoints, const std::vector<olc::Pixel>& vColours, const olc::Pixel tint)
+{
+	return TaskDrawLine(vPoints, vColours, tint, false, true);
 }
 
 GPUTask olc::Draw::TaskDrawPolygon(olc::Structure structure, const std::vector<olc::vf2d>& vPoints, const olc::Pixel colour, const olc::Pixel tint)
 {	
-	GPUTask task;
-	task.structure = structure;
-	task.bWireframe = true;
-	task.vertexBuffer.resize(vPoints.size());
-	for (size_t i = 0; i < vPoints.size(); i++)
-		task.vertexBuffer[i] = {{vPoints[i].x, vPoints[i].y, 1.0f, 1.0f}, colour, {0, 0}, {0, 0}, {0, 0}, {0, 0}};
-	task.blendmode = blendMode;
-	task.tint = tint;
-	return task;
+	return TaskDrawLine(vPoints, colour, tint, false, true);
 }
 
 GPUTask olc::Draw::TaskFillPolygon(olc::Structure structure, const std::vector<olc::vf2d>& vPoints, const std::vector<olc::Pixel>& vColours, const olc::Pixel tint, const bool constrain)
@@ -16273,7 +16279,6 @@ GPUTask olc::Draw::TaskWireMesh(olc::Structure structure, const std::vector<olc:
 	task.structure = structure;
 	task.tint = tint;
 	task.vertexBuffer.resize(vPoints.size());
-	task.bWireframe = true;
 	task.bDepth = bDepth;
 	task.cullmode = cullMode;
 	task.bIs3D = true;
@@ -16340,12 +16345,11 @@ const GPUTask& Draw::Line(const olc::vf2d& p1, const olc::Pixel c1, const olc::v
 	PrepareTargetForHW();
 
 	return vecGPUTasks.data.emplace_back(std::move(
-		TaskDrawPolygon(
-			olc::Structure::Line,
+		TaskDrawLine(
 			transformAffine.forwardRoundX<float>({ p1, p2 }),
 			{ c1, c2 },
 			tint
-		)));		
+		)));
 }
 
 
