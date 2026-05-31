@@ -16,27 +16,11 @@
 //! END CUSTOMHEADER
 
 //! START DECLARATION
-#if !defined(DISABLE_LIBDECOR) || defined(FORCE_WAYLAND_LIBDECOR)
-#define ENABLE_LIBDECOR
-#endif
-
-#if !defined(FORCE_WAYLAND_LIBDECOR)
-#define ENABLE_DECORATION_PROTOCOL
-#endif
-
-#if !defined(ENABLE_LIBDECOR) && !defined(ENABLE_DECORATION_PROTOCOL)
-#error "Incorrect build configuration.  Either xdg-decoration or libdecor (or both) must be enabled."
-#endif
 
 #include <wayland-client.h>
 #include <wayland-cursor.h>
 #include <wayland-egl.h>
 #include "xdg-shell.h"
-
-// Only include the decoration protocol if we are not forcing libdecor
-#ifdef ENABLE_DECORATION_PROTOCOL
-#include "xdg-decoration.h"
-#endif
 
 #include "pointer-warp.h"
 #include <linux/input-event-codes.h>
@@ -45,9 +29,8 @@
 #include <unistd.h>
 #include <cstring>
 
-#ifdef ENABLE_LIBDECOR
 #include "libdecor.h"
-#endif
+
 
 #include <EGL/egl.h>
 #include <EGL/eglplatform.h>
@@ -61,10 +44,6 @@ namespace olc::host
     struct WaylandWindow  {
         wl_surface* surface{nullptr};
         xdg_surface* surface_xdg{nullptr};
-        xdg_toplevel* toplevel{nullptr};
-        #ifdef ENABLE_DECORATION_PROTOCOL
-        zxdg_toplevel_decoration_v1* decorations{nullptr};
-        #endif
         wl_egl_window* window{nullptr};
         size_t olc_window_uid{0};
         int32_t bounds_x{0};
@@ -73,7 +52,6 @@ namespace olc::host
         // Ignore window size bounds for fullscreen events
         bool fullscreen{false};
 
-        #ifdef ENABLE_LIBDECOR
         // libdecor support
         libdecor_frame* decor_frame{nullptr};
         int configured_width{};
@@ -81,7 +59,6 @@ namespace olc::host
         libdecor_window_state decor_window_state;
         int floating_width{};
         int floating_height{};
-        #endif
         ~WaylandWindow();
     };
 
@@ -134,9 +111,6 @@ namespace olc::host
         xkb_keymap* kb_keymap{nullptr};
         uint32_t kb_group{0};
         xdg_wm_base* xdg_wm{nullptr};
-        #ifdef ENABLE_DECORATION_PROTOCOL
-        zxdg_decoration_manager_v1* decoration_manager{nullptr};
-        #endif
         wp_pointer_warp_v1* pointer_warp{nullptr};
         uint32_t enter_serial{0};
         
@@ -147,12 +121,10 @@ namespace olc::host
 
         size_t active_window_id;
         
-        #ifdef ENABLE_LIBDECOR
         // libdecor support
         bool using_libdecor{false};
         libdecor* decor_context{nullptr};
         std::mutex decor_mutex;
-        #endif
 
     public:
         Host_Linux_Wayland();
@@ -213,24 +185,15 @@ namespace olc::host
         // xdg callbacks
         static void xdg_wm_ping_callback(void* data, xdg_wm_base* wm, uint32_t serial);
         static void xdg_surface_configure_callback(void* data, xdg_surface* surface, uint32_t serial);
-        static void xdg_toplevel_configure_callback(void* data, xdg_toplevel* toplevel, int32_t width, int32_t height, wl_array* states);
-        static void xdg_toplevel_close_callback(void* data, xdg_toplevel* toplevel);
-        static void xdg_toplevel_configure_bounds_callback(void* data, xdg_toplevel* toplevel, int32_t width, int32_t height);
-        static void xdg_toplevel_capabilities_callback(void* data, xdg_toplevel* toplevel, wl_array* capabilities);
-        #ifdef ENABLE_DECORATION_PROTOCOL
-        static void xdg_toplevel_decoration_configure_callback(void* data, zxdg_toplevel_decoration_v1* zxdg_toplevel_decoration_v1, uint32_t mode);
-        #endif
 
-        #ifdef ENABLE_LIBDECOR
         // libdecor callbacks
         static void libdecor_error_callback(libdecor* context, libdecor_error error, const char* message);
         static void libdecor_frame_configure_callback(libdecor_frame* frame, libdecor_configuration* config, void* data);
         static void libdecor_close_callback(libdecor_frame* frame, void* data);
         static void libdecor_commit_callback(libdecor_frame* frame, void* data);
         static void libdecor_dismiss_popup_callback(libdecor_frame* frame, const char* seat_name, void* data);
-        #endif
-
-    private:
+    
+        private:
         // Wayland callback functions
         void registry_handle_global(wl_registry* registry, uint32_t name, const char* interface, uint32_t version);
         void registry_handle_global_remove(wl_registry* registry, uint32_t name);
@@ -256,17 +219,10 @@ namespace olc::host
         void keyboard_key(wl_keyboard* keyboard, uint32_t serial, uint32_t time, uint32_t key, uint32_t state);
         void keyboard_modifiers(wl_keyboard* keyboard, uint32_t serial, uint32_t mods_depressed, uint32_t mods_latched, uint32_t mods_locked, uint32_t group);
 
-        // XDG toplevel callback functions
-        void xdg_toplevel_configure(xdg_toplevel* toplevel, int32_t width, int32_t height, wl_array* states);
-        void xdg_toplevel_close(xdg_toplevel* toplevel);
-        void xdg_toplevel_configure_bounds(xdg_toplevel* toplevel, int32_t width, int32_t height);
-
-        #ifdef ENABLE_LIBDECOR
         // libdecor callback functions
         void libdecor_frame_configure(libdecor_frame* frame, libdecor_configuration* config);
         void libdecor_close(libdecor_frame* frame);
         void libdecor_commit(libdecor_frame* frame);
-        #endif
 
         bool CreateEGLContext(WaylandWindow* window);
 
