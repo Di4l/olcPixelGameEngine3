@@ -260,7 +260,7 @@ void olc::Draw::Clear(const olc::Pixel& col)
 	pRenderer->ClearViewport(col, true, true);
 }
 
-GPUTask olc::Draw::TaskDrawLine(const std::vector<olc::vf2d>& vPoints, const std::vector<olc::Pixel>& vColours, const olc::Pixel tint)
+GPUTask olc::Draw::TaskDrawLine(const std::vector<olc::vf2d>& vPoints, const std::vector<olc::Pixel>& vColours, const olc::Pixel tint, const bool constrain)
 {
 	GPUTask task;
 	task.structure = olc::Structure::Line;
@@ -272,6 +272,7 @@ GPUTask olc::Draw::TaskDrawLine(const std::vector<olc::vf2d>& vPoints, const std
 	}
 	task.blendmode = blendMode;
 	task.tint = tint;
+	task.bPixelConstrained = constrain;
 	return task;
 }
 
@@ -301,7 +302,7 @@ GPUTask olc::Draw::TaskDrawPolygon(olc::Structure structure, const std::vector<o
 	return task;
 }
 
-GPUTask olc::Draw::TaskFillPolygon(olc::Structure structure, const std::vector<olc::vf2d>& vPoints, const std::vector<olc::Pixel>& vColours, const olc::Pixel tint)
+GPUTask olc::Draw::TaskFillPolygon(olc::Structure structure, const std::vector<olc::vf2d>& vPoints, const std::vector<olc::Pixel>& vColours, const olc::Pixel tint, const bool constrain)
 {
 	GPUTask task;
 	task.structure = structure;
@@ -310,10 +311,11 @@ GPUTask olc::Draw::TaskFillPolygon(olc::Structure structure, const std::vector<o
 		task.vertexBuffer[i] = { {vPoints[i].x, vPoints[i].y, 1.0f, 1.0f}, vColours[i], {0, 0}, {0, 0}, {0, 0}, {0, 0} };
 	task.blendmode = blendMode;
 	task.tint = tint;
+	task.bPixelConstrained = constrain;
 	return task;
 }
 
-GPUTask olc::Draw::TaskFillPolygon(olc::Structure structure, const std::vector<olc::vf2d>& vPoints, const olc::Pixel colour, const olc::Pixel tint)
+GPUTask olc::Draw::TaskFillPolygon(olc::Structure structure, const std::vector<olc::vf2d>& vPoints, const olc::Pixel colour, const olc::Pixel tint, const bool constrain)
 {
 	GPUTask task;
 	task.structure = structure;
@@ -322,6 +324,7 @@ GPUTask olc::Draw::TaskFillPolygon(olc::Structure structure, const std::vector<o
 		task.vertexBuffer[i] = { {vPoints[i].x, vPoints[i].y, 1.0f, 1.0f}, colour, {0, 0}, {0, 0}, {0, 0}, {0, 0} };
 	task.blendmode = blendMode;
 	task.tint = tint;
+	task.bPixelConstrained = constrain;
 	return task;	
 }
 
@@ -517,7 +520,12 @@ void olc::Draw::RedefineUnitCircleBuffer(const int32_t nFacets)
 	for (int32_t i = 0; i <= nFacets; i++)
 	{
 		float theta = float(i) / float(nFacets) * 2.0f * 3.14159265358979323846f;
-		buffUnitCirclePoints.data[i] = { cosf(theta), sinf(theta) };
+		
+		float c = cos(theta);
+		float s = sin(theta);
+
+		
+		buffUnitCirclePoints.data[i] = { c, s };
 	}
 }
 
@@ -552,16 +560,24 @@ const GPUTask& olc::Draw::Ellipse(const olc::vf2d& pos, const float& rx, const f
 
 	for (int32_t i = 0; i <= nFacets; i++)
 	{
-		buffPoints.data[i] = transformAffine.forwardRound<float>({ pos.x + rx * buffUnitCirclePoints.data[i].x, pos.y + ry * buffUnitCirclePoints.data[i].y });
+		buffPoints.data[i] = transformAffine.forward<float>({ pos.x + rx * buffUnitCirclePoints.data[i].x, pos.y + ry * buffUnitCirclePoints.data[i].y });
 		buffColours.data[i] = col;
 	}
 
-	return vecGPUTasks.data.emplace_back(std::move(
+	/*return vecGPUTasks.data.emplace_back(std::move(
 		TaskDrawPolygon(
 			olc::Structure::Line,
 			buffPoints.data,
 			buffColours.data,
 			tint
+		)));*/
+
+	return vecGPUTasks.data.emplace_back(std::move(
+		TaskDrawLine(
+			buffPoints.data,
+			buffColours.data,
+			tint,
+			false // Don't constrain
 		)));
 }
 
@@ -588,7 +604,7 @@ const GPUTask& olc::Draw::FilledEllipse(const olc::vf2d& pos, const float& rx, c
 	
 	for (int32_t i = 0; i <= nFacets; i++)
 	{
-		buffPoints.data[i + 1] = transformAffine.forwardRound<float>({ pos.x + rx * buffUnitCirclePoints.data[i].x, pos.y + ry * buffUnitCirclePoints.data[i].y });
+		buffPoints.data[i + 1] = transformAffine.forward<float>({ pos.x + rx * buffUnitCirclePoints.data[i].x, pos.y + ry * buffUnitCirclePoints.data[i].y });
 		buffColours.data[i + 1] = colOuter;
 	}
 
@@ -597,7 +613,8 @@ const GPUTask& olc::Draw::FilledEllipse(const olc::vf2d& pos, const float& rx, c
 			olc::Structure::Fan,
 			buffPoints.data,
 			buffColours.data,
-			tint
+			tint, 
+			false // Don't constrain
 		)));
 }
 

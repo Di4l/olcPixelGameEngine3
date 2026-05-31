@@ -89,6 +89,20 @@ void main()
 		oTex = aTex;
 	}
 
+	else if (pgeDrawType == 3) // Unconstrained 2D Line																																		  
+	{
+		float p = 1.0 / aPos.z;
+		gl_Position = p * vec4(vec2(2.0 * (aPos.xy) * pgeInverseTargetSizeInPixels - 1.0), 0.0, 1.0);
+		oTex = aTex;
+	}
+
+	else if (pgeDrawType == 4) // Unconstrained 2D Polygon																																		  
+	{
+		float p = 1.0 / aPos.z;
+		gl_Position = p * vec4(vec2(2.0 * (aPos.xy) * pgeInverseTargetSizeInPixels - 1.0), 0.0, 1.0);
+		oTex = p * vec2(aTex.x, aTex.y);
+	}
+
 	else if (pgeDrawType == 0) // 2D Polygon																																		  
 	{
 		float p = 1.0 / aPos.z; 
@@ -1179,16 +1193,32 @@ void main()
 				}
 				else
 				{
-					if (task.structure == olc::Structure::Point)
-						gl.glUniform1i(pCurrentShader->GetUniform("pgeDrawType"), 1);
-					else if (task.structure == olc::Structure::Line)
-						gl.glUniform1i(pCurrentShader->GetUniform("pgeDrawType"), 1);
-					else if (task.structure == olc::Structure::LineLoop)
-						gl.glUniform1i(pCurrentShader->GetUniform("pgeDrawType"), 1);
-					else if (task.structure == olc::Structure::LineList)
-						gl.glUniform1i(pCurrentShader->GetUniform("pgeDrawType"), 1);
+					if (task.bPixelConstrained)
+					{
+						if (task.structure == olc::Structure::Point)
+							gl.glUniform1i(pCurrentShader->GetUniform("pgeDrawType"), 1);
+						else if (task.structure == olc::Structure::Line)
+							gl.glUniform1i(pCurrentShader->GetUniform("pgeDrawType"), 1);
+						else if (task.structure == olc::Structure::LineLoop)
+							gl.glUniform1i(pCurrentShader->GetUniform("pgeDrawType"), 1);
+						else if (task.structure == olc::Structure::LineList)
+							gl.glUniform1i(pCurrentShader->GetUniform("pgeDrawType"), 1);
+						else
+							gl.glUniform1i(pCurrentShader->GetUniform("pgeDrawType"), 0);
+					}
 					else
-						gl.glUniform1i(pCurrentShader->GetUniform("pgeDrawType"), 0);
+					{
+						if (task.structure == olc::Structure::Point)
+							gl.glUniform1i(pCurrentShader->GetUniform("pgeDrawType"), 3);
+						else if (task.structure == olc::Structure::Line)
+							gl.glUniform1i(pCurrentShader->GetUniform("pgeDrawType"), 3);
+						else if (task.structure == olc::Structure::LineLoop)
+							gl.glUniform1i(pCurrentShader->GetUniform("pgeDrawType"), 3);
+						else if (task.structure == olc::Structure::LineList)
+							gl.glUniform1i(pCurrentShader->GetUniform("pgeDrawType"), 3);
+						else
+							gl.glUniform1i(pCurrentShader->GetUniform("pgeDrawType"), 4);
+					}
 				}
 
 				if (task.structure == olc::Structure::Fan)

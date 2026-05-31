@@ -28,6 +28,8 @@ protected:
 	std::vector<olc::vf2d> vecBubbleVel;
 	std::vector<olc::Pixel> vecBubbleCol;
 
+	float fRadius = 4.0f;
+
 public:
 	// Called once at the start, so create things here
 	bool OnUserCreate() override
@@ -136,6 +138,18 @@ public:
 			draw.FilledCircle(vecBubblePos[i].round(), 16, vecBubbleCol[i] * 0.5f);
 			draw.Circle(vecBubblePos[i].round(), 16, vecBubbleCol[i]);
 		}
+
+
+		if (mouse.GetWheel() < 0)
+			fRadius -= 1.0f;
+		if (mouse.GetWheel() > 0)
+			fRadius += 1.0f;
+
+		fRadius = std::clamp(fRadius, 0.5f, 120.0f);
+
+		// Draw a small circle at mouse location
+		draw.FilledCircle(mouse.GetPosition().round(), fRadius, olc::Colour::RED);
+		draw.Circle(mouse.GetPosition().round(), fRadius, olc::Colour::WHITE);
 
 
 		// Successful frame
