@@ -908,7 +908,8 @@ namespace olc
 		GPUTask TaskDrawLine(
 			const std::vector<olc::vf2d>& vPoints,
 			const std::vector<olc::Pixel>& vColours,
-			const olc::Pixel tint = olc::Colour::WHITE);
+			const olc::Pixel tint = olc::Colour::WHITE,
+			const bool constrain = true);
 		
 		GPUTask TaskDrawPolygon(
 			olc::Structure structure,
@@ -926,13 +927,15 @@ namespace olc
 			olc::Structure structure,
 			const std::vector<olc::vf2d>& vPoints,
 			const std::vector<olc::Pixel>& vColours,
-			const olc::Pixel tint = olc::Colour::WHITE);
+			const olc::Pixel tint = olc::Colour::WHITE,
+			const bool constrain = true);
 
 		GPUTask TaskFillPolygon(
 			olc::Structure structure,
 			const std::vector<olc::vf2d>& vPoints,
 			const olc::Pixel colour,
-			const olc::Pixel tint = olc::Colour::WHITE);
+			const olc::Pixel tint = olc::Colour::WHITE,
+			const bool constrain = true);
 
 		GPUTask TaskTexturedPolygon(
 			olc::Structure structure,

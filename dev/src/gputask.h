@@ -102,6 +102,9 @@ namespace olc
 		// Use hardware wire drawing
 		bool bWireframe = false;
 
+		// Constrain with pixel biases
+		bool bPixelConstrained = true;
+
 		// Define how to interpret vertex buffer
 		bool bIs3D = false;
 
