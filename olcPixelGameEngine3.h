@@ -15135,6 +15135,9 @@ void main()
 	EGLint const context_config[] = {EGL_CONTEXT_MAJOR_VERSION, 3, EGL_NONE};
 
 	/* create an EGL rendering context */
+#if OLC_HOST == OLC_HOST_LINUX_WAYLAND
+	eglBindAPI(EGL_OPENGL_API);
+#endif
 	glRenderContext.context = eglCreateContext(glRenderContext.display, glRenderContext.config, EGL_NO_CONTEXT, context_config);
 	glRenderContext.surface = eglCreateWindowSurface(glRenderContext.display, glRenderContext.config, window_handle, nullptr);
 	if(glRenderContext.surface == EGL_NO_SURFACE) {
