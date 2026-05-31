@@ -1185,9 +1185,9 @@ void main()
 				//gl.glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 				//gl.glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 
-				// Apply Rendering Mode
-				if (task.bWireframe)
-					gl.glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+				//// Apply Rendering Mode
+				//if (task.bWireframe)
+				//	gl.glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
 				if (task.bIs3D)
 				{
@@ -1240,8 +1240,8 @@ void main()
 					gl.glDrawArrays(GL_POINTS, 0, (GLsizei)task.vertexBuffer.size());
 
 
-				if (task.bWireframe)
-					gl.glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+				//if (task.bWireframe)
+				//	gl.glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
 				if (task.bDepth)
 					gl.glDisable(GL_DEPTH_TEST);

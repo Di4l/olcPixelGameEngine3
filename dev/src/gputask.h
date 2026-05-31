@@ -99,9 +99,6 @@ namespace olc
 		// Use depth components
 		bool bDepth = false;
 
-		// Use hardware wire drawing
-		bool bWireframe = false;
-
 		// Constrain with pixel biases
 		bool bPixelConstrained = true;
 
