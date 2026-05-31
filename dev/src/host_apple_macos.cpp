@@ -277,6 +277,9 @@ namespace olc::host {
         pMacApplication->initialize();
         pMacApplication->activate();
         
+        // Pre-context start hook
+        pPrimaryPGE->OnPreContextStart();
+        
         // Initialize the MacOS Window
         pMacOSWindow = std::make_unique<olc::apis::macos::Window>(frameBounds.width, frameBounds.height, "OLC PGE 3 MacOS Demo");
         pMacOSWindow->setPosition(frameBounds.x, frameBounds.y);
@@ -296,10 +299,7 @@ namespace olc::host {
         pMacOSWindow->show(styleMask);
         pMacOSEventHandler->enable();
         
-        //--- Start up our engine threading system -----
-        // Pre-context start hook
-        pPrimaryPGE->OnPreContextStart();
-        
+        //--- Start up our engine threading system ----
         // Start the PGE context on the main thread
         // Mark system as active
         systemActive = true;
