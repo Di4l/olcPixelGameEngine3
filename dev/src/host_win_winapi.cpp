@@ -313,6 +313,8 @@ namespace olc::host
 		HWND hWnd = CreateWindowEx(dwExStyle, olcT("OLC_PIXEL_GAME_ENGINE3"), olcT(""), dwStyle,
 			vTopLeft.x, vTopLeft.y, width, height, NULL, NULL, GetModuleHandle(nullptr), this);
 
+		RegisterTouchWindow(hWnd, 0);
+
 		// Update window size to match actual client area given. In situations where the window
 		// is clamped to the desktop, the client area may be smaller than requested.
 		RECT rClient;
@@ -622,6 +624,160 @@ namespace olc::host
 				
 				break;
 			}
+
+		/*case WM_TOUCH:
+			{
+				UINT nTouches = LOWORD(wParam);
+				PTOUCHINPUT pTouches = new TOUCHINPUT[nTouches];
+				if (pTouches != nullptr)
+				{
+					if (GetTouchInputInfo((HTOUCHINPUT)lParam, nTouches, pTouches, sizeof(TOUCHINPUT)))
+					{
+						for (UINT i = 0; i < nTouches; i++)
+						{
+							TOUCHINPUT ti = pTouches[i];
+							POINT pt;
+							pt.x = TOUCH_COORD_TO_PIXEL(ti.x);
+							pt.y = TOUCH_COORD_TO_PIXEL(ti.y);
+							ScreenToClient(hWnd, &pt);
+							window->olc_OnTouch(
+								ti.dwID, 
+								olc::vf2d{ float(pt.x), float(pt.y) }, 
+								(ti.dwFlags & TOUCHEVENTF_DOWN) != 0, 
+								(ti.dwFlags & TOUCHEVENTF_UP) != 0, 
+								olc::vf2d{ float(ti.cxContact), float(ti.cyContact) });
+						}
+					}
+					delete[] pTouches;
+				}
+
+				break;
+			}*/
+
+		case WM_POINTERDOWN:
+			{
+				POINTER_INPUT_TYPE pointerType;
+				if (GetPointerType(GET_POINTERID_WPARAM(wParam), &pointerType))
+				{
+					if (pointerType == PT_TOUCH || pointerType == PT_TOUCHPAD)
+					{
+						POINTER_TOUCH_INFO touchInfo;
+						if (GetPointerTouchInfo(GET_POINTERID_WPARAM(wParam), &touchInfo))
+						{
+							POINT pt = {GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)};
+							ScreenToClient(hWnd, &pt);
+							window->olc_OnTouch(
+								GET_POINTERID_WPARAM(wParam),
+								olc::vf2d{ float(pt.x), float(pt.y) },
+								true,
+								false,
+								olc::vf2d{ float(touchInfo.rcContact.right - touchInfo.rcContact.left), float(touchInfo.rcContact.bottom - touchInfo.rcContact.top) });
+						}
+					}
+					else if (pointerType == PT_PEN)
+					{
+						POINTER_PEN_INFO penInfo;
+						if (GetPointerPenInfo(GET_POINTERID_WPARAM(wParam), &penInfo))
+						{
+							POINT pt = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
+							ScreenToClient(hWnd, &pt);
+							window->olc_OnTouch(
+								GET_POINTERID_WPARAM(wParam),
+								olc::vf2d{ float(pt.x), float(pt.y) },
+								true,
+								false,
+								olc::vf2d{ float(penInfo.pressure), float(penInfo.pressure) });
+						}
+					}
+					
+				}
+
+				break;
+			}
+
+		case WM_POINTERUP:
+		{
+			POINTER_INPUT_TYPE pointerType;
+			if (GetPointerType(GET_POINTERID_WPARAM(wParam), &pointerType))
+			{
+				if (pointerType == PT_TOUCH || pointerType == PT_TOUCHPAD)
+				{
+					POINTER_TOUCH_INFO touchInfo;
+					if (GetPointerTouchInfo(GET_POINTERID_WPARAM(wParam), &touchInfo))
+					{
+						POINT pt = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
+						ScreenToClient(hWnd, &pt);
+						window->olc_OnTouch(
+							GET_POINTERID_WPARAM(wParam),
+							olc::vf2d{ float(pt.x), float(pt.y) },
+							false,
+							true,
+							olc::vf2d{ float(touchInfo.rcContact.right - touchInfo.rcContact.left), float(touchInfo.rcContact.bottom - touchInfo.rcContact.top) });
+					}
+				}
+				else if (pointerType == PT_PEN)
+				{
+					POINTER_PEN_INFO penInfo;
+					if (GetPointerPenInfo(GET_POINTERID_WPARAM(wParam), &penInfo))
+					{
+						POINT pt = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
+						ScreenToClient(hWnd, &pt);
+						window->olc_OnTouch(
+							GET_POINTERID_WPARAM(wParam),
+							olc::vf2d{ float(pt.x), float(pt.y) },
+							false,
+							true,
+							olc::vf2d{ float(penInfo.pressure), float(penInfo.rotation) });
+					}
+				}
+			}
+
+			break;
+		}
+
+		case WM_POINTERUPDATE:
+		{
+			POINTER_INPUT_TYPE pointerType;
+			if (GetPointerType(GET_POINTERID_WPARAM(wParam), &pointerType))
+			{
+				if (pointerType == PT_TOUCH || pointerType == PT_TOUCHPAD)
+				{
+					POINTER_TOUCH_INFO touchInfo;
+					if (GetPointerTouchInfo(GET_POINTERID_WPARAM(wParam), &touchInfo))
+					{
+						POINT pt = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
+						ScreenToClient(hWnd, &pt);
+						window->olc_OnTouch(
+							GET_POINTERID_WPARAM(wParam),
+							olc::vf2d{ float(pt.x), float(pt.y) },
+							false,
+							false,
+							olc::vf2d{ float(touchInfo.rcContact.right - touchInfo.rcContact.left), float(touchInfo.rcContact.bottom - touchInfo.rcContact.top) });
+					}
+				}
+				else if (pointerType == PT_PEN)
+				{
+					if (IS_POINTER_INCONTACT_WPARAM(wParam))
+					{
+						POINTER_PEN_INFO penInfo;
+						if (GetPointerPenInfo(GET_POINTERID_WPARAM(wParam), &penInfo))
+						{
+							POINT pt = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
+							ScreenToClient(hWnd, &pt);
+							window->olc_OnTouch(
+								GET_POINTERID_WPARAM(wParam),
+								olc::vf2d{ float(pt.x), float(pt.y) },
+								false,
+								false,
+								olc::vf2d{ float(penInfo.pressure), float(penInfo.rotation) });
+						}
+					}
+				}
+			}	
+			break;
+		}
+
+
 			//		case WM_DROPFILES:
 			//		{
 			//			// This is all eww...

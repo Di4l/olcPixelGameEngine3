@@ -316,6 +316,7 @@
     <ClCompile Include="..\src\host_win_winapi.cpp" />
     <ClCompile Include="..\src\hw_keyboard.cpp" />
     <ClCompile Include="..\src\hw_mouse.cpp" />
+    <ClCompile Include="..\src\hw_touch.cpp" />
     <ClCompile Include="..\src\image.cpp" />
     <ClCompile Include="..\src\imload_android.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>

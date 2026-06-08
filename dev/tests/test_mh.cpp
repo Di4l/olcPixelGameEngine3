@@ -474,6 +474,13 @@ public:
 
 		draw.String({ 10, 10 }, mouse.GetPosition().str(), olc::Colour::BLACK);
 
+		auto touches = touch.GetTouchIDs();
+		draw.String({ 10.0f, 20.0f }, "Touch Points: " + std::to_string(touches.size()), olc::Colour::WHITE);
+
+
+		if(!touches.empty())
+			draw.FilledCircle(touch.GetTouch(touches[0]).position, 10, olc::Colour::MAGENTA, olc::Pixel(255, 0, 255, 0), olc::Colour::WHITE, 16);
+
 		if (keyboard.GetKey(olc::Key::ESCAPE).bPressed)
 			return false; // End application
 

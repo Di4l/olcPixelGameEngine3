@@ -104,6 +104,7 @@ namespace olc
 		// Input Changes
 		mouse.UpdateState();
 		keyboard.UpdateState();
+		touch.UpdateState();
 		
 		draw.SetGPU(pRenderer);
 		draw.SetTarget(GetScreen());
@@ -357,6 +358,12 @@ namespace olc
 		mouse.SetPosition(
 			(olc::vf2d(pos) / olc::vf2d(vWindowSize - (vViewPos * 2)) * GetScreen().Size())
 			.clamp({ 0.0f, 0.0f }, olc::vf2d(GetScreen().Size()-1)));
+		return true;
+	}
+
+	bool PGEWindow::olc_OnTouch(const uint32_t nID, const olc::vf2d& vPos, const bool bPress, const bool bRelease, const olc::vf2d& vSize)
+	{
+		touch.UpdateTouch(nID, (vPos / olc::vf2d(vWindowSize)) * GetScreen().Size(), bPress, bRelease, vSize);
 		return true;
 	}
 
