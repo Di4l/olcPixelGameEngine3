@@ -280,6 +280,8 @@
 
 #define OLC_MOUSE_BUTTONS 5
 
+#define OLC_MAX_TOUCHPOINTS 4
+
 #define OLC_DEFAULT_KEYBOARD_LAYOUT olc::KeyboardLayout::QWERTY_UK
 
 #define OLC_GPU_MAX_VERTICES 8192
@@ -3805,6 +3807,57 @@ namespace olc
 #define PGE_HW_KEYBOARD_DECLARED 1
 #endif
 
+#if !defined(PGE_HW_TOUCH_DECLARED)
+namespace olc
+{
+	// Forward declare for friendship
+	class Window;
+	class PGEWindow;
+
+
+	namespace hw
+	{
+		struct TouchPoint
+		{
+			olc::vf2d position;
+			olc::vf2d size;
+			float pressure = 0;
+			float orientation = 0;
+			olc::vf2d tilt;
+			bool bPressed = false;
+			bool bReleased = false;
+			bool bHeld = false;
+			bool bStylus = false;
+		};
+
+		class Touch
+		{
+			friend class olc::Window;
+			friend class olc::PGEWindow;
+
+		public:
+			Touch() = default;
+
+		public:
+			const std::vector<uint32_t>& GetTouchIDs() const;
+			const bool IsTouch(const uint32_t nID) const;
+			const TouchPoint& GetTouch(const uint32_t nID) const;
+
+		protected:
+			std::unordered_map<uint32_t, TouchPoint> touches_cache{};
+			std::unordered_map<uint32_t, TouchPoint> touches_live{};
+
+
+		private:
+			void UpdateTouch(const uint32_t nID, const olc::vf2d& vPos, const bool bPress, const bool bRelease, 
+				const olc::vf2d& vSize, const bool stylus = false, const float pressure = 0.0f, const float orientation = 0, const olc::vf2d& tilt = { 0,0 });
+			void UpdateState();
+		};
+	}
+}
+#define PGE_HW_TOUCH_DECLARED 1
+#endif
+
 #if !defined(PGE_WINDOW_DECLARED)
 namespace olc
 {
@@ -3828,6 +3881,7 @@ namespace olc
 	{
 		class Mouse;
 		class Keyboard;
+		class Touch;
 	}
 
 	struct WindowConfig
@@ -3869,6 +3923,10 @@ namespace olc
 
 		// Set Keyboard State
 		virtual bool olc_OnKeyPress(const olc::Key key, const bool bPressed);
+
+		// Touch Handler
+		virtual bool olc_OnTouch(const uint32_t nID, const olc::vf2d& vPos, const bool bPress, const bool bRelease, 
+			const olc::vf2d& vSize, const bool stylus = false, const float pressure = 0.0f, const float orientation = 0, const olc::vf2d& tilt = { 0,0 });
 
 
 
@@ -3919,6 +3977,7 @@ namespace olc
 	protected:
 		olc::hw::Mouse mouse;
 		olc::hw::Keyboard keyboard;
+		olc::hw::Touch touch;
 
 	};
 }
@@ -4183,6 +4242,7 @@ namespace olc
 
 	protected:
 		bool olc_OnMouseMove(const olc::vi2d& vMousePos) override;
+		bool olc_OnTouch(const uint32_t nID, const olc::vf2d& vPos, const bool bPress, const bool bRelease, const olc::vf2d& vSize, const bool stylus = false, const float pressure = 0.0f, const float orientation = 0, const olc::vf2d& tilt = { 0,0 }) override;
 
 	public:
 		virtual bool olc_WindowUpdate(const float fElapsedTime, const float fTotalElapsedTime);
@@ -4364,7 +4424,7 @@ namespace olc::host
 	#ifdef HAVE_MSMF
 		#define _WIN32_WINNT 0x0600 // Windows Vista
 	#else
-		#define _WIN32_WINNT 0x0500 // Windows 2000
+		#define _WIN32_WINNT 0x0603 // Windows 8.1
 	#endif
 #endif
 
@@ -4375,6 +4435,8 @@ namespace olc::host
 
 #include <dwmapi.h>
 #include <windows.h>
+#include <winuser.h>
+#include <windowsx.h>
 #undef _WINSOCKAPI_
 
 namespace olc
@@ -7828,6 +7890,146 @@ namespace olc::host
 				
 				break;
 			}
+
+		case WM_POINTERDOWN:
+			{
+				POINTER_INPUT_TYPE pointerType;
+				if (GetPointerType(GET_POINTERID_WPARAM(wParam), &pointerType))
+				{
+					if (pointerType == PT_TOUCH)
+					{
+						POINTER_TOUCH_INFO touchInfo;
+						if (GetPointerTouchInfo(GET_POINTERID_WPARAM(wParam), &touchInfo))
+						{
+							POINT pt = {GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)};
+							ScreenToClient(hWnd, &pt);
+							window->olc_OnTouch(
+								GET_POINTERID_WPARAM(wParam),
+								olc::vf2d{ float(pt.x), float(pt.y) },
+								true,
+								false,
+								olc::vf2d{ float(touchInfo.rcContact.right - touchInfo.rcContact.left), float(touchInfo.rcContact.bottom - touchInfo.rcContact.top) });
+						}
+					}
+					else if (pointerType == PT_PEN)
+					{
+						POINTER_PEN_INFO penInfo;
+						if (GetPointerPenInfo(GET_POINTERID_WPARAM(wParam), &penInfo))
+						{
+							POINT pt = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
+							ScreenToClient(hWnd, &pt);
+							window->olc_OnTouch(
+								GET_POINTERID_WPARAM(wParam),
+								olc::vf2d{ float(pt.x), float(pt.y) },
+								true,
+								false,
+								{ 1,1 },
+								true,
+								float(penInfo.pressure) / 1024.0f,
+								float(penInfo.rotation) / 360.0f * 2.0f * 3.14159265f,
+								{ float(penInfo.tiltX) , float(penInfo.tiltY) }
+							);
+						}
+					}
+					
+				}
+
+				break;
+			}
+
+		case WM_POINTERUP:
+		{
+			POINTER_INPUT_TYPE pointerType;
+			if (GetPointerType(GET_POINTERID_WPARAM(wParam), &pointerType))
+			{
+				if (pointerType == PT_TOUCH)
+				{
+					POINTER_TOUCH_INFO touchInfo;
+					if (GetPointerTouchInfo(GET_POINTERID_WPARAM(wParam), &touchInfo))
+					{
+						POINT pt = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
+						ScreenToClient(hWnd, &pt);
+						window->olc_OnTouch(
+							GET_POINTERID_WPARAM(wParam),
+							olc::vf2d{ float(pt.x), float(pt.y) },
+							false,
+							true,
+							olc::vf2d{ float(touchInfo.rcContact.right - touchInfo.rcContact.left), float(touchInfo.rcContact.bottom - touchInfo.rcContact.top) });
+					}
+				}
+				else if (pointerType == PT_PEN)
+				{
+					POINTER_PEN_INFO penInfo;
+					if (GetPointerPenInfo(GET_POINTERID_WPARAM(wParam), &penInfo))
+					{
+						POINT pt = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
+						ScreenToClient(hWnd, &pt);
+						window->olc_OnTouch(
+							GET_POINTERID_WPARAM(wParam),
+							olc::vf2d{ float(pt.x), float(pt.y) },
+							false,
+							true,
+							{ 1,1 },
+							true,
+							float(penInfo.pressure) / 1024.0f,
+							float(penInfo.rotation) / 360.0f * 2.0f * 3.14159265f,
+							{ float(penInfo.tiltX) , float(penInfo.tiltY) }
+						);
+					}
+				}
+			}
+
+			break;
+		}
+
+		case WM_POINTERUPDATE:
+		{
+			POINTER_INPUT_TYPE pointerType;
+			if (GetPointerType(GET_POINTERID_WPARAM(wParam), &pointerType))
+			{
+				if (pointerType == PT_TOUCH)
+				{
+					POINTER_TOUCH_INFO touchInfo;
+					if (GetPointerTouchInfo(GET_POINTERID_WPARAM(wParam), &touchInfo))
+					{
+						POINT pt = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
+						ScreenToClient(hWnd, &pt);
+						window->olc_OnTouch(
+							GET_POINTERID_WPARAM(wParam),
+							olc::vf2d{ float(pt.x), float(pt.y) },
+							false,
+							false,
+							olc::vf2d{ float(touchInfo.rcContact.right - touchInfo.rcContact.left), float(touchInfo.rcContact.bottom - touchInfo.rcContact.top) });
+					}
+				}
+				else if (pointerType == PT_PEN)
+				{
+					if (IS_POINTER_INCONTACT_WPARAM(wParam))
+					{
+						POINTER_PEN_INFO penInfo;
+						if (GetPointerPenInfo(GET_POINTERID_WPARAM(wParam), &penInfo))
+						{
+							POINT pt = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
+							ScreenToClient(hWnd, &pt);
+							window->olc_OnTouch(
+								GET_POINTERID_WPARAM(wParam),
+								olc::vf2d{ float(pt.x), float(pt.y) },
+								false,
+								false,
+								{ 1,1 },
+								true,
+								float(penInfo.pressure) / 1024.0f,
+								float(penInfo.rotation) / 360.0f * 2.0f * 3.14159265f,
+								{ float(penInfo.tiltX) , float(penInfo.tiltY) }
+							);
+						}
+					}
+				}
+			}	
+			break;
+		}
+
+
 			//		case WM_DROPFILES:
 			//		{
 			//			// This is all eww...
@@ -17789,6 +17991,7 @@ namespace olc
 		// Input Changes
 		mouse.UpdateState();
 		keyboard.UpdateState();
+		touch.UpdateState();
 		
 		draw.SetGPU(pRenderer);
 		draw.SetTarget(GetScreen());
@@ -18042,6 +18245,13 @@ namespace olc
 		mouse.SetPosition(
 			(olc::vf2d(pos) / olc::vf2d(vWindowSize - (vViewPos * 2)) * GetScreen().Size())
 			.clamp({ 0.0f, 0.0f }, olc::vf2d(GetScreen().Size()-1)));
+		return true;
+	}
+
+	bool PGEWindow::olc_OnTouch(const uint32_t nID, const olc::vf2d& vPos, const bool bPress, const bool bRelease, const olc::vf2d& vSize, const bool stylus, const float pressure, const float orientation, const olc::vf2d& tilt)
+	{
+		touch.UpdateTouch(nID, (vPos / olc::vf2d(vWindowSize)) * GetScreen().Size(), 
+			bPress, bRelease, (vSize / olc::vf2d(vWindowSize)) * GetScreen().Size(), stylus, pressure, orientation, tilt);
 		return true;
 	}
 
@@ -18902,6 +19112,63 @@ namespace olc::hw
 #define PGE_HW_KEYBOARD_IMPLEMENTED 1
 #endif
 
+#if defined(OLC_PGE3_APPLICATION) && !defined(PGE_HW_TOUCH_IMPLEMENTED)
+namespace olc::hw
+{
+    const std::vector<uint32_t>& Touch::GetTouchIDs() const
+    {
+        static std::vector<uint32_t> touchIDs;
+        touchIDs.clear();
+        for (const auto& [id, index] : touches_cache)
+            touchIDs.push_back(id);
+        return touchIDs;
+    }
+
+    const bool Touch::IsTouch(const uint32_t nID) const
+    {
+        return touches_cache.contains(nID);
+    }
+
+    const TouchPoint& Touch::GetTouch(const uint32_t nID) const
+    {
+        return touches_cache.at(nID);
+    }
+
+    void Touch::UpdateTouch(const uint32_t nID, const olc::vf2d& vPos, const bool bPress, const bool bRelease, const olc::vf2d& vSize, const bool stylus, const float pressure, const float orientation, const olc::vf2d& tilt)
+    {
+        // If touch doesnt exist, this will create one or
+        // it will update an existing one
+        touches_live[nID].position = vPos;
+        touches_live[nID].size = vSize;
+		touches_live[nID].bPressed = bPress || touches_live[nID].bPressed;
+		touches_live[nID].bReleased = bRelease;
+		touches_live[nID].bHeld = !bRelease;
+		touches_live[nID].pressure = pressure;
+		touches_live[nID].orientation = orientation;
+		touches_live[nID].tilt = tilt;
+		touches_live[nID].bStylus = stylus;
+    }
+
+    void Touch::UpdateState()
+    {
+        touches_cache = touches_live;
+
+		// Remove released touches from live state
+        for (auto it = touches_live.begin(); it != touches_live.end(); )
+        {
+			if (it->second.bPressed)
+				it->second.bPressed = false;
+
+            if (it->second.bReleased)
+                it = touches_live.erase(it);
+            else
+                ++it;
+        }
+    }
+}
+#define PGE_HW_TOUCH_IMPLEMENTED 1
+#endif
+
 #if defined(OLC_PGE3_APPLICATION) && !defined(PGE_WINDOW_IMPLEMENTED)
 namespace olc
 {
@@ -18936,6 +19203,7 @@ namespace olc
 
 	bool Window::olc_OnMouseMove(const olc::vi2d& vMousePos)
 	{		
+		// Handled by PGEWindow
 		mouse.SetPosition(olc::vf2d(vMousePos) / olc::vf2d(GetWindowSize()));
 		return true;
 	}
@@ -18972,6 +19240,12 @@ namespace olc
 	bool Window::olc_OnKeyPress(const olc::Key key, const bool bPressed)
 	{
 		keyboard.SetKey(key, bPressed);
+		return true;
+	}
+
+	bool Window::olc_OnTouch(const uint32_t nID, const olc::vf2d& vPos, const bool bPress, const bool bRelease, const olc::vf2d& vSize, const bool stylus, const float pressure, const float orientation, const olc::vf2d& tilt)
+	{
+		// Handled by PGEWindow
 		return true;
 	}
 

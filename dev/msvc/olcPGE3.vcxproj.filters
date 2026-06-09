@@ -248,5 +248,8 @@
     <ClCompile Include="..\src\draw_batch.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\hw_touch.cpp">
+      <Filter>Hardware</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

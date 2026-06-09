@@ -622,6 +622,146 @@ namespace olc::host
 				
 				break;
 			}
+
+		case WM_POINTERDOWN:
+			{
+				POINTER_INPUT_TYPE pointerType;
+				if (GetPointerType(GET_POINTERID_WPARAM(wParam), &pointerType))
+				{
+					if (pointerType == PT_TOUCH)
+					{
+						POINTER_TOUCH_INFO touchInfo;
+						if (GetPointerTouchInfo(GET_POINTERID_WPARAM(wParam), &touchInfo))
+						{
+							POINT pt = {GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)};
+							ScreenToClient(hWnd, &pt);
+							window->olc_OnTouch(
+								GET_POINTERID_WPARAM(wParam),
+								olc::vf2d{ float(pt.x), float(pt.y) },
+								true,
+								false,
+								olc::vf2d{ float(touchInfo.rcContact.right - touchInfo.rcContact.left), float(touchInfo.rcContact.bottom - touchInfo.rcContact.top) });
+						}
+					}
+					else if (pointerType == PT_PEN)
+					{
+						POINTER_PEN_INFO penInfo;
+						if (GetPointerPenInfo(GET_POINTERID_WPARAM(wParam), &penInfo))
+						{
+							POINT pt = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
+							ScreenToClient(hWnd, &pt);
+							window->olc_OnTouch(
+								GET_POINTERID_WPARAM(wParam),
+								olc::vf2d{ float(pt.x), float(pt.y) },
+								true,
+								false,
+								{ 1,1 },
+								true,
+								float(penInfo.pressure) / 1024.0f,
+								float(penInfo.rotation) / 360.0f * 2.0f * 3.14159265f,
+								{ float(penInfo.tiltX) , float(penInfo.tiltY) }
+							);
+						}
+					}
+					
+				}
+
+				break;
+			}
+
+		case WM_POINTERUP:
+		{
+			POINTER_INPUT_TYPE pointerType;
+			if (GetPointerType(GET_POINTERID_WPARAM(wParam), &pointerType))
+			{
+				if (pointerType == PT_TOUCH)
+				{
+					POINTER_TOUCH_INFO touchInfo;
+					if (GetPointerTouchInfo(GET_POINTERID_WPARAM(wParam), &touchInfo))
+					{
+						POINT pt = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
+						ScreenToClient(hWnd, &pt);
+						window->olc_OnTouch(
+							GET_POINTERID_WPARAM(wParam),
+							olc::vf2d{ float(pt.x), float(pt.y) },
+							false,
+							true,
+							olc::vf2d{ float(touchInfo.rcContact.right - touchInfo.rcContact.left), float(touchInfo.rcContact.bottom - touchInfo.rcContact.top) });
+					}
+				}
+				else if (pointerType == PT_PEN)
+				{
+					POINTER_PEN_INFO penInfo;
+					if (GetPointerPenInfo(GET_POINTERID_WPARAM(wParam), &penInfo))
+					{
+						POINT pt = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
+						ScreenToClient(hWnd, &pt);
+						window->olc_OnTouch(
+							GET_POINTERID_WPARAM(wParam),
+							olc::vf2d{ float(pt.x), float(pt.y) },
+							false,
+							true,
+							{ 1,1 },
+							true,
+							float(penInfo.pressure) / 1024.0f,
+							float(penInfo.rotation) / 360.0f * 2.0f * 3.14159265f,
+							{ float(penInfo.tiltX) , float(penInfo.tiltY) }
+						);
+					}
+				}
+			}
+
+			break;
+		}
+
+		case WM_POINTERUPDATE:
+		{
+			POINTER_INPUT_TYPE pointerType;
+			if (GetPointerType(GET_POINTERID_WPARAM(wParam), &pointerType))
+			{
+				if (pointerType == PT_TOUCH)
+				{
+					POINTER_TOUCH_INFO touchInfo;
+					if (GetPointerTouchInfo(GET_POINTERID_WPARAM(wParam), &touchInfo))
+					{
+						POINT pt = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
+						ScreenToClient(hWnd, &pt);
+						window->olc_OnTouch(
+							GET_POINTERID_WPARAM(wParam),
+							olc::vf2d{ float(pt.x), float(pt.y) },
+							false,
+							false,
+							olc::vf2d{ float(touchInfo.rcContact.right - touchInfo.rcContact.left), float(touchInfo.rcContact.bottom - touchInfo.rcContact.top) });
+					}
+				}
+				else if (pointerType == PT_PEN)
+				{
+					if (IS_POINTER_INCONTACT_WPARAM(wParam))
+					{
+						POINTER_PEN_INFO penInfo;
+						if (GetPointerPenInfo(GET_POINTERID_WPARAM(wParam), &penInfo))
+						{
+							POINT pt = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
+							ScreenToClient(hWnd, &pt);
+							window->olc_OnTouch(
+								GET_POINTERID_WPARAM(wParam),
+								olc::vf2d{ float(pt.x), float(pt.y) },
+								false,
+								false,
+								{ 1,1 },
+								true,
+								float(penInfo.pressure) / 1024.0f,
+								float(penInfo.rotation) / 360.0f * 2.0f * 3.14159265f,
+								{ float(penInfo.tiltX) , float(penInfo.tiltY) }
+							);
+						}
+					}
+				}
+			}	
+			break;
+		}
+
+
 			//		case WM_DROPFILES:
 			//		{
 			//			// This is all eww...
