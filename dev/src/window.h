@@ -87,7 +87,8 @@ namespace olc
 		virtual bool olc_OnKeyPress(const olc::Key key, const bool bPressed);
 
 		// Touch Handler
-		virtual bool olc_OnTouch(const uint32_t nID, const olc::vf2d& vPos, const bool bPress, const bool bRelease, const olc::vf2d& vSize);
+		virtual bool olc_OnTouch(const uint32_t nID, const olc::vf2d& vPos, const bool bPress, const bool bRelease, 
+			const olc::vf2d& vSize, const bool stylus = false, const float pressure = 0.0f, const float orientation = 0, const olc::vf2d& tilt = { 0,0 });
 
 
 

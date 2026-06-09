@@ -3827,8 +3827,7 @@ namespace olc
 			bool bPressed = false;
 			bool bReleased = false;
 			bool bHeld = false;
-			bool bIsPen = false;
-			bool bIsFinger = false;
+			bool bStylus = false;
 		};
 
 		class Touch
@@ -3850,7 +3849,8 @@ namespace olc
 
 
 		private:
-			void UpdateTouch(const uint32_t nID, const olc::vf2d& vPos, const bool bPress, const bool bRelease, const olc::vf2d& vSize);
+			void UpdateTouch(const uint32_t nID, const olc::vf2d& vPos, const bool bPress, const bool bRelease, 
+				const olc::vf2d& vSize, const bool stylus = false, const float pressure = 0.0f, const float orientation = 0, const olc::vf2d& tilt = { 0,0 });
 			void UpdateState();
 		};
 	}
@@ -3925,7 +3925,8 @@ namespace olc
 		virtual bool olc_OnKeyPress(const olc::Key key, const bool bPressed);
 
 		// Touch Handler
-		virtual bool olc_OnTouch(const uint32_t nID, const olc::vf2d& vPos, const bool bPress, const bool bRelease, const olc::vf2d& vSize);
+		virtual bool olc_OnTouch(const uint32_t nID, const olc::vf2d& vPos, const bool bPress, const bool bRelease, 
+			const olc::vf2d& vSize, const bool stylus = false, const float pressure = 0.0f, const float orientation = 0, const olc::vf2d& tilt = { 0,0 });
 
 
 
@@ -4241,7 +4242,7 @@ namespace olc
 
 	protected:
 		bool olc_OnMouseMove(const olc::vi2d& vMousePos) override;
-		bool olc_OnTouch(const uint32_t nID, const olc::vf2d& vPos, const bool bPress, const bool bRelease, const olc::vf2d& vSize) override;
+		bool olc_OnTouch(const uint32_t nID, const olc::vf2d& vPos, const bool bPress, const bool bRelease, const olc::vf2d& vSize, const bool stylus = false, const float pressure = 0.0f, const float orientation = 0, const olc::vf2d& tilt = { 0,0 }) override;
 
 	public:
 		virtual bool olc_WindowUpdate(const float fElapsedTime, const float fTotalElapsedTime);
@@ -7580,8 +7581,6 @@ namespace olc::host
 		HWND hWnd = CreateWindowEx(dwExStyle, olcT("OLC_PIXEL_GAME_ENGINE3"), olcT(""), dwStyle,
 			vTopLeft.x, vTopLeft.y, width, height, NULL, NULL, GetModuleHandle(nullptr), this);
 
-		RegisterTouchWindow(hWnd, 0);
-
 		// Update window size to match actual client area given. In situations where the window
 		// is clamped to the desktop, the client area may be smaller than requested.
 		RECT rClient;
@@ -7746,17 +7745,17 @@ namespace olc::host
 
 		switch (uMsg)
 		{
-		//case WM_MOUSEMOVE: // Mouse has moved within a window
-		//	{
-		//		// Extract mouse X & Y
-		//		uint16_t x = uint16_t(lParam & 0xFFFF); 
-		//		uint16_t y = uint16_t((lParam >> 16) & 0xFFFF);
-		//		int16_t ix = *(int16_t*)&x;   
-		//		int16_t iy = *(int16_t*)&y;
-		//		// Tell window new mouse location
-		//		window->olc_OnMouseMove(olc::vi2d{ ix, iy });
-		//		break;
-		//	}
+		case WM_MOUSEMOVE: // Mouse has moved within a window
+			{
+				// Extract mouse X & Y
+				uint16_t x = uint16_t(lParam & 0xFFFF); 
+				uint16_t y = uint16_t((lParam >> 16) & 0xFFFF);
+				int16_t ix = *(int16_t*)&x;   
+				int16_t iy = *(int16_t*)&y;
+				// Tell window new mouse location
+				window->olc_OnMouseMove(olc::vi2d{ ix, iy });
+				break;
+			}
 		
 
 			//		case WM_MOVE:       vWinPos = olc::vi2d(lParam & 0xFFFF, (lParam >> 16) & 0xFFFF);  ptrPGE->olc_UpdateWindowPos(lParam & 0xFFFF, (lParam >> 16) & 0xFFFF);	return 0;
@@ -7833,7 +7832,7 @@ namespace olc::host
 			break;
 		}
 
-	/*	case WM_LBUTTONDOWN:
+		case WM_LBUTTONDOWN:
 			{
 				window->olc_OnMouseButton(0, true);
 				break;
@@ -7862,7 +7861,7 @@ namespace olc::host
 			{
 				window->olc_OnMouseButton(2, false);
 				break;
-			}*/
+			}
 		case WM_XBUTTONDOWN:
 			{
 				UINT button = GET_XBUTTON_WPARAM(wParam);
@@ -7892,41 +7891,12 @@ namespace olc::host
 				break;
 			}
 
-		/*case WM_TOUCH:
-			{
-				UINT nTouches = LOWORD(wParam);
-				PTOUCHINPUT pTouches = new TOUCHINPUT[nTouches];
-				if (pTouches != nullptr)
-				{
-					if (GetTouchInputInfo((HTOUCHINPUT)lParam, nTouches, pTouches, sizeof(TOUCHINPUT)))
-					{
-						for (UINT i = 0; i < nTouches; i++)
-						{
-							TOUCHINPUT ti = pTouches[i];
-							POINT pt;
-							pt.x = TOUCH_COORD_TO_PIXEL(ti.x);
-							pt.y = TOUCH_COORD_TO_PIXEL(ti.y);
-							ScreenToClient(hWnd, &pt);
-							window->olc_OnTouch(
-								ti.dwID, 
-								olc::vf2d{ float(pt.x), float(pt.y) }, 
-								(ti.dwFlags & TOUCHEVENTF_DOWN) != 0, 
-								(ti.dwFlags & TOUCHEVENTF_UP) != 0, 
-								olc::vf2d{ float(ti.cxContact), float(ti.cyContact) });
-						}
-					}
-					delete[] pTouches;
-				}
-
-				break;
-			}*/
-
 		case WM_POINTERDOWN:
 			{
 				POINTER_INPUT_TYPE pointerType;
 				if (GetPointerType(GET_POINTERID_WPARAM(wParam), &pointerType))
 				{
-					if (pointerType == PT_TOUCH || pointerType == PT_TOUCHPAD)
+					if (pointerType == PT_TOUCH)
 					{
 						POINTER_TOUCH_INFO touchInfo;
 						if (GetPointerTouchInfo(GET_POINTERID_WPARAM(wParam), &touchInfo))
@@ -7953,7 +7923,12 @@ namespace olc::host
 								olc::vf2d{ float(pt.x), float(pt.y) },
 								true,
 								false,
-								olc::vf2d{ float(penInfo.pressure), float(penInfo.pressure) });
+								{ 1,1 },
+								true,
+								float(penInfo.pressure) / 1024.0f,
+								float(penInfo.rotation) / 360.0f * 2.0f * 3.14159265f,
+								{ float(penInfo.tiltX) , float(penInfo.tiltY) }
+							);
 						}
 					}
 					
@@ -7967,7 +7942,7 @@ namespace olc::host
 			POINTER_INPUT_TYPE pointerType;
 			if (GetPointerType(GET_POINTERID_WPARAM(wParam), &pointerType))
 			{
-				if (pointerType == PT_TOUCH || pointerType == PT_TOUCHPAD)
+				if (pointerType == PT_TOUCH)
 				{
 					POINTER_TOUCH_INFO touchInfo;
 					if (GetPointerTouchInfo(GET_POINTERID_WPARAM(wParam), &touchInfo))
@@ -7994,7 +7969,12 @@ namespace olc::host
 							olc::vf2d{ float(pt.x), float(pt.y) },
 							false,
 							true,
-							olc::vf2d{ float(penInfo.pressure), float(penInfo.rotation) });
+							{ 1,1 },
+							true,
+							float(penInfo.pressure) / 1024.0f,
+							float(penInfo.rotation) / 360.0f * 2.0f * 3.14159265f,
+							{ float(penInfo.tiltX) , float(penInfo.tiltY) }
+						);
 					}
 				}
 			}
@@ -8007,7 +7987,7 @@ namespace olc::host
 			POINTER_INPUT_TYPE pointerType;
 			if (GetPointerType(GET_POINTERID_WPARAM(wParam), &pointerType))
 			{
-				if (pointerType == PT_TOUCH || pointerType == PT_TOUCHPAD)
+				if (pointerType == PT_TOUCH)
 				{
 					POINTER_TOUCH_INFO touchInfo;
 					if (GetPointerTouchInfo(GET_POINTERID_WPARAM(wParam), &touchInfo))
@@ -8036,7 +8016,12 @@ namespace olc::host
 								olc::vf2d{ float(pt.x), float(pt.y) },
 								false,
 								false,
-								olc::vf2d{ float(penInfo.pressure), float(penInfo.rotation) });
+								{ 1,1 },
+								true,
+								float(penInfo.pressure) / 1024.0f,
+								float(penInfo.rotation) / 360.0f * 2.0f * 3.14159265f,
+								{ float(penInfo.tiltX) , float(penInfo.tiltY) }
+							);
 						}
 					}
 				}
@@ -18263,9 +18248,10 @@ namespace olc
 		return true;
 	}
 
-	bool PGEWindow::olc_OnTouch(const uint32_t nID, const olc::vf2d& vPos, const bool bPress, const bool bRelease, const olc::vf2d& vSize)
+	bool PGEWindow::olc_OnTouch(const uint32_t nID, const olc::vf2d& vPos, const bool bPress, const bool bRelease, const olc::vf2d& vSize, const bool stylus, const float pressure, const float orientation, const olc::vf2d& tilt)
 	{
-		touch.UpdateTouch(nID, (vPos / olc::vf2d(vWindowSize)) * GetScreen().Size(), bPress, bRelease, vSize);
+		touch.UpdateTouch(nID, (vPos / olc::vf2d(vWindowSize)) * GetScreen().Size(), 
+			bPress, bRelease, (vSize / olc::vf2d(vWindowSize)) * GetScreen().Size(), stylus, pressure, orientation, tilt);
 		return true;
 	}
 
@@ -19148,46 +19134,23 @@ namespace olc::hw
         return touches_cache.at(nID);
     }
 
-    void Touch::UpdateTouch(const uint32_t nID, const olc::vf2d& vPos, const bool bPress, const bool bRelease, const olc::vf2d& vSize)
+    void Touch::UpdateTouch(const uint32_t nID, const olc::vf2d& vPos, const bool bPress, const bool bRelease, const olc::vf2d& vSize, const bool stylus, const float pressure, const float orientation, const olc::vf2d& tilt)
     {
-        //      // Does touch already exist?
-              //if (touches_live.contains(nID))
-              //{
-                  // It does, so update existing touch
-
-            touches_live[nID].position = vPos;
-            touches_live[nID].size = vSize;
-			touches_live[nID].bPressed = bPress || touches_live[nID].bPressed;
-			touches_live[nID].bReleased = bRelease;
-			touches_live[nID].bHeld = !bRelease;
-		//}
-  //      else
-  //      {
-		//	// Touch doesnt exist
-  //          if (bPress)
-  //          {
-  //              // Add new touch
-  //              touches_live[nID] = { vPos, vSize };
-  //          }
-        //}
+        // If touch doesnt exist, this will create one or
+        // it will update an existing one
+        touches_live[nID].position = vPos;
+        touches_live[nID].size = vSize;
+		touches_live[nID].bPressed = bPress || touches_live[nID].bPressed;
+		touches_live[nID].bReleased = bRelease;
+		touches_live[nID].bHeld = !bRelease;
+		touches_live[nID].pressure = pressure;
+		touches_live[nID].orientation = orientation;
+		touches_live[nID].tilt = tilt;
+		touches_live[nID].bStylus = stylus;
     }
 
     void Touch::UpdateState()
     {
-  //      // Copy over the "live" touch state. Any that are missing from this, but exist in the
-  //      // cached state, will remain cached for one more update, but with the released flag set
-
-		//for (const auto& [id, touch] : touches_cache)
-		//{
-		//	if (!touches_live.contains(id) && !touch.bReleased)
-		//	{
-		//		// Touch was released, but we want to keep it around for one more update so we can report the release event
-  //              touches_live[id] = touch;
-  //              touches_live[id].bReleased = true;
-  //              touches_live[id].bHeld = false;
-		//	}
-		//}
-
         touches_cache = touches_live;
 
 		// Remove released touches from live state
@@ -19280,7 +19243,7 @@ namespace olc
 		return true;
 	}
 
-	bool Window::olc_OnTouch(const uint32_t nID, const olc::vf2d& vPos, const bool bPress, const bool bRelease, const olc::vf2d& vSize)
+	bool Window::olc_OnTouch(const uint32_t nID, const olc::vf2d& vPos, const bool bPress, const bool bRelease, const olc::vf2d& vSize, const bool stylus, const float pressure, const float orientation, const olc::vf2d& tilt)
 	{
 		// Handled by PGEWindow
 		return true;

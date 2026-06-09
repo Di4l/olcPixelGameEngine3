@@ -32,8 +32,7 @@ namespace olc
 			bool bPressed = false;
 			bool bReleased = false;
 			bool bHeld = false;
-			bool bIsPen = false;
-			bool bIsFinger = false;
+			bool bStylus = false;
 		};
 
 		class Touch
@@ -55,7 +54,8 @@ namespace olc
 
 
 		private:
-			void UpdateTouch(const uint32_t nID, const olc::vf2d& vPos, const bool bPress, const bool bRelease, const olc::vf2d& vSize);
+			void UpdateTouch(const uint32_t nID, const olc::vf2d& vPos, const bool bPress, const bool bRelease, 
+				const olc::vf2d& vSize, const bool stylus = false, const float pressure = 0.0f, const float orientation = 0, const olc::vf2d& tilt = { 0,0 });
 			void UpdateState();
 		};
 	}

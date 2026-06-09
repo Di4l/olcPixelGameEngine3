@@ -78,7 +78,7 @@ namespace olc
 		return true;
 	}
 
-	bool Window::olc_OnTouch(const uint32_t nID, const olc::vf2d& vPos, const bool bPress, const bool bRelease, const olc::vf2d& vSize)
+	bool Window::olc_OnTouch(const uint32_t nID, const olc::vf2d& vPos, const bool bPress, const bool bRelease, const olc::vf2d& vSize, const bool stylus, const float pressure, const float orientation, const olc::vf2d& tilt)
 	{
 		// Handled by PGEWindow
 		return true;

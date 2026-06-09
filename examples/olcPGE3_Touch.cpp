@@ -1,9 +1,9 @@
 /*
-olc::PixelGameEngine3 Example - Touch
+	olc::PixelGameEngine3 Example - Touch
 
-Demonstrates touch input handling
+	Demonstrates touch input handling
 
-Licenced under the OLC-3 License
+	Licenced under the OLC-3 License
 */
 
 
@@ -37,13 +37,37 @@ public:
 		// Clear whole screen
 		draw.Clear(olc::Colour::VERY_DARK_BLUE);
 
+		// All "touches" get given a unique ID and are tracked by the OS. This ID
+		// could be anything, so we never really want to work with t directly.
 		auto touches = touch.GetTouchIDs();
 
-
+		// Display total number of touches
 		draw.String({ 2.0f, 2.0f }, "Touch Points: " + std::to_string(touches.size()), olc::Colour::WHITE);
 
-		
 
+		// Draw Touches
+		for (auto id : touches)
+		{
+			// Get an olc::TouchPoint for this touch
+			auto& t = touch.GetTouch(id);
+
+			if (t.bStylus)
+			{
+				// Touch comes from a stylus, so draw a small circle at the tip position, with size based on the touch size
+				draw.Circle(t.position, t.pressure * 10.0f, olc::Colour::WHITE);
+
+				// Stylus *MAY* also have an orientation, so draw a line from the tip in the direction of the stylus
+				draw.Line(t.position, t.position + olc::vf2d{ std::cos(t.orientation), std::sin(t.orientation) } * 10.0f * t.pressure, olc::Colour::WHITE);
+			}
+			else
+			{
+				// Touch comes from a finger, so draw a circle at the touch position, with size based on the touch size
+				draw.FilledRect(t.position, t.size, olc::Colour::YELLOW);
+				// Draw a smaller circle at the touch position, with size based on the touch pressure
+				draw.FilledRect(t.position, t.size, olc::Colour::YELLOW);
+			}
+		}
+		
 		// Successful frame
 		return true;
 	}

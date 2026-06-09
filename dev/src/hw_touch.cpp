@@ -22,46 +22,23 @@ namespace olc::hw
         return touches_cache.at(nID);
     }
 
-    void Touch::UpdateTouch(const uint32_t nID, const olc::vf2d& vPos, const bool bPress, const bool bRelease, const olc::vf2d& vSize)
+    void Touch::UpdateTouch(const uint32_t nID, const olc::vf2d& vPos, const bool bPress, const bool bRelease, const olc::vf2d& vSize, const bool stylus, const float pressure, const float orientation, const olc::vf2d& tilt)
     {
-        //      // Does touch already exist?
-              //if (touches_live.contains(nID))
-              //{
-                  // It does, so update existing touch
-
-            touches_live[nID].position = vPos;
-            touches_live[nID].size = vSize;
-			touches_live[nID].bPressed = bPress || touches_live[nID].bPressed;
-			touches_live[nID].bReleased = bRelease;
-			touches_live[nID].bHeld = !bRelease;
-		//}
-  //      else
-  //      {
-		//	// Touch doesnt exist
-  //          if (bPress)
-  //          {
-  //              // Add new touch
-  //              touches_live[nID] = { vPos, vSize };
-  //          }
-        //}
+        // If touch doesnt exist, this will create one or
+        // it will update an existing one
+        touches_live[nID].position = vPos;
+        touches_live[nID].size = vSize;
+		touches_live[nID].bPressed = bPress || touches_live[nID].bPressed;
+		touches_live[nID].bReleased = bRelease;
+		touches_live[nID].bHeld = !bRelease;
+		touches_live[nID].pressure = pressure;
+		touches_live[nID].orientation = orientation;
+		touches_live[nID].tilt = tilt;
+		touches_live[nID].bStylus = stylus;
     }
 
     void Touch::UpdateState()
     {
-  //      // Copy over the "live" touch state. Any that are missing from this, but exist in the
-  //      // cached state, will remain cached for one more update, but with the released flag set
-
-		//for (const auto& [id, touch] : touches_cache)
-		//{
-		//	if (!touches_live.contains(id) && !touch.bReleased)
-		//	{
-		//		// Touch was released, but we want to keep it around for one more update so we can report the release event
-  //              touches_live[id] = touch;
-  //              touches_live[id].bReleased = true;
-  //              touches_live[id].bHeld = false;
-		//	}
-		//}
-
         touches_cache = touches_live;
 
 		// Remove released touches from live state
