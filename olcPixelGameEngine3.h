@@ -18250,8 +18250,14 @@ namespace olc
 
 	bool PGEWindow::olc_OnTouch(const uint32_t nID, const olc::vf2d& vPos, const bool bPress, const bool bRelease, const olc::vf2d& vSize, const bool stylus, const float pressure, const float orientation, const olc::vf2d& tilt)
 	{
-		touch.UpdateTouch(nID, (vPos / olc::vf2d(vWindowSize)) * GetScreen().Size(), 
-			bPress, bRelease, (vSize / olc::vf2d(vWindowSize)) * GetScreen().Size(), stylus, pressure, orientation, tilt);
+		olc::vf2d pos = vPos;
+		pos.x -= float(vViewPos.x);
+		pos.y -= float(vViewPos.y);
+
+		olc::vf2d vScale = (1.0f / olc::vf2d(vWindowSize - (vViewPos * 2))) * GetScreen().Size();
+
+		touch.UpdateTouch(nID, pos * vScale, 
+			bPress, bRelease, vSize * vScale, stylus, pressure, orientation, tilt);
 		return true;
 	}
 
