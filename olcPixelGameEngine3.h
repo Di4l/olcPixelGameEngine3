@@ -5928,6 +5928,29 @@ namespace olc::host
             std::array<Axis, 2> axes{};
             uint32_t axis_source{0};
         };
+
+        enum TouchEventMask {
+            TouchEventDown = 1 << 0,
+            TouchEventUp = 1 << 1,
+            TouchEventMotion = 1 << 2,
+            TouchEventCancel = 1 << 3,
+            TouchEventShape = 1 << 4,
+            TouchEventOrientation = 1 << 5
+        };
+
+        struct TouchState {
+            uint32_t event_mask{0};
+            wl_surface* surface{nullptr};
+            wl_fixed_t surface_x{};
+            wl_fixed_t surface_y{};
+            wl_fixed_t major{};
+            wl_fixed_t minor{};
+            wl_fixed_t orientation{};
+
+            uint32_t time{0};
+            uint32_t serial{0};
+            int32_t id{0};
+        };
     }
 
     class Host_Linux_Wayland : public olc::host::Host
@@ -5940,6 +5963,7 @@ namespace olc::host
         wl_seat* seat{nullptr};
         wl_pointer* pointer{nullptr};
         wl_keyboard* keyboard{nullptr};
+        wl_touch* touch{nullptr};
         uint32_t keyboard_version{0};
         xkb_context* kb_context{nullptr};
         xkb_state* kb_state{nullptr};
@@ -5950,6 +5974,7 @@ namespace olc::host
         uint32_t enter_serial{0};
         
         wayland::PointerState pointer_state;
+        std::unordered_map<int32_t, wayland::TouchState> touches;
         wl_surface* cursor_surface{nullptr};
         wl_cursor_image* cursor_image{nullptr};
         wl_cursor_theme* cursor_theme{nullptr};
@@ -6017,6 +6042,15 @@ namespace olc::host
         static void keyboard_modifiers_callback(void* data, wl_keyboard* keyboard, uint32_t serial, uint32_t mods_depressed, uint32_t mods_latched, uint32_t mods_locked, uint32_t group);
         static void keyboard_repeat_info_callback(void* data, wl_keyboard* keyboard, int32_t rate, int32_t delay);
 
+        // Touch callbacks
+        static void touch_down_callback(void* data, wl_touch* touch, uint32_t serial, uint32_t time, wl_surface* surface, int32_t id, wl_fixed_t x, wl_fixed_t y);
+        static void touch_up_callback(void* data, wl_touch* touch, uint32_t serial, uint32_t time, int32_t id);
+        static void touch_motion_callback(void* data, wl_touch* touch, uint32_t time, int32_t id, wl_fixed_t x, wl_fixed_t y);
+        static void touch_frame_callback(void* data, wl_touch* touch);
+        static void touch_cancel_callback(void* data, wl_touch* touch);
+        static void touch_shape_callback(void* data, wl_touch* touch, int32_t id, wl_fixed_t major, wl_fixed_t minor);
+        static void touch_orientation_callback(void* data, wl_touch* touch, int32_t id, wl_fixed_t orientation);
+
         // xdg callbacks
         static void xdg_wm_ping_callback(void* data, xdg_wm_base* wm, uint32_t serial);
         static void xdg_surface_configure_callback(void* data, xdg_surface* surface, uint32_t serial);
@@ -6053,6 +6087,15 @@ namespace olc::host
         void keyboard_leave(wl_keyboard* keyboard, uint32_t serial, wl_surface* surface);
         void keyboard_key(wl_keyboard* keyboard, uint32_t serial, uint32_t time, uint32_t key, uint32_t state);
         void keyboard_modifiers(wl_keyboard* keyboard, uint32_t serial, uint32_t mods_depressed, uint32_t mods_latched, uint32_t mods_locked, uint32_t group);
+
+        // Touch callbacks
+        void touch_down(wl_touch* touch, uint32_t serial, uint32_t time, wl_surface* surface, int32_t id, wl_fixed_t x, wl_fixed_t y);
+        void touch_up(wl_touch* touch, uint32_t serial, uint32_t time, int32_t id);
+        void touch_motion(wl_touch* touch, uint32_t time, int32_t id, wl_fixed_t x, wl_fixed_t y);
+        void touch_frame(wl_touch* touch);
+        void touch_cancel(wl_touch* touch);
+        void touch_shape(wl_touch* touch, int32_t id, wl_fixed_t major, wl_fixed_t minor);
+        void touch_orientation(wl_touch* touch, int32_t id, wl_fixed_t orientation);
 
         // libdecor callback functions
         void libdecor_frame_configure(libdecor_frame* frame, libdecor_configuration* config);
@@ -11814,6 +11857,16 @@ namespace olc::host
             .modifiers = Host_Linux_Wayland::keyboard_modifiers_callback,
             .repeat_info = Host_Linux_Wayland::keyboard_repeat_info_callback
         };
+
+        static const wl_touch_listener touch_listener {
+            .down = Host_Linux_Wayland::touch_down_callback,
+            .up = Host_Linux_Wayland::touch_up_callback,
+            .motion = Host_Linux_Wayland::touch_motion_callback,
+            .frame = Host_Linux_Wayland::touch_frame_callback,
+            .cancel = Host_Linux_Wayland::touch_cancel_callback,
+            .shape = Host_Linux_Wayland::touch_shape_callback,
+            .orientation = Host_Linux_Wayland::touch_orientation_callback
+        };
     }
 
     namespace xdg {
@@ -11964,6 +12017,7 @@ namespace olc::host
         {
             wp_pointer_warp_v1_destroy(pointer_warp);
         }
+        wl_touch_destroy(touch);
         wl_keyboard_destroy(keyboard);
         wl_pointer_destroy(pointer);
         wl_seat_destroy(seat);
@@ -12226,6 +12280,11 @@ namespace olc::host
             keyboard = wl_seat_get_keyboard(seat);
             keyboard_version = wl_keyboard_get_version(keyboard);
             wl_keyboard_add_listener(keyboard, &wayland::keyboard_listener, this);
+        }
+
+        if (capabilities & WL_SEAT_CAPABILITY_TOUCH && touch == nullptr) {
+            touch = wl_seat_get_touch(seat);
+            wl_touch_add_listener(touch, &wayland::touch_listener, this);
         }
     }
 
@@ -12564,6 +12623,169 @@ namespace olc::host
         // auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
         // host->keyboard_repeat_info(keyboard, rate, delay);
     }
+
+    // Touch Callbacks
+    void Host_Linux_Wayland::touch_down_callback(void* data, wl_touch* touch, uint32_t serial, uint32_t time, wl_surface* surface, int32_t id, wl_fixed_t x, wl_fixed_t y)
+    {
+        auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
+        host->touch_down(touch, serial, time, surface, id, x, y);
+    }
+
+    void Host_Linux_Wayland::touch_down(wl_touch* touch, uint32_t serial, uint32_t time, wl_surface* surface, int32_t id, wl_fixed_t x, wl_fixed_t y) {
+        auto& touch_state = touches[id];
+
+        touch_state.event_mask |= wayland::TouchEventMask::TouchEventDown;
+        touch_state.surface = surface;
+        touch_state.id = id;
+        touch_state.surface_x = x;
+        touch_state.surface_y = y;
+        touch_state.serial = serial;
+        touch_state.time = time;
+    }
+
+    void Host_Linux_Wayland::touch_up_callback(void* data, wl_touch* touch, uint32_t serial, uint32_t time, int32_t id) {
+        auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
+        host->touch_up(touch, serial, time, id);
+    }
+
+    void Host_Linux_Wayland::touch_up(wl_touch* touch, uint32_t serial, uint32_t time, int32_t id) {
+        auto& touch_state = touches[id];
+
+        touch_state.event_mask |= wayland::TouchEventMask::TouchEventUp;
+        touch_state.serial = serial;
+        touch_state.time = time;
+    }
+
+    void Host_Linux_Wayland::touch_motion_callback(void* data, wl_touch* touch, uint32_t time, int32_t id, wl_fixed_t x, wl_fixed_t y) {
+        auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
+        host->touch_motion(touch, time, id, x, y);
+    }
+
+    void Host_Linux_Wayland::touch_motion(wl_touch* touch, uint32_t time, int32_t id, wl_fixed_t x, wl_fixed_t y) {
+        auto& touch_state = touches[id];
+
+        touch_state.event_mask |= wayland::TouchEventMask::TouchEventMotion;
+        touch_state.time = time;
+        touch_state.surface_x = x;
+        touch_state.surface_y = y;
+    }
+
+    void Host_Linux_Wayland::touch_frame_callback(void* data, wl_touch* touch) {
+        auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
+        host->touch_frame(touch);
+    }
+
+    void Host_Linux_Wayland::touch_frame(wl_touch* touch) {
+        // Commit all of the touches
+        for(auto itr = touches.begin(); itr != touches.end();) {
+            const auto& id = itr->first;
+            const auto& touch = itr->second;
+
+            olc::Window* pge_window {nullptr};
+            size_t uid {0};
+            for(auto& uid_itr : mapUID2Window) {
+                if(uid_itr.second.surface == touch.surface) {
+                    uid = uid_itr.second.olc_window_uid;
+                }
+            }
+
+            if(const auto& pge_itr = mapUID2OlcWindow.find(uid); pge_itr != mapUID2OlcWindow.end()) {
+                pge_window = pge_itr->second;
+            } else {
+                continue;
+            }
+
+            auto p_x = wl_fixed_to_double(touch.surface_x);
+            auto p_y = wl_fixed_to_double(touch.surface_y);
+            auto s_x = wl_fixed_to_double(touch.major);
+            auto s_y = wl_fixed_to_double(touch.minor);
+            olc::vf2d size (std::max(s_x, 1.0), std::max(s_y, 1.0));
+            pge_window->olc_OnTouch(
+                static_cast<uint32_t>(touch.id),
+                olc::vf2d(p_x, p_y),
+                touch.event_mask & wayland::TouchEventMask::TouchEventDown,
+                touch.event_mask & wayland::TouchEventMask::TouchEventUp,
+                size,
+                false,
+                0.0f,
+                wl_fixed_to_double(touch.orientation)
+            );
+
+            if(touch.event_mask & wayland::TouchEventMask::TouchEventUp) {
+                itr = touches.erase(itr);
+            } else {
+                ++itr;
+            }
+        }
+    }
+
+    void Host_Linux_Wayland::touch_cancel_callback(void* data, wl_touch* touch) {
+        auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
+        host->touch_cancel(touch);
+    }
+
+    void Host_Linux_Wayland::touch_cancel(wl_touch* touch) {
+        // according to the protocol, this ends all touch events, so send an Up and clear the whole thing
+        for(const auto& [id, touch] : touches) {
+            olc::Window* pge_window {nullptr};
+            size_t uid {0};
+            for(auto& uid_itr : mapUID2Window) {
+                if(uid_itr.second.surface == touch.surface) {
+                    uid = uid_itr.second.olc_window_uid;
+                }
+            }
+
+            if(const auto& pge_itr = mapUID2OlcWindow.find(uid); pge_itr != mapUID2OlcWindow.end()) {
+                pge_window = pge_itr->second;
+            } else {
+                continue;
+            }
+
+            auto p_x = wl_fixed_to_double(touch.surface_x);
+            auto p_y = wl_fixed_to_double(touch.surface_y);
+            auto s_x = wl_fixed_to_double(touch.major);
+            auto s_y = wl_fixed_to_double(touch.minor);
+            olc::vf2d size (std::max(s_x, 1.0), std::max(s_y, 1.0));
+            pge_window->olc_OnTouch(
+                static_cast<uint32_t>(touch.id),
+                olc::vf2d(p_x, p_y),
+                touch.event_mask & wayland::TouchEventMask::TouchEventDown,
+                true, // Forced Up event to clear all these IDs on the PGE side
+                size,
+                false,
+                0.0f,
+                wl_fixed_to_double(touch.orientation)
+            );
+        }
+
+        touches.clear();
+    }
+
+    void Host_Linux_Wayland::touch_shape_callback(void* data, wl_touch* touch, int32_t id, wl_fixed_t major, wl_fixed_t minor) {
+        auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
+        host->touch_shape(touch, id, major, minor);
+    }
+
+    void Host_Linux_Wayland::touch_shape(wl_touch* touch, int32_t id, wl_fixed_t major, wl_fixed_t minor) {
+        auto& touch_state = touches[id];
+
+        touch_state.event_mask |= wayland::TouchEventMask::TouchEventShape;
+        touch_state.major = major;
+        touch_state.minor = minor;
+    }
+
+    void Host_Linux_Wayland::touch_orientation_callback(void* data, wl_touch* touch, int32_t id, wl_fixed_t orientation) {
+        auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
+        host->touch_orientation(touch, id, orientation);
+    }
+
+    void Host_Linux_Wayland::touch_orientation(wl_touch* touch, int32_t id, wl_fixed_t orientation) {
+        auto& touch_state = touches[id];
+
+        touch_state.event_mask |= wayland::TouchEventMask::TouchEventOrientation;
+        touch_state.orientation = orientation;
+    }
+
 
     // XDG Callbacks
     void Host_Linux_Wayland::xdg_wm_ping_callback(void* data, xdg_wm_base* wm, uint32_t serial) {
