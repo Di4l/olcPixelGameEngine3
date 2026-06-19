@@ -4609,7 +4609,13 @@ extern "C" {
     // Event callback function types
     typedef void (*KeyEventCallback)        (unsigned short keyCode, const char* characters, unsigned int modifierFlags, void* userData);
     typedef void (*MouseEventCallback)      (double x, double y, int buttonNumber, unsigned int modifierFlags, void* userData);
-    
+    typedef void (*TouchEventCallback)      (uint32_t touchID, double x, double y, double sizeX, double sizeY, void* userData);
+    typedef void (*StylusEventCallback)     (uint32_t touchID, double x, double y,
+                                             float pressure, float rotation,
+                                             float tiltX, float tiltY,
+                                             bool bPress, bool bRelease, bool bIsStylus,
+                                             void* userData);
+
     // Event handler setup
     void window_setKeyDownCallback          (struct Window* self, KeyEventCallback callback, void* userData);
     void window_setKeyUpCallback            (struct Window* self, KeyEventCallback callback, void* userData);
@@ -4632,6 +4638,16 @@ extern "C" {
     void window_enableEventHandling     (struct Window* self);
     void window_disableEventHandling    (struct Window* self);
     
+    // Touch event handler setup
+    void window_setTouchBeganCallback       (struct Window* self, TouchEventCallback callback, void* userData);
+    void window_setTouchMovedCallback       (struct Window* self, TouchEventCallback callback, void* userData);
+    void window_setTouchEndedCallback       (struct Window* self, TouchEventCallback callback, void* userData);
+    void window_setTouchCancelledCallback   (struct Window* self, TouchEventCallback callback, void* userData);
+
+    // Stylus (tablet) event handler setup
+    void window_setStylusCallback           (struct Window* self, StylusEventCallback callback, void* userData);
+
+
     // Application delegate callback function type
     typedef void (*ApplicationDelegateCallback)(void* userData);
     
@@ -5396,10 +5412,46 @@ namespace olc {
                     : x(x), y(y), deltaX(deltaX), deltaY(deltaY), modifierFlags(flags) {}
             };
 
+            // Touch event data structure
+            struct TouchEvent {
+                uint32_t touchID;
+                double x, y;
+                double sizeX, sizeY;
+
+                TouchEvent(uint32_t id, double x, double y, double sx, double sy) noexcept
+                    : touchID(id), x(x), y(y), sizeX(sx), sizeY(sy) {}
+
+                TouchEvent(TouchEvent&&) noexcept = default;
+                TouchEvent& operator=(TouchEvent&&) noexcept = default;
+                TouchEvent(const TouchEvent&) = default;
+                TouchEvent& operator=(const TouchEvent&) = default;
+            };
+
+            // Stylus (tablet) event data structure
+            struct StylusEvent {
+                uint32_t touchID;
+                double x, y;
+                float pressure, rotation;
+                float tiltX, tiltY;
+                bool bPress, bRelease;
+                bool bIsStylus;  
+
+                StylusEvent(uint32_t id, double x, double y, float pressure, float rotation, float tiltX, float tiltY, bool bPress, bool bRelease, bool bIsStylus) noexcept
+                    : touchID(id), x(x), y(y), pressure(pressure), rotation(rotation), tiltX(tiltX), tiltY(tiltY),
+                      bPress(bPress), bRelease(bRelease), bIsStylus(bIsStylus) {}
+
+                StylusEvent(StylusEvent&&) noexcept = default;
+                StylusEvent& operator=(StylusEvent&&) noexcept = default;
+                StylusEvent(const StylusEvent&) = default;
+                StylusEvent& operator=(const StylusEvent&) = default;
+            };
+
             // Event handler class for keyboard and mouse events
             class EventHandler {
             private:
                 Window& window_;
+
+                // Key and mouse event handlers
                 std::function<void(const KeyEvent&)>    keyDownHandler_;
                 std::function<void(const KeyEvent&)>    keyUpHandler_;
                 std::function<void(const FlagsChangedEvent&)>  flagsChangedHandler_;
@@ -5416,6 +5468,15 @@ namespace olc {
                 std::function<void(const ScrollWheelEvent&)> scrollWheelHandler_;
                 std::function<void(const MouseEvent&)>  mouseMovedEnteredHandler_;
                 std::function<void(const MouseEvent&)>  mouseMovedExitedHandler_;
+               
+                // Touch event handlers
+                std::function<void(const TouchEvent&)>  touchBeganHandler_;
+                std::function<void(const TouchEvent&)>  touchMovedHandler_;
+                std::function<void(const TouchEvent&)>  touchEndedHandler_;
+                std::function<void(const TouchEvent&)>  touchCancelledHandler_;
+
+                // Stylus event handler
+                std::function<void(const StylusEvent&)> stylusHandler_;
                
                 // Template helpers for static callbacks to reduce code duplication
                 template<typename EventType, typename HandlerType>
@@ -5528,6 +5589,38 @@ namespace olc {
                     }
                 }
 
+                static void touchBeganCallback(uint32_t touchID, double x, double y, double sizeX, double sizeY, void* userData) {
+                    auto* eventHandler = static_cast<EventHandler*>(userData);
+                    if (eventHandler && eventHandler->touchBeganHandler_)
+                        eventHandler->touchBeganHandler_(TouchEvent(touchID, x, y, sizeX, sizeY));
+                }
+                static void touchMovedCallback(uint32_t touchID, double x, double y, double sizeX, double sizeY, void* userData) {
+                    auto* eventHandler = static_cast<EventHandler*>(userData);
+                    if (eventHandler && eventHandler->touchMovedHandler_)
+                        eventHandler->touchMovedHandler_(TouchEvent(touchID, x, y, sizeX, sizeY));
+                }
+
+                static void touchEndedCallback(uint32_t touchID, double x, double y, double sizeX, double sizeY, void* userData) {
+                    auto* eventHandler = static_cast<EventHandler*>(userData);
+                    if (eventHandler && eventHandler->touchEndedHandler_)
+                        eventHandler->touchEndedHandler_(TouchEvent(touchID, x, y, sizeX, sizeY));
+                }
+
+                static void touchCancelledCallback(uint32_t touchID, double x, double y, double sizeX, double sizeY, void* userData) {
+                    auto* eventHandler = static_cast<EventHandler*>(userData);
+                    if (eventHandler && eventHandler->touchCancelledHandler_)
+                        eventHandler->touchCancelledHandler_(TouchEvent(touchID, x, y, sizeX, sizeY));
+                }
+
+                static void stylusCallback(uint32_t touchID, double x, double y,
+                    float pressure, float rotation, float tiltX, float tiltY,
+                    bool bPress, bool bRelease, bool bIsStylus, void* userData)
+                {
+                    auto* eventHandler = static_cast<EventHandler*>(userData);
+                    if (eventHandler && eventHandler->stylusHandler_)
+                        eventHandler->stylusHandler_(StylusEvent(touchID, x, y, pressure, rotation, tiltX, tiltY, bPress, bRelease, bIsStylus));
+                }
+
                 // Template helper for setting event handlers to reduce repetition
                 template<typename HandlerType, typename SetterFunc, typename CallbackFunc>
                 void setEventHandler(HandlerType EventHandler::*member, SetterFunc setter, CallbackFunc callback, std::function<void(const typename HandlerType::element_type&)> handler) {
@@ -5619,6 +5712,33 @@ namespace olc {
                 void onMouseExitWindow(std::function<void(const MouseEvent&)> handler) {
                     mouseMovedExitedHandler_ = std::move(handler);
                     window_setMouseExitedCallback(window_.getCHandle(), mouseExitedCallback, this);
+                }
+
+                // Touch event handler setters
+                void onTouchBegan(std::function<void(const TouchEvent&)> handler) {
+                    touchBeganHandler_ = std::move(handler);
+                    window_setTouchBeganCallback(window_.getCHandle(), touchBeganCallback, this);
+                }
+
+                void onTouchMoved(std::function<void(const TouchEvent&)> handler) {
+                    touchMovedHandler_ = std::move(handler);
+                    window_setTouchMovedCallback(window_.getCHandle(), touchMovedCallback, this);
+                }
+
+                void onTouchEnded(std::function<void(const TouchEvent&)> handler) {
+                    touchEndedHandler_ = std::move(handler);
+                    window_setTouchEndedCallback(window_.getCHandle(), touchEndedCallback, this);
+                }
+
+                void onTouchCancelled(std::function<void(const TouchEvent&)> handler) {
+                    touchCancelledHandler_ = std::move(handler);
+                    window_setTouchCancelledCallback(window_.getCHandle(), touchCancelledCallback, this);
+                }
+
+                // Stylus event handler setter
+                void onStylus(std::function<void(const StylusEvent&)> handler) {
+                    stylusHandler_ = std::move(handler);
+                    window_setStylusCallback(window_.getCHandle(), stylusCallback, this);
                 }
 
                 // Enable/disable event handling
@@ -8868,6 +8988,51 @@ namespace olc::host {
             // Although MacOS provides both deltaX and deltaY, we will only use deltaY for vertical scrolling
             pPGEwindow->olc_OnMouseWheel(static_cast<int>(event.deltaY));
         });
+
+         // Touch events — map trackpad multi-touch to hw::Touch via olc_OnTouch
+        pMacOSEventHandler->onTouchBegan([&](const olc::apis::macos::TouchEvent& event) {
+            pPGEwindow->olc_OnTouch(event.touchID,
+                {static_cast<float>(event.x), static_cast<float>(event.y)},
+                true, false,
+                {static_cast<float>(event.sizeX), static_cast<float>(event.sizeY)});
+        });
+
+        pMacOSEventHandler->onTouchMoved([&](const olc::apis::macos::TouchEvent& event) {
+            pPGEwindow->olc_OnTouch(event.touchID,
+                {static_cast<float>(event.x), static_cast<float>(event.y)},
+                false, false,
+                {static_cast<float>(event.sizeX), static_cast<float>(event.sizeY)});
+        });
+
+        pMacOSEventHandler->onTouchEnded([&](const olc::apis::macos::TouchEvent& event) {
+            pPGEwindow->olc_OnTouch(event.touchID,
+                {static_cast<float>(event.x), static_cast<float>(event.y)},
+                false, true,
+                {static_cast<float>(event.sizeX), static_cast<float>(event.sizeY)});
+        });
+
+        pMacOSEventHandler->onTouchCancelled([&](const olc::apis::macos::TouchEvent& event) {
+            pPGEwindow->olc_OnTouch(event.touchID,
+                {static_cast<float>(event.x), static_cast<float>(event.y)},
+                false, true,  // treat cancel as release
+                {static_cast<float>(event.sizeX), static_cast<float>(event.sizeY)});
+        });
+
+        // Stylus (tablet) events — full pressure, tilt and rotation data
+        pMacOSEventHandler->onStylus([&](const olc::apis::macos::StylusEvent& event) {
+            
+            pPGEwindow->olc_OnTouch(
+                event.touchID,
+                {static_cast<float>(event.x), static_cast<float>(event.y)},
+                event.bPress,
+                event.bRelease,
+                {1.0f, 1.0f},       // stylus contact size — nominal 1x1
+                true,               // bStylus = true
+                event.pressure,
+                event.rotation,
+                {event.tiltX, event.tiltY}
+            );
+        });
         
     }
 
@@ -8964,6 +9129,35 @@ static constexpr const char* kTrackingAreaClass                 = "NSTrackingAre
 static constexpr const char* kAddTrackingAreaSel                = "addTrackingArea:";
 static constexpr const char* kInitWithRectSel                   = "initWithRect:options:owner:userInfo:";
 
+// Copied a lot of this code from iOS, will need to be tested
+// NSResponder touch event method selectors
+static constexpr const char* kCGEventSel                        = "CGEvent";
+static constexpr const char* kTouchesBeganSel                   = "touchesBegan:withEvent:";
+static constexpr const char* kTouchesMovedSel                   = "touchesMoved:withEvent:";
+static constexpr const char* kTouchesEndedSel                   = "touchesEnded:withEvent:";
+static constexpr const char* kTouchesCancelledSel               = "touchesCancelled:withEvent:";
+
+// NSTouch / NSSet data extraction selectors
+static constexpr const char* kTouchesMatchingPhaseSel           = "touchesMatchingPhase:inView:";
+static constexpr const char* kAllObjectsSel                     = "allObjects";
+static constexpr const char* kNormalizedPositionSel             = "normalizedPosition";
+static constexpr const char* kDeviceSizeSel                     = "deviceSize";
+static constexpr const char* kIdentitySel                       = "identity";
+static constexpr const char* kObjectAtIndexSel                  = "objectAtIndex:";
+static constexpr const char* kTouchCountSel                     = "count";
+
+// NSResponder tablet / stylus event method selectors
+static constexpr const char* kTabletPointSel                    = "tabletPoint:";
+static constexpr const char* kTabletProximitySel                = "tabletProximity:";
+
+// NSEvent tablet data extraction selectors
+static constexpr const char* kPenPressureSel                    = "pressure";
+static constexpr const char* kPenRotationSel                    = "rotation";
+static constexpr const char* kPenTiltSel                        = "tilt";
+static constexpr const char* kPenIsEnteringProximitySel         = "isEnteringProximity";
+static constexpr const char* kPointingDeviceTypeSel             = "pointingDeviceType";
+static constexpr const char* kPenTangentialPressureSel          = "tangentialPressure";
+
 
 // Managing first responder status and keyboard focus selectors
 static constexpr const char* kAcceptsFirstResponderSel          = "acceptsFirstResponder";
@@ -9037,6 +9231,9 @@ static constexpr const char* kDrawRectMethodTypeEncoding = "v@:{NSRect={NSPoint=
 
 // Type encoding for void methods with no parameters: "v@:"
 static constexpr const char* kVoidMethodTypeEncoding = "v@:";
+
+// Type encoding for touch event methods: two id params (touches set + event) → "v@:@@"
+static constexpr const char* kTouchEventMethodTypeEncoding = "v@:@@";
 
 namespace ObjectiveCSEL {
      
@@ -9115,6 +9312,30 @@ namespace ObjectiveCSEL {
    // Mouse Tracking
    static SEL addTrackingAreaSel        = nullptr;
    static SEL initWithRectSel           = nullptr;
+
+    // Touch event selectors
+   static SEL cgEventSel              = nullptr;
+   static SEL touchesBeganSel           = nullptr;
+   static SEL touchesMovedSel           = nullptr;
+   static SEL touchesEndedSel           = nullptr;
+   static SEL touchesCancelledSel       = nullptr;
+   static SEL touchesMatchingPhaseSel   = nullptr;
+   static SEL allObjectsSel             = nullptr;
+   static SEL normalizedPositionSel     = nullptr;
+   static SEL deviceSizeSel             = nullptr;
+   static SEL identitySel               = nullptr;
+   static SEL objectAtIndexSel          = nullptr;
+   static SEL touchesCountSel           = nullptr;
+
+   // Tablet / stylus event selectors
+   static SEL tabletPointSel            = nullptr;
+   static SEL tabletProximitySel        = nullptr;
+   static SEL penPressureSel            = nullptr;
+   static SEL penRotationSel            = nullptr;
+   static SEL penTiltSel                = nullptr;
+   static SEL penIsEnteringProximitySel = nullptr;
+   static SEL pointingDeviceTypeSel     = nullptr;
+   static SEL penTangentialPressureSel  = nullptr;
 
    // Managing first responder status and keyboard focus selectors
    static SEL acceptsFirstResponderSel = nullptr;
@@ -9236,6 +9457,30 @@ namespace ObjectiveCSEL {
         addTrackingAreaSel                  = sel_registerName(kAddTrackingAreaSel);
         initWithRectSel                     = sel_registerName(kInitWithRectSel);
         
+        // Touch event selectors
+        cgEventSel                          = sel_registerName(kCGEventSel);
+        touchesBeganSel                     = sel_registerName(kTouchesBeganSel);
+        touchesMovedSel                     = sel_registerName(kTouchesMovedSel);
+        touchesEndedSel                     = sel_registerName(kTouchesEndedSel);
+        touchesCancelledSel                 = sel_registerName(kTouchesCancelledSel);
+        touchesMatchingPhaseSel             = sel_registerName(kTouchesMatchingPhaseSel);
+        allObjectsSel                       = sel_registerName(kAllObjectsSel);
+        normalizedPositionSel               = sel_registerName(kNormalizedPositionSel);
+        deviceSizeSel                       = sel_registerName(kDeviceSizeSel);
+        identitySel                         = sel_registerName(kIdentitySel);
+        objectAtIndexSel                    = sel_registerName(kObjectAtIndexSel);
+        touchesCountSel                     = sel_registerName(kTouchCountSel);
+
+        // Tablet / stylus event selectors
+        tabletPointSel                      = sel_registerName(kTabletPointSel);
+        tabletProximitySel                  = sel_registerName(kTabletProximitySel);
+        penPressureSel                      = sel_registerName(kPenPressureSel);
+        penRotationSel                      = sel_registerName(kPenRotationSel);
+        penTiltSel                          = sel_registerName(kPenTiltSel);
+        penIsEnteringProximitySel           = sel_registerName(kPenIsEnteringProximitySel);
+        pointingDeviceTypeSel               = sel_registerName(kPointingDeviceTypeSel);
+        penTangentialPressureSel            = sel_registerName(kPenTangentialPressureSel);
+
         // Managing first responder status and keyboard focus selectors
         acceptsFirstResponderSel            = sel_registerName(kAcceptsFirstResponderSel);
         becomeFirstResponderSel             = sel_registerName(kBecomeFirstResponderSel);
@@ -9571,6 +9816,21 @@ struct Window {
     void (*mouseExitedCallback)      (double x, double y, int buttonNumber,  unsigned int modifierFlags, void* userData){nullptr};
     void (*scrollWheelCallback)      (double x, double y, double deltaX, double deltaY, unsigned int modifierFlags, void* userData){nullptr};
 
+     // Touch event callback function pointers with nullptr initialization
+    void (*touchBeganCallback)    (uint32_t touchID, double x, double y, double sizeX, double sizeY, void* userData){nullptr};
+    void (*touchMovedCallback)    (uint32_t touchID, double x, double y, double sizeX, double sizeY, void* userData){nullptr};
+    void (*touchEndedCallback)    (uint32_t touchID, double x, double y, double sizeX, double sizeY, void* userData){nullptr};
+    void (*touchCancelledCallback)(uint32_t touchID, double x, double y, double sizeX, double sizeY, void* userData){nullptr};
+    void* touchUserData{nullptr};
+
+    // Stylus (tablet) event callback function pointer
+    void (*stylusCallback)(uint32_t touchID, double x, double y,
+                           float pressure, float rotation,
+                           float tiltX, float tiltY,
+                           bool bPress, bool bRelease, bool bIsStylus,
+                           void* userData){nullptr};
+    void* stylusUserData{nullptr};
+    bool bStylusInProximity{false}; // true while stylus is hovering near the surface
     
     void* eventUserData{nullptr};   // User data for event callbacks
     BOOL acceptsInputEvents{NO};    // Whether the window accepts input events
@@ -9812,6 +10072,7 @@ void convertToContentViewCoordinates(NSPoint& location) {
     }
 }
 
+// Mouse event data structure to hold common mouse event information
 struct MouseEventData {
     NSPoint location         = {0.0, 0.0};
     NSUInteger modifierFlags = 0;
@@ -9830,52 +10091,164 @@ MouseEventData extractMouseEventData(id event) {
     return data;
 }
 
+// Stylus event data structure to hold common stylus event information
+struct StylusEventData {
+
+    uint32_t nTabletDeviceID   = 0;          // Unique identifier for the tablet device
+    uint8_t nPointerType        = 0;         // Pointer type 0 = Mouse, 1 = Pen, 2 = Eraser
+    uint8_t nPointerEventType   = 0;         // Type of pointer  0 = Mouse Event, 1 = Pen Event, 2 = Pen Proximity Event
+    NSPoint nspLocation        = {0.0, 0.0}; // Location of the stylus event
+    double dPressure           = 0.0;        // Pressure applied by the stylus
+    double dTangentialPressure = 0.0;        // Tangential pressure applied by the stylus
+    double dRotationRadians    = 0.0;        // Rotation of the stylus in radians
+    double dTiltX_radians      = 0.0;        // Tilt of the stylus in the X direction in radians
+    double dTiltY_radians      = 0.0;        // Tilt of the stylus in the Y direction in radians
+    uint16_t buttonMask        = 0;          // Bitmask for stylus buttons (MAX 16 buttons, 1 = pressed, 0 = released)
+
+};
+
+// Extract common mouse event data from NSEvent
+StylusEventData extractStylusEventData(id event, uint8_t nPointerEventType) {
+
+    StylusEventData data;
+    id cgEvent               = ((id(*)(id, SEL))objc_msgSend)(event, ObjectiveCSEL::cgEventSel);
+    data.nspLocation        = ((NSPoint(*)(id, SEL))objc_msgSend)(event, ObjectiveCSEL::locationInWindowSel);
+    data.nTabletDeviceID     = (uint32_t)CGEventGetIntegerValueField((CGEventRef)cgEvent, (CGEventField)kCGTabletEventDeviceID);
+
+    data.buttonMask          = (uint16_t)CGEventGetIntegerValueField((CGEventRef)cgEvent, (CGEventField)kCGTabletEventPointButtons);
+    data.nPointerEventType    = (uint8_t)nPointerEventType; // 0 = Mouse Event, 1 = Pen Event, 2 = Pen Proximity Event
+
+    data.dPressure           = CGEventGetDoubleValueField((CGEventRef)cgEvent, (CGEventField)kCGTabletEventPointPressure);
+    data.dRotationRadians    = CGEventGetDoubleValueField((CGEventRef)cgEvent, (CGEventField)kCGTabletEventRotation) * (M_PI / 180.0);
+    data.dTangentialPressure = CGEventGetDoubleValueField((CGEventRef)cgEvent, (CGEventField)kCGTabletEventTangentialPressure);
+
+    data.nPointerType        = ((uint8_t(*)(id, SEL))objc_msgSend)(event, ObjectiveCSEL::pointingDeviceTypeSel); 
+
+    double tiltX_raw         = CGEventGetDoubleValueField((CGEventRef)cgEvent, kCGTabletEventTiltX);
+    double tiltY_raw         = CGEventGetDoubleValueField((CGEventRef)cgEvent, kCGTabletEventTiltY);
+
+    // Clamp to safe math bounds (-1.0 to 1.0) to avoid domain errors in asin
+    tiltX_raw                = std::fmax(-1.0, std::fmin(1.0, tiltX_raw));
+    tiltY_raw                = std::fmax(-1.0, std::fmin(1.0, tiltY_raw));
+
+    // Convert to true physical angles in RADIANS -PI/2 to +PI/2
+    data.dTiltX_radians      = std::asin(tiltX_raw);
+    data.dTiltY_radians      = std::asin(tiltY_raw);
+
+    // Convert to content view coordinates and flip Y coordinate
+    convertToContentViewCoordinates(data.nspLocation);
+    
+    return data;
+}
+
 // Handle left mouse down events
 void view_mouseDown(id self, SEL _cmd, id event) {
     (void)self;(void)_cmd; // Remove unused parameter warnings
     
-    MouseEventData data = extractMouseEventData(event);
-    
-    if (gptrNSWindowEvents && gptrNSWindowEvents->acceptsInputEvents && gptrNSWindowEvents->mouseDownCallback) [[likely]] {
-        gptrNSWindowEvents->mouseDownCallback(data.location.x, data.location.y, (int)data.buttonNumber,
-                                            (unsigned int)data.modifierFlags, gptrNSWindowEvents->eventUserData);
-    }
-}
+    CGEventRef cgEvent        = ((CGEventRef(*)(id, SEL))objc_msgSend)(event, ObjectiveCSEL::cgEventSel);
+    uint8_t nPointerEventType = CGEventGetIntegerValueField(cgEvent, kCGMouseEventSubtype);
 
+    // Is it a mouse drag event (subtype 0) or a tablet pointer event (subtype 1 or 2)?
+    if (nPointerEventType == 0) [[likely]] {
+
+        if (gptrNSWindowEvents && gptrNSWindowEvents->acceptsInputEvents && gptrNSWindowEvents->mouseDownCallback) [[likely]] {
+            MouseEventData data = extractMouseEventData(event);
+            gptrNSWindowEvents->mouseDownCallback(data.location.x, data.location.y, (int)data.buttonNumber,
+                                                (unsigned int)data.modifierFlags, gptrNSWindowEvents->eventUserData);
+        }
+    }
+    else
+    {
+        // Tablet Pointer is Subtype 1 or 2 (1: Pen Event, 2: Proximity Event)
+        gptrNSWindowEvents->bStylusInProximity = false;
+        StylusEventData data = extractStylusEventData(event, nPointerEventType);
+        gptrNSWindowEvents->stylusCallback(
+                        data.nTabletDeviceID,
+                        data.nspLocation.x, data.nspLocation.y,
+                        data.dPressure, data.dRotationRadians, data.dTiltX_radians, data.dTiltY_radians,
+                        true, false, true,
+                        gptrNSWindowEvents->stylusUserData);
+
+    }
+
+}
 
 // Handle left mouse up events
 void view_mouseUp(id self, SEL _cmd, id event) {
     (void)self;(void)_cmd;
 
-    MouseEventData data = extractMouseEventData(event);
-    if (gptrNSWindowEvents && gptrNSWindowEvents->acceptsInputEvents && gptrNSWindowEvents->mouseUpCallback) [[likely]] {
-        gptrNSWindowEvents->mouseUpCallback(data.location.x, data.location.y, (int)data.buttonNumber,
-                                            (unsigned int)data.modifierFlags, gptrNSWindowEvents->eventUserData);
+    CGEventRef cgEvent        = ((CGEventRef(*)(id, SEL))objc_msgSend)(event, ObjectiveCSEL::cgEventSel);
+    uint8_t nPointerEventType = CGEventGetIntegerValueField(cgEvent, kCGMouseEventSubtype);
+
+    // Is it a mouse drag event (subtype 0) or a tablet pointer event (subtype 1 or 2)?
+    if (nPointerEventType == 0) [[likely]] {
+
+        MouseEventData data = extractMouseEventData(event);
+        if (gptrNSWindowEvents && gptrNSWindowEvents->acceptsInputEvents && gptrNSWindowEvents->mouseUpCallback) [[likely]] {
+            gptrNSWindowEvents->mouseUpCallback(data.location.x, data.location.y, (int)data.buttonNumber,
+                                                (unsigned int)data.modifierFlags, gptrNSWindowEvents->eventUserData);
+        }
     }
+    else
+    {
+        // Tablet Pointer is Subtype 1 or 2 (1: Pen Event, 2: Proximity Event)
+        gptrNSWindowEvents->bStylusInProximity = false;
+        StylusEventData data = extractStylusEventData(event, nPointerEventType);
+        gptrNSWindowEvents->stylusCallback(
+                        data.nTabletDeviceID,
+                        data.nspLocation.x, data.nspLocation.y,
+                        data.dPressure, data.dRotationRadians, data.dTiltX_radians, data.dTiltY_radians,
+                        false, true, true,
+                        gptrNSWindowEvents->stylusUserData);
+
+    }
+
 }
 
 // Handle mouse drag events
 void view_mouseDragged(id self, SEL _cmd, id event) {
     (void)self;(void)_cmd;
 
-    MouseEventData data = extractMouseEventData(event);
-    if (gptrNSWindowEvents && gptrNSWindowEvents->acceptsInputEvents && gptrNSWindowEvents->mouseDraggedCallback) [[likely]] {
-        gptrNSWindowEvents->mouseDraggedCallback(data.location.x, data.location.y, (int)data.buttonNumber, (unsigned int)data.modifierFlags, gptrNSWindowEvents->eventUserData);
+    CGEventRef cgEvent        = ((CGEventRef(*)(id, SEL))objc_msgSend)(event, ObjectiveCSEL::cgEventSel);
+    uint8_t nPointerEventType = CGEventGetIntegerValueField(cgEvent, kCGMouseEventSubtype);
+
+    // Is it a mouse drag event (subtype 0) or a tablet pointer event (subtype 1 or 2)?
+    if (nPointerEventType == 0) [[likely]] {
+
+        if (gptrNSWindowEvents && gptrNSWindowEvents->acceptsInputEvents && gptrNSWindowEvents->mouseDraggedCallback) [[likely]] {
+            MouseEventData data = extractMouseEventData(event);
+            gptrNSWindowEvents->mouseDraggedCallback(data.location.x, data.location.y, (int)data.buttonNumber, (unsigned int)data.modifierFlags, gptrNSWindowEvents->eventUserData);
+        }
     }
+    else
+    {
+        // Tablet Pointer is Subtype 1 or 2 (1: Pen Event, 2: Proximity Event)
+        gptrNSWindowEvents->bStylusInProximity = false;
+        StylusEventData data = extractStylusEventData(event, nPointerEventType);
+        gptrNSWindowEvents->stylusCallback(
+                        data.nTabletDeviceID,
+                        data.nspLocation.x, data.nspLocation.y,
+                        data.dPressure, data.dRotationRadians, data.dTiltX_radians, data.dTiltY_radians,
+                        true, false, true,
+                        gptrNSWindowEvents->stylusUserData);
+   }
+
 }
+
 
 // Handle mouse movement events
 void view_mouseMoved(id self, SEL _cmd, id event) {
     (void)self;(void)_cmd;
 
+    // a Mouse move event and Stlus roximity Event have the same properties.
     NSPoint location         = ((NSPoint(*)(id, SEL))objc_msgSend)(event, ObjectiveCSEL::locationInWindowSel);
     NSUInteger modifierFlags = ((NSUInteger(*)(id, SEL))objc_msgSend)(event, ObjectiveCSEL::modifierFlagsSel);
-
     convertToContentViewCoordinates(location);
-
     if (gptrNSWindowEvents && gptrNSWindowEvents->acceptsInputEvents && gptrNSWindowEvents->mouseMovedCallback) [[likely]] {
         gptrNSWindowEvents->mouseMovedCallback(location.x, location.y, kNoButton, (unsigned int)modifierFlags, gptrNSWindowEvents->eventUserData);
     }
+    
+    
 }
 
 // Handle right mouse down events
@@ -9992,6 +10365,132 @@ void view_mouseExited(id self, SEL _cmd, id event) {
     }
 }
 
+//====================================================================//
+// Touch Event Handling (macOS trackpad multi-touch via NSTouchPhase)
+
+// NSTouchPhase bitmask values
+enum NSTouchPhase : NSUInteger {
+    NSTouchPhaseBegan      = 1 << 0,
+    NSTouchPhaseMoved      = 1 << 1,
+    NSTouchPhaseStationary = 1 << 2,
+    NSTouchPhaseEnded      = 1 << 3,
+    NSTouchPhaseCancelled  = 1 << 4,
+    NSTouchPhaseAny        = ULONG_MAX
+};
+
+// Stable sequential touch ID map — maps identity pointer → assigned uint32_t ID
+static std::unordered_map<uintptr_t, uint32_t> sTouchIDMap;
+static uint32_t sNextTouchID = 0;
+
+/*
+  Iterate through Touches, updates and fires the callback.
+  Pass bRemove = true for Ended/Cancelled to clean up the ID map entry.
+*/
+static void updateTouchData(id event, NSUInteger phase,
+    void (*callback)(uint32_t, double, double, double, double, void*), void* userData, bool bRemove = false)
+{
+    if (!callback) return;
+
+    // Get the current collection of touches (nil view = window coords)
+    id touchCollection = ((id(*)(id, SEL, NSUInteger, id))objc_msgSend)( event, ObjectiveCSEL::touchesMatchingPhaseSel, phase, nil);
+    if (!touchCollection) return;
+
+    NSUInteger count  = ((NSUInteger(*)(id, SEL))objc_msgSend)(touchCollection, ObjectiveCSEL::touchesCountSel);
+    id touchArray     = ((id(*)(id, SEL))objc_msgSend)(touchCollection, ObjectiveCSEL::allObjectsSel);
+
+    for (NSUInteger i = 0; i < count; ++i) {
+        id touch = ((id(*)(id, SEL, NSUInteger))objc_msgSend)(touchArray, ObjectiveCSEL::objectAtIndexSel, i);
+        if (!touch) continue;
+
+        // normalizedPosition is NSPoint in [0,1] range on the trackpad surface
+        NSPoint normPos = ((NSPoint(*)(id, SEL))objc_msgSend)(touch, ObjectiveCSEL::normalizedPositionSel);
+        // deviceSize gives the physical trackpad size in points
+        NXSize  devSize = ((NXSize(*)(id, SEL))objc_msgSend)(touch, ObjectiveCSEL::deviceSizeSel);
+
+        // Convert normalized [0,1] → content-view pixel coordinates (flip Y to top-left origin)
+        double x = normPos.x * devSize.width;
+        double y = (1.0 - normPos.y) * devSize.height;
+
+        // Assign a stable sequential uint32_t ID same as iOS does
+        id        identity = ((id(*)(id, SEL))objc_msgSend)(touch, ObjectiveCSEL::identitySel);
+        uintptr_t key      = reinterpret_cast<uintptr_t>(identity);
+
+        auto [it, inserted] = sTouchIDMap.emplace(key, sNextTouchID); // I LOVE C++20 structured bindings
+        if (inserted) ++sNextTouchID;
+        uint32_t tid = it->second;
+        
+        // This is a trackpad touch event, so we don't have a sizeX/sizeY like on iOS. We'll just pass the device size as a proxy.
+        callback(tid, x, y, 1.0f, 1.0f, userData);
+
+        // Clean up map entry once the touch has ended or been cancelled
+        if (bRemove) sTouchIDMap.erase(key);
+    }
+}
+
+void view_touchesBegan(id self, SEL _cmd, id touches, id event) {
+    (void)self;(void)_cmd;(void)touches;
+    if (gptrNSWindowEvents && gptrNSWindowEvents->acceptsInputEvents) [[likely]] {
+        updateTouchData(event, NSTouchPhaseBegan,
+            gptrNSWindowEvents->touchBeganCallback, gptrNSWindowEvents->touchUserData);
+    }
+}
+
+void view_touchesMoved(id self, SEL _cmd, id touches, id event) {
+    (void)self;(void)_cmd;(void)touches;
+    if (gptrNSWindowEvents && gptrNSWindowEvents->acceptsInputEvents) [[likely]] {
+        updateTouchData(event, NSTouchPhaseMoved,
+            gptrNSWindowEvents->touchMovedCallback, gptrNSWindowEvents->touchUserData);
+    }
+}
+
+void view_touchesEnded(id self, SEL _cmd, id touches, id event) {
+    (void)self;(void)_cmd;(void)touches;
+    if (gptrNSWindowEvents && gptrNSWindowEvents->acceptsInputEvents) [[likely]] {
+        updateTouchData(event, NSTouchPhaseEnded,
+            gptrNSWindowEvents->touchEndedCallback, gptrNSWindowEvents->touchUserData, true);
+    }
+}
+
+void view_touchesCancelled(id self, SEL _cmd, id touches, id event) {
+    (void)self;(void)_cmd;(void)touches;
+    if (gptrNSWindowEvents && gptrNSWindowEvents->acceptsInputEvents) [[likely]] {
+        updateTouchData(event, NSTouchPhaseCancelled,
+            gptrNSWindowEvents->touchCancelledCallback, gptrNSWindowEvents->touchUserData, true);
+    }
+}
+
+//====================================================================//
+// Stylus / Tablet Event Handling (NSTabletPoint / NSTabletProximity)
+
+// This should only be called when a Stylus driver is not installed or it an Apple device
+void view_tabletProximity(id self, SEL _cmd, id event) {
+    (void)self;(void)_cmd;(void)event;
+    if (gptrNSWindowEvents && gptrNSWindowEvents->acceptsInputEvents) [[likely]] {
+        // Handle tablet proximity events here
+        BOOL entering = ((BOOL(*)(id, SEL))objc_msgSend)(event, ObjectiveCSEL::penIsEnteringProximitySel);
+        // For furture support should call a stylusCallback with proximity event data, but for now just set the flag
+        gptrNSWindowEvents->bStylusInProximity = (entering == YES);
+    }
+}
+
+// This should only be called when a Stylus driver is not installed or it an Apple device
+void view_tabletPoint(id self, SEL _cmd, id event) {
+    (void)self;(void)_cmd;(void)event;
+    if (gptrNSWindowEvents && gptrNSWindowEvents->acceptsInputEvents) [[likely]] {
+        // Handle tablet point events here
+        //StylusEventData data = extractStylusEventData(event, 1); // 1 = Pen Event
+        //bool bPressed = data.buttonMask & 1; // Check if the first button is pressed
+        //bool bReleased = !bPressed;
+        //gptrNSWindowEvents->stylusCallback(
+        //    data.nTabletDeviceID,
+        //    data.nspLocation.x, data.nspLocation.y,
+        //    data.dPressure, data.dRotationRadians, data.dTiltX_radians, data.dTiltY_radians,
+        //    bPressed, bReleased, true,
+        //    gptrNSWindowEvents->stylusUserData);
+    }
+}
+
+
 void view_updateTrackingAreas(id self, SEL _cmd) {
     (void)self;(void)_cmd;
 
@@ -10085,6 +10584,16 @@ Class createCustomOpenGLViewClass() {
     class_addMethod(CustomViewClass, ObjectiveCSEL::otherMouseDraggedSel, (IMP)view_otherMouseDragged, kEventHandlerMethodTypeEncoding);
     class_addMethod(CustomViewClass, ObjectiveCSEL::scrollWheelSel,       (IMP)view_scrollWheel,       kEventHandlerMethodTypeEncoding);
     
+    // Touch event handler methods
+    class_addMethod(CustomViewClass, ObjectiveCSEL::touchesBeganSel,     (IMP)view_touchesBegan,     kTouchEventMethodTypeEncoding);
+    class_addMethod(CustomViewClass, ObjectiveCSEL::touchesMovedSel,     (IMP)view_touchesMoved,     kTouchEventMethodTypeEncoding);
+    class_addMethod(CustomViewClass, ObjectiveCSEL::touchesEndedSel,     (IMP)view_touchesEnded,     kTouchEventMethodTypeEncoding);
+    class_addMethod(CustomViewClass, ObjectiveCSEL::touchesCancelledSel, (IMP)view_touchesCancelled, kTouchEventMethodTypeEncoding);
+
+    // Tablet / stylus event handler methods
+    class_addMethod(CustomViewClass, ObjectiveCSEL::tabletProximitySel, (IMP)view_tabletProximity, kEventHandlerMethodTypeEncoding);
+    class_addMethod(CustomViewClass, ObjectiveCSEL::tabletPointSel,     (IMP)view_tabletPoint,     kEventHandlerMethodTypeEncoding);
+        
     // Area tracking for Mouse entered/exited event handler methods
     class_addMethod(CustomViewClass, ObjectiveCSEL::updateTrackingAreasSel, (IMP)view_updateTrackingAreas, kVoidMethodTypeEncoding);
     class_addMethod(CustomViewClass, ObjectiveCSEL::mouseEnteredSel,      (IMP)view_mouseEntered,      kEventHandlerMethodTypeEncoding);
@@ -11150,6 +11659,34 @@ extern "C" {
     void window_setMouseExitedCallback(Window* self, void (*callback)(double, double, int, unsigned int, void*), void* userData) {
         self->mouseExitedCallback = callback;
         self->eventUserData = userData;
+    }
+
+    void window_setTouchBeganCallback(Window* self, void (*callback)(uint32_t, double, double, double, double, void*), void* userData) {
+        self->touchBeganCallback = callback;
+        self->touchUserData = userData;
+    }
+
+    void window_setTouchMovedCallback(Window* self, void (*callback)(uint32_t, double, double, double, double, void*), void* userData) {
+        self->touchMovedCallback = callback;
+        self->touchUserData = userData;
+    }
+
+    void window_setTouchEndedCallback(Window* self, void (*callback)(uint32_t, double, double, double, double, void*), void* userData) {
+        self->touchEndedCallback = callback;
+        self->touchUserData = userData;
+    }
+
+    void window_setTouchCancelledCallback(Window* self, void (*callback)(uint32_t, double, double, double, double, void*), void* userData) {
+        self->touchCancelledCallback = callback;
+        self->touchUserData = userData;
+    }
+
+    void window_setStylusCallback(Window* self,
+        void (*callback)(uint32_t, double, double, float, float, float, float, bool, bool, bool, void*),
+        void* userData)
+    {
+        self->stylusCallback = callback;
+        self->stylusUserData = userData;
     }
 
     void window_enableEventHandling(Window* self) {

@@ -757,9 +757,55 @@ namespace olc::host {
             // Although MacOS provides both deltaX and deltaY, we will only use deltaY for vertical scrolling
             pPGEwindow->olc_OnMouseWheel(static_cast<int>(event.deltaY));
         });
+
+         // Touch events — map trackpad multi-touch to hw::Touch via olc_OnTouch
+        pMacOSEventHandler->onTouchBegan([&](const olc::apis::macos::TouchEvent& event) {
+            pPGEwindow->olc_OnTouch(event.touchID,
+                {static_cast<float>(event.x), static_cast<float>(event.y)},
+                true, false,
+                {static_cast<float>(event.sizeX), static_cast<float>(event.sizeY)});
+        });
+
+        pMacOSEventHandler->onTouchMoved([&](const olc::apis::macos::TouchEvent& event) {
+            pPGEwindow->olc_OnTouch(event.touchID,
+                {static_cast<float>(event.x), static_cast<float>(event.y)},
+                false, false,
+                {static_cast<float>(event.sizeX), static_cast<float>(event.sizeY)});
+        });
+
+        pMacOSEventHandler->onTouchEnded([&](const olc::apis::macos::TouchEvent& event) {
+            pPGEwindow->olc_OnTouch(event.touchID,
+                {static_cast<float>(event.x), static_cast<float>(event.y)},
+                false, true,
+                {static_cast<float>(event.sizeX), static_cast<float>(event.sizeY)});
+        });
+
+        pMacOSEventHandler->onTouchCancelled([&](const olc::apis::macos::TouchEvent& event) {
+            pPGEwindow->olc_OnTouch(event.touchID,
+                {static_cast<float>(event.x), static_cast<float>(event.y)},
+                false, true,  // treat cancel as release
+                {static_cast<float>(event.sizeX), static_cast<float>(event.sizeY)});
+        });
+
+        // Stylus (tablet) events — full pressure, tilt and rotation data
+        pMacOSEventHandler->onStylus([&](const olc::apis::macos::StylusEvent& event) {
+            
+            pPGEwindow->olc_OnTouch(
+                event.touchID,
+                {static_cast<float>(event.x), static_cast<float>(event.y)},
+                event.bPress,
+                event.bRelease,
+                {1.0f, 1.0f},       // stylus contact size — nominal 1x1
+                true,               // bStylus = true
+                event.pressure,
+                event.rotation,
+                {event.tiltX, event.tiltY}
+            );
+        });
         
     }
 
 }
 //! END IMPLEMENTATION
+
 #endif /* OLC_HOST == OLC_HOST_MACOS */
