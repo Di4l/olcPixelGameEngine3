@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		460496082E362F190047E223 /* test_mh.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 460495FB2E300E0F0047E223 /* test_mh.cpp */; };
+		46152BD72FE2DD1E00DCAC34 /* hw_touch.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 46152BD62FE2DD1E00DCAC34 /* hw_touch.cpp */; };
 		462680A42E69D03800799C36 /* image.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 460495EC2E300E000047E223 /* image.cpp */; };
 		462680A52E69D15C00799C36 /* OpenGL.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 46E85DF82E39135B00B74FA3 /* OpenGL.framework */; };
 		462680D12E6C3C4500799C36 /* gpu_iface.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 462680D02E6C3C4500799C36 /* gpu_iface.cpp */; };
@@ -66,6 +67,8 @@
 		460495F12E300E000047E223 /* window.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = window.h; sourceTree = "<group>"; };
 		460495F22E300E000047E223 /* window.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = window.cpp; sourceTree = "<group>"; };
 		460495FB2E300E0F0047E223 /* test_mh.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = test_mh.cpp; sourceTree = "<group>"; };
+		46152BD52FE2DD1E00DCAC34 /* hw_touch.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = hw_touch.h; sourceTree = "<group>"; };
+		46152BD62FE2DD1E00DCAC34 /* hw_touch.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = hw_touch.cpp; sourceTree = "<group>"; };
 		462680D02E6C3C4500799C36 /* gpu_iface.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = gpu_iface.cpp; sourceTree = "<group>"; };
 		466C38492F3A0B0E00F75AF4 /* matrix4d.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = matrix4d.h; sourceTree = "<group>"; };
 		466C384A2F3A0B0E00F75AF4 /* vector4d.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = vector4d.h; sourceTree = "<group>"; };
@@ -161,6 +164,8 @@
 		8998CE322E057F92007DDD96 /* src */ = {
 			isa = PBXGroup;
 			children = (
+				46152BD52FE2DD1E00DCAC34 /* hw_touch.h */,
+				46152BD62FE2DD1E00DCAC34 /* hw_touch.cpp */,
 				466C385F2F41D69000F75AF4 /* draw_batch.cpp */,
 				466C385B2F41D5D400F75AF4 /* draw.h */,
 				466C385C2F41D5D400F75AF4 /* draw.cpp */,
@@ -283,6 +288,7 @@
 				46FD95932F2AA035004EAEC5 /* hw_keyboard.cpp in Sources */,
 				46C8F5B92E7DA67900C11019 /* imload_macos.cpp in Sources */,
 				460496082E362F190047E223 /* test_mh.cpp in Sources */,
+				46152BD72FE2DD1E00DCAC34 /* hw_touch.cpp in Sources */,
 				466C385E2F41D5D400F75AF4 /* draw.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
