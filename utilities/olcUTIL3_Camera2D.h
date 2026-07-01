@@ -223,13 +223,13 @@ namespace olc::utils
 
 				case Mode::FixedScreens:
 				{
-					m_vPosition = olc::vf2d(olc::vi2d(GetTarget() / m_vScreenSize) * olc::vi2d(m_vScreenSize)) + (m_vViewSize * 0.5f);
+					m_vPosition = olc::vf2d(olc::vi2d(GetTarget() / m_vViewSize) * olc::vi2d(m_vViewSize)) + (m_vViewSize * 0.5f);
 				}
 				break;
 
 				case Mode::SlideScreens:
 				{
-					olc::vf2d vScreen = olc::vf2d(olc::vi2d(GetTarget() / m_vScreenSize) * olc::vi2d(m_vScreenSize)) + (m_vViewSize * 0.5f);
+					olc::vf2d vScreen = olc::vf2d(olc::vi2d(GetTarget() / m_vViewSize) * olc::vi2d(m_vViewSize)) + (m_vViewSize * 0.5f);
 					m_vPosition += (vScreen - m_vPosition) * m_fLazyFollowRate * 2.0f * fElapsedTime;
 				}
 				break;
