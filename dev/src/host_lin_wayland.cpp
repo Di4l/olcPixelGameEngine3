@@ -197,7 +197,9 @@ namespace olc::host
         {
             wp_pointer_warp_v1_destroy(pointer_warp);
         }
-        wl_touch_destroy(touch);
+        if(touch) {
+            wl_touch_destroy(touch);
+        }
         wl_keyboard_destroy(keyboard);
         wl_pointer_destroy(pointer);
         wl_seat_destroy(seat);
