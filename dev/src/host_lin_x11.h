@@ -22,6 +22,7 @@ namespace X11
 #include <X11/Xlib.h>
 #include <X11/XKBlib.h>
 #include <X11/Xutil.h>
+#include <X11/extensions/XInput2.h>
 #include <GL/glx.h>
 #undef None
 constexpr int None = 0L;
@@ -37,6 +38,8 @@ namespace olc::host
 		X11::XVisualInfo* olc_VisualInfo;
 		X11::Colormap                olc_ColourMap;
 		X11::XSetWindowAttributes    olc_SetWindowAttribs;
+
+        int xinput_extension_code{};
     public:
         Host_Linux_X11();
 
@@ -68,6 +71,8 @@ namespace olc::host
         bool OnApplicationEnd() override;
     
     private:
+        void enableTouch(X11::Display* display, X11::Window window);
+        void handleTouchEvent(X11::XIDeviceEvent* event);
         std::unordered_map<size_t, X11::Window> mapUID2X11Window;
         std::unordered_map<X11::Window, olc::Window*> mapX11Window2PTR;
         std::atomic<bool> systemActive {true};
