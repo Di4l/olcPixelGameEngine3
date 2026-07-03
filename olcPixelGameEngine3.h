@@ -13212,6 +13212,7 @@ namespace olc::host
         emscripten_set_touchstart_callback(cbData->canvasId.c_str(), reinterpret_cast<void*>(cbData), 1, touch_callback);
         emscripten_set_touchmove_callback(cbData->canvasId.c_str(), reinterpret_cast<void*>(cbData), 1, touch_callback);
         emscripten_set_touchend_callback(cbData->canvasId.c_str(), reinterpret_cast<void*>(cbData), 1, touch_callback);
+        emscripten_set_touchcancel_callback(cbData->canvasId.c_str(), reinterpret_cast<void*>(cbData), 1, touch_callback);
 
         // Canvas Focus Callbacks
         emscripten_set_blur_callback(cbData->canvasId.c_str(), reinterpret_cast<void*>(cbData), 1, focus_callback);
@@ -13498,31 +13499,41 @@ namespace olc::host
         return EM_TRUE;
     }
 
-    //TY Bispoo
     EM_BOOL Host_Web_Emscripten::touch_callback(int eventType, const EmscriptenTouchEvent* e, void* userData)
     {
-        // TODO: Implement touch more effectively.
-        //       For now, emulate single pointer mouse.
-        
         CallbackData* pCallbackData = reinterpret_cast<CallbackData*>(userData);
         
-        // Move
-        if (eventType == EMSCRIPTEN_EVENT_TOUCHMOVE)
+        for(int i = 0; i < e->numTouches; ++i)
         {
-            olc_OnMouseMove(pCallbackData->pWindow, {e->touches->targetX, e->touches->targetY});
+            const EmscriptenTouchPoint& touch = e->touches[i];
+
+            if(touch.isChanged) {
+                bool is_start = (eventType == EMSCRIPTEN_EVENT_TOUCHSTART);
+                bool is_end = ((eventType == EMSCRIPTEN_EVENT_TOUCHEND) || (eventType == EMSCRIPTEN_EVENT_TOUCHCANCEL));
+                pCallbackData->pWindow->olc_OnTouch(
+                    touch.identifier,
+                    olc::vf2d(touch.targetX, touch.targetY),
+                    is_start,
+                    is_end,
+                    olc::vf2d(1.0f, 1.0f)
+                );
+            }
         }
 
-        // Start
-        if (eventType == EMSCRIPTEN_EVENT_TOUCHSTART)
-        {
-            olc_OnMouseMove(pCallbackData->pWindow, {e->touches->targetX, e->touches->targetY});
-            olc_OnMouseButton(pCallbackData->pWindow, 0, true);
-        }
-
-        // End
-        if (eventType == EMSCRIPTEN_EVENT_TOUCHEND)
-        {
-            olc_OnMouseButton(pCallbackData->pWindow, 0, false);
+        // Emscripten seems to sometimes "leak" touches and not report them as ending.  Iterate through the touches in the system and end
+        // any touches that are no longer being reported
+        for(const auto touch_id : pCallbackData->pWindow->touch.GetTouchIDs()) {
+            // if this touch is not reported anymore
+            if (std::find_if(e->touches, e->touches + e->numTouches, [=](const EmscriptenTouchPoint& x){return x.identifier == touch_id;}) == e->touches + e->numTouches) {
+                const auto& touch = pCallbackData->pWindow->touch.GetTouch(touch_id);
+                pCallbackData->pWindow->olc_OnTouch(
+                    touch_id,
+                    touch.position,
+                    false,
+                    true,
+                    touch.size
+                );
+            }
         }
 
         return EM_TRUE;
