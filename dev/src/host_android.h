@@ -82,6 +82,10 @@ namespace olc::host
         std::atomic<bool> initialized{false}, systemActive{false};
         bool shiftOn = false;
 
+        void handleMouse(size_t id, int32_t action, AInputEvent* event);
+        void handleStylus(size_t id, int32_t action, AInputEvent* event);
+        void handleFinger(size_t id, int32_t action, AInputEvent* event);
+
         void PollEvents(
             const std::function<bool()>& funcContinue,
             bool bBlocking = false

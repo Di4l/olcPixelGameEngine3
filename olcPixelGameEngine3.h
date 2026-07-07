@@ -6247,6 +6247,10 @@ namespace olc::host
         std::atomic<bool> initialized{false}, systemActive{false};
         bool shiftOn = false;
 
+        void handleMouse(size_t id, int32_t action, AInputEvent* event);
+        void handleStylus(size_t id, int32_t action, AInputEvent* event);
+        void handleFinger(size_t id, int32_t action, AInputEvent* event);
+
         void PollEvents(
             const std::function<bool()>& funcContinue,
             bool bBlocking = false
@@ -13623,33 +13627,20 @@ namespace olc::host
         auto type = AInputEvent_getType(event);
         
         if (type == AINPUT_EVENT_TYPE_MOTION) {
-            pgeWindow->olc_OnMouseMove({
-                static_cast<int32_t>(AMotionEvent_getX(event, 0)),
-                static_cast<int32_t>(AMotionEvent_getY(event, 0)),
-            });
+            auto actionRaw = AMotionEvent_getAction(event);
+            auto actionMasked = actionRaw & AMOTION_EVENT_ACTION_MASK;
+            auto pointerIndex = (actionRaw & AMOTION_EVENT_ACTION_POINTER_INDEX_MASK) >> AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT;
+            auto pointerCount = AMotionEvent_getPointerCount(event);
 
-            auto action = AMotionEvent_getAction(event) & AMOTION_EVENT_ACTION_MASK;
-
-            switch (action) {
-                case AMOTION_EVENT_ACTION_DOWN:
-                case AMOTION_EVENT_ACTION_POINTER_DOWN:
-                    pgeWindow->olc_OnMouseButton(0, true); // Left button
-                    break;
-                case AMOTION_EVENT_ACTION_UP:
-                case AMOTION_EVENT_ACTION_POINTER_UP:
-                    pgeWindow->olc_OnMouseButton(0, false); // Left button
-                    break;
-                case AMOTION_EVENT_AXIS_WHEEL:
-                    // Handle mouse wheel
-                    {
-                        float vScroll = AMotionEvent_getAxisValue(event, AMOTION_EVENT_AXIS_VSCROLL, 0);
-                        if (vScroll != 0.0f) {
-                            pgeWindow->olc_OnMouseWheel(static_cast<int32_t>(vScroll * 120.0f));
-                        }
-                    }
-                    break;
-                default:
-                    break;
+            for (size_t pi = 0; pi < pointerCount; pi++) {
+                auto toolType = AMotionEvent_getToolType(event, pi);
+                switch (toolType) {
+                    case AMOTION_EVENT_TOOL_TYPE_MOUSE: handleMouse(pi, actionMasked, event); break;
+                    case AMOTION_EVENT_TOOL_TYPE_ERASER:
+                    case AMOTION_EVENT_TOOL_TYPE_STYLUS: handleStylus(pi, actionMasked, event); break;
+                    case AMOTION_EVENT_TOOL_TYPE_FINGER: handleFinger(pi, actionMasked, event); break;
+                    default: break;
+                }
             }
 
             return 1;
@@ -13939,8 +13930,175 @@ namespace olc::host
 
         return content;
     }
-    
-    void Host_Android::PollEvents(const std::function<bool()>& funcContinue, bool bBlocking)
+
+    void Host_Android::handleMouse(size_t id, int32_t action, AInputEvent *event)
+    {
+        auto fnGetButton = [&event]() {
+            int32_t buttons = AMotionEvent_getButtonState(event);
+            if (buttons & AMOTION_EVENT_BUTTON_PRIMARY) return 0;
+            if (buttons & AMOTION_EVENT_BUTTON_SECONDARY) return 1;
+            if (buttons & AMOTION_EVENT_BUTTON_TERTIARY) return 2;
+            if (buttons & AMOTION_EVENT_BUTTON_BACK) return 3;
+            if (buttons & AMOTION_EVENT_BUTTON_FORWARD) return 4;
+            return -1;
+        };
+
+        pgeWindow->olc_OnMouseMove({
+            static_cast<int32_t>(AMotionEvent_getX(event, id)),
+            static_cast<int32_t>(AMotionEvent_getY(event, id)),
+        });
+
+        switch (action) {
+            case AMOTION_EVENT_ACTION_DOWN:
+            case AMOTION_EVENT_ACTION_POINTER_DOWN:
+                pgeWindow->olc_OnMouseButton(fnGetButton(), true);
+                break;
+            case AMOTION_EVENT_ACTION_UP:
+            case AMOTION_EVENT_ACTION_POINTER_UP:
+                pgeWindow->olc_OnMouseButton(fnGetButton(), false);
+                break;
+            case AMOTION_EVENT_AXIS_WHEEL:
+                {
+                    float vScroll = AMotionEvent_getAxisValue(event, AMOTION_EVENT_AXIS_VSCROLL, id);
+                    if (vScroll != 0.0f) {
+                        pgeWindow->olc_OnMouseWheel(static_cast<int32_t>(vScroll * 120.0f));
+                    }
+                }
+                break;
+            default:
+                break;
+        }
+    }
+
+    void Host_Android::handleStylus(size_t id, int32_t action, AInputEvent *event)
+    {
+        float pressure = AMotionEvent_getPressure(event, id);
+        pressure = std::clamp(pressure, 0.0f, 1.0f); // It can exceed 1.0f on some devices
+        
+        float ellipseX = AMotionEvent_getToolMajor(event, id);
+        float ellipseY = AMotionEvent_getToolMinor(event, id);
+
+        // radians, 0 = vertical, positive = clockwise tilt in the plane of the screen
+        float orientation = AMotionEvent_getOrientation(event, id);
+
+        // angle of the stylus away from perpendicular to the screen, radians, 0 = straight up
+        float axisTilt = AMotionEvent_getAxisValue(event, AMOTION_EVENT_AXIS_TILT, id);
+
+        switch (action) {
+            case AMOTION_EVENT_ACTION_DOWN:
+            case AMOTION_EVENT_ACTION_POINTER_DOWN:
+                pgeWindow->olc_OnTouch(
+                    id,
+                    {
+                        AMotionEvent_getX(event, id),
+                        AMotionEvent_getY(event, id)
+                    },
+                    true,
+                    false,
+                    { ellipseX, ellipseY },
+                    true,
+                    pressure,
+                    orientation,
+                    { axisTilt, axisTilt }
+                );
+                break;
+            case AMOTION_EVENT_ACTION_CANCEL:
+            case AMOTION_EVENT_ACTION_UP:
+            case AMOTION_EVENT_ACTION_POINTER_UP:
+                pgeWindow->olc_OnTouch(
+                    id,
+                    {
+                        AMotionEvent_getX(event, id),
+                        AMotionEvent_getY(event, id)
+                    },
+                    false,
+                    true,
+                    { ellipseX, ellipseY },
+                    true,
+                    pressure,
+                    orientation,
+                    { axisTilt, axisTilt }
+                );
+                break;
+            case AMOTION_EVENT_ACTION_MOVE:
+                pgeWindow->olc_OnTouch(
+                    id,
+                    {
+                        AMotionEvent_getX(event, id),
+                        AMotionEvent_getY(event, id)
+                    },
+                    false,
+                    false,
+                    { ellipseX, ellipseY },
+                    true,
+                    pressure,
+                    orientation,
+                    { axisTilt, axisTilt }
+                );
+                break;
+            default:
+                break;
+        }
+    }
+
+    void Host_Android::handleFinger(size_t id, int32_t action, AInputEvent *event)
+    {
+        float size = AMotionEvent_getSize(event, id);
+        float pressure = AMotionEvent_getPressure(event, id);
+        pressure = std::clamp(pressure, 0.0f, 1.0f); // It can exceed 1.0f on some devices
+
+        switch (action) {
+            case AMOTION_EVENT_ACTION_DOWN:
+            case AMOTION_EVENT_ACTION_POINTER_DOWN:
+                pgeWindow->olc_OnTouch(
+                    id,
+                    {
+                        AMotionEvent_getX(event, id),
+                        AMotionEvent_getY(event, id)
+                    },
+                    true,
+                    false,
+                    { size, size },
+                    false,
+                    pressure
+                );
+                break;
+            case AMOTION_EVENT_ACTION_CANCEL:
+            case AMOTION_EVENT_ACTION_UP:
+            case AMOTION_EVENT_ACTION_POINTER_UP:
+                pgeWindow->olc_OnTouch(
+                    id,
+                    {
+                        AMotionEvent_getX(event, id),
+                        AMotionEvent_getY(event, id)
+                    },
+                    false,
+                    true,
+                    { size, size },
+                    false,
+                    pressure
+                );
+                break;
+            case AMOTION_EVENT_ACTION_MOVE:
+                pgeWindow->olc_OnTouch(
+                    id,
+                    {
+                        AMotionEvent_getX(event, id),
+                        AMotionEvent_getY(event, id)
+                    },
+                    false,
+                    false,
+                    { size, size },
+                    false,
+                    pressure
+                );
+                break;
+            default:
+                break;
+        }
+    }
+
+    void Host_Android::PollEvents(const std::function<bool()> &funcContinue, bool bBlocking)
     {
         while (funcContinue()) {
             int events;
@@ -15930,6 +16088,11 @@ void main()
 					gl.glEnable(GL_BLEND);
 					gl.glBlendFunc(GL_DST_COLOR, GL_ONE_MINUS_SRC_ALPHA);
 				}
+				else if (task.blendmode == olc::BlendMode::None)
+				{
+					gl.glDisable(GL_BLEND);
+				}
+
 
 				//gl.glEnable(GL_BLEND);
 				//gl.glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
