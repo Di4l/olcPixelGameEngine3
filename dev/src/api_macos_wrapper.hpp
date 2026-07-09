@@ -756,10 +756,46 @@ namespace olc {
                     : x(x), y(y), deltaX(deltaX), deltaY(deltaY), modifierFlags(flags) {}
             };
 
+            // Touch event data structure
+            struct TouchEvent {
+                uint32_t touchID;
+                double x, y;
+                double sizeX, sizeY;
+
+                TouchEvent(uint32_t id, double x, double y, double sx, double sy) noexcept
+                    : touchID(id), x(x), y(y), sizeX(sx), sizeY(sy) {}
+
+                TouchEvent(TouchEvent&&) noexcept = default;
+                TouchEvent& operator=(TouchEvent&&) noexcept = default;
+                TouchEvent(const TouchEvent&) = default;
+                TouchEvent& operator=(const TouchEvent&) = default;
+            };
+
+            // Stylus (tablet) event data structure
+            struct StylusEvent {
+                uint32_t touchID;
+                double x, y;
+                float pressure, rotation;
+                float tiltX, tiltY;
+                bool bPress, bRelease;
+                bool bIsStylus;  
+
+                StylusEvent(uint32_t id, double x, double y, float pressure, float rotation, float tiltX, float tiltY, bool bPress, bool bRelease, bool bIsStylus) noexcept
+                    : touchID(id), x(x), y(y), pressure(pressure), rotation(rotation), tiltX(tiltX), tiltY(tiltY),
+                      bPress(bPress), bRelease(bRelease), bIsStylus(bIsStylus) {}
+
+                StylusEvent(StylusEvent&&) noexcept = default;
+                StylusEvent& operator=(StylusEvent&&) noexcept = default;
+                StylusEvent(const StylusEvent&) = default;
+                StylusEvent& operator=(const StylusEvent&) = default;
+            };
+
             // Event handler class for keyboard and mouse events
             class EventHandler {
             private:
                 Window& window_;
+
+                // Key and mouse event handlers
                 std::function<void(const KeyEvent&)>    keyDownHandler_;
                 std::function<void(const KeyEvent&)>    keyUpHandler_;
                 std::function<void(const FlagsChangedEvent&)>  flagsChangedHandler_;
@@ -776,6 +812,15 @@ namespace olc {
                 std::function<void(const ScrollWheelEvent&)> scrollWheelHandler_;
                 std::function<void(const MouseEvent&)>  mouseMovedEnteredHandler_;
                 std::function<void(const MouseEvent&)>  mouseMovedExitedHandler_;
+               
+                // Touch event handlers
+                std::function<void(const TouchEvent&)>  touchBeganHandler_;
+                std::function<void(const TouchEvent&)>  touchMovedHandler_;
+                std::function<void(const TouchEvent&)>  touchEndedHandler_;
+                std::function<void(const TouchEvent&)>  touchCancelledHandler_;
+
+                // Stylus event handler
+                std::function<void(const StylusEvent&)> stylusHandler_;
                
                 // Template helpers for static callbacks to reduce code duplication
                 template<typename EventType, typename HandlerType>
@@ -888,6 +933,37 @@ namespace olc {
                     }
                 }
 
+                static void touchBeganCallback(uint32_t touchID, double x, double y, double sizeX, double sizeY, void* userData) {
+                    auto* eventHandler = static_cast<EventHandler*>(userData);
+                    if (eventHandler && eventHandler->touchBeganHandler_)
+                        eventHandler->touchBeganHandler_(TouchEvent(touchID, x, y, sizeX, sizeY));
+                }
+                static void touchMovedCallback(uint32_t touchID, double x, double y, double sizeX, double sizeY, void* userData) {
+                    auto* eventHandler = static_cast<EventHandler*>(userData);
+                    if (eventHandler && eventHandler->touchMovedHandler_)
+                        eventHandler->touchMovedHandler_(TouchEvent(touchID, x, y, sizeX, sizeY));
+                }
+
+                static void touchEndedCallback(uint32_t touchID, double x, double y, double sizeX, double sizeY, void* userData) {
+                    auto* eventHandler = static_cast<EventHandler*>(userData);
+                    if (eventHandler && eventHandler->touchEndedHandler_)
+                        eventHandler->touchEndedHandler_(TouchEvent(touchID, x, y, sizeX, sizeY));
+                }
+
+                static void touchCancelledCallback(uint32_t touchID, double x, double y, double sizeX, double sizeY, void* userData) {
+                    auto* eventHandler = static_cast<EventHandler*>(userData);
+                    if (eventHandler && eventHandler->touchCancelledHandler_)
+                        eventHandler->touchCancelledHandler_(TouchEvent(touchID, x, y, sizeX, sizeY));
+                }
+
+                static void stylusCallback(uint32_t touchID, double x, double y,float pressure, float rotation, float tiltX, float tiltY,
+                    bool bPress, bool bRelease, bool bIsStylus, void* userData)
+                {
+                    auto* eventHandler = static_cast<EventHandler*>(userData);
+                    if (eventHandler && eventHandler->stylusHandler_)
+                        eventHandler->stylusHandler_(StylusEvent(touchID, x, y, pressure, rotation, tiltX, tiltY, bPress, bRelease, bIsStylus));
+                }
+
                 // Template helper for setting event handlers to reduce repetition
                 template<typename HandlerType, typename SetterFunc, typename CallbackFunc>
                 void setEventHandler(HandlerType EventHandler::*member, SetterFunc setter, CallbackFunc callback, std::function<void(const typename HandlerType::element_type&)> handler) {
@@ -979,6 +1055,33 @@ namespace olc {
                 void onMouseExitWindow(std::function<void(const MouseEvent&)> handler) {
                     mouseMovedExitedHandler_ = std::move(handler);
                     window_setMouseExitedCallback(window_.getCHandle(), mouseExitedCallback, this);
+                }
+
+                // Touch event handler setters
+                void onTouchBegan(std::function<void(const TouchEvent&)> handler) {
+                    touchBeganHandler_ = std::move(handler);
+                    window_setTouchBeganCallback(window_.getCHandle(), touchBeganCallback, this);
+                }
+
+                void onTouchMoved(std::function<void(const TouchEvent&)> handler) {
+                    touchMovedHandler_ = std::move(handler);
+                    window_setTouchMovedCallback(window_.getCHandle(), touchMovedCallback, this);
+                }
+
+                void onTouchEnded(std::function<void(const TouchEvent&)> handler) {
+                    touchEndedHandler_ = std::move(handler);
+                    window_setTouchEndedCallback(window_.getCHandle(), touchEndedCallback, this);
+                }
+
+                void onTouchCancelled(std::function<void(const TouchEvent&)> handler) {
+                    touchCancelledHandler_ = std::move(handler);
+                    window_setTouchCancelledCallback(window_.getCHandle(), touchCancelledCallback, this);
+                }
+
+                // Stylus event handler setter
+                void onStylus(std::function<void(const StylusEvent&)> handler) {
+                    stylusHandler_ = std::move(handler);
+                    window_setStylusCallback(window_.getCHandle(), stylusCallback, this);
                 }
 
                 // Enable/disable event handling
