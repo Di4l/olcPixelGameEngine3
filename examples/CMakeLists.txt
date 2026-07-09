@@ -124,6 +124,7 @@ foreach(source ${SOURCES})
             target_link_libraries(${EXE_NAME} PRIVATE GL)
             target_link_libraries(${EXE_NAME} PRIVATE pthread)
             target_link_libraries(${EXE_NAME} PRIVATE X11)
+            target_link_libraries(${EXE_NAME} PRIVATE Xi)
         endif()
         
     endif()

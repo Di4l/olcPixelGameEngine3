@@ -93,6 +93,29 @@ namespace olc::host
             std::array<Axis, 2> axes{};
             uint32_t axis_source{0};
         };
+
+        enum TouchEventMask {
+            TouchEventDown = 1 << 0,
+            TouchEventUp = 1 << 1,
+            TouchEventMotion = 1 << 2,
+            TouchEventCancel = 1 << 3,
+            TouchEventShape = 1 << 4,
+            TouchEventOrientation = 1 << 5
+        };
+
+        struct TouchState {
+            uint32_t event_mask{0};
+            wl_surface* surface{nullptr};
+            wl_fixed_t surface_x{};
+            wl_fixed_t surface_y{};
+            wl_fixed_t major{};
+            wl_fixed_t minor{};
+            wl_fixed_t orientation{};
+
+            uint32_t time{0};
+            uint32_t serial{0};
+            int32_t id{0};
+        };
     }
 
     class Host_Linux_Wayland : public olc::host::Host
@@ -105,6 +128,7 @@ namespace olc::host
         wl_seat* seat{nullptr};
         wl_pointer* pointer{nullptr};
         wl_keyboard* keyboard{nullptr};
+        wl_touch* touch{nullptr};
         uint32_t keyboard_version{0};
         xkb_context* kb_context{nullptr};
         xkb_state* kb_state{nullptr};
@@ -115,6 +139,7 @@ namespace olc::host
         uint32_t enter_serial{0};
         
         wayland::PointerState pointer_state;
+        std::unordered_map<int32_t, wayland::TouchState> touches;
         wl_surface* cursor_surface{nullptr};
         wl_cursor_image* cursor_image{nullptr};
         wl_cursor_theme* cursor_theme{nullptr};
@@ -182,6 +207,15 @@ namespace olc::host
         static void keyboard_modifiers_callback(void* data, wl_keyboard* keyboard, uint32_t serial, uint32_t mods_depressed, uint32_t mods_latched, uint32_t mods_locked, uint32_t group);
         static void keyboard_repeat_info_callback(void* data, wl_keyboard* keyboard, int32_t rate, int32_t delay);
 
+        // Touch callbacks
+        static void touch_down_callback(void* data, wl_touch* touch, uint32_t serial, uint32_t time, wl_surface* surface, int32_t id, wl_fixed_t x, wl_fixed_t y);
+        static void touch_up_callback(void* data, wl_touch* touch, uint32_t serial, uint32_t time, int32_t id);
+        static void touch_motion_callback(void* data, wl_touch* touch, uint32_t time, int32_t id, wl_fixed_t x, wl_fixed_t y);
+        static void touch_frame_callback(void* data, wl_touch* touch);
+        static void touch_cancel_callback(void* data, wl_touch* touch);
+        static void touch_shape_callback(void* data, wl_touch* touch, int32_t id, wl_fixed_t major, wl_fixed_t minor);
+        static void touch_orientation_callback(void* data, wl_touch* touch, int32_t id, wl_fixed_t orientation);
+
         // xdg callbacks
         static void xdg_wm_ping_callback(void* data, xdg_wm_base* wm, uint32_t serial);
         static void xdg_surface_configure_callback(void* data, xdg_surface* surface, uint32_t serial);
@@ -218,6 +252,15 @@ namespace olc::host
         void keyboard_leave(wl_keyboard* keyboard, uint32_t serial, wl_surface* surface);
         void keyboard_key(wl_keyboard* keyboard, uint32_t serial, uint32_t time, uint32_t key, uint32_t state);
         void keyboard_modifiers(wl_keyboard* keyboard, uint32_t serial, uint32_t mods_depressed, uint32_t mods_latched, uint32_t mods_locked, uint32_t group);
+
+        // Touch callbacks
+        void touch_down(wl_touch* touch, uint32_t serial, uint32_t time, wl_surface* surface, int32_t id, wl_fixed_t x, wl_fixed_t y);
+        void touch_up(wl_touch* touch, uint32_t serial, uint32_t time, int32_t id);
+        void touch_motion(wl_touch* touch, uint32_t time, int32_t id, wl_fixed_t x, wl_fixed_t y);
+        void touch_frame(wl_touch* touch);
+        void touch_cancel(wl_touch* touch);
+        void touch_shape(wl_touch* touch, int32_t id, wl_fixed_t major, wl_fixed_t minor);
+        void touch_orientation(wl_touch* touch, int32_t id, wl_fixed_t orientation);
 
         // libdecor callback functions
         void libdecor_frame_configure(libdecor_frame* frame, libdecor_configuration* config);

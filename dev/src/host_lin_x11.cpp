@@ -10,6 +10,9 @@ namespace olc::host
         olc_Display = XOpenDisplay(NULL);
         olc_WindowRoot = DefaultRootWindow(olc_Display);
 
+        // If supported, enable receiving touch events
+        enableTouch(olc_Display, olc_WindowRoot);
+
         if(XkbQueryExtension(olc_Display, nullptr, &xkbEventBase, &xkbErrorBase, nullptr, nullptr))
         {
             XkbSelectEventDetails(olc_Display, XkbUseCoreKbd, XkbStateNotify, XkbGroupStateMask, XkbGroupStateMask);
@@ -283,6 +286,16 @@ namespace olc::host
                         pge_window->olc_OnWindowClose();
                     }
                 }
+                else if (xev.type == GenericEvent)
+                {
+                    X11::XGenericEventCookie& xgec = xev.xcookie;
+
+                    if(xgec.extension == xinput_extension_code && X11::XGetEventData(olc_Display, &xgec)) {
+                        // Should be one of our touch events
+                        handleTouchEvent(static_cast<X11::XIDeviceEvent*>(xgec.data));
+                        X11::XFreeEventData(olc_Display, &xgec);
+                    }
+                }
             }
         }
 
@@ -544,5 +557,88 @@ namespace olc::host
 
         return true;
     }
+
+    void Host_Linux_X11::enableTouch(X11::Display* display, X11::Window window)
+    {
+        // Check if we have the XInput extension
+        int extension_code;
+        int ev;
+        int err;
+
+        // If we have the extension, check for version 2.3 or higher
+        if (X11::XQueryExtension(display, "XInputExtension", &extension_code, &ev, &err)) {
+            int major{2};
+            int minor{3};
+
+            if(X11::XIQueryVersion(display, &major, &minor) != Success) {
+                // Version is incorrect, do not select touch events
+                return;
+            }
+        } else {
+            // Do not have the extension, do not select touch events
+            return;
+        }
+
+        // If we get down here, we have the extension and version is correct
+        xinput_extension_code = extension_code;
+
+        X11::XIEventMask mask{};
+        mask.deviceid = XIAllDevices;
+        mask.mask_len = XIMaskLen(XI_TouchEnd);
+        mask.mask = static_cast<unsigned char*>(std::calloc(mask.mask_len, sizeof(char)));
+
+        XISetMask(mask.mask, XI_TouchBegin);
+        XISetMask(mask.mask, XI_TouchUpdate);
+        XISetMask(mask.mask, XI_TouchEnd);
+
+        X11::XISelectEvents(display, window, &mask, 1);
+
+        X11::XSync(display, False);
+        std::free(mask.mask);
+    }
+
+    void Host_Linux_X11::handleTouchEvent(X11::XIDeviceEvent* event)
+    {
+        auto itr_child = mapX11Window2PTR.find(event->child);
+        if(itr_child == mapX11Window2PTR.end()) {
+
+            return;
+        }
+        
+        olc::Window* pge_window = itr_child->second;
+
+        switch(event->evtype) {
+            case XI_TouchBegin:
+                pge_window->olc_OnTouch(
+                    event->detail,
+                    olc::vf2d(event->event_x, event->event_y),
+                    true,
+                    false,
+                    olc::vf2d{1.0f, .0f}
+                );
+                break;
+            case XI_TouchUpdate:
+            {
+                pge_window->olc_OnTouch(
+                    event->detail,
+                    olc::vf2d(event->event_x, event->event_y),
+                    false,
+                    false,
+                    olc::vf2d{1.0f, 1.0f}
+                );
+                break;
+            }
+            case XI_TouchEnd:
+                pge_window->olc_OnTouch(
+                    event->detail,
+                    olc::vf2d(event->event_x, event->event_y),
+                    false,
+                    true,
+                    olc::vf2d{1.0f, 1.0f}
+                );
+                break;
+        }
+    }
+
 }
 //! END IMPLEMENTATION
