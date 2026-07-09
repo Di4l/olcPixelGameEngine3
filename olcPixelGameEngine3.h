@@ -2251,6 +2251,13 @@ namespace olc
 
 	struct ImageRegion;
 
+	class PGEWindow;
+
+	namespace imload
+	{
+		class ImageLoader;
+	}
+
 	class Image
 	{
 	public:
@@ -2259,7 +2266,12 @@ namespace olc
 		virtual ~Image() = default;
 
 	public:
-		bool Create(const olc::vi2d& size, const ImageConfig& cfg = olc::ImageConfig());
+		// Creates nothing but an array of pixels in system memory. Normal users
+		// should never need to call this method. If you want to construct an
+		// olc::Image object, use factory methods in olc::PGEWindow
+		// CreateImage(...)
+		bool CreateNoGPU(const olc::vi2d& size, const ImageConfig& cfg = olc::ImageConfig());
+		
 
 	public:
 		// Returns size (x, y) in pixels
@@ -4207,6 +4219,9 @@ namespace olc
 		
 	
 	public:	// olc::Image Handling
+
+		// These are the preferred  methods to create olc::Image objects
+
 		// Create an image resource
 		bool CreateImage(olc::Image& image, const olc::vi2d& size, const ImageConfig& cfg = olc::ImageConfig());
 		// Create an image resource based on an image file asset on disk
@@ -16492,7 +16507,7 @@ void main()
 
 		// Create a null-texture so sampler doesnt fail. We don't have some of the core's helper
 		// functions here, so we construct it manually
-		imgBlank.Create({ 1,1 });
+		imgBlank.CreateNoGPU({ 1,1 });
 		imgBlank.SetGPUID(CreateTexture(imgBlank.Size()));
 		imgBlank.BindCPU();
 		imgBlank.Pixel({ 0,0 }) = olc::Colour::WHITE;
@@ -17686,11 +17701,13 @@ GPUTask olc::Draw::TaskDrawLine(const std::vector<olc::vf2d>& vPoints, const olc
 
 GPUTask olc::Draw::TaskDrawPolygon(olc::Structure structure, const std::vector<olc::vf2d>& vPoints, const std::vector<olc::Pixel>& vColours, const olc::Pixel tint)
 {
+	olc_IgnoreUnused(structure);
 	return TaskDrawLine(vPoints, vColours, tint, false, true);
 }
 
 GPUTask olc::Draw::TaskDrawPolygon(olc::Structure structure, const std::vector<olc::vf2d>& vPoints, const olc::Pixel colour, const olc::Pixel tint)
 {	
+	olc_IgnoreUnused(structure);
 	return TaskDrawLine(vPoints, colour, tint, false, true);
 }
 
@@ -19381,14 +19398,14 @@ namespace olc
 	bool PGEWindow::CreateImage(olc::Image& image, const olc::vi2d& size, const ImageConfig& cfg)
 	{
 		// Create CPU Image
-		if (!image.Create(size, cfg))
+		if (!image.CreateNoGPU(size, cfg))
 			return false;
 
 		// Create GPU Image
 		auto id = pRenderer->CreateTexture(image.Size(), cfg);
 		if (id == 0)
 		{
-			image.Create({ 0,0 });
+			image.CreateNoGPU({ 0,0 });
 			return false;
 		}
 
@@ -19407,7 +19424,7 @@ namespace olc
 			auto id = pRenderer->CreateTexture(image.Size(), cfg);
 			if (id == 0)
 			{
-				image.Create({ 0,0 });
+				image.CreateNoGPU({ 0,0 });
 				return false;
 			}
 
@@ -19429,7 +19446,7 @@ namespace olc
 			auto id = pRenderer->CreateTexture(image.Size(), cfg);
 			if (id == 0)
 			{
-				image.Create({ 0,0 });
+				image.CreateNoGPU({ 0,0 });
 				return false;
 			}
 
@@ -19458,7 +19475,7 @@ namespace olc
 		}
 
 		// Free any cpu memory associated with image
-		image.Create({ 0,0 });
+		image.CreateNoGPU({ 0,0 });
 	}
 
 	void PGEWindow::LinkToRenderer(olc::gpu::Renderer* gpu)
@@ -19876,7 +19893,7 @@ namespace olc
 	{
 	}*/
 
-	bool Image::Create(const olc::vi2d& size, const ImageConfig& cfg)
+	bool Image::CreateNoGPU(const olc::vi2d& size, const ImageConfig& cfg)
 	{
 		dimensions = size;
 		config = cfg;
@@ -20695,7 +20712,7 @@ namespace olc::imload
 	bool ImageLoader_WinGDI::DecodeBMP(olc::Image& image, Gdiplus::Bitmap* bmp)
 	{
 		// Need to swizzle each pixel...
-		image.Create(olc::vi2d(bmp->GetWidth(), bmp->GetHeight()));
+		image.CreateNoGPU(olc::vi2d(bmp->GetWidth(), bmp->GetHeight()));
 		for (int y = 0; y < image.Size().y; y++)
 			for (int x = 0; x < image.Size().x; x++)
 			{
@@ -20740,7 +20757,7 @@ namespace olc::imload
         }
         
         // Create our olc::Image
-        if (!image.Create({width, height})) {
+        if (!image.CreateNoGPU({width, height})) {
             return false; // Failed to create image
         }
         
@@ -20780,7 +20797,7 @@ namespace olc::imload
         }
         
         // Create our olc::Image
-        if (!image.Create({width, height})) {
+        if (!image.CreateNoGPU({width, height})) {
             return false; // Failed to create image
         }
         
@@ -20906,7 +20923,7 @@ namespace olc::imload
         png_read_info(png, info);
         png_byte color_type;
         png_byte bit_depth;
-        image.Create(
+        image.CreateNoGPU(
             {
                 static_cast<int>(png_get_image_width(png, info)),
                 static_cast<int>(png_get_image_height(png, info))
@@ -20986,7 +21003,7 @@ namespace olc::imload
             return false;
         }
 
-        image.Create({
+        image.CreateNoGPU({
             AImageDecoderHeaderInfo_getWidth(info),
             AImageDecoderHeaderInfo_getHeight(info)
         });
@@ -21042,7 +21059,7 @@ namespace olc::imload
             return false;
         }
 
-        image.Create({
+        image.CreateNoGPU({
          AImageDecoderHeaderInfo_getWidth(info),
          AImageDecoderHeaderInfo_getHeight(info)
         });
@@ -21126,7 +21143,7 @@ namespace olc::imload
             return false;
         }
         
-        image.Create({width, height});
+        image.CreateNoGPU({width, height});
         std::memcpy(reinterpret_cast<void*>(image.Data()), bytes, width * height * 4);
 
         delete[] bytes;
@@ -21143,7 +21160,7 @@ namespace olc::imload
         if(!pixelData)
             return false;
 
-        image.Create({width, height});
+        image.CreateNoGPU({width, height});
         std::memcpy(reinterpret_cast<void*>(image.Data()), pixelData, width * height * 4);
         
         delete[] pixelData;
@@ -21160,7 +21177,7 @@ namespace olc::imload
         if(!pixelData)
             return false;
 
-        image.Create({width, height});
+        image.CreateNoGPU({width, height});
         std::memcpy(reinterpret_cast<void*>(image.Data()), pixelData, width * height * 4);
         
         delete[] pixelData;

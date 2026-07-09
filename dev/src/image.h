@@ -31,6 +31,13 @@ namespace olc
 
 	struct ImageRegion;
 
+	class PGEWindow;
+
+	namespace imload
+	{
+		class ImageLoader;
+	}
+
 	class Image
 	{
 	public:
@@ -39,7 +46,12 @@ namespace olc
 		virtual ~Image() = default;
 
 	public:
-		bool Create(const olc::vi2d& size, const ImageConfig& cfg = olc::ImageConfig());
+		// Creates nothing but an array of pixels in system memory. Normal users
+		// should never need to call this method. If you want to construct an
+		// olc::Image object, use factory methods in olc::PGEWindow
+		// CreateImage(...)
+		bool CreateNoGPU(const olc::vi2d& size, const ImageConfig& cfg = olc::ImageConfig());
+		
 
 	public:
 		// Returns size (x, y) in pixels

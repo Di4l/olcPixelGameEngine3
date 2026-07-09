@@ -223,14 +223,14 @@ namespace olc
 	bool PGEWindow::CreateImage(olc::Image& image, const olc::vi2d& size, const ImageConfig& cfg)
 	{
 		// Create CPU Image
-		if (!image.Create(size, cfg))
+		if (!image.CreateNoGPU(size, cfg))
 			return false;
 
 		// Create GPU Image
 		auto id = pRenderer->CreateTexture(image.Size(), cfg);
 		if (id == 0)
 		{
-			image.Create({ 0,0 });
+			image.CreateNoGPU({ 0,0 });
 			return false;
 		}
 
@@ -249,7 +249,7 @@ namespace olc
 			auto id = pRenderer->CreateTexture(image.Size(), cfg);
 			if (id == 0)
 			{
-				image.Create({ 0,0 });
+				image.CreateNoGPU({ 0,0 });
 				return false;
 			}
 
@@ -271,7 +271,7 @@ namespace olc
 			auto id = pRenderer->CreateTexture(image.Size(), cfg);
 			if (id == 0)
 			{
-				image.Create({ 0,0 });
+				image.CreateNoGPU({ 0,0 });
 				return false;
 			}
 
@@ -300,7 +300,7 @@ namespace olc
 		}
 
 		// Free any cpu memory associated with image
-		image.Create({ 0,0 });
+		image.CreateNoGPU({ 0,0 });
 	}
 
 	void PGEWindow::LinkToRenderer(olc::gpu::Renderer* gpu)

@@ -295,11 +295,13 @@ GPUTask olc::Draw::TaskDrawLine(const std::vector<olc::vf2d>& vPoints, const olc
 
 GPUTask olc::Draw::TaskDrawPolygon(olc::Structure structure, const std::vector<olc::vf2d>& vPoints, const std::vector<olc::Pixel>& vColours, const olc::Pixel tint)
 {
+	olc_IgnoreUnused(structure);
 	return TaskDrawLine(vPoints, vColours, tint, false, true);
 }
 
 GPUTask olc::Draw::TaskDrawPolygon(olc::Structure structure, const std::vector<olc::vf2d>& vPoints, const olc::Pixel colour, const olc::Pixel tint)
 {	
+	olc_IgnoreUnused(structure);
 	return TaskDrawLine(vPoints, colour, tint, false, true);
 }
 

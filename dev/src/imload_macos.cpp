@@ -33,7 +33,7 @@ namespace olc::imload
         }
         
         // Create our olc::Image
-        if (!image.Create({width, height})) {
+        if (!image.CreateNoGPU({width, height})) {
             return false; // Failed to create image
         }
         
@@ -73,7 +73,7 @@ namespace olc::imload
         }
         
         // Create our olc::Image
-        if (!image.Create({width, height})) {
+        if (!image.CreateNoGPU({width, height})) {
             return false; // Failed to create image
         }
         

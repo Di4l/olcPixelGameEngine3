@@ -94,7 +94,7 @@ namespace olc::imload
         png_read_info(png, info);
         png_byte color_type;
         png_byte bit_depth;
-        image.Create(
+        image.CreateNoGPU(
             {
                 static_cast<int>(png_get_image_width(png, info)),
                 static_cast<int>(png_get_image_height(png, info))

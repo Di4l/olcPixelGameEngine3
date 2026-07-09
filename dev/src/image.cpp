@@ -11,7 +11,7 @@ namespace olc
 	{
 	}*/
 
-	bool Image::Create(const olc::vi2d& size, const ImageConfig& cfg)
+	bool Image::CreateNoGPU(const olc::vi2d& size, const ImageConfig& cfg)
 	{
 		dimensions = size;
 		config = cfg;
