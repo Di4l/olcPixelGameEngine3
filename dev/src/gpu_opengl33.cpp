@@ -478,7 +478,7 @@ void main()
 
 		// Create a null-texture so sampler doesnt fail. We don't have some of the core's helper
 		// functions here, so we construct it manually
-		imgBlank.Create({ 1,1 });
+		imgBlank.CreateNoGPU({ 1,1 });
 		imgBlank.SetGPUID(CreateTexture(imgBlank.Size()));
 		imgBlank.BindCPU();
 		imgBlank.Pixel({ 0,0 }) = olc::Colour::WHITE;

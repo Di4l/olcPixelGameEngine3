@@ -95,7 +95,7 @@ namespace olc::imload
 	bool ImageLoader_WinGDI::DecodeBMP(olc::Image& image, Gdiplus::Bitmap* bmp)
 	{
 		// Need to swizzle each pixel...
-		image.Create(olc::vi2d(bmp->GetWidth(), bmp->GetHeight()));
+		image.CreateNoGPU(olc::vi2d(bmp->GetWidth(), bmp->GetHeight()));
 		for (int y = 0; y < image.Size().y; y++)
 			for (int x = 0; x < image.Size().x; x++)
 			{

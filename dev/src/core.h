@@ -93,6 +93,9 @@ namespace olc
 		
 	
 	public:	// olc::Image Handling
+
+		// These are the preferred  methods to create olc::Image objects
+
 		// Create an image resource
 		bool CreateImage(olc::Image& image, const olc::vi2d& size, const ImageConfig& cfg = olc::ImageConfig());
 		// Create an image resource based on an image file asset on disk
