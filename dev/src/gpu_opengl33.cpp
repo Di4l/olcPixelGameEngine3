@@ -89,6 +89,20 @@ void main()
 		oTex = aTex;
 	}
 
+	else if (pgeDrawType == 3) // Unconstrained 2D Line																																		  
+	{
+		float p = 1.0 / aPos.z;
+		gl_Position = p * vec4(vec2(2.0 * (aPos.xy) * pgeInverseTargetSizeInPixels - 1.0), 0.0, 1.0);
+		oTex = aTex;
+	}
+
+	else if (pgeDrawType == 4) // Unconstrained 2D Polygon																																		  
+	{
+		float p = 1.0 / aPos.z;
+		gl_Position = p * vec4(vec2(2.0 * (aPos.xy) * pgeInverseTargetSizeInPixels - 1.0), 0.0, 1.0);
+		oTex = p * vec2(aTex.x, aTex.y);
+	}
+
 	else if (pgeDrawType == 0) // 2D Polygon																																		  
 	{
 		float p = 1.0 / aPos.z; 
@@ -346,6 +360,9 @@ void main()
 	EGLint const context_config[] = {EGL_CONTEXT_MAJOR_VERSION, 3, EGL_NONE};
 
 	/* create an EGL rendering context */
+#if OLC_HOST == OLC_HOST_LINUX_WAYLAND
+	eglBindAPI(EGL_OPENGL_API);
+#endif
 	glRenderContext.context = eglCreateContext(glRenderContext.display, glRenderContext.config, EGL_NO_CONTEXT, context_config);
 	glRenderContext.surface = eglCreateWindowSurface(glRenderContext.display, glRenderContext.config, window_handle, nullptr);
 	if(glRenderContext.surface == EGL_NO_SURFACE) {
@@ -461,7 +478,7 @@ void main()
 
 		// Create a null-texture so sampler doesnt fail. We don't have some of the core's helper
 		// functions here, so we construct it manually
-		imgBlank.Create({ 1,1 });
+		imgBlank.CreateNoGPU({ 1,1 });
 		imgBlank.SetGPUID(CreateTexture(imgBlank.Size()));
 		imgBlank.BindCPU();
 		imgBlank.Pixel({ 0,0 }) = olc::Colour::WHITE;
@@ -1124,33 +1141,59 @@ void main()
 				
 
 				// Apply Culling modes
-				if (task.cullmode == GPUTask::CullMode::None)
+				if (task.cullmode == olc::CullMode::None)
 				{
 					gl.glDisable(GL_CULL_FACE);
 				}
-				else if (task.cullmode == GPUTask::CullMode::ClockWise)
+				else if (task.cullmode == olc::CullMode::ClockWise)
 				{
 					gl.glCullFace(GL_FRONT);
 					gl.glEnable(GL_CULL_FACE);
 				}
-				else if (task.cullmode == GPUTask::CullMode::CounterClockWise)
+				else if (task.cullmode == olc::CullMode::CounterClockWise)
 				{
 					gl.glCullFace(GL_BACK);
 					gl.glEnable(GL_CULL_FACE);
 				}
 
-				//// Apply Depth Testing (if required)
+				// Apply Depth Testing (if required)
 				if (task.bDepth)
+				{
 					gl.glEnable(GL_DEPTH_TEST);
+					gl.glDepthFunc(GL_LESS);
+				}
 
-				glDepthFunc(GL_LESS);
 
-				gl.glEnable(GL_BLEND);
+				// Apply Blending Mode
+				if (task.blendmode == olc::BlendMode::Alpha)
+				{
+					gl.glEnable(GL_BLEND);
+					//gl.glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+					gl.glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+				}
+				else if(task.blendmode == olc::BlendMode::Additive)
+				{
+					gl.glEnable(GL_BLEND);
+					gl.glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+				}
+				else if(task.blendmode == olc::BlendMode::Multiplicative)
+				{
+					gl.glEnable(GL_BLEND);
+					gl.glBlendFunc(GL_DST_COLOR, GL_ONE_MINUS_SRC_ALPHA);
+				}
+				else if (task.blendmode == olc::BlendMode::None)
+				{
+					gl.glDisable(GL_BLEND);
+				}
+
+
+				//gl.glEnable(GL_BLEND);
 				//gl.glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-				gl.glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+				//gl.glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 
-				if (task.bWireframe)
-					gl.glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+				//// Apply Rendering Mode
+				//if (task.bWireframe)
+				//	gl.glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
 				if (task.bIs3D)
 				{
@@ -1159,16 +1202,32 @@ void main()
 				}
 				else
 				{
-					if (task.structure == olc::Structure::Point)
-						gl.glUniform1i(pCurrentShader->GetUniform("pgeDrawType"), 1);
-					else if (task.structure == olc::Structure::Line)
-						gl.glUniform1i(pCurrentShader->GetUniform("pgeDrawType"), 1);
-					else if (task.structure == olc::Structure::LineLoop)
-						gl.glUniform1i(pCurrentShader->GetUniform("pgeDrawType"), 1);
-					else if (task.structure == olc::Structure::LineList)
-						gl.glUniform1i(pCurrentShader->GetUniform("pgeDrawType"), 1);
+					if (task.bPixelConstrained)
+					{
+						if (task.structure == olc::Structure::Point)
+							gl.glUniform1i(pCurrentShader->GetUniform("pgeDrawType"), 1);
+						else if (task.structure == olc::Structure::Line)
+							gl.glUniform1i(pCurrentShader->GetUniform("pgeDrawType"), 1);
+						else if (task.structure == olc::Structure::LineLoop)
+							gl.glUniform1i(pCurrentShader->GetUniform("pgeDrawType"), 1);
+						else if (task.structure == olc::Structure::LineList)
+							gl.glUniform1i(pCurrentShader->GetUniform("pgeDrawType"), 1);
+						else
+							gl.glUniform1i(pCurrentShader->GetUniform("pgeDrawType"), 0);
+					}
 					else
-						gl.glUniform1i(pCurrentShader->GetUniform("pgeDrawType"), 0);
+					{
+						if (task.structure == olc::Structure::Point)
+							gl.glUniform1i(pCurrentShader->GetUniform("pgeDrawType"), 3);
+						else if (task.structure == olc::Structure::Line)
+							gl.glUniform1i(pCurrentShader->GetUniform("pgeDrawType"), 3);
+						else if (task.structure == olc::Structure::LineLoop)
+							gl.glUniform1i(pCurrentShader->GetUniform("pgeDrawType"), 3);
+						else if (task.structure == olc::Structure::LineList)
+							gl.glUniform1i(pCurrentShader->GetUniform("pgeDrawType"), 3);
+						else
+							gl.glUniform1i(pCurrentShader->GetUniform("pgeDrawType"), 4);
+					}
 				}
 
 				if (task.structure == olc::Structure::Fan)
@@ -1187,8 +1246,8 @@ void main()
 					gl.glDrawArrays(GL_POINTS, 0, (GLsizei)task.vertexBuffer.size());
 
 
-				if (task.bWireframe)
-					gl.glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+				//if (task.bWireframe)
+				//	gl.glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
 				if (task.bDepth)
 					gl.glDisable(GL_DEPTH_TEST);
@@ -1242,6 +1301,7 @@ void main()
 
 #if OLC_HOST == OLC_HOST_MACOS
 		// The pointer value in os_win_id[1] will be set to true, when the OS requests to skip the frame swap
+		olc_IgnoreUnused(bVerticalSyncNow);
         const bool* bSkipFrame = static_cast<const bool*>(os_win_id[1]);
 		if (*bSkipFrame) return true;
 		CGLContextObj cglContext = static_cast<CGLContextObj>(os_win_id[0]);

@@ -46,6 +46,9 @@
     <Filter Include="Hardware">
       <UniqueIdentifier>{b5b02d3b-7b70-4ef1-a2e2-516cbaa9da51}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Extras">
+      <UniqueIdentifier>{76f094ac-5176-4402-9395-6187374c5d64}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\pixel.h">
@@ -174,6 +177,9 @@
     <ClInclude Include="..\src\extension.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\utilities\olcUTIL3_QuadTree.h">
+      <Filter>Utilities</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\core.cpp">
@@ -248,5 +254,21 @@
     <ClCompile Include="..\src\draw_batch.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\hw_touch.cpp">
+      <Filter>Hardware</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\README.md">
+      <Filter>Extras</Filter>
+    </None>
+    <None Include="..\..\LICENCE.md">
+      <Filter>Extras</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="..\..\CMakeLists.txt">
+      <Filter>Extras</Filter>
+    </Text>
   </ItemGroup>
 </Project>

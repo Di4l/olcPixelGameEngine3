@@ -38,6 +38,7 @@ namespace olc
 
 	bool Window::olc_OnMouseMove(const olc::vi2d& vMousePos)
 	{		
+		// Handled by PGEWindow
 		mouse.SetPosition(olc::vf2d(vMousePos) / olc::vf2d(GetWindowSize()));
 		return true;
 	}
@@ -74,6 +75,12 @@ namespace olc
 	bool Window::olc_OnKeyPress(const olc::Key key, const bool bPressed)
 	{
 		keyboard.SetKey(key, bPressed);
+		return true;
+	}
+
+	bool Window::olc_OnTouch(const uint32_t nID, const olc::vf2d& vPos, const bool bPress, const bool bRelease, const olc::vf2d& vSize, const bool stylus, const float pressure, const float orientation, const olc::vf2d& tilt)
+	{
+		// Handled by PGEWindow
 		return true;
 	}
 

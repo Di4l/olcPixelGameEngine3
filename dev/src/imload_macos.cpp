@@ -33,7 +33,7 @@ namespace olc::imload
         }
         
         // Create our olc::Image
-        if (!image.Create({width, height})) {
+        if (!image.CreateNoGPU({width, height})) {
             return false; // Failed to create image
         }
         
@@ -73,7 +73,7 @@ namespace olc::imload
         }
         
         // Create our olc::Image
-        if (!image.Create({width, height})) {
+        if (!image.CreateNoGPU({width, height})) {
             return false; // Failed to create image
         }
         
@@ -94,11 +94,13 @@ namespace olc::imload
 
     bool ImageLoader_MacOS::WriteImageToFile(const olc::Image& image, const std::string& sFileName)
     {
+        olc_IgnoreUnused(image, sFileName);
         return false;
     }
 
     bool ImageLoader_MacOS::WriteImageToMemoryFile(olc::Image& image, const std::vector<uint8_t>& data)
     {
+        olc_IgnoreUnused(image, data);
         return false;
     }
 }

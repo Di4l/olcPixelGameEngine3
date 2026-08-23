@@ -8,13 +8,13 @@
 	olcPixelGameEngine3.h
 
 	+-------------------------------------------------------------+
-	|           OneLoneCoder Pixel Game Engine v3.00 Beta A       |
+	|           OneLoneCoder Pixel Game Engine v3.00 Beta B       |
 	|  "What do you need? Pixels... Lots of Pixels..." - javidx9  |
 	+-------------------------------------------------------------+
 
 	What is this?
 	~~~~~~~~~~~~~
-	olc::PixelGameEngine is a single file, cross platform graphics and userinput
+	olc::PixelGameEngine is a single file, cross platform graphics and user input
 	framework used for games, visualisations, algorithm exploration and learning.
 	It was developed by YouTuber "javidx9" as an assistive tool for many of his
 	videos. The goal of this project is to provide high speed graphics with
@@ -83,13 +83,15 @@
 	AI Disclosure
 	~~~~~~~~~~~~~
 	Parts of this code may have been generated with the assistance of AI tools. Instances
-	of such usage have typically been restricted to the tedious and repetitious through 
+	of such usage would have typically been restricted to the tedious and repetitious through 
 	the use of auto-completion and other small code generation helpers. This community
 	driven project has been developed on numerous platforms, across countless tools and
 	environments, by different people over a number of years. As such, it is impossible
-	to categorically state which sections of code may have had AI assistance. Regardless,
-	the entire codebase has been architected, reviewed and tested by human developers
-	mostly for fun and learning purposes, and is intended to be used in that spirit.
+	to know which sections of code may have had AI assistance. Regardless, the entire codebase 
+	has been architected, implemented, reviewed and tested by human developers mostly for fun 
+	and learning purposes, and it is intended to be used in that spirit.
+
+	"You know you don't have to use AI if you like coding right?" - javidx9
 
 	Primary Contributors
 	~~~~~~~~~~~~~~~~~~~~
@@ -142,6 +144,8 @@
 //! GRAB hw_mouse.h	DECLARATION
 
 //! GRAB hw_keyboard.h DECLARATION
+
+//! GRAB hw_touch.h DECLARATION
 
 //! GRAB window.h DECLARATION
  
@@ -319,6 +323,11 @@
 #if defined(OLC_PGE3_APPLICATION) && !defined(PGE_HW_KEYBOARD_IMPLEMENTED)
 //! GRAB hw_keyboard.cpp IMPLEMENTATION 
 #define PGE_HW_KEYBOARD_IMPLEMENTED 1
+#endif
+
+#if defined(OLC_PGE3_APPLICATION) && !defined(PGE_HW_TOUCH_IMPLEMENTED)
+//! GRAB hw_touch.cpp IMPLEMENTATION 
+#define PGE_HW_TOUCH_IMPLEMENTED 1
 #endif
 
 #if defined(OLC_PGE3_APPLICATION) && !defined(PGE_WINDOW_IMPLEMENTED)

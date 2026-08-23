@@ -142,6 +142,8 @@
 
 #define OLC_MOUSE_BUTTONS 5
 
+#define OLC_MAX_TOUCHPOINTS 4
+
 #define OLC_DEFAULT_KEYBOARD_LAYOUT olc::KeyboardLayout::QWERTY_UK
 
 #define OLC_GPU_MAX_VERTICES 8192
@@ -152,10 +154,19 @@
 
 #define LICENCE_DEFAULT "OneLoneCoder.com - Pixel Game Engine 3 - "
 
+#if OLC_HOST == OLC_HOST_MACOS
+// De-Noise in clang (C++20) MacOS
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunknown-pragmas" 	  // Allow unknown pragmas for compatibility with different compilers
+#pragma clang diagnostic ignored "-Wgnu-anonymous-struct" // Allow anonymous structs in unions
+
+#endif
+
 // De-Noise in MSVC (C++20) /Wall
 #pragma warning(disable:4820) // Disable Padding Warnings
 #pragma warning(disable:5045) // Disable Spectre Mitigation Warnings
 #pragma warning(disable:4514) // Disable Unreferenced Inline Function Warnings
+
 
 template<typename... Args>
 inline constexpr void olc_IgnoreUnused(Args&&...) noexcept {}

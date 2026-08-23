@@ -37,6 +37,16 @@ namespace olc::host
             .modifiers = Host_Linux_Wayland::keyboard_modifiers_callback,
             .repeat_info = Host_Linux_Wayland::keyboard_repeat_info_callback
         };
+
+        static const wl_touch_listener touch_listener {
+            .down = Host_Linux_Wayland::touch_down_callback,
+            .up = Host_Linux_Wayland::touch_up_callback,
+            .motion = Host_Linux_Wayland::touch_motion_callback,
+            .frame = Host_Linux_Wayland::touch_frame_callback,
+            .cancel = Host_Linux_Wayland::touch_cancel_callback,
+            .shape = Host_Linux_Wayland::touch_shape_callback,
+            .orientation = Host_Linux_Wayland::touch_orientation_callback
+        };
     }
 
     namespace xdg {
@@ -47,22 +57,8 @@ namespace olc::host
         static const xdg_surface_listener surface_listener {
             .configure = Host_Linux_Wayland::xdg_surface_configure_callback
         };
-
-        static const xdg_toplevel_listener xdg_top_listener {
-            .configure = Host_Linux_Wayland::xdg_toplevel_configure_callback,
-            .close = Host_Linux_Wayland::xdg_toplevel_close_callback,
-            .configure_bounds = Host_Linux_Wayland::xdg_toplevel_configure_bounds_callback,
-            .wm_capabilities = Host_Linux_Wayland::xdg_toplevel_capabilities_callback
-        };
-
-        #ifdef ENABLE_DECORATION_PROTOCOL
-        static const zxdg_toplevel_decoration_v1_listener toplevel_decoration_listener {
-            .configure = Host_Linux_Wayland::xdg_toplevel_decoration_configure_callback
-        };
-        #endif
     }
 
-    #ifdef ENABLE_LIBDECOR
     namespace decor {
         static libdecor_interface libdecor_error_listener = {
             .error = Host_Linux_Wayland::libdecor_error_callback,
@@ -75,7 +71,6 @@ namespace olc::host
             .dismiss_popup = Host_Linux_Wayland::libdecor_dismiss_popup_callback
         };
     }
-    #endif
 
     Host_Linux_Wayland::Host_Linux_Wayland()
     {
@@ -90,29 +85,7 @@ namespace olc::host
             throw;
         }
 
-        // If only the decoration protocol is enabled, then not having the protocol is a hard error
-        #if defined(ENABLE_DECORATION_PROTOCOL) && !defined(ENABLE_LIBDECOR)
-        if(decoration_manager == nullptr) {
-            throw;
-        }
-        // If only libdecor is enabled, then flag "using_libdecor"
-        #elif !defined(ENABLE_DECORATION_PROTOCOL) && defined(ENABLE_LIBDECOR)
-        using_libdecor = true;
-        
-        // If both are enabled, use libdecor if the decoration protocol is not present
-        #else
-        using_libdecor = (decoration_manager == nullptr);
-        #endif
-
-        #ifdef ENABLE_LIBDECOR
-        if(!using_libdecor) {
-            xdg_wm_base_add_listener(xdg_wm, &xdg::xdg_base_listener, this);
-        } else {
-            decor_context = libdecor_new(display, &decor::libdecor_error_listener);
-        }
-        #else
-        xdg_wm_base_add_listener(xdg_wm, &xdg::xdg_base_listener, this);
-        #endif
+        decor_context = libdecor_new(display, &decor::libdecor_error_listener);
 
         // Load the default cursor
         cursor_theme = wl_cursor_theme_load(NULL, 24, shm);
@@ -194,20 +167,12 @@ namespace olc::host
         if(window) {
             wl_egl_window_destroy(window);
         }
-        if(toplevel) {
-            xdg_toplevel_destroy(toplevel);
-        }
         if(surface_xdg) {
             xdg_surface_destroy(surface_xdg);
         }
-        #ifdef ENABLE_DECORATION_PROTOCOL
-        zxdg_toplevel_decoration_v1_destroy(decorations);
-        #endif
-        #ifdef ENABLE_LIBDECOR
         if(decor_frame) {
             libdecor_frame_unref(decor_frame);
         }
-        #endif
         wl_surface_destroy(surface);
     }
 
@@ -216,15 +181,10 @@ namespace olc::host
         mapUID2OlcWindow.clear();
         mapUID2Window.clear();
 
-        #ifdef ENABLE_DECORATION_PROTOCOL
-        zxdg_decoration_manager_v1_destroy(decoration_manager);
-        #endif
-        #ifdef ENABLE_LIBDECOR
         if(decor_context) {
             libdecor_unref(decor_context);
             decor_context = nullptr;
         }
-        #endif
 
         xkb_state_unref(kb_state);
         xkb_keymap_unref(kb_keymap);
@@ -236,6 +196,9 @@ namespace olc::host
         if(pointer_warp)
         {
             wp_pointer_warp_v1_destroy(pointer_warp);
+        }
+        if(touch) {
+            wl_touch_destroy(touch);
         }
         wl_keyboard_destroy(keyboard);
         wl_pointer_destroy(pointer);
@@ -284,21 +247,13 @@ namespace olc::host
 				}
 			});
         
-        #if !defined(ENABLE_LIBDECOR)
-        while(systemActive && wl_display_dispatch_pending(display) != -1) { }
-        #else
         bool keep_running = true;
         while(systemActive && keep_running) {
-            if(using_libdecor) {
-                if(decor_context) {
-                    std::lock_guard<std::mutex> l{decor_mutex};
-                    keep_running = libdecor_dispatch(decor_context, 0) >= 0;
-                }
-            } else {
-                keep_running = wl_display_dispatch_pending(display) != -1;
+            if(decor_context) {
+                std::lock_guard<std::mutex> l{decor_mutex};
+                keep_running = libdecor_dispatch(decor_context, 0) >= 0;
             }
         }
-        #endif
         
         systemActive = false;
         if(threadSystem.joinable())
@@ -341,43 +296,19 @@ namespace olc::host
         wl_region_add(region, vWindowPos.x, vWindowPos.y, vWindowSize.x, vWindowSize.y);
         
         w.surface = wl_compositor_create_surface(compositor);
-        
-        #ifdef ENABLE_LIBDECOR
-        if(!using_libdecor) {
-        #endif
-            w.surface_xdg = xdg_wm_base_get_xdg_surface(xdg_wm, w.surface);
-            
-            xdg_surface_add_listener(w.surface_xdg, &xdg::surface_listener, this);
-            w.toplevel = xdg_surface_get_toplevel(w.surface_xdg);
-            xdg_toplevel_set_title(w.toplevel, "OneLoneCoder.com - Pixel Game Engine");
-            xdg_toplevel_add_listener(w.toplevel, &xdg::xdg_top_listener, this);
-            if (!pWindow->config.bResizeable) {
-                xdg_toplevel_set_max_size(w.toplevel, vWindowSize.x, vWindowSize.y);
-                xdg_toplevel_set_min_size(w.toplevel, vWindowSize.x, vWindowSize.y);
-            }
-            
-            #ifdef ENABLE_DECORATION_PROTOCOL
-            w.decorations = zxdg_decoration_manager_v1_get_toplevel_decoration(decoration_manager, w.toplevel);
-            zxdg_toplevel_decoration_v1_add_listener(w.decorations, &xdg::toplevel_decoration_listener, this);
-            zxdg_toplevel_decoration_v1_set_mode(w.decorations, 2);
-            #endif
-        #ifdef ENABLE_LIBDECOR
-        } else {
-            std::lock_guard<std::mutex> l{decor_mutex};
-            w.decor_frame = libdecor_decorate(decor_context, w.surface, &decor::libdecor_frame_listener, this);
-            w.floating_width = vWindowSize.x;
-            w.floating_height = vWindowSize.y;
-            libdecor_frame_set_app_id(w.decor_frame, "olcPixelGameEngine");
-            libdecor_frame_set_title(w.decor_frame, "OneLoneCoder.com - Pixel Game Engine");
 
-            if(!pWindow->config.bResizeable) {
-                libdecor_frame_unset_capabilities(w.decor_frame, LIBDECOR_ACTION_RESIZE);
-            }
+        std::lock_guard<std::mutex> l{decor_mutex};
+        w.decor_frame = libdecor_decorate(decor_context, w.surface, &decor::libdecor_frame_listener, this);
+        w.floating_width = vWindowSize.x;
+        w.floating_height = vWindowSize.y;
+        libdecor_frame_set_app_id(w.decor_frame, "olcPixelGameEngine");
+        libdecor_frame_set_title(w.decor_frame, "OneLoneCoder.com - Pixel Game Engine");
 
-            libdecor_frame_map(w.decor_frame);
-
+        if(!pWindow->config.bResizeable) {
+            libdecor_frame_unset_capabilities(w.decor_frame, LIBDECOR_ACTION_RESIZE);
         }
-        #endif
+
+        libdecor_frame_map(w.decor_frame);
 
         wl_surface_set_opaque_region(w.surface, region);
         w.window = wl_egl_window_create(w.surface, vWindowSize.x, vWindowSize.y);
@@ -405,16 +336,8 @@ namespace olc::host
     {
         auto itr = mapUID2Window.find(pWindow->GetUID());
         if(itr != mapUID2Window.end()) {
-            #ifdef ENABLE_LIBDECOR
-            if(using_libdecor) {
-                std::lock_guard<std::mutex> l{decor_mutex};
-                libdecor_frame_set_title(itr->second.decor_frame, pWindow->GetWindowTitle().c_str());
-            } else {
-                xdg_toplevel_set_title(itr->second.toplevel, pWindow->GetWindowTitle().c_str());
-            }
-            #else
-            xdg_toplevel_set_title(itr->second.toplevel, pWindow->GetWindowTitle().c_str());
-            #endif
+            std::lock_guard<std::mutex> l{decor_mutex};
+            libdecor_frame_set_title(itr->second.decor_frame, pWindow->GetWindowTitle().c_str());
         }
         return true;
     }
@@ -491,25 +414,10 @@ namespace olc::host
         if(itr != mapUID2Window.end()) {
             pWindow->bWindowIsFullscreen = bFullScreen;
             if(bFullScreen) {
-                #ifdef ENABLE_LIBDECOR
-                if(using_libdecor) {
-                    libdecor_frame_set_fullscreen(itr->second.decor_frame, nullptr);
-                } else {
-                    xdg_toplevel_set_fullscreen(itr->second.toplevel, nullptr);
-                }
-                #else
-                xdg_toplevel_set_fullscreen(itr->second.toplevel, nullptr);
-                #endif
+                libdecor_frame_set_fullscreen(itr->second.decor_frame, nullptr);
+
             } else {
-                #ifdef ENABLE_LIBDECOR
-                if(using_libdecor) {
-                    libdecor_frame_unset_fullscreen(itr->second.decor_frame);
-                } else {
-                    xdg_toplevel_unset_fullscreen(itr->second.toplevel);
-                }
-                #else
-                xdg_toplevel_unset_fullscreen(itr->second.toplevel);
-                #endif
+                libdecor_frame_unset_fullscreen(itr->second.decor_frame);
             }
         }
         return true;
@@ -530,11 +438,6 @@ namespace olc::host
             seat = static_cast<wl_seat*>(wl_registry_bind(registry, name, &wl_seat_interface, version));
             wl_seat_add_listener(seat, &wayland::seat_listener, this);
         }
-        #ifdef ENABLE_DECORATION_PROTOCOL
-        if(std::strcmp(interface, zxdg_decoration_manager_v1_interface.name) == 0) {
-            decoration_manager = static_cast<zxdg_decoration_manager_v1*>(wl_registry_bind(registry, name, &zxdg_decoration_manager_v1_interface, version));
-        }
-        #endif
         if(std::strcmp(interface, wl_keyboard_interface.name) == 0) {
             keyboard = static_cast<wl_keyboard*>(wl_registry_bind(registry, name, &wl_keyboard_interface, version));
         }
@@ -560,68 +463,10 @@ namespace olc::host
             keyboard_version = wl_keyboard_get_version(keyboard);
             wl_keyboard_add_listener(keyboard, &wayland::keyboard_listener, this);
         }
-    }
 
-    void Host_Linux_Wayland::xdg_toplevel_configure(xdg_toplevel* toplevel, int32_t width, int32_t height, wl_array* states)
-    {
-        const auto& itr = std::find_if(mapUID2Window.begin(), mapUID2Window.end(), [=](const auto& w){return w.second.toplevel == toplevel;});
-        if(itr == mapUID2Window.end())
-        {
-            return;
-        }
-
-        auto& [uid, window] = *itr;
-        const auto& olc_window = mapUID2OlcWindow.at(uid);
-
-        bool attempt_fullscreen {false};
-        auto* state = reinterpret_cast<xdg_toplevel_state*>(states->data);
-        auto* end = static_cast<const char*>(states->data) + states->size;
-        for(;reinterpret_cast<const char*>(state) < end; state++)
-        {
-            // The window.fullscreen is set any time the user commands via ShowFullscreen(), so we should allow this
-            if (*state == xdg_toplevel_state::XDG_TOPLEVEL_STATE_FULLSCREEN)
-            {
-                attempt_fullscreen = true;
-            }
-        }
-
-        // If we're not going fullscreen, try to obey the bounds that have been configured by the compositor
-        if(!attempt_fullscreen) {
-            if(window.bounds_x != 0) {
-                width = std::min<int32_t>(width, window.bounds_x);
-            }
-
-            if(window.bounds_y != 0) {
-                height = std::min<int32_t>(height, window.bounds_y);
-            }
-        }
-        
-        olc_window->bWindowIsFullscreen = attempt_fullscreen;
-        olc_window->olc_OnWindowSize({width, height});
-        wl_egl_window_resize(window.window, width, height, 0, 0);
-        wl_surface_commit(window.surface);
-    }
-
-    void Host_Linux_Wayland::xdg_toplevel_close(xdg_toplevel* toplevel)
-    {
-        for(auto& i : mapUID2Window) {
-            if(i.second.toplevel == toplevel) {
-                auto itr = mapUID2OlcWindow.find(i.second.olc_window_uid);
-                if(itr != mapUID2OlcWindow.end()) {
-                    auto* ptr = itr->second;
-                    ptr->olc_OnWindowClose();
-                }
-            }
-        }
-    }
-
-    void Host_Linux_Wayland::xdg_toplevel_configure_bounds(xdg_toplevel* toplevel, int32_t width, int32_t height)
-    {
-        for(auto& i : mapUID2Window) {
-            if(i.second.toplevel == toplevel) {
-                i.second.bounds_x = width;
-                i.second.bounds_y = height;
-            }
+        if (capabilities & WL_SEAT_CAPABILITY_TOUCH && touch == nullptr) {
+            touch = wl_seat_get_touch(seat);
+            wl_touch_add_listener(touch, &wayland::touch_listener, this);
         }
     }
 
@@ -961,6 +806,169 @@ namespace olc::host
         // host->keyboard_repeat_info(keyboard, rate, delay);
     }
 
+    // Touch Callbacks
+    void Host_Linux_Wayland::touch_down_callback(void* data, wl_touch* touch, uint32_t serial, uint32_t time, wl_surface* surface, int32_t id, wl_fixed_t x, wl_fixed_t y)
+    {
+        auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
+        host->touch_down(touch, serial, time, surface, id, x, y);
+    }
+
+    void Host_Linux_Wayland::touch_down(wl_touch* touch, uint32_t serial, uint32_t time, wl_surface* surface, int32_t id, wl_fixed_t x, wl_fixed_t y) {
+        auto& touch_state = touches[id];
+
+        touch_state.event_mask |= wayland::TouchEventMask::TouchEventDown;
+        touch_state.surface = surface;
+        touch_state.id = id;
+        touch_state.surface_x = x;
+        touch_state.surface_y = y;
+        touch_state.serial = serial;
+        touch_state.time = time;
+    }
+
+    void Host_Linux_Wayland::touch_up_callback(void* data, wl_touch* touch, uint32_t serial, uint32_t time, int32_t id) {
+        auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
+        host->touch_up(touch, serial, time, id);
+    }
+
+    void Host_Linux_Wayland::touch_up(wl_touch* touch, uint32_t serial, uint32_t time, int32_t id) {
+        auto& touch_state = touches[id];
+
+        touch_state.event_mask |= wayland::TouchEventMask::TouchEventUp;
+        touch_state.serial = serial;
+        touch_state.time = time;
+    }
+
+    void Host_Linux_Wayland::touch_motion_callback(void* data, wl_touch* touch, uint32_t time, int32_t id, wl_fixed_t x, wl_fixed_t y) {
+        auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
+        host->touch_motion(touch, time, id, x, y);
+    }
+
+    void Host_Linux_Wayland::touch_motion(wl_touch* touch, uint32_t time, int32_t id, wl_fixed_t x, wl_fixed_t y) {
+        auto& touch_state = touches[id];
+
+        touch_state.event_mask |= wayland::TouchEventMask::TouchEventMotion;
+        touch_state.time = time;
+        touch_state.surface_x = x;
+        touch_state.surface_y = y;
+    }
+
+    void Host_Linux_Wayland::touch_frame_callback(void* data, wl_touch* touch) {
+        auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
+        host->touch_frame(touch);
+    }
+
+    void Host_Linux_Wayland::touch_frame(wl_touch* touch) {
+        // Commit all of the touches
+        for(auto itr = touches.begin(); itr != touches.end();) {
+            const auto& id = itr->first;
+            const auto& touch = itr->second;
+
+            olc::Window* pge_window {nullptr};
+            size_t uid {0};
+            for(auto& uid_itr : mapUID2Window) {
+                if(uid_itr.second.surface == touch.surface) {
+                    uid = uid_itr.second.olc_window_uid;
+                }
+            }
+
+            if(const auto& pge_itr = mapUID2OlcWindow.find(uid); pge_itr != mapUID2OlcWindow.end()) {
+                pge_window = pge_itr->second;
+            } else {
+                continue;
+            }
+
+            auto p_x = wl_fixed_to_double(touch.surface_x);
+            auto p_y = wl_fixed_to_double(touch.surface_y);
+            auto s_x = wl_fixed_to_double(touch.major);
+            auto s_y = wl_fixed_to_double(touch.minor);
+            olc::vf2d size (std::max(s_x, 1.0), std::max(s_y, 1.0));
+            pge_window->olc_OnTouch(
+                static_cast<uint32_t>(touch.id),
+                olc::vf2d(p_x, p_y),
+                touch.event_mask & wayland::TouchEventMask::TouchEventDown,
+                touch.event_mask & wayland::TouchEventMask::TouchEventUp,
+                size,
+                false,
+                0.0f,
+                wl_fixed_to_double(touch.orientation)
+            );
+
+            if(touch.event_mask & wayland::TouchEventMask::TouchEventUp) {
+                itr = touches.erase(itr);
+            } else {
+                ++itr;
+            }
+        }
+    }
+
+    void Host_Linux_Wayland::touch_cancel_callback(void* data, wl_touch* touch) {
+        auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
+        host->touch_cancel(touch);
+    }
+
+    void Host_Linux_Wayland::touch_cancel(wl_touch* touch) {
+        // according to the protocol, this ends all touch events, so send an Up and clear the whole thing
+        for(const auto& [id, touch] : touches) {
+            olc::Window* pge_window {nullptr};
+            size_t uid {0};
+            for(auto& uid_itr : mapUID2Window) {
+                if(uid_itr.second.surface == touch.surface) {
+                    uid = uid_itr.second.olc_window_uid;
+                }
+            }
+
+            if(const auto& pge_itr = mapUID2OlcWindow.find(uid); pge_itr != mapUID2OlcWindow.end()) {
+                pge_window = pge_itr->second;
+            } else {
+                continue;
+            }
+
+            auto p_x = wl_fixed_to_double(touch.surface_x);
+            auto p_y = wl_fixed_to_double(touch.surface_y);
+            auto s_x = wl_fixed_to_double(touch.major);
+            auto s_y = wl_fixed_to_double(touch.minor);
+            olc::vf2d size (std::max(s_x, 1.0), std::max(s_y, 1.0));
+            pge_window->olc_OnTouch(
+                static_cast<uint32_t>(touch.id),
+                olc::vf2d(p_x, p_y),
+                touch.event_mask & wayland::TouchEventMask::TouchEventDown,
+                true, // Forced Up event to clear all these IDs on the PGE side
+                size,
+                false,
+                0.0f,
+                wl_fixed_to_double(touch.orientation)
+            );
+        }
+
+        touches.clear();
+    }
+
+    void Host_Linux_Wayland::touch_shape_callback(void* data, wl_touch* touch, int32_t id, wl_fixed_t major, wl_fixed_t minor) {
+        auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
+        host->touch_shape(touch, id, major, minor);
+    }
+
+    void Host_Linux_Wayland::touch_shape(wl_touch* touch, int32_t id, wl_fixed_t major, wl_fixed_t minor) {
+        auto& touch_state = touches[id];
+
+        touch_state.event_mask |= wayland::TouchEventMask::TouchEventShape;
+        touch_state.major = major;
+        touch_state.minor = minor;
+    }
+
+    void Host_Linux_Wayland::touch_orientation_callback(void* data, wl_touch* touch, int32_t id, wl_fixed_t orientation) {
+        auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
+        host->touch_orientation(touch, id, orientation);
+    }
+
+    void Host_Linux_Wayland::touch_orientation(wl_touch* touch, int32_t id, wl_fixed_t orientation) {
+        auto& touch_state = touches[id];
+
+        touch_state.event_mask |= wayland::TouchEventMask::TouchEventOrientation;
+        touch_state.orientation = orientation;
+    }
+
+
     // XDG Callbacks
     void Host_Linux_Wayland::xdg_wm_ping_callback(void* data, xdg_wm_base* wm, uint32_t serial) {
         xdg_wm_base_pong(wm, serial);
@@ -971,38 +979,7 @@ namespace olc::host
         xdg_surface_ack_configure(surface, serial);
     }
 
-    void Host_Linux_Wayland::xdg_toplevel_configure_callback(void* data, xdg_toplevel* toplevel, int32_t width, int32_t height, wl_array* states)
-    {
-        auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
-        host->xdg_toplevel_configure(toplevel, width, height, states);
-    }
 
-    void Host_Linux_Wayland::xdg_toplevel_close_callback(void* data, xdg_toplevel* toplevel)
-    {
-        auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
-        host->xdg_toplevel_close(toplevel);
-    }
-
-    void Host_Linux_Wayland::xdg_toplevel_configure_bounds_callback(void* data, xdg_toplevel* toplevel, int32_t width, int32_t height) {
-        auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
-        host->xdg_toplevel_configure_bounds(toplevel, width, height);
-        return;
-    }
-
-    void Host_Linux_Wayland::xdg_toplevel_capabilities_callback(void* data, xdg_toplevel* toplevel, wl_array* capabilities)
-    {
-        return;
-    }
-
-    #ifdef ENABLE_DECORATION_PROTOCOL
-    void Host_Linux_Wayland::xdg_toplevel_decoration_configure_callback(void* data, zxdg_toplevel_decoration_v1* zxdg_toplevel_decoration_v1, uint32_t mode)
-    {
-        // auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
-        // fprintf(stderr, "zxdg_decoration_manager_v1 mode %d\n", mode);
-    }
-    #endif
-
-    #ifdef ENABLE_LIBDECOR
     void Host_Linux_Wayland::libdecor_error_callback(libdecor* context, libdecor_error error, const char* message)
     {
         std::cerr << "libdecor: " << error << ": " << message << "\n";
@@ -1046,7 +1023,6 @@ namespace olc::host
                 olc_window->bWindowIsFullscreen = (window->decor_window_state & LIBDECOR_WINDOW_STATE_FULLSCREEN) != 0;
                 mapUID2OlcWindow[i.first]->olc_OnWindowSize({window->configured_width, window->configured_height});
                 wl_egl_window_resize(window->window, window->configured_width, window->configured_height, 0, 0);
-                wl_surface_commit(window->surface);
             }
         }
     }
@@ -1072,24 +1048,20 @@ namespace olc::host
 
     void Host_Linux_Wayland::libdecor_commit_callback(libdecor_frame* frame, void* data)
     {
-        auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
-        host->libdecor_commit(frame);
+        // Don't want to actually do anything here because it messes with the EGL surface swapping for refresh
+        // and causes the application to close (not crash) due to a wayland protocol violation
+        //auto* host = reinterpret_cast<Host_Linux_Wayland*>(data);
+        //host->libdecor_commit(frame);
     }
 
     void Host_Linux_Wayland::libdecor_commit(libdecor_frame* frame)
     {
-        for(auto& i : mapUID2Window) {
-            if(i.second.decor_frame == frame) {
-                wl_surface_commit(i.second.surface);
-            }
-        }
     }
 
     void Host_Linux_Wayland::libdecor_dismiss_popup_callback(libdecor_frame* frame, const char* seat_name, void* data)
     {
 
     }
-    #endif
 
     std::vector<void*> Host_Linux_Wayland::GetHostWindowDescriptor(olc::Window* pWindow)
     {

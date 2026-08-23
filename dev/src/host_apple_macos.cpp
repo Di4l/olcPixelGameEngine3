@@ -9,15 +9,15 @@ namespace olc::host {
 
 
     // NSEventModifierFlags values
-    constexpr unsigned int NSEventModifierNoFlags        = 1 << 8;  // 0x100
-    constexpr unsigned int NSEventModifierFlagCapsLock   = 1 << 16; // 0x10000
+    // constexpr unsigned int NSEventModifierNoFlags        = 1 << 8;  // 0x100     // Temp remove unused variable warning
+    // constexpr unsigned int NSEventModifierFlagCapsLock   = 1 << 16; // 0x10000   // Temp remove unused variable warning
     constexpr unsigned int NSEventModifierFlagShift      = 1 << 17; // 0x20000
     constexpr unsigned int NSEventModifierFlagControl    = 1 << 18; // 0x40000
-    constexpr unsigned int NSEventModifierFlagOption     = 1 << 19; // 0x80000
+    // constexpr unsigned int NSEventModifierFlagOption     = 1 << 19; // 0x80000   // Temp remove unused variable warning
     constexpr unsigned int NSEventModifierFlagCommand    = 1 << 20; // 0x100000
-    constexpr unsigned int NSEventModifierFlagNumericPad = 1 << 21; // 0x200000
-    constexpr unsigned int NSEventModifierFlagHelp       = 1 << 22; // 0x400000
-    constexpr unsigned int NSEventModifierFlagFunction   = 1 << 23; // 0x800000
+    // constexpr unsigned int NSEventModifierFlagNumericPad = 1 << 21; // 0x200000  // Temp remove unused variable warning
+    // constexpr unsigned int NSEventModifierFlagHelp       = 1 << 22; // 0x400000  // Temp remove unused variable warning
+    // constexpr unsigned int NSEventModifierFlagFunction   = 1 << 23; // 0x800000  // Temp remove unused variable warning
 
     // enum for window appearance and behavior bit flags
     enum class NSWindowStyleMask : uint16_t {
@@ -154,6 +154,7 @@ namespace olc::host {
 
 
     bool Host_Apple_MacOS::AddWindowFrame(olc::Window* pWindow, const olc::vi2d& vWindowPos, const olc::vi2d& vWindowSize, const bool bFullScreen){
+        olc_IgnoreUnused(bFullScreen);
         pPGEwindow = pWindow;
         pPGEwindow->SetWindowPosition(vWindowPos);
         pPGEwindow->SetWindowSize(vWindowSize);
@@ -181,7 +182,7 @@ namespace olc::host {
     }
 
     std::vector<void*> Host_Apple_MacOS::GetHostWindowDescriptor(olc::Window* pWindow){
-        
+        olc_IgnoreUnused(pWindow);
         // Ensure OpenGL renderer is created
         if(pMacOSOpenGLRenderer == nullptr)
             CreateCGLContextObj();
@@ -210,6 +211,7 @@ namespace olc::host {
 
     bool Host_Apple_MacOS::SetMousePosition(olc::Window* pWindow, const olc::vi2d& vPos)
     {
+        olc_IgnoreUnused(pWindow);
         dispatch_sync(dispatch_get_main_queue(), ^{
             pMacOSWindow->setCursorPosition(vPos.x, vPos.y);
         });
@@ -218,6 +220,7 @@ namespace olc::host {
 
     bool Host_Apple_MacOS::SetMouseVisible(olc::Window* pWindow, const bool bVisible)
     {
+        olc_IgnoreUnused(pWindow);
         dispatch_sync(dispatch_get_main_queue(), ^{
             pMacOSWindow->setCursorVisibility(bVisible);
         });
@@ -226,6 +229,7 @@ namespace olc::host {
 
     bool Host_Apple_MacOS::SetFullScreen(olc::Window* pWindow, const bool bFullScreen)
     {
+        olc_IgnoreUnused(pWindow);
         // if we're already in the specified state, return early
         if(pMacOSWindow->isFullScreen() == bFullScreen)
             return true;
@@ -273,6 +277,9 @@ namespace olc::host {
         pMacApplication->initialize();
         pMacApplication->activate();
         
+        // Pre-context start hook
+        pPrimaryPGE->OnPreContextStart();
+        
         // Initialize the MacOS Window
         pMacOSWindow = std::make_unique<olc::apis::macos::Window>(frameBounds.width, frameBounds.height, "OLC PGE 3 MacOS Demo");
         pMacOSWindow->setPosition(frameBounds.x, frameBounds.y);
@@ -292,10 +299,7 @@ namespace olc::host {
         pMacOSWindow->show(styleMask);
         pMacOSEventHandler->enable();
         
-        //--- Start up our engine threading system -----
-        // Pre-context start hook
-        pPrimaryPGE->OnPreContextStart();
-        
+        //--- Start up our engine threading system ----
         // Start the PGE context on the main thread
         // Mark system as active
         systemActive = true;
@@ -753,9 +757,55 @@ namespace olc::host {
             // Although MacOS provides both deltaX and deltaY, we will only use deltaY for vertical scrolling
             pPGEwindow->olc_OnMouseWheel(static_cast<int>(event.deltaY));
         });
+
+         // Touch events — map trackpad multi-touch to hw::Touch via olc_OnTouch
+        pMacOSEventHandler->onTouchBegan([&](const olc::apis::macos::TouchEvent& event) {
+            pPGEwindow->olc_OnTouch(event.touchID,
+                {static_cast<float>(event.x), static_cast<float>(event.y)},
+                true, false,
+                {static_cast<float>(event.sizeX), static_cast<float>(event.sizeY)});
+        });
+
+        pMacOSEventHandler->onTouchMoved([&](const olc::apis::macos::TouchEvent& event) {
+            pPGEwindow->olc_OnTouch(event.touchID,
+                {static_cast<float>(event.x), static_cast<float>(event.y)},
+                false, false,
+                {static_cast<float>(event.sizeX), static_cast<float>(event.sizeY)});
+        });
+
+        pMacOSEventHandler->onTouchEnded([&](const olc::apis::macos::TouchEvent& event) {
+            pPGEwindow->olc_OnTouch(event.touchID,
+                {static_cast<float>(event.x), static_cast<float>(event.y)},
+                false, true,
+                {static_cast<float>(event.sizeX), static_cast<float>(event.sizeY)});
+        });
+
+        pMacOSEventHandler->onTouchCancelled([&](const olc::apis::macos::TouchEvent& event) {
+            pPGEwindow->olc_OnTouch(event.touchID,
+                {static_cast<float>(event.x), static_cast<float>(event.y)},
+                false, true,  // treat cancel as release
+                {static_cast<float>(event.sizeX), static_cast<float>(event.sizeY)});
+        });
+
+        // Stylus (tablet) events — full pressure, tilt and rotation data
+        pMacOSEventHandler->onStylus([&](const olc::apis::macos::StylusEvent& event) {
+            
+            pPGEwindow->olc_OnTouch(
+                event.touchID,
+                {static_cast<float>(event.x), static_cast<float>(event.y)},
+                event.bPress,
+                event.bRelease,
+                {1.0f, 1.0f},       // stylus contact size — nominal 1x1
+                true,               // bStylus = true
+                event.pressure,
+                event.rotation,
+                {event.tiltX, event.tiltY}
+            );
+        });
         
     }
 
 }
 //! END IMPLEMENTATION
+
 #endif /* OLC_HOST == OLC_HOST_MACOS */

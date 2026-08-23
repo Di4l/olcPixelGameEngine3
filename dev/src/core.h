@@ -42,11 +42,11 @@ namespace olc
 
 		// These three are inherited from WindowConfig
 		// Start in full-screen mode
-		bool bFullScreen = false;
-		// Allow full screen as an option with ALT-ENTER
-		bool bFullScreenable = true;
-		// Allow the window to be resized by user
-		bool bResizeable = true;
+		// bool bFullScreen = false;
+		// // Allow full screen as an option with ALT-ENTER
+		// bool bFullScreenable = true;
+		// // Allow the window to be resized by user
+		// bool bResizeable = true;
 		// Allow the window border to be hidden by user
 		bool bShowWindowBorder = true;
 		// Allow the window title bar to be hidden by user
@@ -93,6 +93,9 @@ namespace olc
 		
 	
 	public:	// olc::Image Handling
+
+		// These are the preferred  methods to create olc::Image objects
+
 		// Create an image resource
 		bool CreateImage(olc::Image& image, const olc::vi2d& size, const ImageConfig& cfg = olc::ImageConfig());
 		// Create an image resource based on an image file asset on disk
@@ -128,6 +131,7 @@ namespace olc
 
 	protected:
 		bool olc_OnMouseMove(const olc::vi2d& vMousePos) override;
+		bool olc_OnTouch(const uint32_t nID, const olc::vf2d& vPos, const bool bPress, const bool bRelease, const olc::vf2d& vSize, const bool stylus = false, const float pressure = 0.0f, const float orientation = 0, const olc::vf2d& tilt = { 0,0 }) override;
 
 	public:
 		virtual bool olc_WindowUpdate(const float fElapsedTime, const float fTotalElapsedTime);

@@ -114,7 +114,12 @@ extern "C" {
     // Event callback function types
     typedef void (*KeyEventCallback)        (unsigned short keyCode, const char* characters, unsigned int modifierFlags, void* userData);
     typedef void (*MouseEventCallback)      (double x, double y, int buttonNumber, unsigned int modifierFlags, void* userData);
-    
+    typedef void (*TouchEventCallback)      (uint32_t touchID, double x, double y, double sizeX, double sizeY, void* userData);
+    typedef void (*StylusEventCallback)     (uint32_t touchID, double x, double y,float pressure, float rotation,
+                                             float tiltX, float tiltY,
+                                             bool bPress, bool bRelease, bool bIsStylus,
+                                             void* userData);
+
     // Event handler setup
     void window_setKeyDownCallback          (struct Window* self, KeyEventCallback callback, void* userData);
     void window_setKeyUpCallback            (struct Window* self, KeyEventCallback callback, void* userData);
@@ -137,6 +142,16 @@ extern "C" {
     void window_enableEventHandling     (struct Window* self);
     void window_disableEventHandling    (struct Window* self);
     
+    // Touch event handler setup
+    void window_setTouchBeganCallback       (struct Window* self, TouchEventCallback callback, void* userData);
+    void window_setTouchMovedCallback       (struct Window* self, TouchEventCallback callback, void* userData);
+    void window_setTouchEndedCallback       (struct Window* self, TouchEventCallback callback, void* userData);
+    void window_setTouchCancelledCallback   (struct Window* self, TouchEventCallback callback, void* userData);
+
+    // Stylus (tablet) event handler setup
+    void window_setStylusCallback           (struct Window* self, StylusEventCallback callback, void* userData);
+
+
     // Application delegate callback function type
     typedef void (*ApplicationDelegateCallback)(void* userData);
     

@@ -2,10 +2,12 @@
 #include <iostream>
 #include <algorithm>
 #include <dispatch/dispatch.h>
+#include <CoreGraphics/CoreGraphics.h>
 
 //! START IMPLEMENTATION
 
 // Application consts selectors
+static constexpr const char* kRespondsToSelector                = "respondsToSelector:";
 static constexpr const char* kNSApplicationClass                = "NSApplication";
 static constexpr const char* kNSWindowClass                     = "NSWindow";
 static constexpr const char* kNSStringClass                     = "NSString";
@@ -18,7 +20,7 @@ static constexpr const char* kCustomOpenGLViewClass             = "CustomOpenGLV
 static constexpr const char* kGeneralWindowDelegateClass        = "GeneralWindowDelegate";
 
 // Application Screen management selectors
-static constexpr const char* kNSScreenClass                     = "NSScreen";
+//static constexpr const char* kNSScreenClass                     = "NSScreen"; // Temp remove unused variable warning
 static constexpr const char* kScreenSel                         = "screen";
 static constexpr const char* kNSCursorClass                     = "NSCursor";
 static constexpr const char* kUnhideSel                         = "unhide";
@@ -95,6 +97,39 @@ static constexpr const char* kTrackingAreaClass                 = "NSTrackingAre
 static constexpr const char* kAddTrackingAreaSel                = "addTrackingArea:";
 static constexpr const char* kInitWithRectSel                   = "initWithRect:options:owner:userInfo:";
 
+// Copied a lot of this code from iOS, will need to be tested
+// NSResponder touch event method selectors
+static constexpr const char* kSetAcceptsTouchEventsSel          = "setAcceptsTouchEvents:";
+static constexpr const char* kSetWantsRestingTouchesSel         = "setWantsRestingTouches:";
+static constexpr const char* kCGEventSel                        = "CGEvent";
+static constexpr const char* kTouchesBeganSel                   = "touchesBeganWithEvent:";
+static constexpr const char* kTouchesMovedSel                   = "touchesMovedWithEvent:";
+static constexpr const char* kTouchesEndedSel                   = "touchesEndedWithEvent:";
+static constexpr const char* kTouchesCancelledSel               = "touchesCancelledWithEvent:";
+
+// NSTouch / NSSet data extraction selectors
+static constexpr const char* kTouchesMatchingPhaseSel           = "touchesMatchingPhase:inView:";
+static constexpr const char* kAllObjectsSel                     = "allObjects";
+static constexpr const char* kNormalizedPositionSel             = "normalizedPosition";
+static constexpr const char* kDeviceSizeSel                     = "deviceSize";
+static constexpr const char* kIdentitySel                       = "identity";
+static constexpr const char* kObjectAtIndexSel                  = "objectAtIndex:";
+static constexpr const char* kTouchCountSel                     = "count";
+
+// NSResponder tablet / stylus event method selectors
+static constexpr const char* kTabletPointSel                    = "tabletPoint:";
+static constexpr const char* kTabletProximitySel                = "tabletProximity:";
+static constexpr const char* kPressureChangeSel                 = "pressureChangeWithEvent:";
+static constexpr const char* kStageSel                          = "stage";
+
+// NSEvent tablet data extraction selectors
+static constexpr const char* kPenPressureSel                    = "pressure";
+static constexpr const char* kPenRotationSel                    = "rotation";
+static constexpr const char* kPenTiltSel                        = "tilt";
+static constexpr const char* kPenIsEnteringProximitySel         = "isEnteringProximity";
+static constexpr const char* kPointingDeviceTypeSel             = "pointingDeviceType";
+static constexpr const char* kPenTangentialPressureSel          = "tangentialPressure";
+
 
 // Managing first responder status and keyboard focus selectors
 static constexpr const char* kAcceptsFirstResponderSel          = "acceptsFirstResponder";
@@ -111,7 +146,11 @@ static constexpr const char* kInitWithFramePixelFormatSel       = "initWithFrame
 static constexpr const char* kSetContentViewSel                 = "setContentView:";
 static constexpr const char* kContentViewSel                    = "contentView";
 static constexpr const char* kBoundsSel                         = "bounds";
+static constexpr const char* kConvertRectToBackingSel           = "convertRectToBacking:";      // Thank you - Ben the Ultimate Guru
+static constexpr const char* kConvertPointToBackingSel          = "convertPointToBacking:";
+static constexpr const char* kConvertPointFromBackingSel        = "convertPointFromBacking:";
 static constexpr const char* kConvertPointFromViewSel           = "convertPoint:fromView:";
+static constexpr const char* kBackingScaleFactorSel             = "backingScaleFactor";
 static constexpr const char* kOpenGLContextSel                  = "openGLContext";
 static constexpr const char* kMakeCurrentContextSel             = "makeCurrentContext";
 static constexpr const char* kSetAutoresizingMaskSel            = "setAutoresizingMask:";
@@ -139,7 +178,7 @@ static constexpr const char* kLocaleIdentifierSel               = "localeIdentif
 static constexpr const char* kWindowTitle                       = "C macOS OpenGL Framework";
 static constexpr double kDefaultWindowWidth                     = 800.0;
 static constexpr double kDefaultWindowHeight                    = 600.0;
-static constexpr int kBitsPerByte                               = 8;
+// static constexpr int kBitsPerByte                               = 8; // Temp remove unused variable warning
 static constexpr int kMinValidDimension                         = 0;
 static constexpr int kRGBABytesPerPixel                         = 4;
 static constexpr int kFullyOpaque                               = 255;
@@ -149,7 +188,7 @@ static constexpr int kZeroWidth                                 = 0;
 static constexpr int kZeroHeight                                = 0;
 static constexpr int kFlippedOffset                             = 1;
 static constexpr int kNoButton                                  = -1;
-static constexpr int kDefaultScreenNumber                       = 1;
+// static constexpr int kDefaultScreenNumber                       = 1;  // Temp remove unused variable warning
 bool bAllowHideCursor                                           = true;
 bool bHideCursor                                                = false;
 
@@ -165,6 +204,9 @@ static constexpr const char* kDrawRectMethodTypeEncoding = "v@:{NSRect={NSPoint=
 
 // Type encoding for void methods with no parameters: "v@:"
 static constexpr const char* kVoidMethodTypeEncoding = "v@:";
+
+// Type encoding for touch event methods: two id params (touches set + event) → "v@:@"
+static constexpr const char* kTouchEventMethodTypeEncoding = "v@:@";
 
 namespace ObjectiveCSEL {
      
@@ -244,6 +286,34 @@ namespace ObjectiveCSEL {
    static SEL addTrackingAreaSel        = nullptr;
    static SEL initWithRectSel           = nullptr;
 
+    // Touch event selectors
+   static SEL setAcceptsTouchEventsSel  = nullptr;
+   static SEL setWantsRestingTouchesSel = nullptr;
+   static SEL cgEventSel                = nullptr;
+   static SEL touchesBeganSel           = nullptr;
+   static SEL touchesMovedSel           = nullptr;
+   static SEL touchesEndedSel           = nullptr;
+   static SEL touchesCancelledSel       = nullptr;
+   static SEL touchesMatchingPhaseSel   = nullptr;
+   static SEL allObjectsSel             = nullptr;
+   static SEL normalizedPositionSel     = nullptr;
+   static SEL deviceSizeSel             = nullptr;
+   static SEL identitySel               = nullptr;
+   static SEL objectAtIndexSel          = nullptr;
+   static SEL touchesCountSel           = nullptr;
+
+   // Tablet / stylus event selectors
+   static SEL tabletPointSel            = nullptr;
+   static SEL tabletProximitySel        = nullptr;
+   static SEL penPressureSel            = nullptr;
+   static SEL penRotationSel            = nullptr;
+   static SEL penTiltSel                = nullptr;
+   static SEL penIsEnteringProximitySel = nullptr;
+   static SEL pointingDeviceTypeSel     = nullptr;
+   static SEL penTangentialPressureSel  = nullptr;
+   static SEL pressureChangeSel         = nullptr;
+   static SEL stageSel                  = nullptr;
+
    // Managing first responder status and keyboard focus selectors
    static SEL acceptsFirstResponderSel = nullptr;
    static SEL becomeFirstResponderSel  = nullptr;
@@ -259,6 +329,9 @@ namespace ObjectiveCSEL {
    static SEL setContentViewSel           = nullptr;
    static SEL contentViewSel              = nullptr;
    static SEL boundsSel                   = nullptr;
+   static SEL convertRectToBackingSel     = nullptr; // Thank you - Ben the Ultimate Guru
+   static SEL convertPointToBackingSel    = nullptr;
+   static SEL convertPointFromBackingSel  = nullptr;
    static SEL convertPointFromViewSel     = nullptr;
    static SEL openGLContextSel            = nullptr;
    static SEL makeCurrentContextSel       = nullptr;
@@ -267,6 +340,7 @@ namespace ObjectiveCSEL {
    static SEL displaySel                  = nullptr;
    static SEL CGLContextObjSel            = nullptr;
    static SEL setValuesSel                = nullptr;
+   static SEL backingScaleFactorSel       = nullptr;
 
    // Extracting data from NSEvent objects selectors
    static SEL keyCodeSel          = nullptr;
@@ -280,8 +354,8 @@ namespace ObjectiveCSEL {
    // NSLocale selectors
    static SEL currentLocaleSel               = nullptr;
    static SEL localeIdentifierSel            = nullptr;
-   static SEL currentInputContextSel         = nullptr;
-   static SEL localizedNameSel               = nullptr;
+   // static SEL currentInputContextSel         = nullptr; // Temp remove unused variable warning
+   // static SEL localizedNameSel               = nullptr; // Temp remove unused variable warning
 
    // Initialize all selectors - called once at startup
     void initializeSelectors() {
@@ -361,6 +435,34 @@ namespace ObjectiveCSEL {
         addTrackingAreaSel                  = sel_registerName(kAddTrackingAreaSel);
         initWithRectSel                     = sel_registerName(kInitWithRectSel);
         
+        // Touch event selectors
+        setAcceptsTouchEventsSel            = sel_registerName(kSetAcceptsTouchEventsSel);
+        setWantsRestingTouchesSel           = sel_registerName(kSetWantsRestingTouchesSel);
+        cgEventSel                          = sel_registerName(kCGEventSel);
+        touchesBeganSel                     = sel_registerName(kTouchesBeganSel);
+        touchesMovedSel                     = sel_registerName(kTouchesMovedSel);
+        touchesEndedSel                     = sel_registerName(kTouchesEndedSel);
+        touchesCancelledSel                 = sel_registerName(kTouchesCancelledSel);
+        touchesMatchingPhaseSel             = sel_registerName(kTouchesMatchingPhaseSel);
+        allObjectsSel                       = sel_registerName(kAllObjectsSel);
+        normalizedPositionSel               = sel_registerName(kNormalizedPositionSel);
+        deviceSizeSel                       = sel_registerName(kDeviceSizeSel);
+        identitySel                         = sel_registerName(kIdentitySel);
+        objectAtIndexSel                    = sel_registerName(kObjectAtIndexSel);
+        touchesCountSel                     = sel_registerName(kTouchCountSel);
+
+        // Tablet / stylus event selectors
+        tabletPointSel                      = sel_registerName(kTabletPointSel);
+        tabletProximitySel                  = sel_registerName(kTabletProximitySel);
+        penPressureSel                      = sel_registerName(kPenPressureSel);
+        penRotationSel                      = sel_registerName(kPenRotationSel);
+        penTiltSel                          = sel_registerName(kPenTiltSel);
+        penIsEnteringProximitySel           = sel_registerName(kPenIsEnteringProximitySel);
+        pointingDeviceTypeSel               = sel_registerName(kPointingDeviceTypeSel);
+        penTangentialPressureSel            = sel_registerName(kPenTangentialPressureSel);
+        pressureChangeSel                   = sel_registerName(kPressureChangeSel);
+        stageSel                            = sel_registerName(kStageSel);
+
         // Managing first responder status and keyboard focus selectors
         acceptsFirstResponderSel            = sel_registerName(kAcceptsFirstResponderSel);
         becomeFirstResponderSel             = sel_registerName(kBecomeFirstResponderSel);
@@ -376,6 +478,9 @@ namespace ObjectiveCSEL {
         setContentViewSel                  = sel_registerName(kSetContentViewSel);
         contentViewSel                     = sel_registerName(kContentViewSel);
         boundsSel                          = sel_registerName(kBoundsSel);
+        convertRectToBackingSel            = sel_registerName(kConvertRectToBackingSel);    // Thank you - Ben the Ultimate Guru
+        convertPointToBackingSel           = sel_registerName(kConvertPointToBackingSel);
+        convertPointFromBackingSel         = sel_registerName(kConvertPointFromBackingSel);
         convertPointFromViewSel            = sel_registerName(kConvertPointFromViewSel);
         openGLContextSel                   = sel_registerName(kOpenGLContextSel);
         makeCurrentContextSel              = sel_registerName(kMakeCurrentContextSel);
@@ -384,6 +489,7 @@ namespace ObjectiveCSEL {
         displaySel                         = sel_registerName(kDisplaySel);
         CGLContextObjSel                   = sel_registerName(kCGLContextObjSel);
         setValuesSel                       = sel_registerName(kSetValuesSel);
+        backingScaleFactorSel              = sel_registerName(kBackingScaleFactorSel);
 
         // Extracting data from NSEvent objects selectors
         keyCodeSel                         = sel_registerName(kKeyCodeSel);
@@ -508,13 +614,21 @@ static constexpr int NSOpenGLPFAOpenGLProfile = static_cast<int>(NSOpenGLPixelFo
 static constexpr int NSOpenGLPFASampleBuffers = static_cast<int>(NSOpenGLPixelFormatAttribute::SampleBuffers);
 static constexpr int NSOpenGLPFAMultisample        = static_cast<int>(NSOpenGLPixelFormatAttribute::Multisample);
 static constexpr int NSOpenGLAllowOfflineRenderers = static_cast<int>(NSOpenGLPixelFormatAttribute::AllowOfflineRenderers);
-static constexpr int NSOpenGLPFAAcceleratedCompute = static_cast<int>(NSOpenGLPixelFormatAttribute::AcceleratedCompute);
+// static constexpr int NSOpenGLPFAAcceleratedCompute = static_cast<int>(NSOpenGLPixelFormatAttribute::AcceleratedCompute); // Temp remove unused variable warning
 
 // enum for OpenGL profile versions
 enum class NSOpenGLProfile : int {
     VersionLegacy    = 0x1000,   // Legacy OpenGL (deprecated)
     Version3_2Core   = 0x3200,   // OpenGL 3.2 Core Profile
     Version4_1Core   = 0x4100,   // OpenGL 4.1 Core Profile
+};
+
+// enum for OpenGL context parameters
+enum NSOpenGLContextParameter : int {
+    NSOpenGLContextParameterSwapInterval       = 222,
+    NSOpenGLContextParameterSurfaceOrder       = 235,
+    NSOpenGLContextParameterSurfaceOpacity     = 236,
+    NSOpenGLContextParameterSurfaceBackingSize = 237
 };
 
 // Backward compatibility
@@ -538,10 +652,10 @@ enum class NSWindowStyleMask : uint16_t {
 };
 
 // Backward compatibility
-static constexpr int NSWindowStyleMaskTitled         = static_cast<int>(NSWindowStyleMask::Titled);
-static constexpr int NSWindowStyleMaskClosable       = static_cast<int>(NSWindowStyleMask::Closable);
-static constexpr int NSWindowStyleMaskMiniaturizable = static_cast<int>(NSWindowStyleMask::Miniaturizable);
-static constexpr int NSWindowStyleMaskResizable      = static_cast<int>(NSWindowStyleMask::Resizable);
+// static constexpr int NSWindowStyleMaskTitled         = static_cast<int>(NSWindowStyleMask::Titled);          // Temp remove unused variable warning
+// static constexpr int NSWindowStyleMaskClosable       = static_cast<int>(NSWindowStyleMask::Closable);        // Temp remove unused variable warning
+// static constexpr int NSWindowStyleMaskMiniaturizable = static_cast<int>(NSWindowStyleMask::Miniaturizable);  // Temp remove unused variable warning
+// static constexpr int NSWindowStyleMaskResizable      = static_cast<int>(NSWindowStyleMask::Resizable);       // Temp remove unused variable warning
 static constexpr int NSWindowStyleMaskFullScreen     = static_cast<int>(NSWindowStyleMask::FullScreen);
 
 // enum for backing store types
@@ -660,12 +774,12 @@ struct Application {
 
 // Window management with member initialization
 struct Window {
-    id nsWindow{nullptr};           // NSWindow instance
-    id delegate{nullptr};           // Window delegate instance
-    OpenGLRenderer* renderer{nullptr}; // Associated OpenGL renderer
-    NSRect windowFrame{};           // Window frame rectangle
-    NSRect contentViewFrame{};      // Content view frame rectangle
-    const char* title{nullptr};     // Window title string
+    id nsWindow{nullptr};                // NSWindow instance
+    id delegate{nullptr};                // Window delegate instance
+    OpenGLRenderer* renderer{nullptr};   // Associated OpenGL renderer
+    NSRect windowFrame{};                // Window frame rectangle
+    NSRect contentViewFrame{};           // Content view frame rectangle
+    const char* title{nullptr};          // Window title string
 
     // Event callback function pointers with nullptr initialization
     void (*keyDownCallback)          (unsigned short keyCode, const char* characters, unsigned int modifierFlags, void* userData){nullptr};
@@ -685,6 +799,21 @@ struct Window {
     void (*mouseExitedCallback)      (double x, double y, int buttonNumber,  unsigned int modifierFlags, void* userData){nullptr};
     void (*scrollWheelCallback)      (double x, double y, double deltaX, double deltaY, unsigned int modifierFlags, void* userData){nullptr};
 
+     // Touch event callback function pointers with nullptr initialization
+    void (*touchBeganCallback)    (uint32_t touchID, double x, double y, double sizeX, double sizeY, void* userData){nullptr};
+    void (*touchMovedCallback)    (uint32_t touchID, double x, double y, double sizeX, double sizeY, void* userData){nullptr};
+    void (*touchEndedCallback)    (uint32_t touchID, double x, double y, double sizeX, double sizeY, void* userData){nullptr};
+    void (*touchCancelledCallback)(uint32_t touchID, double x, double y, double sizeX, double sizeY, void* userData){nullptr};
+    void* touchUserData{nullptr};
+
+    // Stylus (tablet) event callback function pointer
+    void (*stylusCallback)(uint32_t touchID, double x, double y,
+                           float pressure, float rotation,
+                           float tiltX, float tiltY,
+                           bool bPress, bool bRelease, bool bIsStylus,
+                           void* userData){nullptr};
+    void* stylusUserData{nullptr};
+    bool bStylusInProximity{false}; // true while stylus is hovering near the surface
     
     void* eventUserData{nullptr};   // User data for event callbacks
     BOOL acceptsInputEvents{NO};    // Whether the window accepts input events
@@ -889,8 +1018,9 @@ void view_flagsChanged(id self, SEL _cmd, id event) {
 //====================================================================//
 // Mouse Event Handling
 
-// Convert from window coordinates to content view coordinates and flip Y coordinate
-// from bottom-left (macOS format) to top-left (standard format)
+// All values are converted to physical backing pixels so they match the OpenGL
+// viewport on HighDPI displays - AppKit reports locations in logical points, but
+// PGE is in physical pixels.
 void convertToContentViewCoordinates(NSPoint& location) {
 
     if(gptrNSWindowEvents && gptrNSWindowEvents->nsWindow) [[likely]]
@@ -899,16 +1029,23 @@ void convertToContentViewCoordinates(NSPoint& location) {
         id contentView = ((id(*)(id, SEL))objc_msgSend)(gptrNSWindowEvents->nsWindow, ObjectiveCSEL::contentViewSel);
         if (contentView) {
 
-            // Convert from window coordinates to view coordinates
+            
+            // Convert from window coordinates to view coordinates (still logical points)
             NSPoint contentLocation = ((NSPoint(*)(id, SEL, NSPoint, id))objc_msgSend)(
-                contentView, ObjectiveCSEL::convertPointFromViewSel, location, nil);
+                 contentView, ObjectiveCSEL::convertPointFromViewSel, location, nil);
             
-            // Get the content view bounds to flip Y coordinate
+            // Scale from logical points to physical backing pixels
+            NSPoint pixelLocation = ((NSPoint(*)(id, SEL, NSPoint))objc_msgSend)(
+                contentView, ObjectiveCSEL::convertPointToBackingSel, contentLocation);
+
+            // Get content bounds in physical pixels for Y-flip
             NSRect contentBounds = ((NSRect(*)(id, SEL))objc_msgSend)(contentView, ObjectiveCSEL::boundsSel);
-            
+            NSRect pixelBounds   = ((NSRect(*)(id, SEL, NSRect))objc_msgSend)(contentView, ObjectiveCSEL::convertRectToBackingSel, contentBounds);
+
             // Flip Y coordinate from bottom-left to top-left
-            location.x = contentLocation.x;
-            location.y = contentBounds.height - contentLocation.y;
+            location.x = pixelLocation.x;
+            location.y = pixelBounds.height - pixelLocation.y;
+            
         }
     }
     else
@@ -918,6 +1055,7 @@ void convertToContentViewCoordinates(NSPoint& location) {
     }
 }
 
+// Mouse event data structure to hold common mouse event information
 struct MouseEventData {
     NSPoint location         = {0.0, 0.0};
     NSUInteger modifierFlags = 0;
@@ -936,58 +1074,414 @@ MouseEventData extractMouseEventData(id event) {
     return data;
 }
 
+// Stylus event data structure to hold common stylus event information
+struct StylusEventData {
+
+    uint32_t nTabletDeviceID   = 0;          // Unique identifier for the tablet device
+    uint8_t nPointerType        = 0;         // Pointer type 0 = Mouse, 1 = Pen, 2 = Eraser
+    uint8_t nPointerEventType   = 0;         // Type of pointer  0 = Mouse Event, 1 = Pen Event, 2 = Pen Proximity Event
+    NSPoint nspLocation        = {0.0, 0.0}; // Location of the stylus event
+    double dPressure           = 0.0;        // Pressure applied by the stylus
+    double dTangentialPressure = 0.0;        // Tangential pressure applied by the stylus
+    double dRotationRadians    = 0.0;        // Rotation of the stylus in radians
+    double dTiltX_radians      = 0.0;        // Tilt of the stylus in the X direction in radians
+    double dTiltY_radians      = 0.0;        // Tilt of the stylus in the Y direction in radians
+    uint16_t buttonMask        = 0;          // Bitmask for stylus buttons (MAX 16 buttons, 1 = pressed, 0 = released)
+
+};
+
+// Extract common mouse event data from NSEvent
+StylusEventData extractStylusEventData(id event, uint8_t nPointerEventType) {
+
+    StylusEventData data;
+    id cgEvent               = ((id(*)(id, SEL))objc_msgSend)(event, ObjectiveCSEL::cgEventSel);
+    data.nspLocation         = ((NSPoint(*)(id, SEL))objc_msgSend)(event, ObjectiveCSEL::locationInWindowSel);
+    data.nTabletDeviceID     = (uint32_t)CGEventGetIntegerValueField((CGEventRef)cgEvent, (CGEventField)kCGTabletEventDeviceID);
+
+    data.buttonMask          = (uint16_t)CGEventGetIntegerValueField((CGEventRef)cgEvent, (CGEventField)kCGTabletEventPointButtons);
+    data.nPointerEventType    = (uint8_t)nPointerEventType; // 0 = Mouse Event, 1 = Pen Event, 2 = Pen Proximity Event
+
+    data.dPressure           = CGEventGetDoubleValueField((CGEventRef)cgEvent, (CGEventField)kCGTabletEventPointPressure);
+    data.dRotationRadians    = CGEventGetDoubleValueField((CGEventRef)cgEvent, (CGEventField)kCGTabletEventRotation) * (M_PI / 180.0);
+    data.dTangentialPressure = CGEventGetDoubleValueField((CGEventRef)cgEvent, (CGEventField)kCGTabletEventTangentialPressure);
+
+    data.nPointerType        = ((uint8_t(*)(id, SEL))objc_msgSend)(event, ObjectiveCSEL::pointingDeviceTypeSel); 
+
+    double tiltX_raw         = CGEventGetDoubleValueField((CGEventRef)cgEvent, kCGTabletEventTiltX);
+    double tiltY_raw         = CGEventGetDoubleValueField((CGEventRef)cgEvent, kCGTabletEventTiltY);
+
+    // Clamp to safe math bounds (-1.0 to 1.0) to avoid domain errors in asin
+    tiltX_raw                = std::fmax(-1.0, std::fmin(1.0, tiltX_raw));
+    tiltY_raw                = std::fmax(-1.0, std::fmin(1.0, tiltY_raw));
+
+    // Convert to true physical angles in RADIANS -PI/2 to +PI/2
+    data.dTiltX_radians      = std::asin(tiltX_raw);
+    data.dTiltY_radians      = std::asin(tiltY_raw);
+
+    // Convert to content view coordinates and flip Y coordinate
+    convertToContentViewCoordinates(data.nspLocation);
+    
+    return data;
+}
+
+//====================================================================//
+// Touch Event Handling (macOS trackpad multi-touch via NSTouchPhase)
+
+
+// NSTouchPhase bitmask values
+enum NSTouchPhase : NSUInteger {
+    NSTouchPhaseBegan      = 1 << 0,
+    NSTouchPhaseMoved      = 1 << 1,
+    NSTouchPhaseStationary = 1 << 2,
+    NSTouchPhaseEnded      = 1 << 3,
+    NSTouchPhaseCancelled  = 1 << 4,
+    NSTouchPhaseAny        = ULONG_MAX
+};
+
+enum NSPressureStage : NSInteger {
+    NSPressureStageLight   = 0,  // Light press
+    NSPressureStageNormal  = 1,  // Normal press
+    NSPressureStageForce   = 2   // Force click
+};
+
+enum class ForceTouchPressure : int {
+    Light   = 25,   // 0.25 - Light touch
+    Normal  = 50,   // 0.50 - Normal press
+    Force   = 100,  // 1.00 - Force click
+};
+
+// Returns the approximated trackpad touch size in pixels based on the linear force value (0.0 to 1.0)
+CGSize getApproxTrackPadTouchSize(float linearForce){
+    
+    CGSize cgTouchSize = {0.0, 0.0};
+    const float mmToPoints = 72.0f / 25.4f;     // ~2.834 points per mm
+    float minSizePoints = 2.0f  * mmToPoints;   // 3mm lower bound approx values from Google
+    float maxSizePoints = 20.0f * mmToPoints;   // 16mm upper bound
+    
+    // Interpolate the finger footprint size within our point boundaries
+    float touchSizeInPoints = minSizePoints + (linearForce * (maxSizePoints - minSizePoints) / 2.0f);
+
+    // Retrieve the window scale factor (1.0 for Standard, 2.0 for Retina, 3.0 for bannana displays, etc.)
+    CGFloat pixelScale = 1.0f;
+    if (gptrNSWindowEvents && gptrNSWindowEvents->nsWindow) {
+        // Get backing scale factor from the content view
+        id contentView = ((id(*)(id, SEL))objc_msgSend)(gptrWindowDelegate->nsWindow, ObjectiveCSEL::contentViewSel);
+        if (contentView) {
+            pixelScale = ((CGFloat(*)(id, SEL))objc_msgSend)(contentView, ObjectiveCSEL::backingScaleFactorSel);
+        }
+    }
+    cgTouchSize = CGSizeMake(touchSizeInPoints * pixelScale, touchSizeInPoints * pixelScale);
+    return cgTouchSize;
+};
+
+// Mouse event data structure to hold common mouse event information
+struct TouchEventData {
+    uint32_t touchID    = 0;          // Stable sequential touch ID
+    NSPoint nspLocation = {0.0,0.0};  // X coordinate in content-view pixel coordinates
+    double pressure     = 0.0;        // Pressure value
+    CGSize nsTouchSize  = {0.0, 0.0}; // Touch Size X (not available on macOS trackpad)
+    CGSize cgDeviceSize = {0.0, 0.0}; // Device size (width, height) in ponits
+    bool bIsActive      = true;       // Touch is active (true for Began/Moved, false for Ended/Cancelled)
+    
+};
+
+std::unordered_map<uintptr_t, TouchEventData> sTouchIDEvents;
+static std::unordered_map<uintptr_t, uint32_t> sTouchIDMap;
+static uint32_t sNextTouchID = 0;
+CGSize cgsApproxTouchSize{0.0, 0.0}; // Stores the approx width and height of a touch event in CG coordinates
+
+//Iterate through Touches, updates and fires the callback.
+static void updateTouchData(id event, NSUInteger phase,
+    void (*callback)(uint32_t, double, double, double, double, void*), void* userData, bool bRemove = false)
+{
+    if (!callback) return;
+    
+    NSUInteger count = 0;
+    id touchArray = nullptr;
+    id touchCollection = ((id(*)(id, SEL, NSUInteger, id))objc_msgSend)( event, ObjectiveCSEL::touchesMatchingPhaseSel, phase, nil);
+    
+    // Edge case, there can be an touch event before a pressure event, therefore we need to check if the approximate touch size has been initialized
+    if(cgsApproxTouchSize.width == 0.0 || cgsApproxTouchSize.height == 0.0)
+    {
+        cgsApproxTouchSize = getApproxTrackPadTouchSize(NSPressureStageNormal);
+    }
+        
+    
+    if (touchCollection)
+    {
+        count      = ((NSUInteger(*)(id, SEL))objc_msgSend)(touchCollection, ObjectiveCSEL::touchesCountSel);
+        touchArray = ((id(*)(id, SEL))objc_msgSend)(touchCollection, ObjectiveCSEL::allObjectsSel);
+        
+        // Get current screen the window is on
+        id currentScreen = ((id(*)(id, SEL))objc_msgSend)(gptrWindowDelegate->nsWindow, ObjectiveCSEL::screenSel);
+        NSRect screenFrame = ((NSRect(*)(id, SEL))objc_msgSend)(currentScreen, ObjectiveCSEL::frameSel);
+        
+        for (NSUInteger i = 0; i < count; ++i) {
+            
+            id touch = ((id(*)(id, SEL, NSUInteger))objc_msgSend)(touchArray, ObjectiveCSEL::objectAtIndexSel, i);
+            if (!touch) continue;
+            TouchEventData data;
+            
+            // normalizedPosition is NSPoint in [0,1] range on the trackpad surface
+            NSPoint normPos = ((NSPoint(*)(id, SEL))objc_msgSend)(touch, ObjectiveCSEL::normalizedPositionSel);
+            
+            // Convert normalized [0,1] → content-view pixel coordinates (flip Y to top-left origin)
+            data.nspLocation.x = normPos.x * screenFrame.width;
+            data.nspLocation.y = (1.0 - normPos.y) * screenFrame.height;
+            
+            // Get Device Size
+            data.cgDeviceSize = ((CGSize(*)(id, SEL))objc_msgSend)(touch, ObjectiveCSEL::deviceSizeSel);
+            // Approximate touch size based on pressure stage (macOS does not provide actual touch size)
+            data.nsTouchSize = cgsApproxTouchSize;
+            data.bIsActive = !bRemove;
+
+            // Assign a stable sequential uint32_t IDs same as iOS does
+            id        identity = ((id(*)(id, SEL))objc_msgSend)(touch, ObjectiveCSEL::identitySel);
+            uintptr_t key      = reinterpret_cast<uintptr_t>(identity);
+            
+            auto [it, inserted] = sTouchIDMap.emplace(key, sNextTouchID);
+            if (inserted) ++sNextTouchID;
+            uint32_t tid = it->second;
+            data.touchID = tid;
+            sTouchIDEvents.emplace(key, data);
+            callback(tid, data.nspLocation.x, data.nspLocation.y, data.nsTouchSize.width,data.nsTouchSize.height, userData);
+
+            // Clean up map entry once the touch has ended or been cancelled
+            if (bRemove)
+            {
+                sTouchIDEvents.erase(key);
+                sTouchIDMap.erase(key);
+            }
+            
+        }
+        
+    }
+
+    // A bit painful, but we need to check of any keys that have been removed as the touchleave event happened outside of our application
+    std::vector<uintptr_t> vFoundKeys;
+    std::vector<uintptr_t> vMissingKeys;
+    touchCollection = ((id(*)(id, SEL, NSUInteger, id))objc_msgSend)( event, ObjectiveCSEL::touchesMatchingPhaseSel, NSTouchPhaseAny, nil);
+    
+    // If we have a touch collection and the phase is not cancelled, we can check for missing keys, otherwise we will just remove all keys from the map
+    if (touchCollection && phase != NSTouchPhaseCancelled)
+    {
+        count       = ((NSUInteger(*)(id, SEL))objc_msgSend)(touchCollection, ObjectiveCSEL::touchesCountSel);
+        touchArray  = ((id(*)(id, SEL))objc_msgSend)(touchCollection, ObjectiveCSEL::allObjectsSel);
+        for (NSUInteger i = 0; i < count; ++i) {
+            
+            id touch = ((id(*)(id, SEL, NSUInteger))objc_msgSend)(touchArray, ObjectiveCSEL::objectAtIndexSel, i);
+            if (!touch) continue;
+            id identity = ((id(*)(id, SEL))objc_msgSend)(touch, ObjectiveCSEL::identitySel);
+            uintptr_t key = reinterpret_cast<uintptr_t>(identity);
+            vFoundKeys.push_back(key);
+
+        }
+    }
+    
+    // Find the missing keys and fire the touchEndedCallback for them
+    for(auto& [key, data] : sTouchIDEvents) {
+        
+        if(vFoundKeys.size() == 0 || std::find(vFoundKeys.begin(), vFoundKeys.end(), key) == vFoundKeys.end()) {
+            gptrNSWindowEvents->touchEndedCallback(data.touchID, data.nspLocation.x, data.nspLocation.y, data.nsTouchSize.width ,data.nsTouchSize.height, userData);
+            vMissingKeys.push_back(key);
+        }
+       
+    }
+    
+    // Remove the missing keys from the maps
+    for(auto& fKeys: vMissingKeys) {
+        sTouchIDEvents.erase(fKeys);
+        sTouchIDMap.erase(fKeys);
+    }
+    
+    vFoundKeys.clear(); vMissingKeys.clear();
+    
+    // Finally reset the next touch ID if there are no active touches remaining
+    if (sTouchIDMap.size() == 0) sNextTouchID = 0;
+}
+
+// TODO move to new location
+// Handle Force Touch pressure changes on trackpad (single-finger press)
+void view_pressureChange(id self, SEL _cmd, id event) {
+    (void)self;(void)_cmd;
+    
+    auto toNormalizedPressure = [](ForceTouchPressure pressure) -> double {
+        return static_cast<double>(static_cast<int>(pressure)) / 100.0;
+    };
+       
+    if (gptrNSWindowEvents && gptrNSWindowEvents->acceptsInputEvents) [[likely]] {
+        
+        // Get CGEvent to determine event subtype
+        CGEventRef cgEvent = ((CGEventRef(*)(id, SEL))objc_msgSend)(event, ObjectiveCSEL::cgEventSel);
+        uint8_t nPointerEventType = CGEventGetIntegerValueField(cgEvent, kCGMouseEventSubtype);
+           
+        // A force touch trackpad event will have a subtype of 0 (default) or greater than 2 (tablet proximity)
+        if (nPointerEventType == kCGEventMouseSubtypeDefault || nPointerEventType > kCGEventMouseSubtypeTabletProximity) {
+
+            // KRespondsToSelector
+            BOOL supportsStage = ((BOOL(*)(id, SEL, SEL))objc_msgSend)(event,sel_getUid(kRespondsToSelector),ObjectiveCSEL::stageSel);
+
+            NSInteger stage = NSPressureStageNormal;
+            if(supportsStage)
+            {
+                // stage returns: 0 = normal click, 1 = light press, 2 = force click
+                stage = ((NSInteger(*)(id, SEL))objc_msgSend)(event, ObjectiveCSEL::stageSel);
+            }
+            
+            // Map stage to normalized pressure values as requested
+            double pressure = toNormalizedPressure(ForceTouchPressure::Normal);
+                       
+            switch (stage) {
+                case NSPressureStageLight:
+                    pressure = toNormalizedPressure(ForceTouchPressure::Light);
+                    break;
+                case NSPressureStageNormal:
+                    pressure = toNormalizedPressure(ForceTouchPressure::Normal);
+                    break;
+                case NSPressureStageForce:
+                    pressure = toNormalizedPressure(ForceTouchPressure::Force);
+                    break;
+                default:
+                    pressure = toNormalizedPressure(ForceTouchPressure::Normal);
+                    break;
+            }
+            
+            // now we need to work out the size
+            cgsApproxTouchSize = getApproxTrackPadTouchSize(pressure);
+            
+            for(auto& [key, data] : sTouchIDEvents) {
+                data.pressure = pressure;
+                data.nsTouchSize = cgsApproxTouchSize;
+            }
+            
+        }
+    }
+}
+
 // Handle left mouse down events
 void view_mouseDown(id self, SEL _cmd, id event) {
     (void)self;(void)_cmd; // Remove unused parameter warnings
     
-    MouseEventData data = extractMouseEventData(event);
-    
-    if (gptrNSWindowEvents && gptrNSWindowEvents->acceptsInputEvents && gptrNSWindowEvents->mouseDownCallback) [[likely]] {
-        gptrNSWindowEvents->mouseDownCallback(data.location.x, data.location.y, (int)data.buttonNumber,
-                                            (unsigned int)data.modifierFlags, gptrNSWindowEvents->eventUserData);
-    }
-}
+    CGEventRef cgEvent        = ((CGEventRef(*)(id, SEL))objc_msgSend)(event, ObjectiveCSEL::cgEventSel);
+    uint8_t nPointerEventType = CGEventGetIntegerValueField(cgEvent, kCGMouseEventSubtype);
 
+    // Is it a mouse drag event (subtype 0) or a tablet pointer event (subtype 1 or 2)?
+    if (nPointerEventType == 0) [[likely]] {
+
+        if (gptrNSWindowEvents && gptrNSWindowEvents->acceptsInputEvents && gptrNSWindowEvents->mouseDownCallback) [[likely]] {
+            MouseEventData data = extractMouseEventData(event);
+            gptrNSWindowEvents->mouseDownCallback(data.location.x, data.location.y, (int)data.buttonNumber,
+                                                (unsigned int)data.modifierFlags, gptrNSWindowEvents->eventUserData);
+        }
+    }
+    else if (nPointerEventType == 1 || nPointerEventType == 2)
+    {
+        // Tablet Pointer is Subtype 1 or 2 (1: Pen Event, 2: Proximity Event)
+        gptrNSWindowEvents->bStylusInProximity = false;
+        StylusEventData data = extractStylusEventData(event, nPointerEventType);
+        gptrNSWindowEvents->stylusCallback(
+                        data.nTabletDeviceID,
+                        data.nspLocation.x, data.nspLocation.y,
+                        data.dPressure, data.dRotationRadians, data.dTiltX_radians, data.dTiltY_radians,
+                        true, false, true,
+                        gptrNSWindowEvents->stylusUserData);
+
+    }
+
+}
 
 // Handle left mouse up events
 void view_mouseUp(id self, SEL _cmd, id event) {
     (void)self;(void)_cmd;
 
-    MouseEventData data = extractMouseEventData(event);
-    if (gptrNSWindowEvents && gptrNSWindowEvents->acceptsInputEvents && gptrNSWindowEvents->mouseUpCallback) [[likely]] {
-        gptrNSWindowEvents->mouseUpCallback(data.location.x, data.location.y, (int)data.buttonNumber,
-                                            (unsigned int)data.modifierFlags, gptrNSWindowEvents->eventUserData);
+    CGEventRef cgEvent        = ((CGEventRef(*)(id, SEL))objc_msgSend)(event, ObjectiveCSEL::cgEventSel);
+    uint8_t nPointerEventType = CGEventGetIntegerValueField(cgEvent, kCGMouseEventSubtype);
+
+    // Is it a mouse drag event (subtype 0) or a tablet pointer event (subtype 1 or 2)?
+    if (nPointerEventType == 0) [[likely]] {
+
+        MouseEventData data = extractMouseEventData(event);
+        if (gptrNSWindowEvents && gptrNSWindowEvents->acceptsInputEvents && gptrNSWindowEvents->mouseUpCallback) [[likely]] {
+            gptrNSWindowEvents->mouseUpCallback(data.location.x, data.location.y, (int)data.buttonNumber,
+                                                (unsigned int)data.modifierFlags, gptrNSWindowEvents->eventUserData);
+        }
     }
+    else if(nPointerEventType == 1 || nPointerEventType == 2)
+    {
+        // Tablet Pointer is Subtype 1 or 2 (1: Pen Event, 2: Proximity Event)
+        gptrNSWindowEvents->bStylusInProximity = false;
+        StylusEventData data = extractStylusEventData(event, nPointerEventType);
+        gptrNSWindowEvents->stylusCallback(
+                        data.nTabletDeviceID,
+                        data.nspLocation.x, data.nspLocation.y,
+                        data.dPressure, data.dRotationRadians, data.dTiltX_radians, data.dTiltY_radians,
+                        false, true, true,
+                        gptrNSWindowEvents->stylusUserData);
+
+    }
+
 }
 
 // Handle mouse drag events
 void view_mouseDragged(id self, SEL _cmd, id event) {
     (void)self;(void)_cmd;
 
-    MouseEventData data = extractMouseEventData(event);
-    if (gptrNSWindowEvents && gptrNSWindowEvents->acceptsInputEvents && gptrNSWindowEvents->mouseDraggedCallback) [[likely]] {
-        gptrNSWindowEvents->mouseDraggedCallback(data.location.x, data.location.y, (int)data.buttonNumber, (unsigned int)data.modifierFlags, gptrNSWindowEvents->eventUserData);
+    CGEventRef cgEvent        = ((CGEventRef(*)(id, SEL))objc_msgSend)(event, ObjectiveCSEL::cgEventSel);
+    uint8_t nPointerEventType = CGEventGetIntegerValueField(cgEvent, kCGMouseEventSubtype);
+
+    // Is it a mouse drag event (subtype 0) or a tablet pointer event (subtype 1 or 2)?
+    if (nPointerEventType == 0) [[likely]] {
+
+        if (gptrNSWindowEvents && gptrNSWindowEvents->acceptsInputEvents && gptrNSWindowEvents->mouseDraggedCallback) [[likely]] {
+            MouseEventData data = extractMouseEventData(event);
+            gptrNSWindowEvents->mouseDraggedCallback(data.location.x, data.location.y, (int)data.buttonNumber, (unsigned int)data.modifierFlags, gptrNSWindowEvents->eventUserData);
+        }
     }
+    else if (nPointerEventType == 1 || nPointerEventType == 2)
+    {
+        // Tablet Pointer is Subtype 1 or 2 (1: Pen Event, 2: Proximity Event)
+        gptrNSWindowEvents->bStylusInProximity = false;
+        StylusEventData data = extractStylusEventData(event, nPointerEventType);
+        gptrNSWindowEvents->stylusCallback(
+                        data.nTabletDeviceID,
+                        data.nspLocation.x, data.nspLocation.y,
+                        data.dPressure, data.dRotationRadians, data.dTiltX_radians, data.dTiltY_radians,
+                        true, false, true,
+                        gptrNSWindowEvents->stylusUserData);
+   }
+
 }
+
 
 // Handle mouse movement events
 void view_mouseMoved(id self, SEL _cmd, id event) {
     (void)self;(void)_cmd;
 
+    CGEventRef cgEvent        = ((CGEventRef(*)(id, SEL))objc_msgSend)(event, ObjectiveCSEL::cgEventSel);
+    uint8_t nPointerEventType = CGEventGetIntegerValueField(cgEvent, kCGMouseEventSubtype);
+    // if it is a trackpad event, ignore it.
+    if (nPointerEventType > 2) return;
+    
+    // a Mouse move event and Stlus roximity Event have the same properties.
     NSPoint location         = ((NSPoint(*)(id, SEL))objc_msgSend)(event, ObjectiveCSEL::locationInWindowSel);
     NSUInteger modifierFlags = ((NSUInteger(*)(id, SEL))objc_msgSend)(event, ObjectiveCSEL::modifierFlagsSel);
-
     convertToContentViewCoordinates(location);
-
     if (gptrNSWindowEvents && gptrNSWindowEvents->acceptsInputEvents && gptrNSWindowEvents->mouseMovedCallback) [[likely]] {
         gptrNSWindowEvents->mouseMovedCallback(location.x, location.y, kNoButton, (unsigned int)modifierFlags, gptrNSWindowEvents->eventUserData);
     }
+    
+    
 }
 
 // Handle right mouse down events
 void view_rightMouseDown(id self, SEL _cmd, id event) {
     (void)self;(void)_cmd;
-
+    
+    CGEventRef cgEvent        = ((CGEventRef(*)(id, SEL))objc_msgSend)(event, ObjectiveCSEL::cgEventSel);
+    uint8_t nPointerEventType = CGEventGetIntegerValueField(cgEvent, kCGMouseEventSubtype);
+    if(nPointerEventType > 2) [[unlikely]]
+        return; // Ignore mouse events that are not mouse drag or tablet pointer events
+    
     MouseEventData data = extractMouseEventData(event);
     if (gptrNSWindowEvents && gptrNSWindowEvents->acceptsInputEvents && gptrNSWindowEvents->rightMouseDownCallback) [[likely]] {
         gptrNSWindowEvents->rightMouseDownCallback(data.location.x, data.location.y, (int)data.buttonNumber, (unsigned int)data.modifierFlags, gptrNSWindowEvents->eventUserData);
@@ -997,7 +1491,12 @@ void view_rightMouseDown(id self, SEL _cmd, id event) {
 // Handle right mouse up events
 void view_rightMouseUp(id self, SEL _cmd, id event) {
     (void)self;(void)_cmd;
-
+    
+    CGEventRef cgEvent        = ((CGEventRef(*)(id, SEL))objc_msgSend)(event, ObjectiveCSEL::cgEventSel);
+    uint8_t nPointerEventType = CGEventGetIntegerValueField(cgEvent, kCGMouseEventSubtype);
+    if(nPointerEventType > 2) [[unlikely]]
+        return; // Ignore mouse events that are not mouse drag or tablet pointer events
+    
     MouseEventData data = extractMouseEventData(event);
     if (gptrNSWindowEvents && gptrNSWindowEvents->acceptsInputEvents && gptrNSWindowEvents->rightMouseUpCallback) [[likely]] {
         gptrNSWindowEvents->rightMouseUpCallback(data.location.x, data.location.y, (int)data.buttonNumber, (unsigned int)data.modifierFlags, gptrNSWindowEvents->eventUserData);
@@ -1008,6 +1507,11 @@ void view_rightMouseUp(id self, SEL _cmd, id event) {
 void view_rightMouseDragged(id self, SEL _cmd, id event) {
     (void)self;(void)_cmd;
 
+    CGEventRef cgEvent        = ((CGEventRef(*)(id, SEL))objc_msgSend)(event, ObjectiveCSEL::cgEventSel);
+    uint8_t nPointerEventType = CGEventGetIntegerValueField(cgEvent, kCGMouseEventSubtype);
+    if(nPointerEventType > 2) [[unlikely]]
+        return; // Ignore mouse events that are not mouse drag or tablet pointer events
+    
     MouseEventData data = extractMouseEventData(event);
     if (gptrNSWindowEvents && gptrNSWindowEvents->acceptsInputEvents && gptrNSWindowEvents->rightMouseDraggedCallback) [[likely]] {
         gptrNSWindowEvents->rightMouseDraggedCallback(data.location.x, data.location.y, (int)data.buttonNumber, (unsigned int)data.modifierFlags, gptrNSWindowEvents->eventUserData);
@@ -1018,7 +1522,12 @@ void view_rightMouseDragged(id self, SEL _cmd, id event) {
 // Handle other mouse button down events
 void view_otherMouseDown(id self, SEL _cmd, id event) {
     (void)self;(void)_cmd;
-
+    
+    CGEventRef cgEvent        = ((CGEventRef(*)(id, SEL))objc_msgSend)(event, ObjectiveCSEL::cgEventSel);
+    uint8_t nPointerEventType = CGEventGetIntegerValueField(cgEvent, kCGMouseEventSubtype);
+    if(nPointerEventType > 2) [[unlikely]]
+        return; // Ignore mouse events that are not mouse drag or tablet pointer events
+    
     MouseEventData data = extractMouseEventData(event);
     if (gptrNSWindowEvents && gptrNSWindowEvents->acceptsInputEvents && gptrNSWindowEvents->otherMouseDownCallback) [[likely]] {
         gptrNSWindowEvents->otherMouseDownCallback(data.location.x, data.location.y, (int)data.buttonNumber, (unsigned int)data.modifierFlags, gptrNSWindowEvents->eventUserData);
@@ -1028,7 +1537,12 @@ void view_otherMouseDown(id self, SEL _cmd, id event) {
 // Handle other mouse button up events
 void view_otherMouseUp(id self, SEL _cmd, id event) {
     (void)self;(void)_cmd;
-
+    
+    CGEventRef cgEvent        = ((CGEventRef(*)(id, SEL))objc_msgSend)(event, ObjectiveCSEL::cgEventSel);
+    uint8_t nPointerEventType = CGEventGetIntegerValueField(cgEvent, kCGMouseEventSubtype);
+    if(nPointerEventType > 2) [[unlikely]]
+        return; // Ignore mouse events that are not mouse drag or tablet pointer events
+    
     MouseEventData data = extractMouseEventData(event);
     if (gptrNSWindowEvents && gptrNSWindowEvents->acceptsInputEvents && gptrNSWindowEvents->otherMouseUpCallback) {
         gptrNSWindowEvents->otherMouseUpCallback(data.location.x, data.location.y, (int)data.buttonNumber, (unsigned int)data.modifierFlags, gptrNSWindowEvents->eventUserData);
@@ -1038,6 +1552,11 @@ void view_otherMouseUp(id self, SEL _cmd, id event) {
 void view_otherMouseDragged(id self, SEL _cmd, id event) {
     (void)self;(void)_cmd;
 
+    CGEventRef cgEvent        = ((CGEventRef(*)(id, SEL))objc_msgSend)(event, ObjectiveCSEL::cgEventSel);
+    uint8_t nPointerEventType = CGEventGetIntegerValueField(cgEvent, kCGMouseEventSubtype);
+    if(nPointerEventType > 2) [[unlikely]]
+        return; // Ignore mouse events that are not mouse drag or tablet pointer events
+    
     MouseEventData data = extractMouseEventData(event);
     if (gptrNSWindowEvents && gptrNSWindowEvents->acceptsInputEvents && gptrNSWindowEvents->otherMouseDraggedCallback) [[likely]] {
         gptrNSWindowEvents->otherMouseDraggedCallback(data.location.x, data.location.y, (int)data.buttonNumber, (unsigned int)data.modifierFlags, gptrNSWindowEvents->eventUserData);
@@ -1097,6 +1616,73 @@ void view_mouseExited(id self, SEL _cmd, id event) {
         gptrNSWindowEvents->mouseExitedCallback(location.x, location.y, kNoButton, (unsigned int)modifierFlags, gptrNSWindowEvents->eventUserData);
     }
 }
+
+
+void view_touchesBegan(id self, SEL _cmd, id event) {
+    (void)_cmd;
+    
+    // Ensure event is not null before parsing
+    if (!event) return;
+    
+    if (gptrNSWindowEvents && gptrNSWindowEvents->acceptsInputEvents) [[likely]] {
+        updateTouchData(event, NSTouchPhaseBegan,
+            gptrNSWindowEvents->touchBeganCallback, gptrNSWindowEvents->touchUserData);
+    }
+}
+
+void view_touchesMoved(id self, SEL _cmd, id event) {
+    (void)_cmd;
+    // Ensure event is not null before parsing
+    if (!event) return;
+    
+    if (gptrNSWindowEvents && gptrNSWindowEvents->acceptsInputEvents) [[likely]] {
+        updateTouchData(event, NSTouchPhaseMoved,
+            gptrNSWindowEvents->touchMovedCallback, gptrNSWindowEvents->touchUserData);
+    }
+}
+
+void view_touchesEnded(id self, SEL _cmd, id event) {
+    (void)_cmd;
+    // Ensure event is not null before parsing
+    if (!event) return;
+    if (gptrNSWindowEvents && gptrNSWindowEvents->acceptsInputEvents) [[likely]] {
+        updateTouchData(event, NSTouchPhaseEnded,
+            gptrNSWindowEvents->touchEndedCallback, gptrNSWindowEvents->touchUserData, true);
+    }
+}
+
+void view_touchesCancelled(id self, SEL _cmd, id event) {
+    (void)_cmd;
+    // Ensure event is not null before parsing
+    if (!event) return;
+    if (gptrNSWindowEvents && gptrNSWindowEvents->acceptsInputEvents) [[likely]] {
+        updateTouchData(event, NSTouchPhaseCancelled,
+            gptrNSWindowEvents->touchCancelledCallback, gptrNSWindowEvents->touchUserData, true);
+    }
+}
+
+//====================================================================//
+// Stylus / Tablet Event Handling (NSTabletPoint / NSTabletProximity)
+
+// This should only be called when a Stylus driver is not installed or it an Apple device
+void view_tabletProximity(id self, SEL _cmd, id event) {
+    (void)self;(void)_cmd;(void)event;
+    if (gptrNSWindowEvents && gptrNSWindowEvents->acceptsInputEvents) [[likely]] {
+        // Handle tablet proximity events here
+        BOOL entering = ((BOOL(*)(id, SEL))objc_msgSend)(event, ObjectiveCSEL::penIsEnteringProximitySel);
+        // For furture support should call a stylusCallback with proximity event data, but for now just set the flag
+        gptrNSWindowEvents->bStylusInProximity = (entering == YES);
+    }
+}
+
+// This should only be called when a Stylus driver is not installed or it an Apple device
+void view_tabletPoint(id self, SEL _cmd, id event) {
+    (void)self;(void)_cmd;(void)event;
+    if (gptrNSWindowEvents && gptrNSWindowEvents->acceptsInputEvents) [[likely]] {
+        // Handle tablet point events here
+    }
+}
+
 
 void view_updateTrackingAreas(id self, SEL _cmd) {
     (void)self;(void)_cmd;
@@ -1191,6 +1777,17 @@ Class createCustomOpenGLViewClass() {
     class_addMethod(CustomViewClass, ObjectiveCSEL::otherMouseDraggedSel, (IMP)view_otherMouseDragged, kEventHandlerMethodTypeEncoding);
     class_addMethod(CustomViewClass, ObjectiveCSEL::scrollWheelSel,       (IMP)view_scrollWheel,       kEventHandlerMethodTypeEncoding);
     
+    // Touch event handler methods
+    class_addMethod(CustomViewClass, ObjectiveCSEL::touchesBeganSel,     (IMP)view_touchesBegan,     kTouchEventMethodTypeEncoding);
+    class_addMethod(CustomViewClass, ObjectiveCSEL::touchesMovedSel,     (IMP)view_touchesMoved,     kTouchEventMethodTypeEncoding);
+    class_addMethod(CustomViewClass, ObjectiveCSEL::touchesEndedSel,     (IMP)view_touchesEnded,     kTouchEventMethodTypeEncoding);
+    class_addMethod(CustomViewClass, ObjectiveCSEL::touchesCancelledSel, (IMP)view_touchesCancelled, kTouchEventMethodTypeEncoding);
+    class_addMethod(CustomViewClass, ObjectiveCSEL::pressureChangeSel, (IMP)view_pressureChange, kEventHandlerMethodTypeEncoding);
+    
+    // Tablet / stylus event handler methods
+    class_addMethod(CustomViewClass, ObjectiveCSEL::tabletProximitySel, (IMP)view_tabletProximity, kEventHandlerMethodTypeEncoding);
+    class_addMethod(CustomViewClass, ObjectiveCSEL::tabletPointSel,     (IMP)view_tabletPoint,     kEventHandlerMethodTypeEncoding);
+        
     // Area tracking for Mouse entered/exited event handler methods
     class_addMethod(CustomViewClass, ObjectiveCSEL::updateTrackingAreasSel, (IMP)view_updateTrackingAreas, kVoidMethodTypeEncoding);
     class_addMethod(CustomViewClass, ObjectiveCSEL::mouseEnteredSel,      (IMP)view_mouseEntered,      kEventHandlerMethodTypeEncoding);
@@ -1574,13 +2171,19 @@ extern "C" {
             return;
         }
         
-        // Get the content view bounds
+        // Thank you, Ben the ultimate Guru,
+        // Get the content view bounds in points (logical coordinates).
+        // On macOS, AppKit uses points rather than physical pixels. On HighDPI
+        // displays (that are scaling) a point maps to >1 pixels.
+        // convertRectToBacking: converts the point-based rect to physical pixels,
+        // which is what OpenGL expects
         NSRect contentBounds = ((NSRect(*)(id, SEL))objc_msgSend)(contentView, ObjectiveCSEL::boundsSel);
+        NSRect pixelBounds   = ((NSRect(*)(id, SEL, NSRect))objc_msgSend)(contentView, ObjectiveCSEL::convertRectToBackingSel, contentBounds);
         
-        if (x) *x = contentBounds.x;
-        if (y) *y = contentBounds.y;
-        if (width) *width = contentBounds.width;
-        if (height) *height = contentBounds.height;
+        if (x) *x = pixelBounds.x;
+        if (y) *y = pixelBounds.y;
+        if (width) *width = pixelBounds.width;
+        if (height) *height = pixelBounds.height;
         
     }
 
@@ -1672,17 +2275,25 @@ extern "C" {
         
         // Get the content view
         id contentView = ((id(*)(id, SEL))objc_msgSend)(gptrNSWindowEvents->nsWindow, ObjectiveCSEL::contentViewSel);
+        
         if (contentView) {
         
-            // Get the content view bounds to flip Y coordinate
+            // x,y are in physical backing pixels. CGWarpMouseCursorPosition
+            // and all AppKit frame/bounds values use logical points, so convert the incoming
+            // pixel position to points.
+            NSPoint pixelPos  = { x, y };
+            NSPoint pointPos  = ((NSPoint(*)(id, SEL, NSPoint))objc_msgSend)( contentView, ObjectiveCSEL::convertPointFromBackingSel, pixelPos);
+            
+            // Get content bounds in points for clamping and Y-flip
             NSRect contentBounds = ((NSRect(*)(id, SEL))objc_msgSend)(contentView, ObjectiveCSEL::boundsSel);
-        
-            // NOTE: we need to ensure the new cursor position is within the window bounds to prevent unexpected behavior
-            auto posX = std::clamp(location.x +x, location.x, location.x + contentBounds.width);
-            auto posY = std::clamp(screenFrame.height - location.y - contentBounds.height + y,
-                                   screenFrame.height - location.y - contentBounds.height,
-                                   screenFrame.height - location.y);
+            
+            // NOTE: clamp to keep the cursor within the window content area
+            auto posX = std::clamp(location.x + pointPos.x, location.x, location.x + contentBounds.width);
+            auto posY = std::clamp(screenFrame.height - location.y - contentBounds.height + pointPos.y,
+                                                screenFrame.height - location.y - contentBounds.height,
+                                                screenFrame.height - location.y);
             CGWarpMouseCursorPosition(CGPointMake(posX, posY));
+            
         }
         
     }
@@ -1762,6 +2373,13 @@ extern "C" {
         // Set autoresizing mask to make the view resize with the window
         unsigned int autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
         ((void(*)(id, SEL, unsigned int))objc_msgSend)(self->glView, ObjectiveCSEL::setAutoresizingMaskSel, autoresizingMask);
+        
+        // Enable touch events (NSTouch)
+        ((void(*)(id, SEL, BOOL))objc_msgSend)(self->glView, ObjectiveCSEL::setAcceptsTouchEventsSel, YES);
+        
+        // Enable Listening for fingers that are resting but not moving (Ensure second touch point is detected as a touch not right click)
+        ((void(*)(id, SEL, BOOL))objc_msgSend)(self->glView, ObjectiveCSEL::setWantsRestingTouchesSel, YES);
+        
         
     }
 
@@ -1846,7 +2464,7 @@ extern "C" {
         GLint swapInterval = enabled ? 1 : 0;
         
         // Use NSOpenGLContext setValues:forParameter: to set swap interval
-        const GLint parameter = 222; // NSOpenGLContextParameterSwapInterval
+        const GLint parameter = NSOpenGLContextParameterSwapInterval;
         ((void(*)(id, SEL, const GLint*, GLint))objc_msgSend)(self->glContext, ObjectiveCSEL::setValuesSel, &swapInterval, parameter);
     }
 
@@ -1897,13 +2515,13 @@ extern "C" {
         CGDataProviderRef provider = CGImageGetDataProvider(image);
         CFDataRef rawData = CGDataProviderCopyData(provider);
 
-        CGBitmapInfo bitmapInfo = CGImageGetBitmapInfo(image);
-        CGImageAlphaInfo alphaInfo = (CGImageAlphaInfo)(bitmapInfo & kCGBitmapAlphaInfoMask);
-        CGBitmapInfo byteOrder = bitmapInfo & kCGBitmapByteOrderMask;
+        //CGBitmapInfo bitmapInfo = CGImageGetBitmapInfo(image);                               // Temp remove unused variable warning
+        //CGImageAlphaInfo alphaInfo = (CGImageAlphaInfo)(bitmapInfo & kCGBitmapAlphaInfoMask); // Temp remove unused variable warning
+        //CGBitmapInfo byteOrder = bitmapInfo & kCGBitmapByteOrderMask;                         // Temp remove unused variable warning
         
-        self->width         = CGImageGetWidth(image);
-        self->height        = CGImageGetHeight(image);
-        self->bytesPerPixel = 4;
+        self->width         = (int)CGImageGetWidth(image); 
+        self->height        = (int)CGImageGetHeight(image);
+        self->bytesPerPixel = kRGBABytesPerPixel; // 4 bytes for RGBA
         self->bytesPerRow   = self->width * self->bytesPerPixel;
         self->hasAlpha      = YES;
 
@@ -2242,6 +2860,34 @@ extern "C" {
     void window_setMouseExitedCallback(Window* self, void (*callback)(double, double, int, unsigned int, void*), void* userData) {
         self->mouseExitedCallback = callback;
         self->eventUserData = userData;
+    }
+
+    void window_setTouchBeganCallback(Window* self, void (*callback)(uint32_t, double, double, double, double, void*), void* userData) {
+        self->touchBeganCallback = callback;
+        self->touchUserData = userData;
+    }
+
+    void window_setTouchMovedCallback(Window* self, void (*callback)(uint32_t, double, double, double, double, void*), void* userData) {
+        self->touchMovedCallback = callback;
+        self->touchUserData = userData;
+    }
+
+    void window_setTouchEndedCallback(Window* self, void (*callback)(uint32_t, double, double, double, double, void*), void* userData) {
+        self->touchEndedCallback = callback;
+        self->touchUserData = userData;
+    }
+
+    void window_setTouchCancelledCallback(Window* self, void (*callback)(uint32_t, double, double, double, double, void*), void* userData) {
+        self->touchCancelledCallback = callback;
+        self->touchUserData = userData;
+    }
+
+    void window_setStylusCallback(Window* self,
+        void (*callback)(uint32_t, double, double, float, float, float, float, bool, bool, bool, void*),
+        void* userData)
+    {
+        self->stylusCallback = callback;
+        self->stylusUserData = userData;
     }
 
     void window_enableEventHandling(Window* self) {

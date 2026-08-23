@@ -39,7 +39,7 @@ namespace olc::imload
             return false;
         }
 
-        image.Create({
+        image.CreateNoGPU({
             AImageDecoderHeaderInfo_getWidth(info),
             AImageDecoderHeaderInfo_getHeight(info)
         });
@@ -95,7 +95,7 @@ namespace olc::imload
             return false;
         }
 
-        image.Create({
+        image.CreateNoGPU({
          AImageDecoderHeaderInfo_getWidth(info),
          AImageDecoderHeaderInfo_getHeight(info)
         });

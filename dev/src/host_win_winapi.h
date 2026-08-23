@@ -33,7 +33,11 @@
 	#ifdef HAVE_MSMF
 		#define _WIN32_WINNT 0x0600 // Windows Vista
 	#else
-		#define _WIN32_WINNT 0x0500 // Windows 2000
+		//#define _WIN32_WINNT 0x0603 // Windows 8.1
+
+		// Windows 10 Minimum
+		#define WINVER 0x0A00
+		#define _WIN32_WINNT 0x0A00
 	#endif
 #endif
 
@@ -44,6 +48,8 @@
 
 #include <dwmapi.h>
 #include <windows.h>
+#include <winuser.h>
+#include <windowsx.h>
 #undef _WINSOCKAPI_
 //! END WINAPI_CONFIG
 

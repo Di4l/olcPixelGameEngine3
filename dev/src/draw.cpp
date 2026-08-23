@@ -3,6 +3,10 @@
 #include "gpu_iface.h"
 
 //! START IMPLEMENTATION
+#if OLC_HOST == OLC_HOST_MACOS
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wpessimizing-move"  // Suppress clang C++20 warning about moves preventing copy elision on macOS
+#endif
 using namespace olc;
 
 // Some local pools to reduce allocations
@@ -256,63 +260,74 @@ void olc::Draw::Clear(const olc::Pixel& col)
 	pRenderer->ClearViewport(col, true, true);
 }
 
-GPUTask olc::Draw::TaskDrawLine(const std::vector<olc::vf2d>& vPoints, const std::vector<olc::Pixel>& vColours, const olc::Pixel tint)
+GPUTask olc::Draw::TaskDrawLine(const std::vector<olc::vf2d>& vPoints, const std::vector<olc::Pixel>& vColours, const olc::Pixel tint, const bool constrain, const bool looped)
 {
 	GPUTask task;
-	task.structure = olc::Structure::Line;
+	task.structure = looped ? olc::Structure::LineLoop : olc::Structure::Line;
 	task.vertexBuffer.resize((vPoints.size()-1) * 2);
 	for (size_t i = 0; i < vPoints.size() - 1; i++)
 	{
 		task.vertexBuffer[i*2+0] = { {vPoints[i].x, vPoints[i].y, 1.0f, 1.0f}, vColours[i], {0, 0}, {0, 0}, {0, 0}, {0, 0} };
 		task.vertexBuffer[i*2+1] = { {vPoints[i + 1].x, vPoints[i + 1].y, 1.0f, 1.0f}, vColours[i + 1], {0, 0}, {0, 0}, {0, 0}, {0, 0} };
 	}
+	task.blendmode = blendMode;
 	task.tint = tint;
+	task.bPixelConstrained = constrain;
 	return task;
+}
+
+GPUTask olc::Draw::TaskDrawLine(const std::vector<olc::vf2d>& vPoints, const olc::Pixel colour, const olc::Pixel tint, const bool constrain, const bool looped)
+{
+	GPUTask task;
+	task.structure = looped ? olc::Structure::LineLoop : olc::Structure::Line;
+	task.vertexBuffer.resize((vPoints.size() - 1) * 2);
+	for (size_t i = 0; i < vPoints.size() - 1; i++)
+	{
+		task.vertexBuffer[i * 2 + 0] = { {vPoints[i].x, vPoints[i].y, 1.0f, 1.0f}, colour, {0, 0}, {0, 0}, {0, 0}, {0, 0} };
+		task.vertexBuffer[i * 2 + 1] = { {vPoints[i + 1].x, vPoints[i + 1].y, 1.0f, 1.0f}, colour, {0, 0}, {0, 0}, {0, 0}, {0, 0} };
+	}
+	task.blendmode = blendMode;
+	task.tint = tint;
+	task.bPixelConstrained = constrain;
+	return task;
+
 }
 
 GPUTask olc::Draw::TaskDrawPolygon(olc::Structure structure, const std::vector<olc::vf2d>& vPoints, const std::vector<olc::Pixel>& vColours, const olc::Pixel tint)
 {
-	GPUTask task;
-	task.structure = structure;
-	task.bWireframe = true;
-	task.vertexBuffer.resize(vPoints.size());
-	for (size_t i = 0; i < vPoints.size(); i++)
-		task.vertexBuffer[i] = { {vPoints[i].x, vPoints[i].y, 1.0f, 1.0f}, vColours[i], {0, 0}, {0, 0}, {0, 0}, {0, 0} };
-	task.tint = tint;
-	return task;
+	olc_IgnoreUnused(structure);
+	return TaskDrawLine(vPoints, vColours, tint, false, true);
 }
 
 GPUTask olc::Draw::TaskDrawPolygon(olc::Structure structure, const std::vector<olc::vf2d>& vPoints, const olc::Pixel colour, const olc::Pixel tint)
 {	
-	GPUTask task;
-	task.structure = structure;
-	task.bWireframe = true;
-	task.vertexBuffer.resize(vPoints.size());
-	for (size_t i = 0; i < vPoints.size(); i++)
-		task.vertexBuffer[i] = {{vPoints[i].x, vPoints[i].y, 1.0f, 1.0f}, colour, {0, 0}, {0, 0}, {0, 0}, {0, 0}};
-	task.tint = tint;
-	return task;
+	olc_IgnoreUnused(structure);
+	return TaskDrawLine(vPoints, colour, tint, false, true);
 }
 
-GPUTask olc::Draw::TaskFillPolygon(olc::Structure structure, const std::vector<olc::vf2d>& vPoints, const std::vector<olc::Pixel>& vColours, const olc::Pixel tint)
+GPUTask olc::Draw::TaskFillPolygon(olc::Structure structure, const std::vector<olc::vf2d>& vPoints, const std::vector<olc::Pixel>& vColours, const olc::Pixel tint, const bool constrain)
 {
 	GPUTask task;
 	task.structure = structure;
 	task.vertexBuffer.resize(vPoints.size());
 	for (size_t i = 0; i < vPoints.size(); i++)
 		task.vertexBuffer[i] = { {vPoints[i].x, vPoints[i].y, 1.0f, 1.0f}, vColours[i], {0, 0}, {0, 0}, {0, 0}, {0, 0} };
+	task.blendmode = blendMode;
 	task.tint = tint;
+	task.bPixelConstrained = constrain;
 	return task;
 }
 
-GPUTask olc::Draw::TaskFillPolygon(olc::Structure structure, const std::vector<olc::vf2d>& vPoints, const olc::Pixel colour, const olc::Pixel tint)
+GPUTask olc::Draw::TaskFillPolygon(olc::Structure structure, const std::vector<olc::vf2d>& vPoints, const olc::Pixel colour, const olc::Pixel tint, const bool constrain)
 {
 	GPUTask task;
 	task.structure = structure;
 	task.vertexBuffer.resize(vPoints.size());
 	for (size_t i = 0; i < vPoints.size(); i++)
 		task.vertexBuffer[i] = { {vPoints[i].x, vPoints[i].y, 1.0f, 1.0f}, colour, {0, 0}, {0, 0}, {0, 0}, {0, 0} };
+	task.blendmode = blendMode;
 	task.tint = tint;
+	task.bPixelConstrained = constrain;
 	return task;	
 }
 
@@ -324,6 +339,7 @@ GPUTask olc::Draw::TaskTexturedPolygon(olc::Structure structure, const std::vect
 	for (size_t i = 0; i<vPoints.size(); i++)
 		task.vertexBuffer[i] = { {vPoints[i].x, vPoints[i].y, 1.0f, 1.0f}, vColours[i], {vTexCoords[i].x, vTexCoords[i].y}, {0, 0}, {0, 0}, {0, 0} };
 	task.pImage = image;
+	task.blendmode = blendMode;
 	task.tint = tint;
 	return task;
 }
@@ -336,6 +352,7 @@ GPUTask olc::Draw::TaskTexturedPolygon(olc::Structure structure, const std::vect
 	for (size_t i = 0; i < vPoints.size(); i++)
 		task.vertexBuffer[i] = { {vPoints[i].x, vPoints[i].y, vZWs[i].x, vZWs[i].y}, vColours[i], {vTexCoords[i].x, vTexCoords[i].y}, {0, 0}, {0, 0}, {0, 0} };
 	task.pImage = image;
+	task.blendmode = blendMode;
 	task.tint = tint;
 	return task;
 }
@@ -346,10 +363,10 @@ GPUTask olc::Draw::TaskWireMesh(olc::Structure structure, const std::vector<olc:
 	task.structure = structure;
 	task.tint = tint;
 	task.vertexBuffer.resize(vPoints.size());
-	task.bWireframe = true;
 	task.bDepth = bDepth;
 	task.cullmode = cullMode;
 	task.bIs3D = true;
+	task.blendmode = blendMode;
 	task.mvpMatrix = matMVP.m;
 
 	for (size_t i = 0; i < vPoints.size(); i++)
@@ -367,6 +384,7 @@ GPUTask olc::Draw::TaskFillMesh(olc::Structure structure, const std::vector<olc:
 	task.cullmode = cullMode;
 	task.bIs3D = true;
 	task.mvpMatrix = matMVP.m;
+	task.blendmode = blendMode;
 
 	for (size_t i = 0; i < vPoints.size(); i++)
 		task.vertexBuffer[i] = { {vPoints[i].x, vPoints[i].y, vPoints[i].z, vPoints[i].w}, vColours[i], {0, 0}, {0, 0}, {0, 0}, {0, 0} };
@@ -384,6 +402,8 @@ GPUTask olc::Draw::TaskTexturedMesh(olc::Structure structure, const std::vector<
 	task.bDepth = bDepth;
 	task.cullmode = cullMode;
 	task.mvpMatrix = matMVP.m;
+	task.blendmode = blendMode;
+
 	for (size_t i = 0; i < vPoints.size(); i++)
 		task.vertexBuffer[i] = { {vPoints[i].x, vPoints[i].y, vPoints[i].z, vPoints[i].w}, vColours[i], {vTexCoords[i].x, vTexCoords[i].y}, {0, 0}, {0, 0}, {0, 0} };
 	return task;
@@ -409,12 +429,11 @@ const GPUTask& Draw::Line(const olc::vf2d& p1, const olc::Pixel c1, const olc::v
 	PrepareTargetForHW();
 
 	return vecGPUTasks.data.emplace_back(std::move(
-		TaskDrawPolygon(
-			olc::Structure::Line,
+		TaskDrawLine(
 			transformAffine.forwardRoundX<float>({ p1, p2 }),
 			{ c1, c2 },
 			tint
-		)));		
+		)));
 }
 
 
@@ -502,7 +521,12 @@ void olc::Draw::RedefineUnitCircleBuffer(const int32_t nFacets)
 	for (int32_t i = 0; i <= nFacets; i++)
 	{
 		float theta = float(i) / float(nFacets) * 2.0f * 3.14159265358979323846f;
-		buffUnitCirclePoints.data[i] = { cosf(theta), sinf(theta) };
+		
+		float c = cos(theta);
+		float s = sin(theta);
+
+		
+		buffUnitCirclePoints.data[i] = { c, s };
 	}
 }
 
@@ -537,16 +561,24 @@ const GPUTask& olc::Draw::Ellipse(const olc::vf2d& pos, const float& rx, const f
 
 	for (int32_t i = 0; i <= nFacets; i++)
 	{
-		buffPoints.data[i] = transformAffine.forwardRound<float>({ pos.x + rx * buffUnitCirclePoints.data[i].x, pos.y + ry * buffUnitCirclePoints.data[i].y });
+		buffPoints.data[i] = transformAffine.forward<float>({ pos.x + rx * buffUnitCirclePoints.data[i].x, pos.y + ry * buffUnitCirclePoints.data[i].y });
 		buffColours.data[i] = col;
 	}
 
-	return vecGPUTasks.data.emplace_back(std::move(
+	/*return vecGPUTasks.data.emplace_back(std::move(
 		TaskDrawPolygon(
 			olc::Structure::Line,
 			buffPoints.data,
 			buffColours.data,
 			tint
+		)));*/
+
+	return vecGPUTasks.data.emplace_back(std::move(
+		TaskDrawLine(
+			buffPoints.data,
+			buffColours.data,
+			tint,
+			false // Don't constrain
 		)));
 }
 
@@ -573,7 +605,7 @@ const GPUTask& olc::Draw::FilledEllipse(const olc::vf2d& pos, const float& rx, c
 	
 	for (int32_t i = 0; i <= nFacets; i++)
 	{
-		buffPoints.data[i + 1] = transformAffine.forwardRound<float>({ pos.x + rx * buffUnitCirclePoints.data[i].x, pos.y + ry * buffUnitCirclePoints.data[i].y });
+		buffPoints.data[i + 1] = transformAffine.forward<float>({ pos.x + rx * buffUnitCirclePoints.data[i].x, pos.y + ry * buffUnitCirclePoints.data[i].y });
 		buffColours.data[i + 1] = colOuter;
 	}
 
@@ -582,7 +614,8 @@ const GPUTask& olc::Draw::FilledEllipse(const olc::vf2d& pos, const float& rx, c
 			olc::Structure::Fan,
 			buffPoints.data,
 			buffColours.data,
-			tint
+			tint, 
+			false // Don't constrain
 		)));
 }
 
@@ -1093,9 +1126,14 @@ const GPUTask& olc::Draw::ImageRect(olc::ImageRegion image, const olc::vf2d& pos
 }
 
 
-void olc::Draw::SetCullMode(const olc::GPUTask::CullMode mode)
+void olc::Draw::SetCullMode(const olc::CullMode mode)
 {
 	cullMode = mode;
+}
+
+void olc::Draw::SetBlendMode(const olc::BlendMode mode)
+{
+	blendMode = mode;
 }
 
 void olc::Draw::EnableDepth(const bool bEnable)
@@ -1160,5 +1198,9 @@ const olc::mf4d& olc::Draw::GetMVPMatrix() const
 {
 	return matMVP;
 }
+
+#if OLC_HOST == OLC_HOST_MACOS
+#pragma clang diagnostic pop
+#endif
 
 //! END IMPLEMENTATION

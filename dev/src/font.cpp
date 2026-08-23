@@ -83,7 +83,8 @@ namespace olc
 					fontClassicPGE.glyphs.push_back(glyph);
 				}
 				else
-					fontClassicPGE.glyphs.push_back(FontGlyph{ fontClassicPGE.imgFont.region({0,0}, {8,8}) , 8.0f, {8.0f, 8.0f} });
+					// Added missing vMonoSize for non-printable characters, which was causing -Wmissing-field-initializers
+					fontClassicPGE.glyphs.push_back(FontGlyph{ fontClassicPGE.imgFont.region({0,0}, {8,8}) , 8.0f, {8.0f, 8.0f}, { 0.0f, 0.0f } });
 			}
 
 			fontClassicPGE.fLineHeight = 8.0f;

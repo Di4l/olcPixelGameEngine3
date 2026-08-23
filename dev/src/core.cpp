@@ -104,6 +104,7 @@ namespace olc
 		// Input Changes
 		mouse.UpdateState();
 		keyboard.UpdateState();
+		touch.UpdateState();
 		
 		draw.SetGPU(pRenderer);
 		draw.SetTarget(GetScreen());
@@ -174,6 +175,7 @@ namespace olc
 			// fit within the window client area
 			float fAspectScreen = float(GetScreen().Size().x) / float(GetScreen().Size().y);
 
+			
 			vViewSize.x = (int32_t)vWindowSize.x;
 			vViewSize.y = (int32_t)((float)vViewSize.x / fAspectScreen);
 
@@ -201,6 +203,8 @@ namespace olc
 		// Present final composite
 		pRenderer->SetViewport(vViewPos, vViewSize);
 		pRenderer->ClearViewport(config.colClear, true, true);
+		draw.SetBlendMode(olc::BlendMode::Alpha);
+		draw.SetCullMode(olc::CullMode::None);
 		draw.ImageRect(GetScreen().flipV(), { 0.0,0.0 }, vViewSize);
 		draw.ProcessGPUTasks();
 
@@ -220,14 +224,14 @@ namespace olc
 	bool PGEWindow::CreateImage(olc::Image& image, const olc::vi2d& size, const ImageConfig& cfg)
 	{
 		// Create CPU Image
-		if (!image.Create(size, cfg))
+		if (!image.CreateNoGPU(size, cfg))
 			return false;
 
 		// Create GPU Image
 		auto id = pRenderer->CreateTexture(image.Size(), cfg);
 		if (id == 0)
 		{
-			image.Create({ 0,0 });
+			image.CreateNoGPU({ 0,0 });
 			return false;
 		}
 
@@ -246,7 +250,7 @@ namespace olc
 			auto id = pRenderer->CreateTexture(image.Size(), cfg);
 			if (id == 0)
 			{
-				image.Create({ 0,0 });
+				image.CreateNoGPU({ 0,0 });
 				return false;
 			}
 
@@ -268,7 +272,7 @@ namespace olc
 			auto id = pRenderer->CreateTexture(image.Size(), cfg);
 			if (id == 0)
 			{
-				image.Create({ 0,0 });
+				image.CreateNoGPU({ 0,0 });
 				return false;
 			}
 
@@ -297,7 +301,7 @@ namespace olc
 		}
 
 		// Free any cpu memory associated with image
-		image.Create({ 0,0 });
+		image.CreateNoGPU({ 0,0 });
 	}
 
 	void PGEWindow::LinkToRenderer(olc::gpu::Renderer* gpu)
@@ -355,6 +359,19 @@ namespace olc
 		mouse.SetPosition(
 			(olc::vf2d(pos) / olc::vf2d(vWindowSize - (vViewPos * 2)) * GetScreen().Size())
 			.clamp({ 0.0f, 0.0f }, olc::vf2d(GetScreen().Size()-1)));
+		return true;
+	}
+
+	bool PGEWindow::olc_OnTouch(const uint32_t nID, const olc::vf2d& vPos, const bool bPress, const bool bRelease, const olc::vf2d& vSize, const bool stylus, const float pressure, const float orientation, const olc::vf2d& tilt)
+	{
+		olc::vf2d pos = vPos;
+		pos.x -= float(vViewPos.x);
+		pos.y -= float(vViewPos.y);
+
+		olc::vf2d vScale = (1.0f / olc::vf2d(vWindowSize - (vViewPos * 2))) * GetScreen().Size();
+
+		touch.UpdateTouch(nID, pos * vScale, 
+			bPress, bRelease, vSize * vScale, stylus, pressure, orientation, tilt);
 		return true;
 	}
 
@@ -514,6 +531,8 @@ namespace olc
 		draw.ProcessGPUTasks();
 
 		// Set to known default state
+		draw.SetBlendMode(olc::BlendMode::Alpha);
+		draw.SetCullMode(olc::CullMode::None);
 		draw.SetTarget(GetScreen());
 		draw.WorldReset();
 		gpu->ApplyDefaultShader();

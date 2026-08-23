@@ -16,6 +16,7 @@
 #include "draw.h"
 #include "hw_mouse.h"
 #include "hw_keyboard.h"
+#include "hw_touch.h"
 //! END CUSTOMHEADER
 
 //! START DECLARATION
@@ -42,6 +43,7 @@ namespace olc
 	{
 		class Mouse;
 		class Keyboard;
+		class Touch;
 	}
 
 	struct WindowConfig
@@ -83,6 +85,10 @@ namespace olc
 
 		// Set Keyboard State
 		virtual bool olc_OnKeyPress(const olc::Key key, const bool bPressed);
+
+		// Touch Handler
+		virtual bool olc_OnTouch(const uint32_t nID, const olc::vf2d& vPos, const bool bPress, const bool bRelease, 
+			const olc::vf2d& vSize, const bool stylus = false, const float pressure = 0.0f, const float orientation = 0, const olc::vf2d& tilt = { 0,0 });
 
 
 
@@ -133,6 +139,7 @@ namespace olc
 	protected:
 		olc::hw::Mouse mouse;
 		olc::hw::Keyboard keyboard;
+		olc::hw::Touch touch;
 
 	};
 }

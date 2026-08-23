@@ -180,6 +180,7 @@
     <ClInclude Include="..\..\utilities\olcUTIL3_Camera2D.h" />
     <ClInclude Include="..\..\utilities\olcUTIL3_GameMode.h" />
     <ClInclude Include="..\..\utilities\olcUTIL3_Geometry2D.h" />
+    <ClInclude Include="..\..\utilities\olcUTIL3_QuadTree.h" />
     <ClInclude Include="..\src\api_macos.h">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
@@ -316,6 +317,7 @@
     <ClCompile Include="..\src\host_win_winapi.cpp" />
     <ClCompile Include="..\src\hw_keyboard.cpp" />
     <ClCompile Include="..\src\hw_mouse.cpp" />
+    <ClCompile Include="..\src\hw_touch.cpp" />
     <ClCompile Include="..\src\image.cpp" />
     <ClCompile Include="..\src\imload_android.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
@@ -349,6 +351,13 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
     </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="..\..\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\LICENCE.md" />
+    <None Include="..\..\README.md" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

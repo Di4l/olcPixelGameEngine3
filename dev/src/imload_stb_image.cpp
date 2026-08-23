@@ -31,7 +31,7 @@ namespace olc::imload
             return false;
         }
         
-        image.Create({width, height});
+        image.CreateNoGPU({width, height});
         std::memcpy(reinterpret_cast<void*>(image.Data()), bytes, width * height * 4);
 
         delete[] bytes;
@@ -48,7 +48,7 @@ namespace olc::imload
         if(!pixelData)
             return false;
 
-        image.Create({width, height});
+        image.CreateNoGPU({width, height});
         std::memcpy(reinterpret_cast<void*>(image.Data()), pixelData, width * height * 4);
         
         delete[] pixelData;
@@ -65,7 +65,7 @@ namespace olc::imload
         if(!pixelData)
             return false;
 
-        image.Create({width, height});
+        image.CreateNoGPU({width, height});
         std::memcpy(reinterpret_cast<void*>(image.Data()), pixelData, width * height * 4);
         
         delete[] pixelData;
