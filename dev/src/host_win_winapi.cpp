@@ -306,7 +306,11 @@ namespace olc::host
 		// Keep client size as requested
 		RECT rWndRect = { 0, 0, vWinSize.x, vWinSize.y };
 		AdjustWindowRectEx(&rWndRect, dwStyle, FALSE, dwExStyle);
-		int width = rWndRect.right - rWndRect.left;
+
+		// +1 Hack to remove black bar between client and title bar for "perfect" window
+		// sizes anyway. This could be DPI related on later windows, but this makes it look
+		// tidier for "normal" applications
+		int width = rWndRect.right - rWndRect.left + 1; 
 		int height = rWndRect.bottom - rWndRect.top;
 
 		// Create the actual OS window, return a handle

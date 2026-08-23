@@ -175,6 +175,7 @@ namespace olc
 			// fit within the window client area
 			float fAspectScreen = float(GetScreen().Size().x) / float(GetScreen().Size().y);
 
+			
 			vViewSize.x = (int32_t)vWindowSize.x;
 			vViewSize.y = (int32_t)((float)vViewSize.x / fAspectScreen);
 

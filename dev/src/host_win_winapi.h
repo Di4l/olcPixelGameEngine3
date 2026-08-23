@@ -33,7 +33,11 @@
 	#ifdef HAVE_MSMF
 		#define _WIN32_WINNT 0x0600 // Windows Vista
 	#else
-		#define _WIN32_WINNT 0x0603 // Windows 8.1
+		//#define _WIN32_WINNT 0x0603 // Windows 8.1
+
+		// Windows 10 Minimum
+		#define WINVER 0x0A00
+		#define _WIN32_WINNT 0x0A00
 	#endif
 #endif
 
