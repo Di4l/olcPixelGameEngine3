@@ -4439,7 +4439,11 @@ namespace olc::host
 	#ifdef HAVE_MSMF
 		#define _WIN32_WINNT 0x0600 // Windows Vista
 	#else
-		#define _WIN32_WINNT 0x0603 // Windows 8.1
+		//#define _WIN32_WINNT 0x0603 // Windows 8.1
+
+		// Windows 10 Minimum
+		#define WINVER 0x0A00
+		#define _WIN32_WINNT 0x0A00
 	#endif
 #endif
 
@@ -4625,8 +4629,7 @@ extern "C" {
     typedef void (*KeyEventCallback)        (unsigned short keyCode, const char* characters, unsigned int modifierFlags, void* userData);
     typedef void (*MouseEventCallback)      (double x, double y, int buttonNumber, unsigned int modifierFlags, void* userData);
     typedef void (*TouchEventCallback)      (uint32_t touchID, double x, double y, double sizeX, double sizeY, void* userData);
-    typedef void (*StylusEventCallback)     (uint32_t touchID, double x, double y,
-                                             float pressure, float rotation,
+    typedef void (*StylusEventCallback)     (uint32_t touchID, double x, double y,float pressure, float rotation,
                                              float tiltX, float tiltY,
                                              bool bPress, bool bRelease, bool bIsStylus,
                                              void* userData);
@@ -5627,8 +5630,7 @@ namespace olc {
                         eventHandler->touchCancelledHandler_(TouchEvent(touchID, x, y, sizeX, sizeY));
                 }
 
-                static void stylusCallback(uint32_t touchID, double x, double y,
-                    float pressure, float rotation, float tiltX, float tiltY,
+                static void stylusCallback(uint32_t touchID, double x, double y,float pressure, float rotation, float tiltX, float tiltY,
                     bool bPress, bool bRelease, bool bIsStylus, void* userData)
                 {
                     auto* eventHandler = static_cast<EventHandler*>(userData);
@@ -7761,7 +7763,11 @@ namespace olc::host
 		// Keep client size as requested
 		RECT rWndRect = { 0, 0, vWinSize.x, vWinSize.y };
 		AdjustWindowRectEx(&rWndRect, dwStyle, FALSE, dwExStyle);
-		int width = rWndRect.right - rWndRect.left;
+
+		// +1 Hack to remove black bar between client and title bar for "perfect" window
+		// sizes anyway. This could be DPI related on later windows, but this makes it look
+		// tidier for "normal" applications
+		int width = rWndRect.right - rWndRect.left + 1; 
 		int height = rWndRect.bottom - rWndRect.top;
 
 		// Create the actual OS window, return a handle
@@ -19350,6 +19356,7 @@ namespace olc
 			// fit within the window client area
 			float fAspectScreen = float(GetScreen().Size().x) / float(GetScreen().Size().y);
 
+			
 			vViewSize.x = (int32_t)vWindowSize.x;
 			vViewSize.y = (int32_t)((float)vViewSize.x / fAspectScreen);
 
