@@ -3,13 +3,26 @@
 
 ExamplePanel1::ExamplePanel1(wxWindow* pParent) : olc::wx::PGE3Panel(pParent)
 {
-	
+	vLineStart = { 0,0 };
+	vLineStop = { 256, 240 };
 }
 
 void ExamplePanel1::OnRender()
 {
-	draw.Line({ 0,0 }, olc::Colour::BLUE, { 256, 240 }, olc::Colour::RED);
+	draw.Line(vLineStart, olc::Colour::BLUE, vLineStop, olc::Colour::RED);
 	draw.StringProp({ 10, 2 }, "olc::PixelGameEngine\nin\nwxWidgets!", olc::Colour::WHITE);
+}
+
+void ExamplePanel1::OnMouseLeftDown(const olc::vf2d& vWorldPos, const bool bShift, const bool bControl)
+{
+	vLineStart = vWorldPos;
+	Refresh();
+}
+
+void ExamplePanel1::OnMouseRightDown(const olc::vf2d& vWorldPos, const bool bShift, const bool bControl)
+{
+	vLineStop = vWorldPos;
+	Refresh();
 }
 
 
@@ -38,6 +51,11 @@ void ExamplePanel2::OnRender()
 {
 	draw.Clear(olc::Colour::VERY_DARK_BLUE);
 	draw.FilledCircle(vPos.round(), 10, olc::Colour::WHITE);
+}
+
+void ExamplePanel2::OnMouseMiddleDown(const olc::vf2d& vWorldPos, const bool bShift, const bool bControl)
+{
+	vPos = vWorldPos;
 }
 
 void ExamplePanel2::OnUpdate(const float fElapsedTime)
@@ -96,8 +114,8 @@ cMain::cMain()
 void cMain::OnTick(wxTimerEvent& event)
 {
 	olc_IgnoreUnused(event);
-	m_pPanel1->OnUpdate(1.0f / 60.0f);
-	m_pPanel1->Refresh(false);
+	//m_pPanel1->OnUpdate(1.0f / 60.0f);
+	//m_pPanel1->Refresh(false);
 	
 	m_pPanel2->OnUpdate(1.0f / 60.0f);
 	m_pPanel2->Refresh(false);

@@ -160,6 +160,14 @@ namespace olc::wx
 
 		Connect(wxEVT_PAINT, wxPaintEventHandler(olc::wx::PGE3Panel::Event_OnPaint));
 		Connect(wxEVT_SIZE, wxSizeEventHandler(olc::wx::PGE3Panel::Event_OnResize));
+		Connect(wxEVT_MOTION, wxMouseEventHandler(olc::wx::PGE3Panel::Event_OnMouseMove));
+		Connect(wxEVT_MIDDLE_DOWN, wxMouseEventHandler(olc::wx::PGE3Panel::Event_OnMouseMiddleDown));
+		Connect(wxEVT_MIDDLE_UP, wxMouseEventHandler(olc::wx::PGE3Panel::Event_OnMouseMiddleUp));
+		Connect(wxEVT_MOUSEWHEEL, wxMouseEventHandler(olc::wx::PGE3Panel::Event_OnMouseWheel));
+		Connect(wxEVT_LEFT_DOWN, wxMouseEventHandler(olc::wx::PGE3Panel::Event_OnMouseLeftDown));
+		Connect(wxEVT_LEFT_UP, wxMouseEventHandler(olc::wx::PGE3Panel::Event_OnMouseLeftUp));
+		Connect(wxEVT_RIGHT_DOWN, wxMouseEventHandler(olc::wx::PGE3Panel::Event_OnMouseRightDown));
+		Connect(wxEVT_RIGHT_UP, wxMouseEventHandler(olc::wx::PGE3Panel::Event_OnMouseRightUp));
 	}
 
 	PGE3Panel::PGE3Panel(wxWindow* parent, const olc::vi2d& vFixedSize) : wxGLCanvas(parent, -1, nullptr)
@@ -184,11 +192,28 @@ namespace olc::wx
 		ResetDrawState();
 
 		Connect(wxEVT_PAINT, wxPaintEventHandler(olc::wx::PGE3Panel::Event_OnPaint));		
+		Connect(wxEVT_MOTION, wxMouseEventHandler(olc::wx::PGE3Panel::Event_OnMouseMove));
+		Connect(wxEVT_MIDDLE_DOWN, wxMouseEventHandler(olc::wx::PGE3Panel::Event_OnMouseMiddleDown));
+		Connect(wxEVT_MIDDLE_UP, wxMouseEventHandler(olc::wx::PGE3Panel::Event_OnMouseMiddleUp));
+		Connect(wxEVT_MOUSEWHEEL, wxMouseEventHandler(olc::wx::PGE3Panel::Event_OnMouseWheel));
+		Connect(wxEVT_LEFT_DOWN, wxMouseEventHandler(olc::wx::PGE3Panel::Event_OnMouseLeftDown));
+		Connect(wxEVT_LEFT_UP, wxMouseEventHandler(olc::wx::PGE3Panel::Event_OnMouseLeftUp));
+		Connect(wxEVT_RIGHT_DOWN, wxMouseEventHandler(olc::wx::PGE3Panel::Event_OnMouseRightDown));
+		Connect(wxEVT_RIGHT_UP, wxMouseEventHandler(olc::wx::PGE3Panel::Event_OnMouseRightUp));
 	}
 
 	PGE3Panel::~PGE3Panel()
 	{
-		
+		Disconnect(wxEVT_PAINT, wxPaintEventHandler(olc::wx::PGE3Panel::Event_OnPaint));
+		Disconnect(wxEVT_SIZE, wxSizeEventHandler(olc::wx::PGE3Panel::Event_OnResize));
+		Disconnect(wxEVT_MOTION, wxMouseEventHandler(olc::wx::PGE3Panel::Event_OnMouseMove));
+		Disconnect(wxEVT_MIDDLE_DOWN, wxMouseEventHandler(olc::wx::PGE3Panel::Event_OnMouseMiddleDown));
+		Disconnect(wxEVT_MIDDLE_UP, wxMouseEventHandler(olc::wx::PGE3Panel::Event_OnMouseMiddleUp));
+		Disconnect(wxEVT_MOUSEWHEEL, wxMouseEventHandler(olc::wx::PGE3Panel::Event_OnMouseWheel));
+		Disconnect(wxEVT_LEFT_DOWN, wxMouseEventHandler(olc::wx::PGE3Panel::Event_OnMouseLeftDown));
+		Disconnect(wxEVT_LEFT_UP, wxMouseEventHandler(olc::wx::PGE3Panel::Event_OnMouseLeftUp));
+		Disconnect(wxEVT_RIGHT_DOWN, wxMouseEventHandler(olc::wx::PGE3Panel::Event_OnMouseRightDown));
+		Disconnect(wxEVT_RIGHT_UP, wxMouseEventHandler(olc::wx::PGE3Panel::Event_OnMouseRightUp));
 	}
 
 	void PGE3Panel::ResetDrawState()
@@ -201,6 +226,8 @@ namespace olc::wx
 		draw.SetBlendMode(olc::BlendMode::Alpha);
 		draw.SetCullMode(olc::CullMode::None);
 	}
+
+	
 
 	void PGE3Panel::Event_OnPaint(wxPaintEvent& evt)
 	{
@@ -244,19 +271,61 @@ namespace olc::wx
 		evt.Skip(true);
 	}
 
-	void PGE3Panel::OnCreate()
+	olc::vf2d PGE3Panel::ScaleMouse(wxMouseEvent& evt)
 	{
-		// Overriden by user
+		olc::vf2d vScreenPos = olc::vf2d(float(evt.GetX()), float(evt.GetY()));
+
+		if (bFixedSize)
+			vScreenPos = vScreenPos / olc::vf2d(GetSize().x, GetSize().y) * vFixedSizeImage;
+
+		return vScreenPos;
 	}
 
-	void PGE3Panel::OnUpdate(const float fElapsedTime)
+	void PGE3Panel::Event_OnMouseLeftUp(wxMouseEvent& evt)
 	{
-		// Overriden by user
+		OnMouseLeftUp(draw.ScreenToWorld(ScaleMouse(evt)), evt.ShiftDown(), evt.ControlDown());
+		evt.Skip();
 	}
 
-	void PGE3Panel::OnRender()
+	void PGE3Panel::Event_OnMouseLeftDown(wxMouseEvent& evt)
 	{
-		// Overriden by user
+		OnMouseLeftDown(draw.ScreenToWorld(ScaleMouse(evt)), evt.ShiftDown(), evt.ControlDown());
+		evt.Skip();
+	}
+
+	void PGE3Panel::Event_OnMouseRightUp(wxMouseEvent& evt)
+	{
+		OnMouseRightUp(draw.ScreenToWorld(ScaleMouse(evt)), evt.ShiftDown(), evt.ControlDown());
+		evt.Skip();
+	}
+
+	void PGE3Panel::Event_OnMouseRightDown(wxMouseEvent& evt)
+	{
+		OnMouseRightDown(draw.ScreenToWorld(ScaleMouse(evt)), evt.ShiftDown(), evt.ControlDown());
+		evt.Skip();
+	}
+
+	void PGE3Panel::Event_OnMouseMiddleUp(wxMouseEvent& evt)
+	{
+		OnMouseMiddleUp(draw.ScreenToWorld(ScaleMouse(evt)), evt.ShiftDown(), evt.ControlDown());
+		evt.Skip();
+	}
+
+	void PGE3Panel::Event_OnMouseMiddleDown(wxMouseEvent& evt)
+	{
+		OnMouseMiddleDown(draw.ScreenToWorld(ScaleMouse(evt)), evt.ShiftDown(), evt.ControlDown());
+		evt.Skip();
+	}
+
+	void PGE3Panel::Event_OnMouseMove(wxMouseEvent& evt)
+	{
+		OnMouseMove(draw.ScreenToWorld(ScaleMouse(evt)), evt.ShiftDown(), evt.ControlDown());
+		evt.Skip();
+	}
+
+	void PGE3Panel::Event_OnMouseWheel(wxMouseEvent& evt)
+	{
+		evt.Skip();
 	}
 
 }

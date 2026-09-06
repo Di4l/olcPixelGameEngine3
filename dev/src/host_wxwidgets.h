@@ -81,18 +81,38 @@ namespace olc::wx
 		bool bFixedSize = false;
 		olc::vi2d vFixedSizeImage;
 
+		olc::vf2d ScaleMouse(wxMouseEvent& evt);
+
 
 	private: // wxWidgets Overrides
 		void Event_OnPaint(wxPaintEvent& evt);
 		void Event_OnResize(wxSizeEvent& evt);
+		void Event_OnMouseLeftUp(wxMouseEvent& evt);
+		void Event_OnMouseLeftDown(wxMouseEvent& evt);
+		void Event_OnMouseRightUp(wxMouseEvent& evt);
+		void Event_OnMouseRightDown(wxMouseEvent& evt);
+		void Event_OnMouseMiddleUp(wxMouseEvent& evt);
+		void Event_OnMouseMiddleDown(wxMouseEvent& evt);
+		void Event_OnMouseMove(wxMouseEvent& evt);
+		void Event_OnMouseWheel(wxMouseEvent& evt);
 
 
 	protected: // User Overrides
-		virtual void OnRender(); // Called via wxWidgets   ->Refresh()
+		virtual void OnRender() {}; // Called via wxWidgets   ->Refresh()
 
 	public:
-		virtual void OnCreate();
-		virtual void OnUpdate(const float fElapsedTime);
+		virtual void OnCreate() {};
+		virtual void OnUpdate(const float fElapsedTime) {};
+
+		// Mouse Handlers
+		virtual void OnMouseMiddleUp(const olc::vf2d& vWorldPos, const bool bShift, const bool bControl) {};
+		virtual void OnMouseMiddleDown(const olc::vf2d& vWorldPos, const bool bShift, const bool bControl) {};
+		virtual void OnMouseLeftUp(const olc::vf2d& vWorldPos, const bool bShift, const bool bControl) {};
+		virtual void OnMouseLeftDown(const olc::vf2d& vWorldPos, const bool bShift, const bool bControl) {};
+		virtual void OnMouseRightUp(const olc::vf2d& vWorldPos, const bool bShift, const bool bControl) {};
+		virtual void OnMouseRightDown(const olc::vf2d& vWorldPos, const bool bShift, const bool bControl) {};
+		virtual void OnMouseMove(const olc::vf2d& vWorldPos, const bool bShift, const bool bControl) {};
+		virtual void OnMouseWheel(const olc::vf2d& vWorldPos, const bool bShift, const bool bControl) {};
 	};
 }
 //! END DECLARATION

@@ -11,6 +11,12 @@ public:
 protected:
 	void OnRender() override;
 
+	void OnMouseLeftDown(const olc::vf2d& vWorldPos, const bool bShift, const bool bControl) override;
+	void OnMouseRightDown(const olc::vf2d& vWorldPos, const bool bShift, const bool bControl) override;
+
+private:
+	olc::vf2d vLineStart;
+	olc::vf2d vLineStop;
 };
 
 
@@ -25,6 +31,8 @@ public:
 	void OnCreate() override;
 protected:
 	void OnRender() override;
+	void OnMouseMiddleDown(const olc::vf2d& vWorldPos, const bool bShift, const bool bControl) override;
+
 
 private:
 	olc::vf2d vPos;
