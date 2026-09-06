@@ -29,7 +29,7 @@
 // can use and get a PGE3 like rendering and user experience
 namespace olc::wx
 {
-	class PGE3Core
+	class PGE3Core : public wxGLCanvas
 	{
 	public:
 		PGE3Core(wxWindow* parent);
@@ -48,7 +48,10 @@ namespace olc::wx
 		// Destroy an image
 		void DestroyImage(olc::Image& image);
 
-
+	public:
+		wxGLContext* get() const;
+		olc::gpu::Renderer* GetRenderer();
+		olc::imload::ImageLoader* GetImageLoader();
 
 	private: // wxWidgets Specific
 		wxGLContext* m_glContext = nullptr;
@@ -61,8 +64,10 @@ namespace olc::wx
 	class PGE3Panel : public wxGLCanvas
 	{
 	public:
-		PGE3Panel(wxWindow* parent, olc::wx::PGE3Core* core = nullptr);
+		PGE3Panel(wxWindow* parent);
 		virtual ~PGE3Panel();
+
+		void ResetDrawState();
 
 	protected: // Local PGE3 Components
 		olc::Draw draw;
@@ -78,9 +83,8 @@ namespace olc::wx
 
 
 	protected: // User Overrides
-		virtual void OnPreRender();
+		virtual void OnCreate();
 		virtual void OnRender();
-		virtual void OnPostRender();
 	};
 }
 //! END DECLARATION

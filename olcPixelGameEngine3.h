@@ -6641,7 +6641,7 @@ namespace olc::host
 // can use and get a PGE3 like rendering and user experience
 namespace olc::wx
 {
-	class PGE3Core
+	class PGE3Core : public wxGLCanvas
 	{
 	public:
 		PGE3Core(wxWindow* parent);
@@ -6660,7 +6660,10 @@ namespace olc::wx
 		// Destroy an image
 		void DestroyImage(olc::Image& image);
 
-
+	public:
+		wxGLContext* get() const;
+		olc::gpu::Renderer* GetRenderer();
+		olc::imload::ImageLoader* GetImageLoader();
 
 	private: // wxWidgets Specific
 		wxGLContext* m_glContext = nullptr;
@@ -6673,8 +6676,10 @@ namespace olc::wx
 	class PGE3Panel : public wxGLCanvas
 	{
 	public:
-		PGE3Panel(wxWindow* parent, olc::wx::PGE3Core* core = nullptr);
+		PGE3Panel(wxWindow* parent);
 		virtual ~PGE3Panel();
+
+		void ResetDrawState();
 
 	protected: // Local PGE3 Components
 		olc::Draw draw;
@@ -6690,9 +6695,8 @@ namespace olc::wx
 
 
 	protected: // User Overrides
-		virtual void OnPreRender();
+		virtual void OnCreate();
 		virtual void OnRender();
-		virtual void OnPostRender();
 	};
 }
 #endif
@@ -15380,12 +15384,34 @@ void android_main(struct android_app* app)
 #else // Using wxWidgets
 namespace olc::wx
 {
-	PGE3Core::PGE3Core(wxWindow* parent)
+	PGE3Core::PGE3Core(wxWindow* parent) : wxGLCanvas(parent, -1, nullptr)
 	{
+		// Create a wxWidgets "glContext" targeting OpenGL 3.3
+		wxGLContextAttrs ctxAttrs;
+		ctxAttrs.CoreProfile().OGLVersion(3, 3).EndList();
+		m_glContext = new wxGLContext(this, NULL, &ctxAttrs);
+		SetCurrent(*m_glContext);
+
+
+		// Create all the vital parts of PGE
+		pImageLoader = std::make_unique<olc::imload::OLC_IMAGELOADER_CLASS>();
+
+		// Create the renderer
+		olc::gpu::RendererConfig cfgRenderer;
+		pRenderer = std::make_unique<olc::gpu::OLC_GPU_CLASS>();
+		pRenderer->CreateDevice({ this }, cfgRenderer);
+
+		// Load the font
+		olc::pgeguts::CreateClassicFont(this);
+
+		// wxWidgets should hide this pseudo-canvas. It was only
+		// needed to get the context
+		this->Hide();
 	}
 
 	PGE3Core::~PGE3Core()
 	{
+		delete m_glContext;
 	}
 
 	bool PGE3Core::CreateImage(olc::Image& image, const olc::vi2d& size, const ImageConfig& cfg)
@@ -15471,30 +15497,105 @@ namespace olc::wx
 		image.CreateNoGPU({ 0,0 });
 	}
 
-	PGE3Panel::PGE3Panel(wxWindow* parent, olc::wx::PGE3Core* core)
+	wxGLContext* PGE3Core::get() const
 	{
+		return m_glContext;
+	}
+
+	olc::gpu::Renderer* PGE3Core::GetRenderer()
+	{
+		return pRenderer.get();
+	}
+
+	olc::imload::ImageLoader* PGE3Core::GetImageLoader()
+	{
+		return pImageLoader.get();
+	}
+
+
+
+	olc::wx::PGE3Core* PGE3Panel::m_pCore = nullptr;
+
+
+
+	PGE3Panel::PGE3Panel(wxWindow* parent) : wxGLCanvas(parent, -1, nullptr)
+	{
+		if (m_pCore == nullptr)
+		{
+			// Create a static PGE3Core
+			m_pCore = new PGE3Core(this);
+		}
+
+		// Set the context via wxWidgets
+		SetCurrent(*m_pCore->get());
+
+		// Associate this instance of draw with the renderer
+		draw.SetGPU(m_pCore->GetRenderer());
+
+		// Create the default draw target
+		m_pCore->CreateImage(imgPrimary, { 256, 240 });
+
+		// Call "OnUserCreate()" before any other drawing can occur
+		ResetDrawState();
+		OnCreate();
+
+		Connect(wxEVT_PAINT, wxPaintEventHandler(olc::wx::PGE3Panel::Event_OnPaint));
 	}
 
 	PGE3Panel::~PGE3Panel()
 	{
+		
+	}
+
+	void PGE3Panel::ResetDrawState()
+	{
+		// Set the context via wxWidgets
+		SetCurrent(*m_pCore->get());
+		m_pCore->GetRenderer()->ApplyDefaultShader();
+		draw.SetTarget(imgPrimary);
+		draw.WorldReset();
+		draw.SetBlendMode(olc::BlendMode::Alpha);
+		draw.SetCullMode(olc::CullMode::None);
 	}
 
 	void PGE3Panel::Event_OnPaint(wxPaintEvent& evt)
 	{
+		// Configure WX to render this window
+		wxPaintDC(this);
+
+		// Perform actual render
+		ResetDrawState();
+		OnRender();
+		draw.ProcessGPUTasks();
+
+		// Present image to screen in location of panel
+		m_pCore->GetRenderer()->AssignTextureTarget(0, 0);
+
+		olc::vf2d vViewPos = { 0,0 };
+		olc::vf2d vViewSize = { float(GetSize().x), float(GetSize().y) };
+
+		// Present final composite
+		m_pCore->GetRenderer()->SetViewport(vViewPos, vViewSize);
+		m_pCore->GetRenderer()->ClearViewport(olc::Colour::RED, true, true);
+		draw.SetBlendMode(olc::BlendMode::Alpha);
+		draw.SetCullMode(olc::CullMode::None);
+		draw.ImageRect(imgPrimary.flipV(), { 0.0,0.0 }, vViewSize);
+		draw.ProcessGPUTasks();
+
+		// Update Window's primary surface - via wxWidgets
+		SwapBuffers();
 	}
 
-	void PGE3Panel::OnPreRender()
+
+	void PGE3Panel::OnCreate()
 	{
+		// Overriden by user
 	}
 
 	void PGE3Panel::OnRender()
 	{
+		// Overriden by user
 	}
-
-	void PGE3Panel::OnPostRender()
-	{
-	}
-
 
 }
 #endif
@@ -16491,7 +16592,8 @@ void main()
 		config = cfg;
 
 
-		
+#if !defined(OLC_USE_WXWIDGETS)
+
 #if OLC_HOST == OLC_HOST_WINDOWS
 		// Create OpenGL Device Context
 		if (!PrepareWindowTarget(os_win_id))
@@ -16624,11 +16726,9 @@ void main()
 	}
 #endif
 
-#if OLC_HOST == OLC_HOST_WXWIDGETS
+#else // wxWidgets specific
 
-
-
-#endif
+#endif // wxWidgets
 
 		// Can't load OpenGL API until context is loaded
 		auto& gl = olc::apis::opengl::gl::Get();

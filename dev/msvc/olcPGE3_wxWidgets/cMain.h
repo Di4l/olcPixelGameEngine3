@@ -3,29 +3,18 @@
 #define OLC_USE_WXWIDGETS
 #include "..\..\..\olcPixelGameEngine3.h"
 
-
-
-
-// A simple bouncing-ball panel
 class BallPanel : public olc::wx::PGE3Panel
 {
 public:
-	BallPanel(wxWindow* pParent, olc::wx::PGE3Core* core = nullptr);
+	BallPanel(wxWindow* pParent);
+
+protected:
+	void OnRender() override;
 
 private:
 	olc::vf2d vPos;
 	olc::vf2d vVel;
 };
-
-// A simple mouse-follow panel to demonstrate independent input per-panel
-//class MouseFollowPanel : public olc::wx::wxOLCPGE3Panel
-//{
-//public:
-//	MouseFollowPanel(wxWindow* pParent);
-//
-//	bool OnUserCreate() override;
-//	bool OnUserUpdate(float fElapsedTime) override;
-//};
 
 class cMain : public wxFrame
 {
@@ -35,9 +24,10 @@ public:
 private:
 	void OnTick(wxTimerEvent& event);
 
+
 private:
-	BallPanel* m_pBall = nullptr;
-	//MouseFollowPanel* m_pMouse = nullptr;
+	BallPanel* m_pBall1 = nullptr;
+	BallPanel* m_pBall2 = nullptr;
 	wxTimer m_timer;
 };
 
