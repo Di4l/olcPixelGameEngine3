@@ -35,6 +35,7 @@
 #define OLC_HOST_ANDROID 7
 #define OLC_HOST_IOS 8
 
+
 #if !defined(OLC_HOST)
 	#if defined(_WIN32)
 		#define OLC_HOST OLC_HOST_WINDOWS
@@ -123,6 +124,7 @@
 		#define OLC_IMAGELOADER OLC_IMAGELOADER_NDK_IMAGEDECODER
 		#define OLC_IMAGELOADER_CLASS ImageLoader_NDKImageDecoder
 	#endif
+
 #endif
 
 // We wait until after the platform specific image loader is selected
@@ -198,5 +200,6 @@ inline constexpr void olc_IgnoreUnused(Args&&...) noexcept {}
 #if OLC_HOST == OLC_HOST_ANDROID
 #define OLC_FRIENDLY_HOST Host_Android
 #endif
+
 
 //! END CONFIGURATION

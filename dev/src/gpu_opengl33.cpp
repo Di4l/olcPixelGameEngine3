@@ -376,6 +376,12 @@ void main()
 	}
 #endif
 
+#if OLC_HOST == OLC_HOST_WXWIDGETS
+
+
+
+#endif
+
 		// Can't load OpenGL API until context is loaded
 		auto& gl = olc::apis::opengl::gl::Get();
 		if (!gl.HasLoaded())

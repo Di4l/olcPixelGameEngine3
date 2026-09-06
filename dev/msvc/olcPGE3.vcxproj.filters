@@ -49,6 +49,9 @@
     <Filter Include="Extras">
       <UniqueIdentifier>{76f094ac-5176-4402-9395-6187374c5d64}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Hosts\wxWidgets Specific">
+      <UniqueIdentifier>{eb0bb606-e8b0-419b-b621-b61633c50add}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\pixel.h">
@@ -144,9 +147,6 @@
     <ClInclude Include="..\src\matrix4d.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\host_iface.h">
-      <Filter>Hosts</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\gpu_iface.h">
       <Filter>GPUs</Filter>
     </ClInclude>
@@ -171,14 +171,23 @@
     <ClInclude Include="..\src\hw_touch.h">
       <Filter>Hardware</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\imload_iface.h">
-      <Filter>Hosts</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\extension.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\utilities\olcUTIL3_QuadTree.h">
       <Filter>Utilities</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\imload_iface.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\host_iface.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\imload_stb_image.h">
+      <Filter>Hosts</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\host_wxwidgets.h">
+      <Filter>Hosts\wxWidgets Specific</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -256,6 +265,9 @@
     </ClCompile>
     <ClCompile Include="..\src\hw_touch.cpp">
       <Filter>Hardware</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\host_wxwidgets.cpp">
+      <Filter>Hosts\wxWidgets Specific</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

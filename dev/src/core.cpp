@@ -37,6 +37,10 @@
 #include "host_android.h"
 #endif
 
+#if OLC_HOST == OLC_HOST_WXWIDGETS
+#include "host_wxwidgets.h"
+#endif
+
 #if OLC_IMAGELOADER == OLC_IMAGELOADER_WINGDI
 #include "imload_wingdi.h"
 #endif

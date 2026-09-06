@@ -175,6 +175,7 @@
 #define OLC_HOST_ANDROID 7
 #define OLC_HOST_IOS 8
 
+
 #if !defined(OLC_HOST)
 	#if defined(_WIN32)
 		#define OLC_HOST OLC_HOST_WINDOWS
@@ -263,6 +264,7 @@
 		#define OLC_IMAGELOADER OLC_IMAGELOADER_NDK_IMAGEDECODER
 		#define OLC_IMAGELOADER_CLASS ImageLoader_NDKImageDecoder
 	#endif
+
 #endif
 
 // We wait until after the platform specific image loader is selected
@@ -338,6 +340,7 @@ inline constexpr void olc_IgnoreUnused(Args&&...) noexcept {}
 #if OLC_HOST == OLC_HOST_ANDROID
 #define OLC_FRIENDLY_HOST Host_Android
 #endif
+
 
 
 #if !defined(PGE_PIXEL_DECLARED)
@@ -2414,7 +2417,15 @@ namespace olc
 #if !defined(PGE_FONT_DECLARED)
 namespace olc
 {
+#if defined(OLC_USE_WXWIDGETS)
+	namespace wx
+	{
+		class PGE3Core;
+	}
+#else
 	class PGEWindow;
+#endif
+
 
 	struct FontGlyph	
 	{
@@ -2457,7 +2468,11 @@ namespace olc
 	namespace pgeguts
 	{
 		// Create the classic PGE font
+#if defined(OLC_USE_WXWIDGETS)
+		void CreateClassicFont(olc::wx::PGE3Core* pge);
+#else
 		void CreateClassicFont(olc::PGEWindow* pge);
+#endif
 	}
 
 }
@@ -3872,6 +3887,7 @@ namespace olc
 #define PGE_HW_TOUCH_DECLARED 1
 #endif
 
+#if OLC_HOST != OLC_HOST_WXWIDGETS
 #if !defined(PGE_WINDOW_DECLARED)
 namespace olc
 {
@@ -4361,14 +4377,14 @@ namespace olc
 }
 #define PGE_CORE_DECLARED 1
 #endif
+#endif
 
 
 
 
 
 
-
-
+#if !defined(OLC_USE_WXWIDGETS)
 
 #if OLC_HOST == OLC_HOST_NONE
 
@@ -6617,6 +6633,71 @@ namespace olc::host
 }
 #endif
 
+#else
+#include <wx/wx.h>
+#include <wx/glcanvas.h>
+
+// Not really an olc::Host, but some stand alone components that wxWidgets
+// can use and get a PGE3 like rendering and user experience
+namespace olc::wx
+{
+	class PGE3Core
+	{
+	public:
+		PGE3Core(wxWindow* parent);
+		virtual ~PGE3Core();
+
+		// Create an image resource
+		bool CreateImage(olc::Image& image, const olc::vi2d& size, const ImageConfig& cfg = olc::ImageConfig());
+		// Create an image resource based on an image file asset on disk
+		bool CreateImageFromFile(olc::Image& image, const std::string& sFileName, const ImageConfig& cfg = olc::ImageConfig());
+		// Create an image resource based on an image file asset in memory
+		bool CreateImageFromMemory(olc::Image& image, const uint8_t* data, const size_t bytes, const ImageConfig& cfg = olc::ImageConfig());
+		// Store an image as a file asset on disk
+		bool WriteImageToFile(const olc::Image& image, const std::string& sFileName);
+		// Store an image as a file asset in memory
+		//bool WriteImageToMemory(const olc::Image& image, std::vector<uint8_t> bytes, const std::string& sFileName);
+		// Destroy an image
+		void DestroyImage(olc::Image& image);
+
+
+
+	private: // wxWidgets Specific
+		wxGLContext* m_glContext = nullptr;
+
+	private: // Global PGE3 Components (excluding host)				
+		std::unique_ptr<olc::gpu::Renderer> pRenderer;
+		std::unique_ptr<olc::imload::ImageLoader> pImageLoader;
+	};
+
+	class PGE3Panel : public wxGLCanvas
+	{
+	public:
+		PGE3Panel(wxWindow* parent, olc::wx::PGE3Core* core = nullptr);
+		virtual ~PGE3Panel();
+
+	protected: // Local PGE3 Components
+		olc::Draw draw;
+
+	private:
+		// Same core is loaded across all panels in application
+		static olc::wx::PGE3Core* m_pCore;
+		olc::Image imgPrimary;
+
+
+	private: // wxWidgets Overrides
+		void Event_OnPaint(wxPaintEvent& evt);
+
+
+	protected: // User Overrides
+		virtual void OnPreRender();
+		virtual void OnRender();
+		virtual void OnPostRender();
+	};
+}
+#endif
+
+
 #if OLC_GPU == OLC_GPU_NONE
 
 #if !defined(PGE_RENDERER_NONE_DECLARED)
@@ -6762,6 +6843,11 @@ namespace olc::gpu
     #define GL_LINE 0
     #define GL_FILL 0
     #define OGL_LOAD(t) reinterpret_cast<t##_t*>(eglGetProcAddress(#t))
+#endif
+
+#if OLC_HOST == OLC_HOST_WXWIDGETS
+
+
 #endif
 
 #if !defined(CALLSTYLE)
@@ -7346,6 +7432,9 @@ namespace olc::imload
 
 
 #if defined(OLC_PGE3_APPLICATION) && !defined(PGE_HOST_IMPLEMENTED)
+
+#if !defined(OLC_USE_WXWIDGETS)
+
 #if OLC_HOST == OLC_HOST_NONE
 namespace olc::host
 {
@@ -8310,6 +8399,7 @@ namespace olc::host
 
 };
 #endif
+
 #if OLC_HOST == OLC_HOST_MACOS
 namespace olc::host {
 
@@ -12074,7 +12164,6 @@ extern "C" {
 
 } // extern "C"
 
-
 #endif
 
 #if OLC_HOST == OLC_HOST_LINUX_X11
@@ -15288,6 +15377,128 @@ void android_main(struct android_app* app)
 }
 #endif
 
+#else // Using wxWidgets
+namespace olc::wx
+{
+	PGE3Core::PGE3Core(wxWindow* parent)
+	{
+	}
+
+	PGE3Core::~PGE3Core()
+	{
+	}
+
+	bool PGE3Core::CreateImage(olc::Image& image, const olc::vi2d& size, const ImageConfig& cfg)
+	{
+		// Create CPU Image
+		if (!image.CreateNoGPU(size, cfg))
+			return false;
+
+		// Create GPU Image
+		auto id = pRenderer->CreateTexture(image.Size(), cfg);
+		if (id == 0)
+		{
+			image.CreateNoGPU({ 0,0 });
+			return false;
+		}
+
+		// Associate CPU object with GPU Resource
+		image.SetGPUID(id);
+		return true;
+	}
+
+	bool PGE3Core::CreateImageFromFile(olc::Image& image, const std::string& sFileName, const ImageConfig& cfg)
+	{
+		if (pImageLoader->CreateImageFromFile(image, sFileName))
+		{
+			// Image has loaded ok, and populated into pixel vector
+			// 
+			// Create GPU Image
+			auto id = pRenderer->CreateTexture(image.Size(), cfg);
+			if (id == 0)
+			{
+				image.CreateNoGPU({ 0,0 });
+				return false;
+			}
+
+			// Associate CPU object with GPU Resource
+			image.SetGPUID(id);
+			return true;
+		}
+
+		return false;
+	}
+
+	bool PGE3Core::CreateImageFromMemory(olc::Image& image, const uint8_t* data, const size_t bytes, const ImageConfig& cfg)
+	{
+		if (pImageLoader->CreateImageFromMemory(image, data, bytes))
+		{
+			// Image has loaded ok, and populated into pixel vector
+			// 
+			// Create GPU Image
+			auto id = pRenderer->CreateTexture(image.Size(), cfg);
+			if (id == 0)
+			{
+				image.CreateNoGPU({ 0,0 });
+				return false;
+			}
+
+			// Associate CPU object with GPU Resource
+			image.SetGPUID(id);
+			return true;
+		}
+
+		std::cout << "Create From Memory Failed\n";
+		return false;
+	}
+
+	bool PGE3Core::WriteImageToFile(const olc::Image& image, const std::string& sFileName)
+	{
+		olc_IgnoreUnused(image, sFileName);
+		return false;
+	}
+
+	void PGE3Core::DestroyImage(olc::Image& image)
+	{
+		// If image has gpu resource, remove it
+		if (image.GetGPUID() != 0)
+		{
+			pRenderer->DeleteTexture(uint32_t(image.GetGPUID()));
+			image.SetGPUID(0);
+		}
+
+		// Free any cpu memory associated with image
+		image.CreateNoGPU({ 0,0 });
+	}
+
+	PGE3Panel::PGE3Panel(wxWindow* parent, olc::wx::PGE3Core* core)
+	{
+	}
+
+	PGE3Panel::~PGE3Panel()
+	{
+	}
+
+	void PGE3Panel::Event_OnPaint(wxPaintEvent& evt)
+	{
+	}
+
+	void PGE3Panel::OnPreRender()
+	{
+	}
+
+	void PGE3Panel::OnRender()
+	{
+	}
+
+	void PGE3Panel::OnPostRender()
+	{
+	}
+
+
+}
+#endif
+
 #define PGE_HOST_IMPLEMENTED 1
 #endif
 
@@ -16411,6 +16622,12 @@ void main()
 		lastError = RendererError::FailedToCreateRenderContext;
 		return false;
 	}
+#endif
+
+#if OLC_HOST == OLC_HOST_WXWIDGETS
+
+
+
 #endif
 
 		// Can't load OpenGL API until context is loaded
@@ -19240,7 +19457,7 @@ const ImageBatch& olc::Draw::ImageRect(olc::ImageBatch& batch, olc::ImageRegion 
 #define PGE_DRAW_IMPLEMENTED 1
 #endif
 
-#if defined(OLC_PGE3_APPLICATION) && !defined(PGE_CORE_IMPLEMENTED)
+#if defined(OLC_PGE3_APPLICATION) && !defined(PGE_CORE_IMPLEMENTED) && !defined(OLC_USE_WXWIDGETS)
 namespace olc
 {
 	PGEWindow::PGEWindow() : Window(), draw()
@@ -20012,7 +20229,11 @@ namespace olc
 {
 	namespace pgeguts
 	{
+#if defined(OLC_USE_WXWIDGETS)
+		void CreateClassicFont(olc::wx::PGE3Core* pge)
+#else
 		void CreateClassicFont(olc::PGEWindow* pge)
+#endif
 		{
 			std::string data = 
 				"?Q`0001oOch0o01o@F40o0<AGD4090LAGD<090@A7ch0?00O7Q`0600>00000000"
@@ -20472,7 +20693,7 @@ namespace olc::hw
 #define PGE_HW_TOUCH_IMPLEMENTED 1
 #endif
 
-#if defined(OLC_PGE3_APPLICATION) && !defined(PGE_WINDOW_IMPLEMENTED)
+#if defined(OLC_PGE3_APPLICATION) && !defined(PGE_WINDOW_IMPLEMENTED) && !defined(OLC_USE_WXWIDGETS)
 namespace olc
 {
 	Window::Window()
