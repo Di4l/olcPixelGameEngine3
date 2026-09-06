@@ -65,6 +65,7 @@ namespace olc::wx
 	{
 	public:
 		PGE3Panel(wxWindow* parent);
+		PGE3Panel(wxWindow* parent, const olc::vi2d& vFixedSize);
 		virtual ~PGE3Panel();
 
 		void ResetDrawState();
@@ -77,14 +78,21 @@ namespace olc::wx
 		static olc::wx::PGE3Core* m_pCore;
 		olc::Image imgPrimary;
 
+		bool bFixedSize = false;
+		olc::vi2d vFixedSizeImage;
+
 
 	private: // wxWidgets Overrides
 		void Event_OnPaint(wxPaintEvent& evt);
+		void Event_OnResize(wxSizeEvent& evt);
 
 
 	protected: // User Overrides
+		virtual void OnRender(); // Called via wxWidgets   ->Refresh()
+
+	public:
 		virtual void OnCreate();
-		virtual void OnRender();
+		virtual void OnUpdate(const float fElapsedTime);
 	};
 }
 //! END DECLARATION

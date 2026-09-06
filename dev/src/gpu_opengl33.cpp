@@ -791,6 +791,14 @@ void main()
 			gl.glDeleteRenderbuffers(1, &rboId);
 			mapTextureToRenderbuffer.erase(texid);
 		}
+
+		mapTextureSizes.erase(texid);
+
+		if (nCurrentTextureSource == texid)
+			nCurrentTextureSource = 0;
+
+		if (nCurrentTextureTarget == texid)
+			nCurrentTextureTarget = 0;
 		
 		return true;
 	}

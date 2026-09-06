@@ -16,6 +16,7 @@ namespace olc
 		dimensions = size;
 		config = cfg;
 		pixels.resize(dimensions.area(), olc::Colour::TANGERINE);
+		BindCPU();
 		return true;
 	}
 

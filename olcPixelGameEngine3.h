@@ -6677,6 +6677,7 @@ namespace olc::wx
 	{
 	public:
 		PGE3Panel(wxWindow* parent);
+		PGE3Panel(wxWindow* parent, const olc::vi2d& vFixedSize);
 		virtual ~PGE3Panel();
 
 		void ResetDrawState();
@@ -6689,14 +6690,21 @@ namespace olc::wx
 		static olc::wx::PGE3Core* m_pCore;
 		olc::Image imgPrimary;
 
+		bool bFixedSize = false;
+		olc::vi2d vFixedSizeImage;
+
 
 	private: // wxWidgets Overrides
 		void Event_OnPaint(wxPaintEvent& evt);
+		void Event_OnResize(wxSizeEvent& evt);
 
 
 	protected: // User Overrides
+		virtual void OnRender(); // Called via wxWidgets   ->Refresh()
+
+	public:
 		virtual void OnCreate();
-		virtual void OnRender();
+		virtual void OnUpdate(const float fElapsedTime);
 	};
 }
 #endif
@@ -15533,13 +15541,37 @@ namespace olc::wx
 		draw.SetGPU(m_pCore->GetRenderer());
 
 		// Create the default draw target
+		bFixedSize = false;
 		m_pCore->CreateImage(imgPrimary, { 256, 240 });
-
-		// Call "OnUserCreate()" before any other drawing can occur
+		
 		ResetDrawState();
-		OnCreate();
 
 		Connect(wxEVT_PAINT, wxPaintEventHandler(olc::wx::PGE3Panel::Event_OnPaint));
+		Connect(wxEVT_SIZE, wxSizeEventHandler(olc::wx::PGE3Panel::Event_OnResize));
+	}
+
+	PGE3Panel::PGE3Panel(wxWindow* parent, const olc::vi2d& vFixedSize) : wxGLCanvas(parent, -1, nullptr)
+	{
+		if (m_pCore == nullptr)
+		{
+			// Create a static PGE3Core
+			m_pCore = new PGE3Core(this);
+		}
+
+		// Set the context via wxWidgets
+		SetCurrent(*m_pCore->get());
+
+		// Associate this instance of draw with the renderer
+		draw.SetGPU(m_pCore->GetRenderer());
+
+		// Create the default draw target
+		vFixedSizeImage = vFixedSize;
+		bFixedSize = true;
+		m_pCore->CreateImage(imgPrimary, vFixedSize);
+
+		ResetDrawState();
+
+		Connect(wxEVT_PAINT, wxPaintEventHandler(olc::wx::PGE3Panel::Event_OnPaint));		
 	}
 
 	PGE3Panel::~PGE3Panel()
@@ -15586,8 +15618,26 @@ namespace olc::wx
 		SwapBuffers();
 	}
 
+	void PGE3Panel::Event_OnResize(wxSizeEvent& evt)
+	{
+		if (!bFixedSize)
+		{
+			// Resize Target Image
+			SetCurrent(*m_pCore->get());
+			m_pCore->DestroyImage(imgPrimary);
+			m_pCore->CreateImage(imgPrimary, { evt.GetSize().x, evt.GetSize().y });
+		}
+
+		Refresh(true);
+		evt.Skip(true);
+	}
 
 	void PGE3Panel::OnCreate()
+	{
+		// Overriden by user
+	}
+
+	void PGE3Panel::OnUpdate(const float fElapsedTime)
 	{
 		// Overriden by user
 	}
@@ -17140,6 +17190,14 @@ void main()
 			gl.glDeleteRenderbuffers(1, &rboId);
 			mapTextureToRenderbuffer.erase(texid);
 		}
+
+		mapTextureSizes.erase(texid);
+
+		if (nCurrentTextureSource == texid)
+			nCurrentTextureSource = 0;
+
+		if (nCurrentTextureTarget == texid)
+			nCurrentTextureTarget = 0;
 		
 		return true;
 	}
@@ -20224,6 +20282,7 @@ namespace olc
 		dimensions = size;
 		config = cfg;
 		pixels.resize(dimensions.area(), olc::Colour::TANGERINE);
+		BindCPU();
 		return true;
 	}
 

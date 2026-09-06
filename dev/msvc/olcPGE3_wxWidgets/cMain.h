@@ -3,11 +3,26 @@
 #define OLC_USE_WXWIDGETS
 #include "..\..\..\olcPixelGameEngine3.h"
 
-class BallPanel : public olc::wx::PGE3Panel
+class ExamplePanel1 : public olc::wx::PGE3Panel
 {
 public:
-	BallPanel(wxWindow* pParent);
+	ExamplePanel1(wxWindow* pParent);
 
+protected:
+	void OnRender() override;
+
+};
+
+
+class ExamplePanel2 : public olc::wx::PGE3Panel
+{
+public:
+	ExamplePanel2(wxWindow* pParent);
+	ExamplePanel2(wxWindow* pParent, const olc::vi2d& vFixedSize);
+
+public:
+	void OnUpdate(const float fElapsedTime) override;
+	void OnCreate() override;
 protected:
 	void OnRender() override;
 
@@ -26,8 +41,9 @@ private:
 
 
 private:
-	BallPanel* m_pBall1 = nullptr;
-	BallPanel* m_pBall2 = nullptr;
+	ExamplePanel1* m_pPanel1 = nullptr;
+	ExamplePanel2* m_pPanel2 = nullptr;
+	ExamplePanel2* m_pPanel3 = nullptr;
 	wxTimer m_timer;
 };
 
