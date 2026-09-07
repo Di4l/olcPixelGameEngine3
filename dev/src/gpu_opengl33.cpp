@@ -243,7 +243,8 @@ void main()
 		config = cfg;
 
 
-		
+#if !defined(OLC_USE_WXWIDGETS)
+
 #if OLC_HOST == OLC_HOST_WINDOWS
 		// Create OpenGL Device Context
 		if (!PrepareWindowTarget(os_win_id))
@@ -375,6 +376,10 @@ void main()
 		return false;
 	}
 #endif
+
+#else // wxWidgets specific
+
+#endif // wxWidgets
 
 		// Can't load OpenGL API until context is loaded
 		auto& gl = olc::apis::opengl::gl::Get();
@@ -786,6 +791,14 @@ void main()
 			gl.glDeleteRenderbuffers(1, &rboId);
 			mapTextureToRenderbuffer.erase(texid);
 		}
+
+		mapTextureSizes.erase(texid);
+
+		if (nCurrentTextureSource == texid)
+			nCurrentTextureSource = 0;
+
+		if (nCurrentTextureTarget == texid)
+			nCurrentTextureTarget = 0;
 		
 		return true;
 	}

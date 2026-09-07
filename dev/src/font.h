@@ -21,7 +21,15 @@
 #if !defined(PGE_FONT_DECLARED)
 namespace olc
 {
+#if defined(OLC_USE_WXWIDGETS)
+	namespace wx
+	{
+		class PGE3Core;
+	}
+#else
 	class PGEWindow;
+#endif
+
 
 	struct FontGlyph	
 	{
@@ -64,7 +72,11 @@ namespace olc
 	namespace pgeguts
 	{
 		// Create the classic PGE font
+#if defined(OLC_USE_WXWIDGETS)
+		void CreateClassicFont(olc::wx::PGE3Core* pge);
+#else
 		void CreateClassicFont(olc::PGEWindow* pge);
+#endif
 	}
 
 }
