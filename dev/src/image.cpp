@@ -3,13 +3,6 @@
 //! START IMPLEMENTATION
 namespace olc
 {
-	/*Image::Image(const olc::vi2d& size, const ImageConfig& cfg)
-	{
-	}
-
-	Image::~Image()
-	{
-	}*/
 
 	bool Image::CreateNoGPU(const olc::vi2d& size, const ImageConfig& cfg)
 	{
@@ -77,6 +70,11 @@ namespace olc
 	bool Image::BoundToCPU() const
 	{
 		return onCPU;
+	}
+
+	olc::ImageRegion Image::all()
+	{
+		return olc::ImageRegion(*this);
 	}
 
 	olc::ImageRegion Image::region(const olc::vf2d pos, const olc::vf2d& size)

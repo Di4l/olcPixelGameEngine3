@@ -2270,6 +2270,12 @@ namespace olc
 		Image() = default;
 		virtual ~Image() = default;
 
+		// Prevent copying & accidental duplication
+		Image(const Image&) = delete;
+		Image& operator=(const Image&) = delete;
+		Image(Image&&) = default;
+		Image& operator=(Image&&) = default;
+
 	public:
 		// Creates nothing but an array of pixels in system memory. Normal users
 		// should never need to call this method. If you want to construct an
@@ -2302,6 +2308,7 @@ namespace olc
 		bool BoundToCPU() const;
 
 	public:
+		olc::ImageRegion all();
 		olc::ImageRegion region(const olc::vf2d pos, const olc::vf2d& size);
 		olc::ImageRegion region(const olc::vf2d& vTL, const olc::vf2d& vTR, const olc::vf2d& vBL, const olc::vf2d& vBR);
 		olc::ImageRegion flipV();
@@ -20358,13 +20365,6 @@ namespace olc
 #if defined(OLC_PGE3_APPLICATION) && !defined(PGE_IMAGE_IMPLEMENTED)
 namespace olc
 {
-	/*Image::Image(const olc::vi2d& size, const ImageConfig& cfg)
-	{
-	}
-
-	Image::~Image()
-	{
-	}*/
 
 	bool Image::CreateNoGPU(const olc::vi2d& size, const ImageConfig& cfg)
 	{
@@ -20432,6 +20432,11 @@ namespace olc
 	bool Image::BoundToCPU() const
 	{
 		return onCPU;
+	}
+
+	olc::ImageRegion Image::all()
+	{
+		return olc::ImageRegion(*this);
 	}
 
 	olc::ImageRegion Image::region(const olc::vf2d pos, const olc::vf2d& size)
