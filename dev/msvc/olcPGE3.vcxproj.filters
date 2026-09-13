@@ -52,6 +52,15 @@
     <Filter Include="Hosts\wxWidgets Specific">
       <UniqueIdentifier>{eb0bb606-e8b0-419b-b621-b61633c50add}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Extensions">
+      <UniqueIdentifier>{12be6a62-5486-49fa-be63-b305888e2aca}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Extensions\MiniAudio">
+      <UniqueIdentifier>{6b6f0117-0e7e-4dc8-ad83-96525e679ff3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Extensions\SplashScreen">
+      <UniqueIdentifier>{799e6b1b-18e3-48e9-9181-a7e139ebd5da}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\pixel.h">
@@ -276,6 +285,18 @@
     </None>
     <None Include="..\..\LICENCE.md">
       <Filter>Extras</Filter>
+    </None>
+    <None Include="..\..\extensions\README.md">
+      <Filter>Extensions</Filter>
+    </None>
+    <None Include="..\..\extensions\miniaudio\README.md">
+      <Filter>Extensions\MiniAudio</Filter>
+    </None>
+    <None Include="..\..\extensions\splashscreen\README.md">
+      <Filter>Extensions\SplashScreen</Filter>
+    </None>
+    <None Include="..\..\utilities\README.md">
+      <Filter>Utilities</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>
