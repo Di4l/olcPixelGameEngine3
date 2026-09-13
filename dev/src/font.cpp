@@ -7,7 +7,11 @@ namespace olc
 {
 	namespace pgeguts
 	{
+#if defined(OLC_USE_WXWIDGETS)
+		void CreateClassicFont(olc::wx::PGE3Core* pge)
+#else
 		void CreateClassicFont(olc::PGEWindow* pge)
+#endif
 		{
 			std::string data = 
 				"?Q`0001oOch0o01o@F40o0<AGD4090LAGD<090@A7ch0?00O7Q`0600>00000000"

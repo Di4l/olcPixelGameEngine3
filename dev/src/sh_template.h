@@ -93,6 +93,11 @@
 
 	"You know you don't have to use AI if you like coding right?" - javidx9
 
+	Identified Uses of AI
+	~~~~~~~~~~~~~~~~~~~~~
+	1) NxN Matrix Inversion - After 4 attempts at getting the sequencing right following
+	the wikipedia articles (VS Copilot)
+
 	Primary Contributors
 	~~~~~~~~~~~~~~~~~~~~
 	@javidx9 (aka David Barr, OneLoneCoder)
@@ -147,6 +152,7 @@
 
 //! GRAB hw_touch.h DECLARATION
 
+#if OLC_HOST != OLC_HOST_WXWIDGETS
 //! GRAB window.h DECLARATION
  
 //! GRAB host_iface.h DECLARATION
@@ -154,14 +160,14 @@
 //! GRAB extension.h DECLARATION
 
 //! GRAB core.h	DECLARATION
+#endif
 
 
 
 
 
 
-
-
+#if !defined(OLC_USE_WXWIDGETS)
 
 #if OLC_HOST == OLC_HOST_NONE
 //! GRAB host_none.h NOHOST_CONFIG
@@ -209,6 +215,13 @@
 //! GRAB host_android.h DECLARATION
 #endif
 
+#else
+//! GRAB host_wxwidgets.h WXWIDGETS_CONFIG
+
+//! GRAB host_wxwidgets.h DECLARATION
+#endif
+
+
 #if OLC_GPU == OLC_GPU_NONE
 //! GRAB gpu_none.h DECLARATION
 #endif
@@ -246,6 +259,9 @@
 
 
 #if defined(OLC_PGE3_APPLICATION) && !defined(PGE_HOST_IMPLEMENTED)
+
+#if !defined(OLC_USE_WXWIDGETS)
+
 #if OLC_HOST == OLC_HOST_NONE
 //! GRAB host_none.cpp IMPLEMENTATION
 #endif
@@ -253,11 +269,11 @@
 #if OLC_HOST == OLC_HOST_WINDOWS
 //! GRAB host_win_winapi.cpp IMPLEMENTATION
 #endif
+
 #if OLC_HOST == OLC_HOST_MACOS
 //! GRAB host_apple_macos.cpp IMPLEMENTATION
 
 //! GRAB api_macos.cpp IMPLEMENTATION
-
 #endif
 
 #if OLC_HOST == OLC_HOST_LINUX_X11
@@ -274,6 +290,10 @@
 
 #if OLC_HOST == OLC_HOST_ANDROID
 //! GRAB host_android.cpp IMPLEMENTATION
+#endif
+
+#else // Using wxWidgets
+//! GRAB host_wxwidgets.cpp IMPLEMENTATION
 #endif
 
 #define PGE_HOST_IMPLEMENTED 1
@@ -300,7 +320,7 @@
 #define PGE_DRAW_IMPLEMENTED 1
 #endif
 
-#if defined(OLC_PGE3_APPLICATION) && !defined(PGE_CORE_IMPLEMENTED)
+#if defined(OLC_PGE3_APPLICATION) && !defined(PGE_CORE_IMPLEMENTED) && !defined(OLC_USE_WXWIDGETS)
 //! GRAB core.cpp IMPLEMENTATION 
 #define PGE_CORE_IMPLEMENTED 1
 #endif
@@ -330,7 +350,7 @@
 #define PGE_HW_TOUCH_IMPLEMENTED 1
 #endif
 
-#if defined(OLC_PGE3_APPLICATION) && !defined(PGE_WINDOW_IMPLEMENTED)
+#if defined(OLC_PGE3_APPLICATION) && !defined(PGE_WINDOW_IMPLEMENTED) && !defined(OLC_USE_WXWIDGETS)
 //! GRAB window.cpp IMPLEMENTATION 
 #define PGE_WINDOW_IMPLEMENTED 1
 #endif

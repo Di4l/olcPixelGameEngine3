@@ -234,6 +234,10 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </ClInclude>
     <ClInclude Include="..\src\host_win_winapi.h" />
+    <ClInclude Include="..\src\host_wxwidgets.h">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClInclude>
     <ClInclude Include="..\src\hw_input.h" />
     <ClInclude Include="..\src\hw_keyboard.h" />
     <ClInclude Include="..\src\hw_mouse.h" />
@@ -258,6 +262,7 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </ClInclude>
+    <ClInclude Include="..\src\imload_stb_image.h" />
     <ClInclude Include="..\src\imload_wingdi.h" />
     <ClInclude Include="..\src\matrix3d.h" />
     <ClInclude Include="..\src\matrix4d.h" />
@@ -315,6 +320,10 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="..\src\host_win_winapi.cpp" />
+    <ClCompile Include="..\src\host_wxwidgets.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
     <ClCompile Include="..\src\hw_keyboard.cpp" />
     <ClCompile Include="..\src\hw_mouse.cpp" />
     <ClCompile Include="..\src\hw_touch.cpp" />
@@ -356,8 +365,12 @@
     <Text Include="..\..\CMakeLists.txt" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="..\..\extensions\miniaudio\README.md" />
+    <None Include="..\..\extensions\README.md" />
+    <None Include="..\..\extensions\splashscreen\README.md" />
     <None Include="..\..\LICENCE.md" />
     <None Include="..\..\README.md" />
+    <None Include="..\..\utilities\README.md" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

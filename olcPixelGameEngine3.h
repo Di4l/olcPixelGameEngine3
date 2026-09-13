@@ -93,6 +93,11 @@
 
 	"You know you don't have to use AI if you like coding right?" - javidx9
 
+	Identified Uses of AI
+	~~~~~~~~~~~~~~~~~~~~~
+	1) NxN Matrix Inversion - After 4 attempts at getting the sequencing right following
+	the wikipedia articles (VS Copilot)
+
 	Primary Contributors
 	~~~~~~~~~~~~~~~~~~~~
 	@javidx9 (aka David Barr, OneLoneCoder)
@@ -174,6 +179,7 @@
 #define OLC_HOST_EMSCRIPTEN 6
 #define OLC_HOST_ANDROID 7
 #define OLC_HOST_IOS 8
+
 
 #if !defined(OLC_HOST)
 	#if defined(_WIN32)
@@ -263,6 +269,7 @@
 		#define OLC_IMAGELOADER OLC_IMAGELOADER_NDK_IMAGEDECODER
 		#define OLC_IMAGELOADER_CLASS ImageLoader_NDKImageDecoder
 	#endif
+
 #endif
 
 // We wait until after the platform specific image loader is selected
@@ -338,6 +345,7 @@ inline constexpr void olc_IgnoreUnused(Args&&...) noexcept {}
 #if OLC_HOST == OLC_HOST_ANDROID
 #define OLC_FRIENDLY_HOST Host_Android
 #endif
+
 
 
 #if !defined(PGE_PIXEL_DECLARED)
@@ -2267,6 +2275,12 @@ namespace olc
 		Image() = default;
 		virtual ~Image() = default;
 
+		// Prevent copying & accidental duplication
+		Image(const Image&) = delete;
+		Image& operator=(const Image&) = delete;
+		Image(Image&&) = default;
+		Image& operator=(Image&&) = default;
+
 	public:
 		// Creates nothing but an array of pixels in system memory. Normal users
 		// should never need to call this method. If you want to construct an
@@ -2299,6 +2313,7 @@ namespace olc
 		bool BoundToCPU() const;
 
 	public:
+		olc::ImageRegion all();
 		olc::ImageRegion region(const olc::vf2d pos, const olc::vf2d& size);
 		olc::ImageRegion region(const olc::vf2d& vTL, const olc::vf2d& vTR, const olc::vf2d& vBL, const olc::vf2d& vBR);
 		olc::ImageRegion flipV();
@@ -2414,7 +2429,15 @@ namespace olc
 #if !defined(PGE_FONT_DECLARED)
 namespace olc
 {
+#if defined(OLC_USE_WXWIDGETS)
+	namespace wx
+	{
+		class PGE3Core;
+	}
+#else
 	class PGEWindow;
+#endif
+
 
 	struct FontGlyph	
 	{
@@ -2457,7 +2480,11 @@ namespace olc
 	namespace pgeguts
 	{
 		// Create the classic PGE font
+#if defined(OLC_USE_WXWIDGETS)
+		void CreateClassicFont(olc::wx::PGE3Core* pge);
+#else
 		void CreateClassicFont(olc::PGEWindow* pge);
+#endif
 	}
 
 }
@@ -3872,6 +3899,7 @@ namespace olc
 #define PGE_HW_TOUCH_DECLARED 1
 #endif
 
+#if OLC_HOST != OLC_HOST_WXWIDGETS
 #if !defined(PGE_WINDOW_DECLARED)
 namespace olc
 {
@@ -4361,14 +4389,14 @@ namespace olc
 }
 #define PGE_CORE_DECLARED 1
 #endif
+#endif
 
 
 
 
 
 
-
-
+#if !defined(OLC_USE_WXWIDGETS)
 
 #if OLC_HOST == OLC_HOST_NONE
 
@@ -6617,6 +6645,103 @@ namespace olc::host
 }
 #endif
 
+#else
+#include <wx/wx.h>
+#include <wx/glcanvas.h>
+
+// Not really an olc::Host, but some stand alone components that wxWidgets
+// can use and get a PGE3 like rendering and user experience
+namespace olc::wx
+{
+	class PGE3Core : public wxGLCanvas
+	{
+	public:
+		PGE3Core(wxWindow* parent);
+		virtual ~PGE3Core();
+
+		// Create an image resource
+		bool CreateImage(olc::Image& image, const olc::vi2d& size, const ImageConfig& cfg = olc::ImageConfig());
+		// Create an image resource based on an image file asset on disk
+		bool CreateImageFromFile(olc::Image& image, const std::string& sFileName, const ImageConfig& cfg = olc::ImageConfig());
+		// Create an image resource based on an image file asset in memory
+		bool CreateImageFromMemory(olc::Image& image, const uint8_t* data, const size_t bytes, const ImageConfig& cfg = olc::ImageConfig());
+		// Store an image as a file asset on disk
+		bool WriteImageToFile(const olc::Image& image, const std::string& sFileName);
+		// Store an image as a file asset in memory
+		//bool WriteImageToMemory(const olc::Image& image, std::vector<uint8_t> bytes, const std::string& sFileName);
+		// Destroy an image
+		void DestroyImage(olc::Image& image);
+
+	public:
+		wxGLContext* get() const;
+		olc::gpu::Renderer* GetRenderer();
+		olc::imload::ImageLoader* GetImageLoader();
+
+	private: // wxWidgets Specific
+		wxGLContext* m_glContext = nullptr;
+
+	private: // Global PGE3 Components (excluding host)				
+		std::unique_ptr<olc::gpu::Renderer> pRenderer;
+		std::unique_ptr<olc::imload::ImageLoader> pImageLoader;
+	};
+
+	class PGE3Panel : public wxGLCanvas
+	{
+	public:
+		PGE3Panel(wxWindow* parent);
+		PGE3Panel(wxWindow* parent, const olc::vi2d& vFixedSize);
+		virtual ~PGE3Panel();
+
+		void ResetDrawState();
+
+	protected: // Local PGE3 Components
+		olc::Draw draw;
+
+	private:
+		// Same core is loaded across all panels in application
+		static olc::wx::PGE3Core* m_pCore;
+		olc::Image imgPrimary;
+
+		bool bFixedSize = false;
+		olc::vi2d vFixedSizeImage;
+
+		olc::vf2d ScaleMouse(wxMouseEvent& evt);
+
+
+	private: // wxWidgets Overrides
+		void Event_OnPaint(wxPaintEvent& evt);
+		void Event_OnResize(wxSizeEvent& evt);
+		void Event_OnMouseLeftUp(wxMouseEvent& evt);
+		void Event_OnMouseLeftDown(wxMouseEvent& evt);
+		void Event_OnMouseRightUp(wxMouseEvent& evt);
+		void Event_OnMouseRightDown(wxMouseEvent& evt);
+		void Event_OnMouseMiddleUp(wxMouseEvent& evt);
+		void Event_OnMouseMiddleDown(wxMouseEvent& evt);
+		void Event_OnMouseMove(wxMouseEvent& evt);
+		void Event_OnMouseWheel(wxMouseEvent& evt);
+
+
+	protected: // User Overrides
+		virtual void OnRender() {}; // Called via wxWidgets   ->Refresh()
+
+	public:
+		virtual void OnCreate() {};
+		virtual void OnUpdate(const float fElapsedTime) {};
+
+		// Mouse Handlers
+		virtual void OnMouseMiddleUp(const olc::vf2d& vWorldPos, const bool bShift, const bool bControl) {};
+		virtual void OnMouseMiddleDown(const olc::vf2d& vWorldPos, const bool bShift, const bool bControl) {};
+		virtual void OnMouseLeftUp(const olc::vf2d& vWorldPos, const bool bShift, const bool bControl) {};
+		virtual void OnMouseLeftDown(const olc::vf2d& vWorldPos, const bool bShift, const bool bControl) {};
+		virtual void OnMouseRightUp(const olc::vf2d& vWorldPos, const bool bShift, const bool bControl) {};
+		virtual void OnMouseRightDown(const olc::vf2d& vWorldPos, const bool bShift, const bool bControl) {};
+		virtual void OnMouseMove(const olc::vf2d& vWorldPos, const bool bShift, const bool bControl) {};
+		virtual void OnMouseWheel(const olc::vf2d& vWorldPos, const bool bShift, const bool bControl) {};
+	};
+}
+#endif
+
+
 #if OLC_GPU == OLC_GPU_NONE
 
 #if !defined(PGE_RENDERER_NONE_DECLARED)
@@ -6762,6 +6887,11 @@ namespace olc::gpu
     #define GL_LINE 0
     #define GL_FILL 0
     #define OGL_LOAD(t) reinterpret_cast<t##_t*>(eglGetProcAddress(#t))
+#endif
+
+#if OLC_HOST == OLC_HOST_WXWIDGETS
+
+
 #endif
 
 #if !defined(CALLSTYLE)
@@ -7346,6 +7476,9 @@ namespace olc::imload
 
 
 #if defined(OLC_PGE3_APPLICATION) && !defined(PGE_HOST_IMPLEMENTED)
+
+#if !defined(OLC_USE_WXWIDGETS)
+
 #if OLC_HOST == OLC_HOST_NONE
 namespace olc::host
 {
@@ -8310,6 +8443,7 @@ namespace olc::host
 
 };
 #endif
+
 #if OLC_HOST == OLC_HOST_MACOS
 namespace olc::host {
 
@@ -12074,7 +12208,6 @@ extern "C" {
 
 } // extern "C"
 
-
 #endif
 
 #if OLC_HOST == OLC_HOST_LINUX_X11
@@ -15288,6 +15421,336 @@ void android_main(struct android_app* app)
 }
 #endif
 
+#else // Using wxWidgets
+namespace olc::wx
+{
+	PGE3Core::PGE3Core(wxWindow* parent) : wxGLCanvas(parent, -1, nullptr)
+	{
+		// Create a wxWidgets "glContext" targeting OpenGL 3.3
+		wxGLContextAttrs ctxAttrs;
+		ctxAttrs.CoreProfile().OGLVersion(3, 3).EndList();
+		m_glContext = new wxGLContext(this, NULL, &ctxAttrs);
+		SetCurrent(*m_glContext);
+
+
+		// Create all the vital parts of PGE
+		pImageLoader = std::make_unique<olc::imload::OLC_IMAGELOADER_CLASS>();
+
+		// Create the renderer
+		olc::gpu::RendererConfig cfgRenderer;
+		pRenderer = std::make_unique<olc::gpu::OLC_GPU_CLASS>();
+		pRenderer->CreateDevice({ this }, cfgRenderer);
+
+		// Load the font
+		olc::pgeguts::CreateClassicFont(this);
+
+		// wxWidgets should hide this pseudo-canvas. It was only
+		// needed to get the context
+		this->Hide();
+	}
+
+	PGE3Core::~PGE3Core()
+	{
+		delete m_glContext;
+	}
+
+	bool PGE3Core::CreateImage(olc::Image& image, const olc::vi2d& size, const ImageConfig& cfg)
+	{
+		// Create CPU Image
+		if (!image.CreateNoGPU(size, cfg))
+			return false;
+
+		// Create GPU Image
+		auto id = pRenderer->CreateTexture(image.Size(), cfg);
+		if (id == 0)
+		{
+			image.CreateNoGPU({ 0,0 });
+			return false;
+		}
+
+		// Associate CPU object with GPU Resource
+		image.SetGPUID(id);
+		return true;
+	}
+
+	bool PGE3Core::CreateImageFromFile(olc::Image& image, const std::string& sFileName, const ImageConfig& cfg)
+	{
+		if (pImageLoader->CreateImageFromFile(image, sFileName))
+		{
+			// Image has loaded ok, and populated into pixel vector
+			// 
+			// Create GPU Image
+			auto id = pRenderer->CreateTexture(image.Size(), cfg);
+			if (id == 0)
+			{
+				image.CreateNoGPU({ 0,0 });
+				return false;
+			}
+
+			// Associate CPU object with GPU Resource
+			image.SetGPUID(id);
+			return true;
+		}
+
+		return false;
+	}
+
+	bool PGE3Core::CreateImageFromMemory(olc::Image& image, const uint8_t* data, const size_t bytes, const ImageConfig& cfg)
+	{
+		if (pImageLoader->CreateImageFromMemory(image, data, bytes))
+		{
+			// Image has loaded ok, and populated into pixel vector
+			// 
+			// Create GPU Image
+			auto id = pRenderer->CreateTexture(image.Size(), cfg);
+			if (id == 0)
+			{
+				image.CreateNoGPU({ 0,0 });
+				return false;
+			}
+
+			// Associate CPU object with GPU Resource
+			image.SetGPUID(id);
+			return true;
+		}
+
+		std::cout << "Create From Memory Failed\n";
+		return false;
+	}
+
+	bool PGE3Core::WriteImageToFile(const olc::Image& image, const std::string& sFileName)
+	{
+		olc_IgnoreUnused(image, sFileName);
+		return false;
+	}
+
+	void PGE3Core::DestroyImage(olc::Image& image)
+	{
+		// If image has gpu resource, remove it
+		if (image.GetGPUID() != 0)
+		{
+			pRenderer->DeleteTexture(uint32_t(image.GetGPUID()));
+			image.SetGPUID(0);
+		}
+
+		// Free any cpu memory associated with image
+		image.CreateNoGPU({ 0,0 });
+	}
+
+	wxGLContext* PGE3Core::get() const
+	{
+		return m_glContext;
+	}
+
+	olc::gpu::Renderer* PGE3Core::GetRenderer()
+	{
+		return pRenderer.get();
+	}
+
+	olc::imload::ImageLoader* PGE3Core::GetImageLoader()
+	{
+		return pImageLoader.get();
+	}
+
+
+
+	olc::wx::PGE3Core* PGE3Panel::m_pCore = nullptr;
+
+
+
+	PGE3Panel::PGE3Panel(wxWindow* parent) : wxGLCanvas(parent, -1, nullptr)
+	{
+		if (m_pCore == nullptr)
+		{
+			// Create a static PGE3Core
+			m_pCore = new PGE3Core(this);
+		}
+
+		// Set the context via wxWidgets
+		SetCurrent(*m_pCore->get());
+
+		// Associate this instance of draw with the renderer
+		draw.SetGPU(m_pCore->GetRenderer());
+
+		// Create the default draw target
+		bFixedSize = false;
+		m_pCore->CreateImage(imgPrimary, { 256, 240 });
+		
+		ResetDrawState();
+
+		Connect(wxEVT_PAINT, wxPaintEventHandler(olc::wx::PGE3Panel::Event_OnPaint));
+		Connect(wxEVT_SIZE, wxSizeEventHandler(olc::wx::PGE3Panel::Event_OnResize));
+		Connect(wxEVT_MOTION, wxMouseEventHandler(olc::wx::PGE3Panel::Event_OnMouseMove));
+		Connect(wxEVT_MIDDLE_DOWN, wxMouseEventHandler(olc::wx::PGE3Panel::Event_OnMouseMiddleDown));
+		Connect(wxEVT_MIDDLE_UP, wxMouseEventHandler(olc::wx::PGE3Panel::Event_OnMouseMiddleUp));
+		Connect(wxEVT_MOUSEWHEEL, wxMouseEventHandler(olc::wx::PGE3Panel::Event_OnMouseWheel));
+		Connect(wxEVT_LEFT_DOWN, wxMouseEventHandler(olc::wx::PGE3Panel::Event_OnMouseLeftDown));
+		Connect(wxEVT_LEFT_UP, wxMouseEventHandler(olc::wx::PGE3Panel::Event_OnMouseLeftUp));
+		Connect(wxEVT_RIGHT_DOWN, wxMouseEventHandler(olc::wx::PGE3Panel::Event_OnMouseRightDown));
+		Connect(wxEVT_RIGHT_UP, wxMouseEventHandler(olc::wx::PGE3Panel::Event_OnMouseRightUp));
+	}
+
+	PGE3Panel::PGE3Panel(wxWindow* parent, const olc::vi2d& vFixedSize) : wxGLCanvas(parent, -1, nullptr)
+	{
+		if (m_pCore == nullptr)
+		{
+			// Create a static PGE3Core
+			m_pCore = new PGE3Core(this);
+		}
+
+		// Set the context via wxWidgets
+		SetCurrent(*m_pCore->get());
+
+		// Associate this instance of draw with the renderer
+		draw.SetGPU(m_pCore->GetRenderer());
+
+		// Create the default draw target
+		vFixedSizeImage = vFixedSize;
+		bFixedSize = true;
+		m_pCore->CreateImage(imgPrimary, vFixedSize);
+
+		ResetDrawState();
+
+		Connect(wxEVT_PAINT, wxPaintEventHandler(olc::wx::PGE3Panel::Event_OnPaint));		
+		Connect(wxEVT_MOTION, wxMouseEventHandler(olc::wx::PGE3Panel::Event_OnMouseMove));
+		Connect(wxEVT_MIDDLE_DOWN, wxMouseEventHandler(olc::wx::PGE3Panel::Event_OnMouseMiddleDown));
+		Connect(wxEVT_MIDDLE_UP, wxMouseEventHandler(olc::wx::PGE3Panel::Event_OnMouseMiddleUp));
+		Connect(wxEVT_MOUSEWHEEL, wxMouseEventHandler(olc::wx::PGE3Panel::Event_OnMouseWheel));
+		Connect(wxEVT_LEFT_DOWN, wxMouseEventHandler(olc::wx::PGE3Panel::Event_OnMouseLeftDown));
+		Connect(wxEVT_LEFT_UP, wxMouseEventHandler(olc::wx::PGE3Panel::Event_OnMouseLeftUp));
+		Connect(wxEVT_RIGHT_DOWN, wxMouseEventHandler(olc::wx::PGE3Panel::Event_OnMouseRightDown));
+		Connect(wxEVT_RIGHT_UP, wxMouseEventHandler(olc::wx::PGE3Panel::Event_OnMouseRightUp));
+	}
+
+	PGE3Panel::~PGE3Panel()
+	{
+		Disconnect(wxEVT_PAINT, wxPaintEventHandler(olc::wx::PGE3Panel::Event_OnPaint));
+		Disconnect(wxEVT_SIZE, wxSizeEventHandler(olc::wx::PGE3Panel::Event_OnResize));
+		Disconnect(wxEVT_MOTION, wxMouseEventHandler(olc::wx::PGE3Panel::Event_OnMouseMove));
+		Disconnect(wxEVT_MIDDLE_DOWN, wxMouseEventHandler(olc::wx::PGE3Panel::Event_OnMouseMiddleDown));
+		Disconnect(wxEVT_MIDDLE_UP, wxMouseEventHandler(olc::wx::PGE3Panel::Event_OnMouseMiddleUp));
+		Disconnect(wxEVT_MOUSEWHEEL, wxMouseEventHandler(olc::wx::PGE3Panel::Event_OnMouseWheel));
+		Disconnect(wxEVT_LEFT_DOWN, wxMouseEventHandler(olc::wx::PGE3Panel::Event_OnMouseLeftDown));
+		Disconnect(wxEVT_LEFT_UP, wxMouseEventHandler(olc::wx::PGE3Panel::Event_OnMouseLeftUp));
+		Disconnect(wxEVT_RIGHT_DOWN, wxMouseEventHandler(olc::wx::PGE3Panel::Event_OnMouseRightDown));
+		Disconnect(wxEVT_RIGHT_UP, wxMouseEventHandler(olc::wx::PGE3Panel::Event_OnMouseRightUp));
+	}
+
+	void PGE3Panel::ResetDrawState()
+	{
+		// Set the context via wxWidgets
+		SetCurrent(*m_pCore->get());
+		m_pCore->GetRenderer()->ApplyDefaultShader();
+		draw.SetTarget(imgPrimary);
+		draw.WorldReset();
+		draw.SetBlendMode(olc::BlendMode::Alpha);
+		draw.SetCullMode(olc::CullMode::None);
+	}
+
+	
+
+	void PGE3Panel::Event_OnPaint(wxPaintEvent& evt)
+	{
+		// Configure WX to render this window
+		wxPaintDC(this);
+
+		// Perform actual render
+		ResetDrawState();
+		OnRender();
+		draw.ProcessGPUTasks();
+
+		// Present image to screen in location of panel
+		m_pCore->GetRenderer()->AssignTextureTarget(0, 0);
+
+		olc::vf2d vViewPos = { 0,0 };
+		olc::vf2d vViewSize = { float(GetSize().x), float(GetSize().y) };
+
+		// Present final composite
+		m_pCore->GetRenderer()->SetViewport(vViewPos, vViewSize);
+		m_pCore->GetRenderer()->ClearViewport(olc::Colour::RED, true, true);
+		draw.SetBlendMode(olc::BlendMode::Alpha);
+		draw.SetCullMode(olc::CullMode::None);
+		draw.ImageRect(imgPrimary.flipV(), { 0.0,0.0 }, vViewSize);
+		draw.ProcessGPUTasks();
+
+		// Update Window's primary surface - via wxWidgets
+		SwapBuffers();
+	}
+
+	void PGE3Panel::Event_OnResize(wxSizeEvent& evt)
+	{
+		if (!bFixedSize)
+		{
+			// Resize Target Image
+			SetCurrent(*m_pCore->get());
+			m_pCore->DestroyImage(imgPrimary);
+			m_pCore->CreateImage(imgPrimary, { evt.GetSize().x, evt.GetSize().y });
+		}
+
+		Refresh(true);
+		evt.Skip(true);
+	}
+
+	olc::vf2d PGE3Panel::ScaleMouse(wxMouseEvent& evt)
+	{
+		olc::vf2d vScreenPos = olc::vf2d(float(evt.GetX()), float(evt.GetY()));
+
+		if (bFixedSize)
+			vScreenPos = vScreenPos / olc::vf2d(GetSize().x, GetSize().y) * vFixedSizeImage;
+
+		return vScreenPos;
+	}
+
+	void PGE3Panel::Event_OnMouseLeftUp(wxMouseEvent& evt)
+	{
+		OnMouseLeftUp(draw.ScreenToWorld(ScaleMouse(evt)), evt.ShiftDown(), evt.ControlDown());
+		evt.Skip();
+	}
+
+	void PGE3Panel::Event_OnMouseLeftDown(wxMouseEvent& evt)
+	{
+		OnMouseLeftDown(draw.ScreenToWorld(ScaleMouse(evt)), evt.ShiftDown(), evt.ControlDown());
+		evt.Skip();
+	}
+
+	void PGE3Panel::Event_OnMouseRightUp(wxMouseEvent& evt)
+	{
+		OnMouseRightUp(draw.ScreenToWorld(ScaleMouse(evt)), evt.ShiftDown(), evt.ControlDown());
+		evt.Skip();
+	}
+
+	void PGE3Panel::Event_OnMouseRightDown(wxMouseEvent& evt)
+	{
+		OnMouseRightDown(draw.ScreenToWorld(ScaleMouse(evt)), evt.ShiftDown(), evt.ControlDown());
+		evt.Skip();
+	}
+
+	void PGE3Panel::Event_OnMouseMiddleUp(wxMouseEvent& evt)
+	{
+		OnMouseMiddleUp(draw.ScreenToWorld(ScaleMouse(evt)), evt.ShiftDown(), evt.ControlDown());
+		evt.Skip();
+	}
+
+	void PGE3Panel::Event_OnMouseMiddleDown(wxMouseEvent& evt)
+	{
+		OnMouseMiddleDown(draw.ScreenToWorld(ScaleMouse(evt)), evt.ShiftDown(), evt.ControlDown());
+		evt.Skip();
+	}
+
+	void PGE3Panel::Event_OnMouseMove(wxMouseEvent& evt)
+	{
+		OnMouseMove(draw.ScreenToWorld(ScaleMouse(evt)), evt.ShiftDown(), evt.ControlDown());
+		evt.Skip();
+	}
+
+	void PGE3Panel::Event_OnMouseWheel(wxMouseEvent& evt)
+	{
+		evt.Skip();
+	}
+
+}
+#endif
+
 #define PGE_HOST_IMPLEMENTED 1
 #endif
 
@@ -16280,7 +16743,8 @@ void main()
 		config = cfg;
 
 
-		
+#if !defined(OLC_USE_WXWIDGETS)
+
 #if OLC_HOST == OLC_HOST_WINDOWS
 		// Create OpenGL Device Context
 		if (!PrepareWindowTarget(os_win_id))
@@ -16412,6 +16876,10 @@ void main()
 		return false;
 	}
 #endif
+
+#else // wxWidgets specific
+
+#endif // wxWidgets
 
 		// Can't load OpenGL API until context is loaded
 		auto& gl = olc::apis::opengl::gl::Get();
@@ -16823,6 +17291,14 @@ void main()
 			gl.glDeleteRenderbuffers(1, &rboId);
 			mapTextureToRenderbuffer.erase(texid);
 		}
+
+		mapTextureSizes.erase(texid);
+
+		if (nCurrentTextureSource == texid)
+			nCurrentTextureSource = 0;
+
+		if (nCurrentTextureTarget == texid)
+			nCurrentTextureTarget = 0;
 		
 		return true;
 	}
@@ -19240,7 +19716,7 @@ const ImageBatch& olc::Draw::ImageRect(olc::ImageBatch& batch, olc::ImageRegion 
 #define PGE_DRAW_IMPLEMENTED 1
 #endif
 
-#if defined(OLC_PGE3_APPLICATION) && !defined(PGE_CORE_IMPLEMENTED)
+#if defined(OLC_PGE3_APPLICATION) && !defined(PGE_CORE_IMPLEMENTED) && !defined(OLC_USE_WXWIDGETS)
 namespace olc
 {
 	PGEWindow::PGEWindow() : Window(), draw()
@@ -19894,19 +20370,13 @@ namespace olc
 #if defined(OLC_PGE3_APPLICATION) && !defined(PGE_IMAGE_IMPLEMENTED)
 namespace olc
 {
-	/*Image::Image(const olc::vi2d& size, const ImageConfig& cfg)
-	{
-	}
-
-	Image::~Image()
-	{
-	}*/
 
 	bool Image::CreateNoGPU(const olc::vi2d& size, const ImageConfig& cfg)
 	{
 		dimensions = size;
 		config = cfg;
 		pixels.resize(dimensions.area(), olc::Colour::TANGERINE);
+		BindCPU();
 		return true;
 	}
 
@@ -19969,6 +20439,11 @@ namespace olc
 		return onCPU;
 	}
 
+	olc::ImageRegion Image::all()
+	{
+		return olc::ImageRegion(*this);
+	}
+
 	olc::ImageRegion Image::region(const olc::vf2d pos, const olc::vf2d& size)
 	{
 		return region(pos, { pos.x + size.x, pos.y }, { pos.x, pos.y + size.y }, pos + size);
@@ -20012,7 +20487,11 @@ namespace olc
 {
 	namespace pgeguts
 	{
+#if defined(OLC_USE_WXWIDGETS)
+		void CreateClassicFont(olc::wx::PGE3Core* pge)
+#else
 		void CreateClassicFont(olc::PGEWindow* pge)
+#endif
 		{
 			std::string data = 
 				"?Q`0001oOch0o01o@F40o0<AGD4090LAGD<090@A7ch0?00O7Q`0600>00000000"
@@ -20472,7 +20951,7 @@ namespace olc::hw
 #define PGE_HW_TOUCH_IMPLEMENTED 1
 #endif
 
-#if defined(OLC_PGE3_APPLICATION) && !defined(PGE_WINDOW_IMPLEMENTED)
+#if defined(OLC_PGE3_APPLICATION) && !defined(PGE_WINDOW_IMPLEMENTED) && !defined(OLC_USE_WXWIDGETS)
 namespace olc
 {
 	Window::Window()

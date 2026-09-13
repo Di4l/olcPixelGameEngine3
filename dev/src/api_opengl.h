@@ -86,6 +86,11 @@
     #define OGL_LOAD(t) reinterpret_cast<t##_t*>(eglGetProcAddress(#t))
 #endif
 
+#if OLC_HOST == OLC_HOST_WXWIDGETS
+
+
+#endif
+
 #if !defined(CALLSTYLE)
 	#define CALLSTYLE
 #endif

@@ -49,6 +49,18 @@
     <Filter Include="Extras">
       <UniqueIdentifier>{76f094ac-5176-4402-9395-6187374c5d64}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Hosts\wxWidgets Specific">
+      <UniqueIdentifier>{eb0bb606-e8b0-419b-b621-b61633c50add}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Extensions">
+      <UniqueIdentifier>{12be6a62-5486-49fa-be63-b305888e2aca}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Extensions\MiniAudio">
+      <UniqueIdentifier>{6b6f0117-0e7e-4dc8-ad83-96525e679ff3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Extensions\SplashScreen">
+      <UniqueIdentifier>{799e6b1b-18e3-48e9-9181-a7e139ebd5da}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\pixel.h">
@@ -144,9 +156,6 @@
     <ClInclude Include="..\src\matrix4d.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\host_iface.h">
-      <Filter>Hosts</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\gpu_iface.h">
       <Filter>GPUs</Filter>
     </ClInclude>
@@ -171,14 +180,23 @@
     <ClInclude Include="..\src\hw_touch.h">
       <Filter>Hardware</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\imload_iface.h">
-      <Filter>Hosts</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\extension.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\utilities\olcUTIL3_QuadTree.h">
       <Filter>Utilities</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\imload_iface.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\host_iface.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\imload_stb_image.h">
+      <Filter>Hosts</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\host_wxwidgets.h">
+      <Filter>Hosts\wxWidgets Specific</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -257,6 +275,9 @@
     <ClCompile Include="..\src\hw_touch.cpp">
       <Filter>Hardware</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\host_wxwidgets.cpp">
+      <Filter>Hosts\wxWidgets Specific</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\README.md">
@@ -264,6 +285,18 @@
     </None>
     <None Include="..\..\LICENCE.md">
       <Filter>Extras</Filter>
+    </None>
+    <None Include="..\..\extensions\README.md">
+      <Filter>Extensions</Filter>
+    </None>
+    <None Include="..\..\extensions\miniaudio\README.md">
+      <Filter>Extensions\MiniAudio</Filter>
+    </None>
+    <None Include="..\..\extensions\splashscreen\README.md">
+      <Filter>Extensions\SplashScreen</Filter>
+    </None>
+    <None Include="..\..\utilities\README.md">
+      <Filter>Utilities</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>

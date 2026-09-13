@@ -85,3 +85,5 @@ examples/xdg-shell.o
 # stb image headerss
 stb_image_write.h
 stb_image.h
+/dev/msvc/olcPGE3_wxWidgets/olcPGE3_wxWidgets/x64/Debug
+/dev/msvc/olcPGE3_wxWidgets/x64/Debug
