@@ -93,6 +93,11 @@
 
 	"You know you don't have to use AI if you like coding right?" - javidx9
 
+	Identified Uses of AI
+	~~~~~~~~~~~~~~~~~~~~~
+	1) NxN Matrix Inversion - After 4 attempts at getting the sequencing right following
+	the wikipedia articles (VS Copilot)
+
 	Primary Contributors
 	~~~~~~~~~~~~~~~~~~~~
 	@javidx9 (aka David Barr, OneLoneCoder)

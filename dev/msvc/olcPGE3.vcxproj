@@ -365,8 +365,12 @@
     <Text Include="..\..\CMakeLists.txt" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="..\..\extensions\miniaudio\README.md" />
+    <None Include="..\..\extensions\README.md" />
+    <None Include="..\..\extensions\splashscreen\README.md" />
     <None Include="..\..\LICENCE.md" />
     <None Include="..\..\README.md" />
+    <None Include="..\..\utilities\README.md" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
