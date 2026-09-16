@@ -2155,7 +2155,7 @@ namespace olc
 		template<typename Q>
 		inline constexpr void rotate(const Q& v, const olc::v_2d<T>& p = { 0,0 })
 		{
-			m_stackForward.push(m_stackForward.top() * (olc::m_3d<T>::translation(-p) * olc::m_3d<T>::rotation(v) * olc::m_3d<T>::translation(p)));
+			m_stackForward.push(m_stackForward.top() * (olc::m_3d<T>::translation(p) * olc::m_3d<T>::rotation(v) * olc::m_3d<T>::translation(-p)));
 			m_stackInverse.push(m_stackForward.top().invert());
 		}
 
@@ -2845,11 +2845,33 @@ namespace olc
 		// Read a pixel from an image (guarantees fresh)
 		olc::Pixel GetPixel(
 			olc::Image& image, 
-			const olc::vf2d& pos);
+			const olc::vf2d& pos,
+			const olc::Pixel failcol = olc::Colour::BLACK);
 
 		// Read a pixel from target image (guarantees fresh)
 		olc::Pixel GetPixel(			
-			const olc::vf2d& pos);
+			const olc::vf2d& pos,
+			const olc::Pixel failcol = olc::Colour::BLACK);
+
+		// Read an untransformed pixel from an image (guarantees fresh)
+		olc::Pixel GetRawPixel(
+			olc::Image& image,
+			const olc::vi2d& pos,
+			const olc::Pixel failcol = olc::Colour::BLACK);
+
+		// Read an untransformed pixel from target image (guarantees fresh)
+		olc::Pixel GetRawPixel(
+			const olc::vi2d& pos,
+			const olc::Pixel failcol = olc::Colour::BLACK);
+
+		// Read an untransformed pixel from a target image with no bounds checking (gurantees fresh)
+		olc::Pixel GetUnsafeRawPixel(
+			olc::Image& image,
+			const olc::vi2d& pos);
+
+		// Read an untransformed pixel from target image with no bounds checking (gurantees fresh)
+		olc::Pixel GetUnsafeRawPixel(
+			const olc::vi2d& pos);
 
 		// Clear entire draw target to specific colour
 		void Clear(const olc::Pixel& col);
@@ -18132,16 +18154,48 @@ void Draw::Pixel(const olc::vf2d& pos, const olc::Pixel col, const olc::Pixel ti
 	// otherwise do nothing
 }
 
-olc::Pixel olc::Draw::GetPixel(olc::Image& image, const olc::vf2d& pos)
+olc::Pixel olc::Draw::GetPixel(olc::Image& image, const olc::vf2d& pos,	const olc::Pixel failcol)
+{
+	olc::vf2d tpos = transformAffine.forwardRound(pos);
+	if (tpos.x >= 0 && tpos.y >= 0 && tpos.x < float(image.Size().x) && tpos.y < float(image.Size().y))
+	{
+		PrepareImageForSW(image);
+		return image.Pixel(tpos);
+	}
+	else
+		return failcol;
+}
+
+olc::Pixel olc::Draw::GetPixel(const olc::vf2d& pos, const olc::Pixel failcol)
+{	
+	return GetPixel(GetTarget(), pos, failcol);
+}
+
+olc::Pixel olc::Draw::GetRawPixel(olc::Image& image, const olc::vi2d& pos, const olc::Pixel failcol)
+{
+	if (pos.x >= 0 && pos.y >= 0 && pos.x < float(image.Size().x) && pos.y < float(image.Size().y))
+	{
+		PrepareImageForSW(image);
+		return image.Pixel(pos);
+	}
+	else
+		return failcol;
+}
+
+olc::Pixel olc::Draw::GetRawPixel(const olc::vi2d& pos, const olc::Pixel failcol)
+{
+	return GetRawPixel(GetTarget(), pos, failcol);
+}
+
+olc::Pixel olc::Draw::GetUnsafeRawPixel(olc::Image& image, const olc::vi2d& pos)
 {
 	PrepareImageForSW(image);
 	return image.Pixel(pos);
 }
 
-olc::Pixel olc::Draw::GetPixel(const olc::vf2d& pos)
+olc::Pixel olc::Draw::GetUnsafeRawPixel(const olc::vi2d& pos)
 {
-	PrepareImageForSW(GetTarget());
-	return GetTarget().Pixel(pos);
+	return GetUnsafeRawPixel(GetTarget(), pos);
 }
 
 void olc::Draw::Clear(const olc::Pixel& col)

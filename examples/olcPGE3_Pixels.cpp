@@ -37,6 +37,9 @@ public:
 		// Clear screen to dark blue
 		draw.Clear(olc::Colour::VERY_DARK_BLUE);
 
+		if (keyboard.GetKey(olc::Key::SPACE).bHeld)
+			draw.WorldRotate(TotalTimeElapsed() * 0.1f, { 128, 120 });
+
 		// Draw random pixels in a box
 		for (int y = 10; y < 108; y++)
 		{
@@ -88,6 +91,7 @@ public:
 				draw.Pixel(olc::vf2d(x, y) + olc::vf2d{120, 120}, p);
 			}
 		}
+
 
 		// Successful frame
 		return true;
