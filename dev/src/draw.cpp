@@ -242,16 +242,48 @@ void Draw::Pixel(const olc::vf2d& pos, const olc::Pixel col, const olc::Pixel ti
 	// otherwise do nothing
 }
 
-olc::Pixel olc::Draw::GetPixel(olc::Image& image, const olc::vf2d& pos)
+olc::Pixel olc::Draw::GetPixel(olc::Image& image, const olc::vf2d& pos,	const olc::Pixel failcol)
+{
+	olc::vf2d tpos = transformAffine.forwardRound(pos);
+	if (tpos.x >= 0 && tpos.y >= 0 && tpos.x < float(image.Size().x) && tpos.y < float(image.Size().y))
+	{
+		PrepareImageForSW(image);
+		return image.Pixel(tpos);
+	}
+	else
+		return failcol;
+}
+
+olc::Pixel olc::Draw::GetPixel(const olc::vf2d& pos, const olc::Pixel failcol)
+{	
+	return GetPixel(GetTarget(), pos, failcol);
+}
+
+olc::Pixel olc::Draw::GetRawPixel(olc::Image& image, const olc::vi2d& pos, const olc::Pixel failcol)
+{
+	if (pos.x >= 0 && pos.y >= 0 && pos.x < float(image.Size().x) && pos.y < float(image.Size().y))
+	{
+		PrepareImageForSW(image);
+		return image.Pixel(pos);
+	}
+	else
+		return failcol;
+}
+
+olc::Pixel olc::Draw::GetRawPixel(const olc::vi2d& pos, const olc::Pixel failcol)
+{
+	return GetRawPixel(GetTarget(), pos, failcol);
+}
+
+olc::Pixel olc::Draw::GetUnsafeRawPixel(olc::Image& image, const olc::vi2d& pos)
 {
 	PrepareImageForSW(image);
 	return image.Pixel(pos);
 }
 
-olc::Pixel olc::Draw::GetPixel(const olc::vf2d& pos)
+olc::Pixel olc::Draw::GetUnsafeRawPixel(const olc::vi2d& pos)
 {
-	PrepareImageForSW(GetTarget());
-	return GetTarget().Pixel(pos);
+	return GetUnsafeRawPixel(GetTarget(), pos);
 }
 
 void olc::Draw::Clear(const olc::Pixel& col)

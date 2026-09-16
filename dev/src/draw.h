@@ -236,11 +236,33 @@ namespace olc
 		// Read a pixel from an image (guarantees fresh)
 		olc::Pixel GetPixel(
 			olc::Image& image, 
-			const olc::vf2d& pos);
+			const olc::vf2d& pos,
+			const olc::Pixel failcol = olc::Colour::BLACK);
 
 		// Read a pixel from target image (guarantees fresh)
 		olc::Pixel GetPixel(			
-			const olc::vf2d& pos);
+			const olc::vf2d& pos,
+			const olc::Pixel failcol = olc::Colour::BLACK);
+
+		// Read an untransformed pixel from an image (guarantees fresh)
+		olc::Pixel GetRawPixel(
+			olc::Image& image,
+			const olc::vi2d& pos,
+			const olc::Pixel failcol = olc::Colour::BLACK);
+
+		// Read an untransformed pixel from target image (guarantees fresh)
+		olc::Pixel GetRawPixel(
+			const olc::vi2d& pos,
+			const olc::Pixel failcol = olc::Colour::BLACK);
+
+		// Read an untransformed pixel from a target image with no bounds checking (gurantees fresh)
+		olc::Pixel GetUnsafeRawPixel(
+			olc::Image& image,
+			const olc::vi2d& pos);
+
+		// Read an untransformed pixel from target image with no bounds checking (gurantees fresh)
+		olc::Pixel GetUnsafeRawPixel(
+			const olc::vi2d& pos);
 
 		// Clear entire draw target to specific colour
 		void Clear(const olc::Pixel& col);
