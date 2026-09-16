@@ -178,7 +178,7 @@ namespace olc
 		template<typename Q>
 		inline constexpr void rotate(const Q& v, const olc::v_2d<T>& p = { 0,0 })
 		{
-			m_stackForward.push(m_stackForward.top() * (olc::m_3d<T>::translation(-p) * olc::m_3d<T>::rotation(v) * olc::m_3d<T>::translation(p)));
+			m_stackForward.push(m_stackForward.top() * (olc::m_3d<T>::translation(p) * olc::m_3d<T>::rotation(v) * olc::m_3d<T>::translation(-p)));
 			m_stackInverse.push(m_stackForward.top().invert());
 		}
 
