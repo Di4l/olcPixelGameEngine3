@@ -138,13 +138,13 @@ cd examples
 ### Using GCC
 
 ```bash
-g++ -ggdb olcPGE3_ImageQuads.cpp -o olcPGE3_ImageQuads -std=c++20 -lpng -lGL -lX11 -lpthread
+g++ -ggdb olcPGE3_ImageQuads.cpp -o olcPGE3_ImageQuads -std=c++20 -lpng -lGL -lX11 -lpthread -lXi
 ```
 
 ### Using Clang
 
 ```bash
-clang++ -ggdb olcPGE3_ImageQuads.cpp -o olcPGE3_ImageQuads -std=c++20 -lpng -lGL -lX11 -lpthread
+clang++ -ggdb olcPGE3_ImageQuads.cpp -o olcPGE3_ImageQuads -std=c++20 -lpng -lGL -lX11 -lpthread -lXi
 ```
 
 ### Using Emscripten
